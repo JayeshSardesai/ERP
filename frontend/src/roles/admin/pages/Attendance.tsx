@@ -3,6 +3,7 @@ import { Calendar, Search, Save, Users, Clock, Check, X, Minus } from 'lucide-re
 import { schoolUserAPI } from '../../../api/schoolUsers';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
+import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 
 interface Student {
   _id: string;
@@ -28,10 +29,21 @@ interface AttendanceRecord {
 const Attendance: React.FC = () => {
   const { user } = useAuth();
 
+  // Use the useSchoolClasses hook to fetch classes configured by superadmin
+  const {
+    classesData,
+    loading: classesLoading,
+    error: classesError,
+    getClassOptions,
+    getSectionsByClass,
+    hasClasses
+  } = useSchoolClasses();
+
   // State management
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
+  const [availableSections, setAvailableSections] = useState<any[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,9 +51,25 @@ const Attendance: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSession, setActiveSession] = useState<'morning' | 'afternoon'>('morning');
 
-  // Available classes and sections
-  const classes = ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-  const sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'];
+  // Get class list from superadmin configuration
+  const classList = classesData?.classes?.map(c => c.className) || [];
+
+  // Update available sections when class changes
+  useEffect(() => {
+    if (selectedClass && classesData) {
+      const sections = getSectionsByClass(selectedClass);
+      setAvailableSections(sections);
+      // Auto-select first section if available
+      if (sections.length > 0) {
+        setSelectedSection(sections[0].value);
+      } else {
+        setSelectedSection('');
+      }
+    } else {
+      setAvailableSections([]);
+      setSelectedSection('');
+    }
+  }, [selectedClass, classesData]);
 
   // Fetch students when class and section are selected
   useEffect(() => {
@@ -292,12 +320,16 @@ const Attendance: React.FC = () => {
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={classesLoading || !hasClasses()}
             >
-              <option value="">Select Class</option>
-              {classes.map(cls => (
-                <option key={cls} value={cls}>{cls}</option>
+              <option value="">{classesLoading ? 'Loading...' : 'Select Class'}</option>
+              {classList.map(cls => (
+                <option key={cls} value={cls}>Class {cls}</option>
               ))}
             </select>
+            {!classesLoading && !hasClasses() && (
+              <span className="text-xs text-red-500 mt-1">No classes configured</span>
+            )}
           </div>
 
           <div>
@@ -306,11 +338,11 @@ const Attendance: React.FC = () => {
               value={selectedSection}
               onChange={(e) => setSelectedSection(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={!selectedClass}
+              disabled={!selectedClass || availableSections.length === 0}
             >
-              <option value="">Select Section</option>
-              {sections.map(section => (
-                <option key={section} value={section}>Section {section}</option>
+              <option value="">{!selectedClass ? 'Select Class First' : 'Select Section'}</option>
+              {availableSections.map(section => (
+                <option key={section.value} value={section.value}>Section {section.section}</option>
               ))}
             </select>
           </div>
@@ -321,8 +353,8 @@ const Attendance: React.FC = () => {
               <button
                 onClick={() => setActiveSession('morning')}
                 className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${activeSession === 'morning'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
                   }`}
               >
                 Morning
@@ -330,8 +362,8 @@ const Attendance: React.FC = () => {
               <button
                 onClick={() => setActiveSession('afternoon')}
                 className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${activeSession === 'afternoon'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
                   }`}
               >
                 Afternoon
@@ -452,8 +484,8 @@ const Attendance: React.FC = () => {
                           <button
                             onClick={() => updateAttendanceStatus(record.studentId, activeSession, 'present')}
                             className={`p-1 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'present'
-                                ? 'bg-green-100 text-green-600'
-                                : 'bg-gray-100 text-gray-400 hover:bg-green-100 hover:text-green-600'
+                              ? 'bg-green-100 text-green-600'
+                              : 'bg-gray-100 text-gray-400 hover:bg-green-100 hover:text-green-600'
                               }`}
                             title="Present"
                           >
@@ -462,8 +494,8 @@ const Attendance: React.FC = () => {
                           <button
                             onClick={() => updateAttendanceStatus(record.studentId, activeSession, 'half-day')}
                             className={`p-1 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'half-day'
-                                ? 'bg-yellow-100 text-yellow-600'
-                                : 'bg-gray-100 text-gray-400 hover:bg-yellow-100 hover:text-yellow-600'
+                              ? 'bg-yellow-100 text-yellow-600'
+                              : 'bg-gray-100 text-gray-400 hover:bg-yellow-100 hover:text-yellow-600'
                               }`}
                             title="Half Day"
                           >
@@ -472,8 +504,8 @@ const Attendance: React.FC = () => {
                           <button
                             onClick={() => updateAttendanceStatus(record.studentId, activeSession, 'absent')}
                             className={`p-1 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'absent'
-                                ? 'bg-red-100 text-red-600'
-                                : 'bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-600'
+                              ? 'bg-red-100 text-red-600'
+                              : 'bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-600'
                               }`}
                             title="Absent"
                           >

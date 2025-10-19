@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as attendanceAPI from '../../../api/attendance';
 import { schoolUserAPI } from '../../../api/schoolUsers';
 import { useAuth } from '../../../auth/AuthContext';
+import { useSchoolClasses } from '../../../hooks/useSchoolClasses'; // Import the hook
 import { Save, Calendar, Users, UserCheck, UserX, Search, Clock, Sun, Moon, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 interface Student {
@@ -17,9 +18,20 @@ interface Student {
 const MarkAttendance: React.FC = () => {
   const { token, user } = useAuth();
 
+  // Use the useSchoolClasses hook to fetch classes configured by superadmin
+  const {
+    classesData,
+    loading: classesLoading,
+    error: classesError,
+    getClassOptions,
+    getSectionsByClass,
+    hasClasses
+  } = useSchoolClasses();
+
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
+  const [availableSections, setAvailableSections] = useState<any[]>([]);
   const [session, setSession] = useState<'morning' | 'afternoon'>('morning');
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
@@ -37,23 +49,37 @@ const MarkAttendance: React.FC = () => {
     afternoon: { isMarked: false, isFrozen: false, canModify: true }
   });
 
-  // Available classes and sections (hardcoded for reliability)
-  const classes = ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-  const sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'];
+  // Get class list from superadmin configuration instead of hardcoding
+  const classList = classesData?.classes?.map(c => c.className) || [];
 
-  // Helper function to get display name for class
-  const getClassDisplayName = (cls: string) => {
-    if (cls === 'LKG' || cls === 'UKG') return cls;
-    return `Class ${cls}`;
-  };
+  // Update available sections when class changes
+  useEffect(() => {
+    if (selectedClass && classesData) {
+      const sections = getSectionsByClass(selectedClass);
+      setAvailableSections(sections);
+      // Auto-select first section if available
+      if (sections.length > 0) {
+        setSelectedSection(sections[0].value);
+      } else {
+        setSelectedSection('');
+      }
+    } else {
+      setAvailableSections([]);
+      setSelectedSection('');
+    }
+  }, [selectedClass, classesData]);
 
   useEffect(() => {
-    fetchStudents();
+    if (selectedClass && selectedSection) {
+      fetchStudents();
+    }
   }, [selectedClass, selectedSection]);
 
   useEffect(() => {
-    loadExistingAttendance();
-    checkSessionStatus();
+    if (selectedClass && selectedSection && selectedDate) {
+      loadExistingAttendance();
+      checkSessionStatus();
+    }
   }, [selectedClass, selectedSection, selectedDate, session]);
 
   useEffect(() => {
@@ -222,6 +248,16 @@ const MarkAttendance: React.FC = () => {
     setSelectedClass(e.target.value);
     setSelectedSection(''); // Reset section when class changes
     setStudents([]);
+  };
+
+  const handleSectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedSection(e.target.value);
+  };
+
+  // Helper function to get display name for class
+  const getClassDisplayName = (cls: string) => {
+    if (cls === 'LKG' || cls === 'UKG') return cls;
+    return `Class ${cls}`;
   };
 
   const updateStudentStatus = (studentId: string, status: 'present' | 'absent' | 'half-day') => {
@@ -404,25 +440,29 @@ const MarkAttendance: React.FC = () => {
               value={selectedClass}
               onChange={handleClassChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={classesLoading || !hasClasses()}
             >
-              <option value="">Select Class</option>
-              {classes.map((cls) => (
+              <option value="">{classesLoading ? 'Loading...' : 'Select Class'}</option>
+              {classList.map((cls) => (
                 <option key={cls} value={cls}>{getClassDisplayName(cls)}</option>
               ))}
             </select>
+            {!classesLoading && !hasClasses() && (
+              <span className="text-xs text-red-500 mt-1">No classes configured</span>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
             <select
               value={selectedSection}
-              onChange={(e) => setSelectedSection(e.target.value)}
-              disabled={!selectedClass}
+              onChange={handleSectionChange}
+              disabled={!selectedClass || availableSections.length === 0}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
             >
-              <option value="">Select Section</option>
-              {sections.map((section) => (
-                <option key={section} value={section}>Section {section}</option>
+              <option value="">{!selectedClass ? 'Select Class First' : 'Select Section'}</option>
+              {availableSections.map((section) => (
+                <option key={section.value} value={section.value}>Section {section.section}</option>
               ))}
             </select>
           </div>

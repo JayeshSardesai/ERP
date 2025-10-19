@@ -264,6 +264,7 @@ const Dashboard: React.FC = () => {
 
     fetchSchoolAndUsers();
   }, [user]);
+  console.log(user);
 
   // Calculate stats from actual user data
   const totalStudents = users.filter(user => user.role === 'student').length;
@@ -735,7 +736,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Quick Actions */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          {/* <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Link to="/admin/users" className="flex items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
@@ -751,7 +752,7 @@ const Dashboard: React.FC = () => {
                 <span className="text-sm font-medium text-yellow-700">Assignments</span>
               </Link>
             </div>
-          </div>
+          </div> */}
         </>
       )}
     </div>
