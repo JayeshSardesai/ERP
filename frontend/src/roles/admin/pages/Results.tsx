@@ -18,7 +18,7 @@ interface StudentResult {
 
 const Results: React.FC = () => {
   const { user, token } = useAuth();
-  
+
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [selectedTestType, setSelectedTestType] = useState('');
@@ -35,7 +35,7 @@ const Results: React.FC = () => {
   const [testTypes, setTestTypes] = useState<string[]>([]);
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
   const [loadingTestTypes, setLoadingTestTypes] = useState(false);
-  
+
   // State for existing results
   const [existingResults, setExistingResults] = useState<any[]>([]);
   const [loadingExistingResults, setLoadingExistingResults] = useState(false);
@@ -55,19 +55,19 @@ const Results: React.FC = () => {
     try {
       // Get the school code from localStorage or auth context
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      
+
       if (!schoolCode) {
         toast.error('School code not available');
         return;
       }
 
       console.log('Fetching test types for school code:', schoolCode, 'class:', className);
-      
+
       const response = await testDetailsAPI.getTestDetailsBySchoolCode();
-      
+
       if (response.success && response.data?.classTestTypes) {
         const classTestTypes = response.data.classTestTypes;
-        
+
         // Get test types for the selected class
         const classData = classTestTypes[className];
         if (classData && Array.isArray(classData)) {
@@ -80,7 +80,7 @@ const Results: React.FC = () => {
           setTestTypes([]);
           console.log('No test types found for class:', className);
         }
-        
+
         // Also update available classes
         const classNames = Object.keys(classTestTypes);
         setAvailableClasses(classNames);
@@ -114,7 +114,7 @@ const Results: React.FC = () => {
 
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      
+
       if (!schoolCode) {
         toast.error('School code not available');
         return;
@@ -140,21 +140,21 @@ const Results: React.FC = () => {
 
         setStudentResults(students);
         setShowResultsTable(true);
-        
+
         // Initialize saved states
         const initialSavedState: { [key: string]: boolean } = {};
         students.forEach((student: StudentResult) => {
           initialSavedState[student.id] = false;
         });
         setSavedRows(initialSavedState);
-        
+
         toast.success(`Found ${students.length} students in ${selectedClass}-${selectedSection}`);
       } else {
         setError('No students found for the selected class and section');
         setStudentResults([]);
         setShowResultsTable(false);
       }
-      
+
     } catch (err: any) {
       console.error('Error fetching students:', err);
       setError('Failed to load students. Please try again.');
@@ -175,7 +175,7 @@ const Results: React.FC = () => {
     setLoadingExistingResults(true);
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      
+
       if (!schoolCode) {
         toast.error('School code not available');
         return;
@@ -225,14 +225,14 @@ const Results: React.FC = () => {
     setStudentResults([studentResult]);
     setShowResultsTable(true);
     setShowExistingResults(false);
-    
+
     // Set the form values
     setSelectedTestType(result.testType);
     setMaxMarks(result.totalMarks);
-    
+
     // Enable edit mode
     setEditingAll(true);
-    
+
     toast.success('Loaded existing result for editing');
   };
 
@@ -253,7 +253,7 @@ const Results: React.FC = () => {
       toast.error('Please enter valid max marks');
       return;
     }
-    
+
     fetchStudents();
   };
 
@@ -270,14 +270,14 @@ const Results: React.FC = () => {
   const handleSaveAll = async () => {
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      
+
       if (!schoolCode) {
         toast.error('School code not available');
         return;
       }
 
       // Filter out students with no obtained marks
-      const validResults = studentResults.filter(student => 
+      const validResults = studentResults.filter(student =>
         student.obtainedMarks !== null && student.obtainedMarks !== undefined
       );
 
@@ -305,12 +305,12 @@ const Results: React.FC = () => {
       };
 
       console.log('Saving results:', resultsData);
-      
+
       const response = await resultsAPI.saveResults(resultsData);
-      
+
       if (response.data.success) {
         toast.success(`Successfully saved results for ${validResults.length} students`);
-        
+
         // Mark all rows as saved
         const allSavedState: { [key: string]: boolean } = {};
         studentResults.forEach(student => {
@@ -321,7 +321,7 @@ const Results: React.FC = () => {
       } else {
         toast.error(response.data.message || 'Failed to save results');
       }
-      
+
     } catch (error: any) {
       console.error('Error saving results:', error);
       toast.error('Failed to save results. Please try again.');
@@ -329,23 +329,23 @@ const Results: React.FC = () => {
   };
 
   const updateStudentResult = (studentId: string, field: keyof StudentResult, value: any) => {
-    setStudentResults(prev => 
-      prev.map(student => 
-        student.id === studentId 
+    setStudentResults(prev =>
+      prev.map(student =>
+        student.id === studentId
           ? { ...student, [field]: value }
           : student
       )
     );
-    
+
     // Mark this row as unsaved
     setSavedRows(prev => ({ ...prev, [studentId]: false }));
   };
 
   const calculateGrade = (obtained: number | null, total: number | null): string => {
     if (!obtained || !total || total === 0) return 'N/A';
-    
+
     const percentage = (obtained / total) * 100;
-    
+
     if (percentage >= 90) return 'A+';
     if (percentage >= 80) return 'A';
     if (percentage >= 70) return 'B';
@@ -356,7 +356,7 @@ const Results: React.FC = () => {
 
   // Auto-calculate grade when marks change
   useEffect(() => {
-    setStudentResults(prev => 
+    setStudentResults(prev =>
       prev.map(student => ({
         ...student,
         grade: calculateGrade(student.obtainedMarks, student.totalMarks)
@@ -457,10 +457,10 @@ const Results: React.FC = () => {
               disabled={!selectedClass || loadingTestTypes}
             >
               <option value="">
-                {!selectedClass 
-                  ? 'Select Class First' 
-                  : loadingTestTypes 
-                    ? 'Loading...' 
+                {!selectedClass
+                  ? 'Select Class First'
+                  : loadingTestTypes
+                    ? 'Loading...'
                     : 'Select Test'}
               </option>
               {testTypes.map((type, index) => (
@@ -595,15 +595,14 @@ const Results: React.FC = () => {
                       {result.totalMarks}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        result.grade === 'A+' ? 'bg-green-100 text-green-800' :
-                        result.grade === 'A' ? 'bg-blue-100 text-blue-800' :
-                        result.grade === 'B' ? 'bg-yellow-100 text-yellow-800' :
-                        result.grade === 'C' ? 'bg-orange-100 text-orange-800' :
-                        result.grade === 'D' ? 'bg-red-100 text-red-800' :
-                        result.grade === 'F' ? 'bg-red-200 text-red-900' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${result.grade === 'A+' ? 'bg-green-100 text-green-800' :
+                          result.grade === 'A' ? 'bg-blue-100 text-blue-800' :
+                            result.grade === 'B' ? 'bg-yellow-100 text-yellow-800' :
+                              result.grade === 'C' ? 'bg-orange-100 text-orange-800' :
+                                result.grade === 'D' ? 'bg-red-100 text-red-800' :
+                                  result.grade === 'F' ? 'bg-red-200 text-red-900' :
+                                    'bg-gray-100 text-gray-800'
+                        }`}>
                         {result.grade}
                       </span>
                     </td>
@@ -689,15 +688,14 @@ const Results: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        student.grade === 'A+' ? 'bg-green-100 text-green-800' :
-                        student.grade === 'A' ? 'bg-blue-100 text-blue-800' :
-                        student.grade === 'B' ? 'bg-yellow-100 text-yellow-800' :
-                        student.grade === 'C' ? 'bg-orange-100 text-orange-800' :
-                        student.grade === 'D' ? 'bg-red-100 text-red-800' :
-                        student.grade === 'F' ? 'bg-red-200 text-red-900' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${student.grade === 'A+' ? 'bg-green-100 text-green-800' :
+                          student.grade === 'A' ? 'bg-blue-100 text-blue-800' :
+                            student.grade === 'B' ? 'bg-yellow-100 text-yellow-800' :
+                              student.grade === 'C' ? 'bg-orange-100 text-orange-800' :
+                                student.grade === 'D' ? 'bg-red-100 text-red-800' :
+                                  student.grade === 'F' ? 'bg-red-200 text-red-900' :
+                                    'bg-gray-100 text-gray-800'
+                        }`}>
                         {student.grade || 'N/A'}
                       </span>
                     </td>

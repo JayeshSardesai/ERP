@@ -16,7 +16,7 @@ interface Student {
 
 const MarkAttendance: React.FC = () => {
   const { token, user } = useAuth();
-  
+
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
@@ -27,7 +27,7 @@ const MarkAttendance: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  
+
   // Session status tracking
   const [sessionStatus, setSessionStatus] = useState<{
     morning: { isMarked: boolean; isFrozen: boolean; canModify: boolean; data?: any };
@@ -120,7 +120,7 @@ const MarkAttendance: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      
+
       // Make direct API call with proper headers
       const response = await fetch('http://localhost:5050/api/users/role/student', {
         headers: {
@@ -136,13 +136,13 @@ const MarkAttendance: React.FC = () => {
 
       const data = await response.json();
       const users = data.data || data || [];
-      
-      const filtered = users.filter((u: any) => 
-        u.role === 'student' && 
-        u.academicInfo?.class === selectedClass && 
+
+      const filtered = users.filter((u: any) =>
+        u.role === 'student' &&
+        u.academicInfo?.class === selectedClass &&
         u.academicInfo?.section === selectedSection
       );
-      
+
       const studentsWithAttendance = filtered.map((u: any) => ({
         _id: u._id,
         userId: u.userId,
@@ -152,7 +152,7 @@ const MarkAttendance: React.FC = () => {
         morningStatus: null,
         afternoonStatus: null
       }));
-      
+
       setStudents(studentsWithAttendance);
     } catch (err) {
       setError('Failed to fetch students');
@@ -201,7 +201,7 @@ const MarkAttendance: React.FC = () => {
             const existingRecord = sessionDoc.students.find(
               (record: any) => record.studentId === student.userId
             );
-            
+
             if (existingRecord) {
               return {
                 ...student,
@@ -225,29 +225,29 @@ const MarkAttendance: React.FC = () => {
   };
 
   const updateStudentStatus = (studentId: string, status: 'present' | 'absent' | 'half-day') => {
-    setStudents(prev => prev.map(student => 
-      student._id === studentId 
-        ? { 
-            ...student, 
-            [session === 'morning' ? 'morningStatus' : 'afternoonStatus']: status 
-          } 
+    setStudents(prev => prev.map(student =>
+      student._id === studentId
+        ? {
+          ...student,
+          [session === 'morning' ? 'morningStatus' : 'afternoonStatus']: status
+        }
         : student
     ));
   };
 
   const markAllPresent = () => {
     const statusField = session === 'morning' ? 'morningStatus' : 'afternoonStatus';
-    setStudents(prev => prev.map(student => ({ 
-      ...student, 
-      [statusField]: 'present' as const 
+    setStudents(prev => prev.map(student => ({
+      ...student,
+      [statusField]: 'present' as const
     })));
   };
 
   const markAllAbsent = () => {
     const statusField = session === 'morning' ? 'morningStatus' : 'afternoonStatus';
-    setStudents(prev => prev.map(student => ({ 
-      ...student, 
-      [statusField]: 'absent' as const 
+    setStudents(prev => prev.map(student => ({
+      ...student,
+      [statusField]: 'absent' as const
     })));
   };
 
@@ -261,7 +261,7 @@ const MarkAttendance: React.FC = () => {
     const absent = filteredStudents.filter(s => s[statusField] === 'absent').length;
     const halfDay = filteredStudents.filter(s => s[statusField] === 'half-day').length;
     const unmarked = filteredStudents.filter(s => s[statusField] === null).length;
-    
+
     return { present, absent, halfDay, unmarked, total: filteredStudents.length };
   };
 
@@ -272,7 +272,7 @@ const MarkAttendance: React.FC = () => {
       setLoading(true);
       setError('');
       setSuccessMessage('');
-      
+
       // Check if current session is frozen
       const currentSessionStatus = sessionStatus[session];
       if (currentSessionStatus.isFrozen) {
@@ -280,7 +280,7 @@ const MarkAttendance: React.FC = () => {
         setLoading(false);
         return;
       }
-      
+
       // Filter students with marked attendance
       const studentsWithAttendance = students
         .map(s => ({
@@ -306,13 +306,13 @@ const MarkAttendance: React.FC = () => {
       console.log('Saving attendance data:', attendanceData);
 
       const response = await attendanceAPI.markSessionAttendance(attendanceData);
-      
+
       if (response.success) {
         setSuccessMessage(
           `${session.charAt(0).toUpperCase() + session.slice(1)} attendance saved successfully! ` +
           `${response.data.successCount} students processed.`
         );
-        
+
         // Clear success message after 5 seconds
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
@@ -321,8 +321,8 @@ const MarkAttendance: React.FC = () => {
     } catch (err: any) {
       console.error('Error saving attendance:', err);
       setError(
-        err.response?.data?.message || 
-        err.message || 
+        err.response?.data?.message ||
+        err.message ||
         'Failed to save attendance. Please try again.'
       );
     } finally {
@@ -335,34 +335,31 @@ const MarkAttendance: React.FC = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Mark Attendance</h1>
         <div className="flex space-x-3">
-          <button 
+          <button
             onClick={markAllPresent}
             disabled={sessionStatus[session].isFrozen}
-            className={`bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors ${
-              sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             title={sessionStatus[session].isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
           >
             <UserCheck className="h-4 w-4 mr-2" />
             Mark All Present
           </button>
-          <button 
+          <button
             onClick={markAllAbsent}
             disabled={sessionStatus[session].isFrozen}
-            className={`bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors ${
-              sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             title={sessionStatus[session].isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
           >
             <UserX className="h-4 w-4 mr-2" />
             Mark All Absent
           </button>
-          <button 
+          <button
             onClick={handleSaveAttendance}
             disabled={loading || !selectedClass || !selectedSection || sessionStatus[session].isFrozen}
-            className={`bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg flex items-center transition-colors ${
-              sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg flex items-center transition-colors ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             title={sessionStatus[session].isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
           >
             <Save className="h-4 w-4 mr-2" />
@@ -400,7 +397,7 @@ const MarkAttendance: React.FC = () => {
               />
             </div>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
             <select
@@ -436,11 +433,10 @@ const MarkAttendance: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSession('morning')}
-                className={`flex-1 py-2 px-3 text-sm font-medium rounded-l-lg flex items-center justify-center relative ${
-                  session === 'morning'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                } ${sessionStatus.morning.isFrozen ? 'opacity-75' : ''}`}
+                className={`flex-1 py-2 px-3 text-sm font-medium rounded-l-lg flex items-center justify-center relative ${session === 'morning'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                  } ${sessionStatus.morning.isFrozen ? 'opacity-75' : ''}`}
               >
                 <Sun className="h-4 w-4 mr-1" />
                 Morning
@@ -453,11 +449,10 @@ const MarkAttendance: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSession('afternoon')}
-                className={`flex-1 py-2 px-3 text-sm font-medium rounded-r-lg flex items-center justify-center relative ${
-                  session === 'afternoon'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                } ${sessionStatus.afternoon.isFrozen ? 'opacity-75' : ''}`}
+                className={`flex-1 py-2 px-3 text-sm font-medium rounded-r-lg flex items-center justify-center relative ${session === 'afternoon'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                  } ${sessionStatus.afternoon.isFrozen ? 'opacity-75' : ''}`}
               >
                 <Moon className="h-4 w-4 mr-1" />
                 Afternoon
@@ -468,7 +463,7 @@ const MarkAttendance: React.FC = () => {
                 )}
               </button>
             </div>
-            
+
             {/* Show session status info */}
             {selectedClass && selectedSection && (
               <div className="mt-2 text-sm">
@@ -568,12 +563,12 @@ const MarkAttendance: React.FC = () => {
                 Progress: {summary.present + summary.absent + summary.halfDay}/{summary.total} marked
               </div>
             </div>
-            
+
             {loading ? (
               <div className="text-center py-4">Loading students...</div>
             ) : filteredStudents.length === 0 ? (
               <div className="text-center py-4 text-gray-500">
-                {students.length === 0 
+                {students.length === 0
                   ? 'No students found in this class and section'
                   : 'No students match your search criteria'
                 }
@@ -598,11 +593,10 @@ const MarkAttendance: React.FC = () => {
                       <button
                         onClick={() => updateStudentStatus(student._id, 'present')}
                         disabled={sessionStatus[session].isFrozen}
-                        className={`px-3 py-1 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${
-                          getCurrentStatus(student) === 'present'
-                            ? 'bg-green-100 text-green-800 border-green-200'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-green-50'
-                        } ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`px-3 py-1 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${getCurrentStatus(student) === 'present'
+                          ? 'bg-green-100 text-green-800 border-green-200'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-green-50'
+                          } ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
                         title={sessionStatus[session].isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
                       >
                         <CheckCircle className="h-4 w-4" />
@@ -611,11 +605,10 @@ const MarkAttendance: React.FC = () => {
                       <button
                         onClick={() => updateStudentStatus(student._id, 'absent')}
                         disabled={sessionStatus[session].isFrozen}
-                        className={`px-3 py-1 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${
-                          getCurrentStatus(student) === 'absent'
-                            ? 'bg-red-100 text-red-800 border-red-200'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-red-50'
-                        } ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`px-3 py-1 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${getCurrentStatus(student) === 'absent'
+                          ? 'bg-red-100 text-red-800 border-red-200'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-red-50'
+                          } ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
                         title={sessionStatus[session].isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
                       >
                         <XCircle className="h-4 w-4" />
@@ -624,11 +617,10 @@ const MarkAttendance: React.FC = () => {
                       <button
                         onClick={() => updateStudentStatus(student._id, 'half-day')}
                         disabled={sessionStatus[session].isFrozen}
-                        className={`px-3 py-1 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${
-                          getCurrentStatus(student) === 'half-day'
-                            ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-yellow-50'
-                        } ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`px-3 py-1 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${getCurrentStatus(student) === 'half-day'
+                          ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-yellow-50'
+                          } ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
                         title={sessionStatus[session].isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
                       >
                         <AlertCircle className="h-4 w-4" />

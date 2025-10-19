@@ -27,7 +27,7 @@ interface AttendanceRecord {
 
 const Attendance: React.FC = () => {
   const { user } = useAuth();
-  
+
   // State management
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState<string>('');
@@ -64,19 +64,19 @@ const Attendance: React.FC = () => {
       const authData = localStorage.getItem('erp.auth');
       const token = authData ? JSON.parse(authData).token : null;
       const schoolCode = user?.schoolCode || 'P';
-      
+
       if (!token) {
         toast.error('Authentication required');
         return;
       }
 
       console.log(`Fetching students for Class ${selectedClass} Section ${selectedSection}`);
-      
+
       // Fetch all users and filter students
       const response = await schoolUserAPI.getAllUsers(schoolCode, token);
-      
+
       let allStudents: Student[] = [];
-      
+
       if (response.data && Array.isArray(response.data)) {
         // Handle flat array response
         allStudents = response.data
@@ -102,7 +102,7 @@ const Attendance: React.FC = () => {
       }
 
       // Filter students by selected class and section
-      const filteredStudents = allStudents.filter(student => 
+      const filteredStudents = allStudents.filter(student =>
         student.class === selectedClass && student.section === selectedSection
       );
 
@@ -116,10 +116,10 @@ const Attendance: React.FC = () => {
 
       setStudents(filteredStudents);
       console.log(`Found ${filteredStudents.length} students in Class ${selectedClass} Section ${selectedSection}`);
-      
+
       // Initialize attendance records
       initializeAttendanceRecords(filteredStudents);
-      
+
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to fetch students');
@@ -158,17 +158,17 @@ const Attendance: React.FC = () => {
 
   // Update attendance status for a student
   const updateAttendanceStatus = (
-    studentId: string, 
-    session: 'morning' | 'afternoon', 
+    studentId: string,
+    session: 'morning' | 'afternoon',
     status: 'present' | 'absent' | 'half-day'
   ) => {
-    setAttendanceRecords(prev => 
-      prev.map(record => 
-        record.studentId === studentId 
-          ? { 
-              ...record, 
-              [session === 'morning' ? 'morningStatus' : 'afternoonStatus']: status 
-            }
+    setAttendanceRecords(prev =>
+      prev.map(record =>
+        record.studentId === studentId
+          ? {
+            ...record,
+            [session === 'morning' ? 'morningStatus' : 'afternoonStatus']: status
+          }
           : record
       )
     );
@@ -176,9 +176,9 @@ const Attendance: React.FC = () => {
 
   // Update remarks for a student
   const updateRemarks = (studentId: string, remarks: string) => {
-    setAttendanceRecords(prev => 
-      prev.map(record => 
-        record.studentId === studentId 
+    setAttendanceRecords(prev =>
+      prev.map(record =>
+        record.studentId === studentId
           ? { ...record, remarks }
           : record
       )
@@ -187,7 +187,7 @@ const Attendance: React.FC = () => {
 
   // Mark all students as present/absent
   const markAllStudents = (session: 'morning' | 'afternoon', status: 'present' | 'absent') => {
-    setAttendanceRecords(prev => 
+    setAttendanceRecords(prev =>
       prev.map(record => ({
         ...record,
         [session === 'morning' ? 'morningStatus' : 'afternoonStatus']: status
@@ -200,7 +200,7 @@ const Attendance: React.FC = () => {
   const saveAttendance = async () => {
     try {
       setSaving(true);
-      
+
       const attendanceData = {
         date: selectedDate,
         class: selectedClass,
@@ -211,12 +211,12 @@ const Attendance: React.FC = () => {
       };
 
       console.log('Saving attendance data:', attendanceData);
-      
+
       // Here you would typically send the data to your attendance API
       // await attendanceAPI.saveAttendance(schoolCode, attendanceData, token);
-      
+
       toast.success('Attendance saved successfully');
-      
+
     } catch (error) {
       console.error('Error saving attendance:', error);
       toast.error('Failed to save attendance');
@@ -320,21 +320,19 @@ const Attendance: React.FC = () => {
             <div className="flex bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => setActiveSession('morning')}
-                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${
-                  activeSession === 'morning' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
+                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${activeSession === 'morning'
+                    ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-800'
-                }`}
+                  }`}
               >
                 Morning
               </button>
               <button
                 onClick={() => setActiveSession('afternoon')}
-                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${
-                  activeSession === 'afternoon' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
+                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${activeSession === 'afternoon'
+                    ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-800'
-                }`}
+                  }`}
               >
                 Afternoon
               </button>
@@ -453,33 +451,30 @@ const Attendance: React.FC = () => {
                         <div className="flex justify-center space-x-1">
                           <button
                             onClick={() => updateAttendanceStatus(record.studentId, activeSession, 'present')}
-                            className={`p-1 rounded ${
-                              record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'present'
+                            className={`p-1 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'present'
                                 ? 'bg-green-100 text-green-600'
                                 : 'bg-gray-100 text-gray-400 hover:bg-green-100 hover:text-green-600'
-                            }`}
+                              }`}
                             title="Present"
                           >
                             <Check className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => updateAttendanceStatus(record.studentId, activeSession, 'half-day')}
-                            className={`p-1 rounded ${
-                              record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'half-day'
+                            className={`p-1 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'half-day'
                                 ? 'bg-yellow-100 text-yellow-600'
                                 : 'bg-gray-100 text-gray-400 hover:bg-yellow-100 hover:text-yellow-600'
-                            }`}
+                              }`}
                             title="Half Day"
                           >
                             <Minus className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => updateAttendanceStatus(record.studentId, activeSession, 'absent')}
-                            className={`p-1 rounded ${
-                              record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'absent'
+                            className={`p-1 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'absent'
                                 ? 'bg-red-100 text-red-600'
                                 : 'bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-600'
-                            }`}
+                              }`}
                             title="Absent"
                           >
                             <X className="h-4 w-4" />
