@@ -1,5 +1,3 @@
-// backend/controllers/messagesController.js
-
 const Message = require('../models/Message');
 const User = require('../models/User');
 const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
@@ -9,23 +7,17 @@ exports.sendMessage = async (req, res) => {
   try {
     console.log('📨 Sending message:', req.body);
     
-    // DEFENSIVE CHECK: Ensure user object exists after auth middleware
-    if (!req.user || !req.user._id) {
-        console.error('[MESSAGE CONTROLLER ERROR] Authentication context missing, should have been blocked by middleware.');
-        return res.status(401).json({ success: false, message: 'Authentication required' });
-    }
+    // Validate required fields
+    const { title, body, class: targetClass, section: targetSection, schoolId } = req.body;
     
-    // Validate required fields according to new schema
-    const { title, subject, message, class: targetClass, section: targetSection } = req.body;
-    
-    if (!title || !subject || !message || !targetClass || !targetSection) {
+    if (!title || !body) {
       return res.status(400).json({
         success: false,
-        message: 'Title, subject, message, class, and section are required'
+        message: 'Title and body are required'
       });
     }
 
-    // Verify school ownership - use schoolId from authenticated user
+    // Verify school ownership
     const userSchoolId = req.user.schoolId;
     if (!userSchoolId) {
       return res.status(400).json({
@@ -34,9 +26,15 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
-    console.log(`🔍 sendMessage: Using authenticated school ID: ${userSchoolId}`);
+    // For super admin, allow any schoolId; for admin, must match their school
+    if (req.user.role === 'admin' && userSchoolId.toString() !== schoolId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot send messages to other schools'
+      });
+    }
     
-    // Get school connection for student queries and message storage
+    // Get school connection for student queries
     const schoolCode = req.user.schoolCode;
     if (!schoolCode) {
       return res.status(400).json({
@@ -48,87 +46,27 @@ exports.sendMessage = async (req, res) => {
     const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     
-    // Build student query to handle all possible data structures:
-    // 1. class/section at root level (populateSchoolP.js)
-    // 2. studentDetails.academic.currentClass/currentSection (quickPopulate.js)
-    // 3. studentDetails.currentClass/currentSection (Excel import)
+    // Build student query using canonical class/section fields
     const studentQuery = { 
       role: 'student',
       _placeholder: { $ne: true } // Exclude placeholder documents
     };
     
-    // Build $or query to check all possible locations (case-insensitive)
-    const classConditions = [];
     if (targetClass && targetClass !== 'ALL') {
-      // Use regex for case-insensitive matching
-      const classRegex = new RegExp(`^${targetClass}$`, 'i');
-      classConditions.push(
-        { class: classRegex },
-        { 'studentDetails.academic.currentClass': classRegex },
-        { 'studentDetails.currentClass': classRegex }
-      );
+      studentQuery.class = targetClass;
     }
     
-    const sectionConditions = [];
     if (targetSection && targetSection !== 'ALL') {
-      // Use regex for case-insensitive matching
-      const sectionRegex = new RegExp(`^${targetSection}$`, 'i');
-      sectionConditions.push(
-        { section: sectionRegex },
-        { 'studentDetails.academic.currentSection': sectionRegex },
-        { 'studentDetails.currentSection': sectionRegex }
-      );
+      studentQuery.section = targetSection;
     }
     
-    // Combine conditions
-    if (classConditions.length > 0 && sectionConditions.length > 0) {
-      studentQuery.$and = [
-        { $or: classConditions },
-        { $or: sectionConditions }
-      ];
-    } else if (classConditions.length > 0) {
-      studentQuery.$or = classConditions;
-    } else if (sectionConditions.length > 0) {
-      studentQuery.$or = sectionConditions;
-    }
-    
-    console.log('🔍 Student query:', JSON.stringify(studentQuery, null, 2));
+    console.log('🔍 Student query:', studentQuery);
     
     // Find matching students
     const studentsCollection = db.collection('students');
     const students = await studentsCollection.find(studentQuery).toArray();
     
     console.log(`👥 Found ${students.length} students matching criteria`);
-    
-    // Log sample student structure for debugging
-    if (students.length > 0) {
-      console.log('🔍 Sample student structure:', {
-        class: students[0].class,
-        section: students[0].section,
-        academicClass: students[0].studentDetails?.academic?.currentClass,
-        academicSection: students[0].studentDetails?.academic?.currentSection,
-        currentClass: students[0].studentDetails?.currentClass,
-        currentSection: students[0].studentDetails?.currentSection
-      });
-    } else {
-      // Debug: Check total students in collection
-      const totalStudents = await studentsCollection.countDocuments({ role: 'student' });
-      console.log(`⚠️ No students found. Total students in collection: ${totalStudents}`);
-      
-      // Debug: Get sample student to see structure
-      const sampleStudent = await studentsCollection.findOne({ role: 'student' });
-      if (sampleStudent) {
-        console.log('🔍 Sample student structure from DB:', {
-          class: sampleStudent.class,
-          section: sampleStudent.section,
-          academicClass: sampleStudent.studentDetails?.academic?.currentClass,
-          academicSection: sampleStudent.studentDetails?.academic?.currentSection,
-          currentClass: sampleStudent.studentDetails?.currentClass,
-          currentSection: sampleStudent.studentDetails?.currentSection,
-          userId: sampleStudent.userId
-        });
-      }
-    }
     
     if (students.length === 0) {
       return res.status(400).json({
@@ -137,40 +75,51 @@ exports.sendMessage = async (req, res) => {
       });
     }
     
-    // Create message document according to new simplified schema
+    // Create message document
     const messageData = {
-      class: targetClass,
-      section: targetSection,
-      adminId: req.user._id,
-      title: title,
-      subject: subject,
-      message: message,
-      createdAt: new Date(),
-      schoolId: userSchoolId // Store schoolId for reference
+      schoolId: userSchoolId,
+      createdBy: req.user._id,
+      subject: title,
+      content: body,
+      messageType: 'general',
+      priority: 'normal',
+      status: 'sent',
+      sentAt: new Date(),
+      totalRecipients: students.length,
+      target: {
+        class: targetClass || 'ALL',
+        section: targetSection || 'ALL'
+      },
+      sentTo: students.map(student => student._id),
+      recipients: students.map(student => ({
+        user: student._id,
+        readAt: null
+      })),
+      readBy: new Map() // Initialize empty readBy map
     };
     
-    console.log('✅ Message Data to be Saved:', messageData);
+    // Save message to main database
+    const message = new Message(messageData);
+    await message.save();
     
-    // Save message to school database instead of main database
-    const messagesCollection = db.collection('messages');
-    const result = await messagesCollection.insertOne(messageData);
-    
-    console.log(`✅ Message sent successfully to ${students.length} students, stored in school database`);
+    console.log(`✅ Message sent successfully to ${students.length} students`);
     
     // Dispatch background job for notifications (FCM, email, etc.)
+    // This would be implemented in a notification service
+    // For now, we'll just log it
     console.log('📱 Dispatching background notification job...');
     
     res.json({
       success: true,
       message: 'Message sent successfully',
       data: {
-        messageId: result.insertedId,
+        messageId: message._id,
         sentCount: students.length,
         recipients: students.map(s => ({
           id: s._id,
-          name: s.name?.displayName || `${s.name?.firstName} ${s.name?.lastName}` || s.name,
-          class: s.class || s.studentDetails?.academic?.currentClass || s.studentDetails?.currentClass,
-          section: s.section || s.studentDetails?.academic?.currentSection || s.studentDetails?.currentSection
+          name: s.name?.displayName || `${s.name?.firstName} ${s.name?.lastName}`,
+          class: s.class,
+          section: s.section
         }))
       }
     });
@@ -190,19 +139,16 @@ exports.previewMessage = async (req, res) => {
   try {
     console.log('🔍 Previewing message recipients:', req.body);
     
-    const { class: targetClass, section: targetSection } = req.body;
+    const { class: targetClass, section: targetSection, schoolId } = req.body;
     
-    // Get user's school ID from the authentication context (source of truth)
+    // Verify school ownership
     const userSchoolId = req.user.schoolId;
-
-    if (!userSchoolId) {
-        return res.status(400).json({
-            success: false,
-            message: 'User school ID not found in authentication context'
-        });
+    if (req.user.role === 'admin' && userSchoolId.toString() !== schoolId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Cannot preview messages for other schools'
+      });
     }
-    
-    console.log(`🔍 previewMessage: Using authenticated school ID: ${userSchoolId}`);
     
     // Get school connection for student queries
     const schoolCode = req.user.schoolCode;
@@ -216,48 +162,19 @@ exports.previewMessage = async (req, res) => {
     const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     
-    // Build student query to handle all possible data structures (case-insensitive)
+    // Build student query using canonical class/section fields
     const studentQuery = { 
       role: 'student',
       _placeholder: { $ne: true } // Exclude placeholder documents
     };
     
-    // Build $or query to check all possible locations with case-insensitive matching
-    const classConditions = [];
     if (targetClass && targetClass !== 'ALL') {
-      // Use regex for case-insensitive matching
-      const classRegex = new RegExp(`^${targetClass}$`, 'i');
-      classConditions.push(
-        { class: classRegex },
-        { 'studentDetails.academic.currentClass': classRegex },
-        { 'studentDetails.currentClass': classRegex }
-      );
+      studentQuery.class = targetClass;
     }
     
-    const sectionConditions = [];
     if (targetSection && targetSection !== 'ALL') {
-      // Use regex for case-insensitive matching
-      const sectionRegex = new RegExp(`^${targetSection}$`, 'i');
-      sectionConditions.push(
-        { section: sectionRegex },
-        { 'studentDetails.academic.currentSection': sectionRegex },
-        { 'studentDetails.currentSection': sectionRegex }
-      );
+      studentQuery.section = targetSection;
     }
-    
-    // Combine conditions
-    if (classConditions.length > 0 && sectionConditions.length > 0) {
-      studentQuery.$and = [
-        { $or: classConditions },
-        { $or: sectionConditions }
-      ];
-    } else if (classConditions.length > 0) {
-      studentQuery.$or = classConditions;
-    } else if (sectionConditions.length > 0) {
-      studentQuery.$or = sectionConditions;
-    }
-    
-    console.log('🔍 Preview query:', JSON.stringify(studentQuery, null, 2));
     
     // Count matching students
     const studentsCollection = db.collection('students');
@@ -286,9 +203,9 @@ exports.previewMessage = async (req, res) => {
         targetSection: targetSection || 'ALL',
         sampleRecipients: sampleStudents.map(s => ({
           id: s._id,
-          name: s.name?.displayName || `${s.name?.firstName} ${s.name?.lastName}` || s.name,
-          class: s.class || s.studentDetails?.academic?.currentClass || s.studentDetails?.currentClass,
-          section: s.section || s.studentDetails?.academic?.currentSection || s.studentDetails?.currentSection
+          name: s.name?.displayName || `${s.name?.firstName} ${s.name?.lastName}`,
+          class: s.class,
+          section: s.section
         }))
       }
     });
@@ -306,53 +223,61 @@ exports.previewMessage = async (req, res) => {
 // Get messages with filtering
 exports.getMessages = async (req, res) => {
   try {
-    console.log('Fetching messages with filters:', req.query);
-    const { class: filterClass, section: filterSection, page = 1, limit = 20 } = req.query;
-
-    // Get school connection for message queries
-    const schoolCode = req.user.schoolCode;
-    if (!schoolCode) {
-      return res.status(400).json({
-        success: false,
-        message: 'School code not found in user profile'
-      });
+    console.log('📋 Fetching messages with filters:', req.query);
+    
+    const { 
+      schoolId, 
+      class: targetClass, 
+      section: targetSection, 
+      page = 1, 
+      limit = 20,
+      status = 'sent'
+    } = req.query;
+    
+    // Build query
+    const query = {
+      schoolId: req.user.schoolId,
+      status: status
+    };
+    
+    // Filter by target class/section if specified
+    if (targetClass && targetClass !== 'ALL') {
+      query['target.class'] = targetClass;
     }
     
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-    const db = connection.db;
-
-    // Build query for new schema
-    const query = {};
-    if (filterClass && filterClass !== 'ALL') query.class = filterClass;
-    if (filterSection && filterSection !== 'ALL') query.section = filterSection;
-
+    if (targetSection && targetSection !== 'ALL') {
+      query['target.section'] = targetSection;
+    }
+    
+    // Pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const messagesCollection = db.collection('messages');
     
-    // Get messages from school database with pagination
-    const messages = await messagesCollection.find(query)
-      .sort({ createdAt: -1 })
+    // Execute query with pagination
+    const messages = await Message.find(query)
+      .populate('sender', 'name email')
+      .populate('createdBy', 'name email')
+      .sort({ sentAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
+      .limit(parseInt(limit));
     
-    const totalMessages = await messagesCollection.countDocuments(query);
-
-    // Since we're using native MongoDB driver, we need to manually create virtual fields
-    const formattedMessages = messages.map(msg => ({
-      id: msg._id,
-      class: msg.class,
-      section: msg.section,
-      adminId: msg.adminId,
-      title: msg.title,
-      subject: msg.subject,
-      message: msg.message,
-      createdAt: msg.createdAt,
-      // Manual virtual fields calculation
-      messageAge: calculateMessageAge(msg.createdAt),
-      urgencyIndicator: 'normal' // Default since we don't have priority in simplified schema
+    // Get total count for pagination
+    const totalMessages = await Message.countDocuments(query);
+    
+    // Format response
+    const formattedMessages = messages.map(message => ({
+      id: message._id,
+      title: message.subject,
+      body: message.content,
+      target: `${message.target?.class || 'ALL'} - ${message.target?.section || 'ALL'}`,
+      sentAt: message.sentAt,
+      recipientsCount: message.totalRecipients,
+      readCount: message.readCount,
+      status: message.status,
+      sender: message.createdBy?.name?.displayName || 'Unknown',
+      messageType: message.messageType,
+      priority: message.priority
     }));
-
+    
     res.json({
       success: true,
       data: {
@@ -365,8 +290,9 @@ exports.getMessages = async (req, res) => {
         }
       }
     });
+    
   } catch (error) {
-    console.error('Error fetching messages:', error);
+    console.error('❌ Error fetching messages:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch messages',
@@ -380,22 +306,10 @@ exports.getMessageDetails = async (req, res) => {
   try {
     const { messageId } = req.params;
     
-    // Get school connection for message queries
-    const schoolCode = req.user.schoolCode;
-    if (!schoolCode) {
-      return res.status(400).json({
-        success: false,
-        message: 'School code not found in user profile'
-      });
-    }
-    
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-    const db = connection.db;
-    const messagesCollection = db.collection('messages');
-    
-    // Convert string ID to ObjectId if needed
-    const { ObjectId } = require('mongodb');
-    const message = await messagesCollection.findOne({ _id: new ObjectId(messageId) });
+    const message = await Message.findById(messageId)
+      .populate('sender', 'name email')
+      .populate('createdBy', 'name email')
+      .populate('recipients.user', 'name class section rollNumber');
     
     if (!message) {
       return res.status(404).json({
@@ -404,20 +318,36 @@ exports.getMessageDetails = async (req, res) => {
       });
     }
     
+    // Check if user has access to this message
+    if (message.schoolId.toString() !== req.user.schoolId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+    
     res.json({
       success: true,
       data: {
         id: message._id,
-        class: message.class,
-        section: message.section,
-        adminId: message.adminId,
-        title: message.title,
-        subject: message.subject,
-        message: message.message,
-        createdAt: message.createdAt,
-        // Manual virtual fields calculation
-        messageAge: calculateMessageAge(message.createdAt),
-        urgencyIndicator: 'normal'
+        title: message.subject,
+        body: message.content,
+        target: `${message.recipientGroups[0]?.value || 'ALL'} - ${message.recipientGroups[1]?.value || 'ALL'}`,
+        sentAt: message.sentAt,
+        recipientsCount: message.totalRecipients,
+        readCount: message.readCount,
+        status: message.status,
+        sender: message.sender?.name?.displayName || 'Unknown',
+        messageType: message.messageType,
+        priority: message.priority,
+        recipients: message.recipients.map(recipient => ({
+          id: recipient.user._id,
+          name: recipient.user.name?.displayName || `${recipient.user.name?.firstName} ${recipient.user.name?.lastName}`,
+          class: recipient.user.class,
+          section: recipient.user.section,
+          rollNumber: recipient.user.rollNumber,
+          readAt: recipient.readAt
+        }))
       }
     });
     
@@ -434,54 +364,43 @@ exports.getMessageDetails = async (req, res) => {
 // Get message statistics
 exports.getMessageStats = async (req, res) => {
   try {
-    // Get school connection for message queries
-    const schoolCode = req.user.schoolCode;
-    if (!schoolCode) {
-      return res.status(400).json({
-        success: false,
-        message: 'School code not found in user profile'
-      });
-    }
+    const { schoolId } = req.query;
     
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-    const db = connection.db;
-    const messagesCollection = db.collection('messages');
-    
-    const totalMessages = await messagesCollection.countDocuments();
-    
-    const messagesByClass = await messagesCollection.aggregate([
+    const stats = await Message.aggregate([
+      { $match: { schoolId: req.user.schoolId } },
       {
         $group: {
-          _id: '$class',
-          count: { $sum: 1 }
+          _id: null,
+          totalMessages: { $sum: 1 },
+          totalRecipients: { $sum: '$totalRecipients' },
+          totalRead: { $sum: '$readCount' },
+          avgReadRate: {
+            $avg: {
+              $cond: [
+                { $gt: ['$totalRecipients', 0] },
+                { $divide: ['$readCount', '$totalRecipients'] },
+                0
+              ]
+            }
+          }
         }
       }
-    ]).toArray();
+    ]);
     
-    const messagesBySection = await messagesCollection.aggregate([
-      {
-        $group: {
-          _id: '$section',
-          count: { $sum: 1 }
-        }
-      }
-    ]).toArray();
-
-    // Recent activity (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const result = stats[0] || {
+      totalMessages: 0,
+      totalRecipients: 0,
+      totalRead: 0,
+      avgReadRate: 0
+    };
     
-    const recentMessages = await messagesCollection.countDocuments({
-      createdAt: { $gte: sevenDaysAgo }
-    });
-
     res.json({
       success: true,
       data: {
-        totalMessages,
-        messagesByClass,
-        messagesBySection,
-        recentMessages
+        totalMessages: result.totalMessages,
+        totalRecipients: result.totalRecipients,
+        totalRead: result.totalRead,
+        avgReadRate: Math.round(result.avgReadRate * 100) / 100
       }
     });
     
@@ -490,112 +409,6 @@ exports.getMessageStats = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch message statistics',
-      error: error.message
-    });
-  }
-};
-
-// Helper function to calculate message age (replaces Mongoose virtual)
-function calculateMessageAge(createdAt) {
-  const now = new Date();
-  const created = new Date(createdAt);
-  const diffTime = now.getTime() - created.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  return `${Math.floor(diffDays / 30)} months ago`;
-}
-
-// backend/controllers/messagesController.js - Add this function
-
-// Delete message
-exports.deleteMessage = async (req, res) => {
-  try {
-    const { messageId } = req.params;
-    
-    console.log('🗑️ Deleting message:', messageId);
-    
-    // DEFENSIVE CHECK: Ensure user object exists after auth middleware
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: 'Authentication required' });
-    }
-
-    // Get school connection for message deletion
-    const schoolCode = req.user.schoolCode;
-    if (!schoolCode) {
-      return res.status(400).json({
-        success: false,
-        message: 'School code not found in user profile'
-      });
-    }
-    
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-    const db = connection.db;
-    const messagesCollection = db.collection('messages');
-    
-    // Convert string ID to ObjectId
-    const { ObjectId } = require('mongodb');
-    
-    // Find the message first to verify ownership
-    const message = await messagesCollection.findOne({ 
-      _id: new ObjectId(messageId) 
-    });
-    
-    if (!message) {
-      return res.status(404).json({
-        success: false,
-        message: 'Message not found'
-      });
-    }
-    
-    // Optional: Check if user has permission to delete this message
-    // For example, only allow admin who created the message to delete it
-    if (message.adminId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'You can only delete messages that you created'
-      });
-    }
-    
-    // Delete the message
-    const result = await messagesCollection.deleteOne({ 
-      _id: new ObjectId(messageId) 
-    });
-    
-    if (result.deletedCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Message not found or already deleted'
-      });
-    }
-    
-    console.log('✅ Message deleted successfully');
-    
-    res.json({
-      success: true,
-      message: 'Message deleted successfully',
-      data: {
-        deletedId: messageId
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Error deleting message:', error);
-    
-    // Handle invalid ObjectId format
-    if (error.name === 'BSONTypeError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid message ID format'
-      });
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete message',
       error: error.message
     });
   }

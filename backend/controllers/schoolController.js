@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const { gradeSystem, gradeUtils } = require('../utils/gradeSystem');
 const DatabaseManager = require('../utils/databaseManager');
 const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
@@ -1454,19 +1453,10 @@ exports.getSchoolById = async (req, res) => {
 
     // Check if user has access to this school
     if (req.user.role === 'superadmin' || req.user.schoolId?.toString() === schoolId) {
-      
-      let school = null;
-      
-      // FIX: Check if schoolId is a valid ObjectId before attempting findById 
-      const mongoose = require('mongoose'); 
-      if (mongoose.Types.ObjectId.isValid(schoolId)) {
-        console.log(`[getSchoolById] Attempting find by ID: ${schoolId}`);
-        school = await School.findById(schoolId);
-      }
+      let school = await School.findById(schoolId);
 
-      // Fallback: Try to find by school code (case-insensitive) if not found by ID or if ID format was invalid
       if (!school) {
-        console.log(`[getSchoolById] Attempting find by code: ${schoolId}`);
+        // Try to find by code (case-insensitive) if not found by ID
         school = await School.findOne({ code: new RegExp(`^${schoolId}$`, 'i') });
       }
 

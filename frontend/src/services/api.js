@@ -339,8 +339,8 @@ export const messagesAPI = {
 
 // Classes API
 export const classesAPI = {
-  getSchoolClasses: (schoolCode) => api.get(`/admin/classes/${schoolCode}/classes-sections`),
-  getSectionsForClass: (schoolCode, className) => api.get(`/admin/classes/${schoolCode}/classes/${className}/sections`),
+  getSchoolClasses: (schoolId) => api.get(`/schools/${schoolId}/classes`),
+  getSectionsForClass: (schoolCode, className) => api.get(`/classes/school/${schoolCode}/classes/${className}/sections`),
 };
 
 // Fees API

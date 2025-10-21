@@ -593,7 +593,7 @@ const AcademicNavigation: React.FC = () => {
                     <input
                       type="text"
                       value={newSection}
-                      onChange={(e) => setNewSection(e.target.value.toUpperCase())}
+                      onChange={(e) => setNewSection(e.target.value)}
                       placeholder="Enter section name (e.g., A, B, C)"
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
