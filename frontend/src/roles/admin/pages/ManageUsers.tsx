@@ -2003,26 +2003,24 @@ const ManageUsers: React.FC = () => {
               role: userData.role,
               phone: userData.contact?.primaryPhone || userData.contact?.phone || userData.phone,
               temporaryPassword: userData.temporaryPassword || userData.tempPassword || null,
-              address: userData.address?.permanent?.street || userData.address?.street || userData.address,
+              address: userData.address,
               isActive: userData.isActive !== false,
               createdAt: userData.createdAt || new Date().toISOString(),
-              profileImage: userData.profileImage || userData.profilePicture || null, // 💡 FIX 2a: Map profileImage here
+              profileImage: userData.profileImage || userData.profilePicture || null, // 
               // Initialize studentDetails as an empty object or undefined
               studentDetails: userData.role === 'student' ? {} : undefined
             };
 
-            // Add role-specific details ONLY if the object exists
-            if (userData.role === 'student' && processedUser.studentDetails) {
-              // Assert that studentDetails is not undefined within this block
-              const details = processedUser.studentDetails as { // Type assertion
-                studentId?: string;
-                class?: string;
-                section?: string;
-                // Add other potential studentDetails properties here if needed
+            // Add role-specific details - preserve ALL fields from backend
+            if (userData.role === 'student' && userData.studentDetails) {
+              // Use the ENTIRE studentDetails object from backend
+              processedUser.studentDetails = {
+                ...userData.studentDetails, // Spread all fields from backend
+                // Add convenience fields for backward compatibility
+                class: userData.studentDetails.currentClass || userData.class || 'Not assigned',
+                section: userData.studentDetails.currentSection || userData.section || 'Not assigned',
+                studentId: userData.userId || userData._id
               };
-              details.class = userData.studentDetails?.currentClass || 'Not assigned';
-              details.section = userData.studentDetails?.currentSection || 'Not assigned';
-              details.studentId = userData.userId || userData._id;
             } else if (userData.role === 'teacher' && userData.teacherDetails) {
               // Ensure teacherDetails is properly structured if needed later
               processedUser.teacherDetails = {
@@ -2739,7 +2737,10 @@ const ManageUsers: React.FC = () => {
     console.log('userData.lastName:', userData.lastName);
     console.log('Contact structure:', userData.contact);
     console.log('Address structure:', userData.address);
+    console.log('Address type:', typeof userData.address);
     console.log('StudentDetails:', userData.studentDetails);
+    console.log('StudentDetails.class:', userData.studentDetails?.class);
+    console.log('StudentDetails.section:', userData.studentDetails?.section);
     console.log('TeacherDetails:', userData.teacherDetails);
     console.log('AdminDetails:', userData.adminDetails);
 
@@ -2765,20 +2766,20 @@ const ManageUsers: React.FC = () => {
       role: userData.role || 'student',
 
       // Admission Details (SATS Standard)
-      class: userData.academicInfo?.class || userData.studentDetails?.currentClass || userData.class || '',
+      class: userData.academicInfo?.class || userData.studentDetails?.currentClass || userData.studentDetails?.class || userData.class || '',
       academicYear: userData.academicYear || userData.studentDetails?.academicYear || '2024-2025',
-      section: userData.section || userData.studentDetails?.currentSection || '',
+      section: userData.academicInfo?.section || userData.section || userData.studentDetails?.currentSection || userData.studentDetails?.section || '',
       mediumOfInstruction: userData.mediumOfInstruction || 'English',
       motherTongue: userData.motherTongue || userData.studentDetails?.motherTongue || '',
       motherTongueOther: userData.motherTongueOther || userData.studentDetails?.motherTongueOther || '',
 
       // Student Details (SATS Standard)
-      name: userData.name?.displayName || 
-            (userData.name?.firstName && userData.name?.lastName ? userData.name.firstName + ' ' + userData.name.lastName : '') ||
-            (typeof userData.name === 'string' ? userData.name : '') ||
-            (userData.firstName && userData.lastName ? userData.firstName + ' ' + userData.lastName : '') ||
-            (userData.studentDetails?.firstName && userData.studentDetails?.lastName ? userData.studentDetails.firstName + ' ' + userData.studentDetails.lastName : '') ||
-            '',
+      name: userData.name?.displayName ||
+        (userData.name?.firstName && userData.name?.lastName ? userData.name.firstName + ' ' + userData.name.lastName : '') ||
+        (typeof userData.name === 'string' ? userData.name : '') ||
+        (userData.firstName && userData.lastName ? userData.firstName + ' ' + userData.lastName : '') ||
+        (userData.studentDetails?.firstName && userData.studentDetails?.lastName ? userData.studentDetails.firstName + ' ' + userData.studentDetails.lastName : '') ||
+        '',
       studentNameKannada: userData.studentNameKannada || userData.studentDetails?.studentNameKannada || '',
       firstName: userData.name?.firstName || parsedFirstName || userData.firstName || userData.studentDetails?.firstName || '',
       middleName: userData.name?.middleName || userData.middleName || userData.studentDetails?.middleName || '',
@@ -2826,27 +2827,28 @@ const ManageUsers: React.FC = () => {
       isRTECandidate: userData.isRTECandidate || userData.studentDetails?.isRTECandidate || 'No',
 
       // Address Information (SATS Standard)
-      address: userData.address?.permanent?.street || userData.address || '',
-      cityVillageTown: userData.cityVillageTown || userData.city || userData.address?.permanent?.city || '',
+      // Use addressFull (preserved full object) first, then fallback to address
+      address: (userData as any).addressFull?.permanent?.street || userData.address?.permanent?.street || (typeof userData.address === 'string' ? userData.address : '') || '',
+      cityVillageTown: (userData as any).addressFull?.permanent?.city || userData.address?.permanent?.city || userData.cityVillageTown || userData.city || '',
       locality: userData.locality || '',
       taluka: userData.taluka || userData.taluk || '',
-      district: userData.district || userData.address?.permanent?.district || '',
-      pinCode: userData.pinCode || userData.address?.permanent?.pincode || '',
-      state: userData.state || userData.address?.permanent?.state || '',
-      stateId: userData.stateId || userData.address?.permanent?.stateId || '',
-      districtId: userData.districtId || userData.address?.permanent?.districtId || '',
-      talukaId: userData.talukaId || userData.address?.permanent?.talukaId || '',
+      district: (userData as any).addressFull?.permanent?.district || userData.address?.permanent?.district || userData.district || '',
+      pinCode: (userData as any).addressFull?.permanent?.pincode || userData.address?.permanent?.pincode || userData.pinCode || '',
+      state: (userData as any).addressFull?.permanent?.state || userData.address?.permanent?.state || userData.state || '',
+      stateId: userData.stateId || (userData as any).addressFull?.permanent?.stateId || userData.address?.permanent?.stateId || '',
+      districtId: userData.districtId || (userData as any).addressFull?.permanent?.districtId || userData.address?.permanent?.districtId || '',
+      talukaId: userData.talukaId || (userData as any).addressFull?.permanent?.talukaId || userData.address?.permanent?.talukaId || '',
       districtText: userData.districtText || userData.district || '',
       talukaText: userData.talukaText || userData.taluka || '',
 
       // Enhanced Address Fields
-      permanentStreet: userData.address?.permanent?.street || '',
-      permanentArea: userData.address?.permanent?.area || '',
-      permanentCity: userData.address?.permanent?.city || userData.city || '',
-      permanentState: userData.address?.permanent?.state || userData.state || 'Karnataka',
-      permanentCountry: userData.address?.permanent?.country || 'India',
-      permanentPincode: userData.address?.permanent?.pincode || userData.pinCode || '',
-      permanentLandmark: userData.address?.permanent?.landmark || '',
+      permanentStreet: (userData as any).addressFull?.permanent?.street || userData.address?.permanent?.street || (typeof userData.address === 'string' ? userData.address : '') || '',
+      permanentArea: (userData as any).addressFull?.permanent?.area || userData.address?.permanent?.area || '',
+      permanentCity: (userData as any).addressFull?.permanent?.city || userData.address?.permanent?.city || userData.city || '',
+      permanentState: (userData as any).addressFull?.permanent?.state || userData.address?.permanent?.state || userData.state || 'Karnataka',
+      permanentCountry: (userData as any).addressFull?.permanent?.country || userData.address?.permanent?.country || 'India',
+      permanentPincode: (userData as any).addressFull?.permanent?.pincode || userData.address?.permanent?.pincode || userData.pinCode || '',
+      permanentLandmark: (userData as any).addressFull?.permanent?.landmark || userData.address?.permanent?.landmark || '',
 
       currentStreet: userData.address?.current?.street || '',
       currentArea: userData.address?.current?.area || '',
@@ -2866,8 +2868,8 @@ const ManageUsers: React.FC = () => {
       motherEmail: userData.studentDetails?.motherEmail || userData.motherEmail || '',
 
       // School and Banking (SATS Standard)
-      schoolAdmissionDate: userData.studentDetails?.admissionDate ? new Date(userData.studentDetails.admissionDate).toISOString().split('T')[0] : 
-                           (userData.schoolAdmissionDate || userData.admissionDate || ''),
+      schoolAdmissionDate: userData.studentDetails?.admissionDate ? new Date(userData.studentDetails.admissionDate).toISOString().split('T')[0] :
+        (userData.schoolAdmissionDate || userData.admissionDate || ''),
       bankName: userData.studentDetails?.bankName || userData.bankName || '',
       bankAccountNo: userData.studentDetails?.bankAccountNo || userData.bankAccountNo || userData.bankAccountNumber || '',
       bankIFSC: userData.studentDetails?.bankIFSC || userData.bankIFSC || userData.ifscCode || '',
@@ -2900,8 +2902,8 @@ const ManageUsers: React.FC = () => {
       parentEmail: userData.parentEmail || '',
 
       // Academic Information (Legacy)
-      rollNumber: userData.academicInfo?.rollNumber || userData.rollNumber || userData.studentDetails?.rollNumber || '',
-      admissionNumber: userData.academicInfo?.admissionNumber || userData.admissionNumber || userData.studentDetails?.admissionNumber || '',
+      rollNumber: userData.academicInfo?.rollNumber || userData.rollNumber || userData.studentDetails?.rollNumber || userData.studentDetails?.studentId || '',
+      admissionNumber: userData.academicInfo?.admissionNumber || userData.admissionNumber || userData.studentDetails?.admissionNumber || userData.studentDetails?.studentId || '',
       admissionDate: userData.academicInfo?.admissionDate ?
         new Date(userData.academicInfo.admissionDate).toISOString().split('T')[0] :
         (userData.admissionDate || userData.studentDetails?.admissionDate || ''),
@@ -2984,6 +2986,7 @@ const ManageUsers: React.FC = () => {
     console.log('  secondaryPhone:', newFormData.secondaryPhone);
     console.log('  whatsappNumber:', newFormData.whatsappNumber);
     console.log('Address Info:');
+    console.log('  address:', newFormData.address);
     console.log('  permanentStreet:', newFormData.permanentStreet);
     console.log('  permanentCity:', newFormData.permanentCity);
     console.log('  permanentState:', newFormData.permanentState);
@@ -2999,6 +3002,9 @@ const ManageUsers: React.FC = () => {
     console.log('  section:', newFormData.section);
     console.log('  rollNumber:', newFormData.rollNumber);
     console.log('  admissionNumber:', newFormData.admissionNumber);
+    console.log('  academicYear:', newFormData.academicYear);
+    console.log('Student Details Object:');
+    console.log('  studentDetails:', newFormData.studentDetails);
     console.log('Total fields populated:', Object.keys(newFormData).length);
 
     setFormData(newFormData as any);
@@ -6913,7 +6919,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter full name in English"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Student Name (Kannada)</label>
                           <input
                             type="text"
@@ -6922,7 +6928,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
                           <input
@@ -6995,7 +7001,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter father's name"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Father Name (Kannada)</label>
                           <input
                             type="text"
@@ -7004,7 +7010,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter father's name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Father Aadhaar No</label>
                           <input
@@ -7035,7 +7041,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter mother's name"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mother Name (Kannada)</label>
                           <input
                             type="text"
@@ -7044,7 +7050,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter mother's name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mother Aadhaar No</label>
                           <input
@@ -8229,7 +8235,7 @@ const ManageUsers: React.FC = () => {
                   <div className="space-y-6">
 
                     {/* Basic Information - SATS Standard */}
-                    <div className="bg-blue-50 p-4 rounded-lg">
+                    {/* <div className="bg-blue-50 p-4 rounded-lg">
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
@@ -8253,7 +8259,7 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                       </div>
-                    </div>
+                    </div> */}
 
                     {/* Student Details - SATS Standard */}
                     <div className="bg-yellow-50 p-4 rounded-lg">
@@ -8270,7 +8276,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter full name in English"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Student Name (Kannada)</label>
                           <input
                             type="text"
@@ -8279,7 +8285,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
                           <input
@@ -8462,7 +8468,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter father's name"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Father Name (Kannada)</label>
                           <input
                             type="text"
@@ -8471,7 +8477,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter father's name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Father Aadhaar No</label>
                           <input
@@ -8495,7 +8501,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter mother's name"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mother Name (Kannada)</label>
                           <input
                             type="text"
@@ -8504,7 +8510,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter mother's name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mother Aadhaar No</label>
                           <input

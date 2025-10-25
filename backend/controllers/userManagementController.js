@@ -48,12 +48,22 @@ exports.getAllUsers = async (req, res) => {
         const users = await db.collection(collection).find({ isActive: { $ne: false } }).toArray();
 
         // DEBUG: Log studentDetails structure
-        if (collection === 'students') {
-          users.forEach(user => {
-            console.log('DEBUG - Student user from DB:', user.userId);
-            console.log('DEBUG - studentDetails keys:', Object.keys(user.studentDetails || {}));
-            console.log('DEBUG - studentDetails:', JSON.stringify(user.studentDetails, null, 2));
-          });
+        if (collection === 'students' && users.length > 0) {
+          const sampleUser = users[0];
+          console.log('\n=== DEBUG - SAMPLE STUDENT DOCUMENT STRUCTURE ===');
+          console.log('userId:', sampleUser.userId);
+          console.log('Top-level keys:', Object.keys(sampleUser).filter(k => k !== 'password'));
+          console.log('\nstudentDetails keys:', Object.keys(sampleUser.studentDetails || {}));
+          console.log('studentDetails content:', JSON.stringify(sampleUser.studentDetails, null, 2));
+          
+          // Check if fields are at root level
+          console.log('\nChecking root-level fields:');
+          console.log('  fatherName:', sampleUser.fatherName);
+          console.log('  motherName:', sampleUser.motherName);
+          console.log('  dateOfBirth:', sampleUser.dateOfBirth);
+          console.log('  religion:', sampleUser.religion);
+          console.log('  caste:', sampleUser.caste);
+          console.log('=== END DEBUG ===\n');
         }
 
         // Process each user found into a standardized format
@@ -370,6 +380,29 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
     const upperSchoolCode = schoolCode.toUpperCase();
 
     console.log(`🔄 Updating user ${userIdToUpdate} for school: ${upperSchoolCode}`);
+    console.log('📦 Received updateData keys:', Object.keys(updateData));
+    console.log('📦 Student-specific fields received:', {
+      fatherName: updateData.fatherName,
+      motherName: updateData.motherName,
+      fatherPhone: updateData.fatherPhone,
+      motherPhone: updateData.motherPhone,
+      class: updateData.class,
+      section: updateData.section,
+      dateOfBirth: updateData.dateOfBirth,
+      gender: updateData.gender,
+      religion: updateData.religion,
+      caste: updateData.caste,
+      studentCaste: updateData.studentCaste,
+      bankName: updateData.bankName,
+      bankAccountNumber: updateData.bankAccountNumber,
+      ifscCode: updateData.ifscCode
+    });
+    console.log('📦 Address fields received:', {
+      permanentCity: updateData.permanentCity,
+      permanentPincode: updateData.permanentPincode,
+      permanentStreet: updateData.permanentStreet,
+      permanentState: updateData.permanentState
+    });
 
     let connection;
     try { connection = await SchoolDatabaseManager.getSchoolConnection(upperSchoolCode); }
@@ -562,12 +595,61 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
     // --- Update Role-Specific Details using setField ---
     const rolePrefix = `${user.role}Details`;
     if (user.role === 'student') {
-      if (updateData.currentClass !== undefined) setField(`${rolePrefix}.currentClass`, updateData.currentClass);
-      if (updateData.currentSection !== undefined) setField(`${rolePrefix}.currentSection`, updateData.currentSection);
+      // Academic Information
+      if (updateData.currentClass !== undefined || updateData.class !== undefined) setField(`${rolePrefix}.currentClass`, updateData.currentClass || updateData.class);
+      if (updateData.currentSection !== undefined || updateData.section !== undefined) setField(`${rolePrefix}.currentSection`, updateData.currentSection || updateData.section);
       if (updateData.rollNumber !== undefined) setField(`${rolePrefix}.rollNumber`, updateData.rollNumber);
       if (updateData.admissionNumber !== undefined) setField(`${rolePrefix}.admissionNumber`, updateData.admissionNumber);
+      if (updateData.admissionDate !== undefined) setField(`${rolePrefix}.admissionDate`, updateData.admissionDate ? new Date(updateData.admissionDate) : null);
+      if (updateData.dateOfBirth !== undefined) setField(`${rolePrefix}.dateOfBirth`, updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null);
+      if (updateData.gender !== undefined) setField(`${rolePrefix}.gender`, updateData.gender);
+      if (updateData.academicYear !== undefined) setField(`${rolePrefix}.academicYear`, updateData.academicYear);
+      
+      // Family Information
       if (updateData.fatherName !== undefined) setField(`${rolePrefix}.fatherName`, updateData.fatherName);
+      if (updateData.fatherPhone !== undefined) setField(`${rolePrefix}.fatherPhone`, updateData.fatherPhone);
+      if (updateData.fatherEmail !== undefined) setField(`${rolePrefix}.fatherEmail`, updateData.fatherEmail);
+      if (updateData.fatherOccupation !== undefined) setField(`${rolePrefix}.fatherOccupation`, updateData.fatherOccupation);
       if (updateData.motherName !== undefined) setField(`${rolePrefix}.motherName`, updateData.motherName);
+      if (updateData.motherPhone !== undefined) setField(`${rolePrefix}.motherPhone`, updateData.motherPhone);
+      if (updateData.motherEmail !== undefined) setField(`${rolePrefix}.motherEmail`, updateData.motherEmail);
+      if (updateData.motherOccupation !== undefined) setField(`${rolePrefix}.motherOccupation`, updateData.motherOccupation);
+      if (updateData.guardianName !== undefined) setField(`${rolePrefix}.guardianName`, updateData.guardianName);
+      if (updateData.guardianRelation !== undefined || updateData.guardianRelationship !== undefined) setField(`${rolePrefix}.guardianRelationship`, updateData.guardianRelation || updateData.guardianRelationship);
+      
+      // Personal Information
+      if (updateData.bloodGroup !== undefined) setField(`${rolePrefix}.bloodGroup`, updateData.bloodGroup);
+      if (updateData.nationality !== undefined) setField(`${rolePrefix}.nationality`, updateData.nationality);
+      if (updateData.religion !== undefined) setField(`${rolePrefix}.religion`, updateData.religion);
+      if (updateData.caste !== undefined || updateData.studentCaste !== undefined) setField(`${rolePrefix}.caste`, updateData.caste || updateData.studentCaste);
+      if (updateData.category !== undefined || updateData.socialCategory !== undefined) setField(`${rolePrefix}.category`, updateData.category || updateData.socialCategory);
+      
+      // Previous School
+      if (updateData.previousSchoolName !== undefined) setField(`${rolePrefix}.previousSchoolName`, updateData.previousSchoolName);
+      if (updateData.previousBoard !== undefined) setField(`${rolePrefix}.previousBoard`, updateData.previousBoard);
+      if (updateData.lastClass !== undefined) setField(`${rolePrefix}.lastClass`, updateData.lastClass);
+      if (updateData.tcNumber !== undefined) setField(`${rolePrefix}.tcNumber`, updateData.tcNumber);
+      
+      // Transport
+      if (updateData.transportMode !== undefined) setField(`${rolePrefix}.transportMode`, updateData.transportMode);
+      if (updateData.busRoute !== undefined) setField(`${rolePrefix}.busRoute`, updateData.busRoute);
+      if (updateData.pickupPoint !== undefined) setField(`${rolePrefix}.pickupPoint`, updateData.pickupPoint);
+      
+      // Banking
+      if (updateData.bankName !== undefined) setField(`${rolePrefix}.bankName`, updateData.bankName);
+      if (updateData.bankAccountNo !== undefined || updateData.bankAccountNumber !== undefined) setField(`${rolePrefix}.bankAccountNo`, updateData.bankAccountNo || updateData.bankAccountNumber);
+      if (updateData.ifscCode !== undefined || updateData.bankIFSC !== undefined) setField(`${rolePrefix}.bankIFSC`, updateData.ifscCode || updateData.bankIFSC);
+      
+      // Medical & Special Needs
+      if (updateData.medicalConditions !== undefined) setField(`${rolePrefix}.medicalConditions`, updateData.medicalConditions);
+      if (updateData.allergies !== undefined) setField(`${rolePrefix}.allergies`, updateData.allergies);
+      if (updateData.specialNeeds !== undefined) setField(`${rolePrefix}.specialNeeds`, updateData.specialNeeds);
+      if (updateData.disability !== undefined) setField(`${rolePrefix}.disability`, updateData.disability);
+      if (updateData.isRTECandidate !== undefined) setField(`${rolePrefix}.isRTECandidate`, updateData.isRTECandidate);
+      
+      // Mother Tongue
+      if (updateData.motherTongue !== undefined) setField(`${rolePrefix}.motherTongue`, updateData.motherTongue);
+      if (updateData.motherTongueOther !== undefined) setField(`${rolePrefix}.motherTongueOther`, updateData.motherTongueOther);
     } else if (user.role === 'teacher') {
       if (updateData.qualification !== undefined) setField(`${rolePrefix}.qualification`, updateData.qualification);
       if (updateData.experience !== undefined) setField(`${rolePrefix}.experience`, updateData.experience);
