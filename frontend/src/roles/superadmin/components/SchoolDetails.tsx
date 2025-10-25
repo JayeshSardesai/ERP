@@ -30,6 +30,7 @@ interface User {
   teachingInfo?: any;
   adminInfo?: any;
   parentInfo?: any;
+  profileImage?: string | null; // Add profileImage field
   // Add studentDetails to the interface
   studentDetails?: {
     currentClass?: string;
@@ -329,7 +330,7 @@ function SchoolDetailsContent() {
 
         console.log('Processing', allUsers.length, 'users...');
         // Log first student to check studentDetails
-        const firstStudent = allUsers.find(u => u.role === 'student');
+        const firstStudent = allUsers.find((u: any) => u.role === 'student');
         if (firstStudent) {
           console.log('Sample student data:', firstStudent);
         }
@@ -1039,10 +1040,26 @@ function SchoolDetailsContent() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full overflow-hidden">
-                                <div className="h-full w-full flex items-center justify-center bg-blue-100 text-blue-800 font-medium">
-                                  {user.name?.firstName?.[0]?.toUpperCase() || user.name?.displayName?.[0]?.toUpperCase() || 'U'}
-                                  {user.name?.lastName?.[0]?.toUpperCase() || user.name?.displayName?.[1]?.toUpperCase() || 'U'}
-                                </div>
+                                {user.profileImage ? (
+                                  <img
+                                    src={`http://localhost:5050${user.profileImage}`}
+                                    alt={user.name?.displayName || 'User'}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      target.style.display = 'none';
+                                      const parent = target.parentElement;
+                                      if (parent) {
+                                        parent.innerHTML = `<div class="h-full w-full flex items-center justify-center bg-blue-100 text-blue-800 font-medium">${user.name?.firstName?.[0]?.toUpperCase() || user.name?.displayName?.[0]?.toUpperCase() || 'U'}${user.name?.lastName?.[0]?.toUpperCase() || user.name?.displayName?.[1]?.toUpperCase() || 'U'}</div>`;
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="h-full w-full flex items-center justify-center bg-blue-100 text-blue-800 font-medium">
+                                    {user.name?.firstName?.[0]?.toUpperCase() || user.name?.displayName?.[0]?.toUpperCase() || 'U'}
+                                    {user.name?.lastName?.[0]?.toUpperCase() || user.name?.displayName?.[1]?.toUpperCase() || 'U'}
+                                  </div>
+                                )}
                               </div>
                               <div className="ml-4">
                                 <div className="text-sm font-medium text-gray-900">{user.name?.displayName || user.name?.firstName || user.email || 'Unknown User'}</div>

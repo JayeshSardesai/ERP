@@ -536,22 +536,7 @@ class UserGenerator {
         throw new Error(`User with ID ${userId} not found`);
       }
       
-      // Handle password update separately
-      if (updateData.password && updateData.password.trim()) {
-        updateData.password = await this.hashPassword(updateData.password);
-      } else {
-        // Remove password field if empty to avoid overwriting with empty string
-        delete updateData.password;
-      }
-      
-      // Remove sensitive fields that shouldn't be updated
-      delete updateData.userId;
-      delete updateData._id;
-      delete updateData.schoolCode;
-      
-      updateData.updatedAt = new Date();
-      
-      // Create the same query pattern as we used for finding the user
+      // Get the user to determine role
       const updateQuery = { userId: userId };
       if (userId.match(/^[0-9a-fA-F]{24}$/)) {
         updateQuery.$or = [
@@ -561,9 +546,138 @@ class UserGenerator {
         delete updateQuery.userId;
       }
       
+      const user = await userCollection.findOne(updateQuery);
+      if (!user) {
+        throw new Error(`User with ID ${userId} not found`);
+      }
+      
+      // Build proper update object with nested structures
+      const updateFields = {};
+      
+      // Handle password update separately
+      if (updateData.password && updateData.password.trim()) {
+        updateFields.password = await this.hashPassword(updateData.password);
+      }
+      
+      // Update basic name fields
+      if (updateData.firstName || updateData.lastName || updateData.middleName) {
+        if (updateData.firstName) updateFields['name.firstName'] = updateData.firstName.trim();
+        if (updateData.lastName) updateFields['name.lastName'] = updateData.lastName.trim();
+        if (updateData.middleName) updateFields['name.middleName'] = updateData.middleName.trim();
+        const displayName = `${updateData.firstName || user.name?.firstName || ''} ${updateData.lastName || user.name?.lastName || ''}`.trim();
+        if (displayName) updateFields['name.displayName'] = displayName;
+      }
+      
+      // Update email
+      if (updateData.email) updateFields.email = updateData.email.trim().toLowerCase();
+      
+      // Update contact fields
+      if (updateData.primaryPhone !== undefined) updateFields['contact.primaryPhone'] = updateData.primaryPhone;
+      if (updateData.secondaryPhone !== undefined) updateFields['contact.secondaryPhone'] = updateData.secondaryPhone;
+      if (updateData.whatsappNumber !== undefined) updateFields['contact.whatsappNumber'] = updateData.whatsappNumber;
+      
+      // Update address fields - handle conversion from string to object if needed
+      const hasAddressUpdates = updateData.permanentStreet !== undefined || updateData.permanentArea !== undefined || 
+                                updateData.permanentCity !== undefined || updateData.permanentState !== undefined ||
+                                updateData.permanentPincode !== undefined || updateData.permanentCountry !== undefined ||
+                                updateData.permanentLandmark !== undefined || updateData.sameAsPermanent !== undefined;
+      
+      if (hasAddressUpdates) {
+        // Check if current address is a string - if so, convert to object first
+        if (typeof user.address === 'string') {
+          // Convert string address to object structure
+          updateFields['address'] = {
+            permanent: {
+              street: updateData.permanentStreet || user.address || '',
+              area: updateData.permanentArea || '',
+              city: updateData.permanentCity || '',
+              state: updateData.permanentState || '',
+              country: updateData.permanentCountry || 'India',
+              pincode: updateData.permanentPincode || '',
+              landmark: updateData.permanentLandmark || ''
+            },
+            current: null,
+            sameAsPermanent: updateData.sameAsPermanent !== false
+          };
+        } else {
+          // Address is already an object, update nested fields
+          if (updateData.permanentStreet !== undefined) updateFields['address.permanent.street'] = updateData.permanentStreet;
+          if (updateData.permanentArea !== undefined) updateFields['address.permanent.area'] = updateData.permanentArea;
+          if (updateData.permanentCity !== undefined) updateFields['address.permanent.city'] = updateData.permanentCity;
+          if (updateData.permanentState !== undefined) updateFields['address.permanent.state'] = updateData.permanentState;
+          if (updateData.permanentPincode !== undefined) updateFields['address.permanent.pincode'] = updateData.permanentPincode;
+          if (updateData.permanentCountry !== undefined) updateFields['address.permanent.country'] = updateData.permanentCountry;
+          if (updateData.permanentLandmark !== undefined) updateFields['address.permanent.landmark'] = updateData.permanentLandmark;
+          if (updateData.sameAsPermanent !== undefined) updateFields['address.sameAsPermanent'] = updateData.sameAsPermanent;
+        }
+      }
+      
+      // Update role-specific fields
+      const rolePrefix = `${user.role}Details`;
+      if (user.role === 'student') {
+        // Academic fields
+        if (updateData.currentClass !== undefined || updateData.class !== undefined) updateFields[`${rolePrefix}.currentClass`] = updateData.currentClass || updateData.class;
+        if (updateData.currentSection !== undefined || updateData.section !== undefined) updateFields[`${rolePrefix}.currentSection`] = updateData.currentSection || updateData.section;
+        if (updateData.rollNumber !== undefined) updateFields[`${rolePrefix}.rollNumber`] = updateData.rollNumber;
+        if (updateData.admissionNumber !== undefined) updateFields[`${rolePrefix}.admissionNumber`] = updateData.admissionNumber;
+        if (updateData.admissionDate !== undefined) updateFields[`${rolePrefix}.admissionDate`] = updateData.admissionDate ? new Date(updateData.admissionDate) : null;
+        if (updateData.dateOfBirth !== undefined) updateFields[`${rolePrefix}.dateOfBirth`] = updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null;
+        if (updateData.gender !== undefined) updateFields[`${rolePrefix}.gender`] = updateData.gender;
+        
+        // Family fields - only update if non-empty
+        if (updateData.fatherName !== undefined && updateData.fatherName !== '') updateFields[`${rolePrefix}.fatherName`] = updateData.fatherName;
+        if (updateData.fatherPhone !== undefined && updateData.fatherPhone !== '') updateFields[`${rolePrefix}.fatherPhone`] = updateData.fatherPhone;
+        if (updateData.fatherEmail !== undefined && updateData.fatherEmail !== '') updateFields[`${rolePrefix}.fatherEmail`] = updateData.fatherEmail;
+        if (updateData.fatherOccupation !== undefined && updateData.fatherOccupation !== '') updateFields[`${rolePrefix}.fatherOccupation`] = updateData.fatherOccupation;
+        if (updateData.motherName !== undefined && updateData.motherName !== '') updateFields[`${rolePrefix}.motherName`] = updateData.motherName;
+        if (updateData.motherPhone !== undefined && updateData.motherPhone !== '') updateFields[`${rolePrefix}.motherPhone`] = updateData.motherPhone;
+        if (updateData.motherEmail !== undefined && updateData.motherEmail !== '') updateFields[`${rolePrefix}.motherEmail`] = updateData.motherEmail;
+        if (updateData.motherOccupation !== undefined && updateData.motherOccupation !== '') updateFields[`${rolePrefix}.motherOccupation`] = updateData.motherOccupation;
+        if (updateData.guardianName !== undefined && updateData.guardianName !== '') updateFields[`${rolePrefix}.guardianName`] = updateData.guardianName;
+        const guardianRel = updateData.guardianRelation || updateData.guardianRelationship;
+        if (guardianRel !== undefined && guardianRel !== '') updateFields[`${rolePrefix}.guardianRelationship`] = guardianRel;
+        
+        // Personal fields
+        if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.bloodGroup`] = updateData.bloodGroup;
+        if (updateData.nationality !== undefined) updateFields[`${rolePrefix}.nationality`] = updateData.nationality;
+        if (updateData.religion !== undefined) updateFields[`${rolePrefix}.religion`] = updateData.religion;
+        if (updateData.caste !== undefined || updateData.studentCaste !== undefined) updateFields[`${rolePrefix}.caste`] = updateData.caste || updateData.studentCaste;
+        if (updateData.category !== undefined || updateData.socialCategory !== undefined) updateFields[`${rolePrefix}.category`] = updateData.category || updateData.socialCategory;
+        
+        // Banking fields
+        if (updateData.bankName !== undefined) updateFields[`${rolePrefix}.bankName`] = updateData.bankName;
+        if (updateData.bankAccountNo !== undefined || updateData.bankAccountNumber !== undefined) updateFields[`${rolePrefix}.bankAccountNo`] = updateData.bankAccountNo || updateData.bankAccountNumber;
+        if (updateData.ifscCode !== undefined || updateData.bankIFSC !== undefined) updateFields[`${rolePrefix}.bankIFSC`] = updateData.ifscCode || updateData.bankIFSC;
+        
+        // Medical fields
+        if (updateData.medicalConditions !== undefined) updateFields[`${rolePrefix}.medicalConditions`] = updateData.medicalConditions;
+        if (updateData.allergies !== undefined) updateFields[`${rolePrefix}.allergies`] = updateData.allergies;
+        if (updateData.specialNeeds !== undefined) updateFields[`${rolePrefix}.specialNeeds`] = updateData.specialNeeds;
+        if (updateData.disability !== undefined) updateFields[`${rolePrefix}.disability`] = updateData.disability;
+        if (updateData.isRTECandidate !== undefined) updateFields[`${rolePrefix}.isRTECandidate`] = updateData.isRTECandidate;
+        
+        // Mother tongue
+        if (updateData.motherTongue !== undefined) updateFields[`${rolePrefix}.motherTongue`] = updateData.motherTongue;
+        if (updateData.motherTongueOther !== undefined) updateFields[`${rolePrefix}.motherTongueOther`] = updateData.motherTongueOther;
+        
+        // Previous school
+        if (updateData.previousSchoolName !== undefined) updateFields[`${rolePrefix}.previousSchoolName`] = updateData.previousSchoolName;
+        if (updateData.tcNumber !== undefined) updateFields[`${rolePrefix}.tcNumber`] = updateData.tcNumber;
+      } else if (user.role === 'teacher') {
+        if (updateData.qualification !== undefined) updateFields[`${rolePrefix}.qualification`] = updateData.qualification;
+        if (updateData.experience !== undefined) updateFields[`${rolePrefix}.experience`] = updateData.experience;
+        if (updateData.subjects !== undefined && Array.isArray(updateData.subjects)) {
+          updateFields[`${rolePrefix}.subjects`] = updateData.subjects.map(s => String(s).trim()).filter(Boolean);
+        }
+      }
+      
+      updateFields.updatedAt = new Date();
+      
+      console.log(`📝 Updating user ${userId} with fields:`, Object.keys(updateFields));
+      
       const result = await userCollection.updateOne(
         updateQuery,
-        { $set: updateData }
+        { $set: updateFields }
       );
       
       if (result.modifiedCount === 0) {
