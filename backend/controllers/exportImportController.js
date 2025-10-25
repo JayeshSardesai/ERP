@@ -647,7 +647,7 @@ function getTeacherHeaders() {
     'aadharNumber', 'panNumber', 'joiningDate', 'highestQualification',
     'specialization', 'totalExperience', 'subjects', 'classTeacherOf',
     'employeeId', 'bankName', 'bankAccountNo', 'bankIFSC',
-    'bloodGroup', 'nationality', 'religion', 'isActive'
+    'bloodGroup', 'nationality', 'religion', 'isActive', 'profileimage'
   ];
 }
 
@@ -691,6 +691,14 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
   let currentPincode = normalizedRow['currentpincode'] || ''; if (currentPincode && !/^\d{6}$/.test(currentPincode)) currentPincode = '';
   let totalExperience = parseInt(normalizedRow['totalexperience'] || '0'); if (isNaN(totalExperience) || totalExperience < 0) totalExperience = 0;
   const firstName = normalizedRow['firstname'] || ''; const lastName = normalizedRow['lastname'] || '';
+
+  // Handle profile image if provided
+  let profileImagePath = '';
+  if (normalizedRow['profileimage']) {
+    profileImagePath = await copyProfilePicture(normalizedRow['profileimage'], userId, schoolCode);
+    console.log(`🔍 DEBUG: Teacher profile image path returned: ${profileImagePath}`);
+  }
+
   const newTeacher = {
     _id: new ObjectId(), userId, schoolCode: schoolCode.toUpperCase(), schoolId: schoolIdAsObjectId,
     name: { firstName, middleName: normalizedRow['middlename'] || '', lastName, displayName: `${firstName} ${lastName}`.trim() },
@@ -702,6 +710,7 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
       sameAsPermanent: sameAsPermanent
     },
     identity: { aadharNumber: normalizedRow['aadharnumber'] || '', panNumber: normalizedRow['pannumber'] || '' },
+    profileImage: profileImagePath,
     isActive: isActive, createdAt: new Date(), updatedAt: new Date(),
     schoolAccess: { joinedDate: finalJoiningDate, assignedBy: creatingUserIdAsObjectId, status: 'active', accessLevel: 'full' },
     auditTrail: { createdBy: creatingUserIdAsObjectId, createdAt: new Date() },

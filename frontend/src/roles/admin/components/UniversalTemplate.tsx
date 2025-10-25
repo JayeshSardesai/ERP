@@ -1,28 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, Eye, Settings, Save, Plus, Trash2 } from 'lucide-react';
+import { renderToString } from 'react-dom/server';
+import { FileText, Download, Eye, Settings, Save } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
 import api, { schoolAPI } from '../../../services/api';
-
-interface TemplateSettings {
-  schoolName: string;
-  schoolCode: string;
-  website: string;
-  logoUrl: string;
-  headerColor: string;
-  accentColor: string;
-  address: string;
-  phone: string;
-  email: string;
-}
-
-interface TemplateField {
-  id: string;
-  name: string;
-  type: 'text' | 'number' | 'date' | 'table';
-  placeholder: string;
-  required: boolean;
-}
+import {
+  InvoiceTemplate,
+  CertificateTemplate,
+  AdmitCardTemplate,
+  IDCardTemplate,
+  TemplateSettings
+} from '../../../components/templates';
 
 const UniversalTemplate: React.FC = () => {
   const { user } = useAuth();
@@ -43,308 +31,55 @@ const UniversalTemplate: React.FC = () => {
   const [templateType, setTemplateType] = useState<'invoice' | 'admit_card' | 'certificate' | 'custom'>('invoice');
   const [loading, setLoading] = useState(false);
 
-  // Fetch school data from database
-  const fetchSchoolData = async () => {
-    console.log('User data available:', {
-      schoolCode: user?.schoolCode,
-      schoolId: user?.schoolId,
-      schoolName: user?.schoolName
-    });
-
-    if (!user?.schoolCode && !user?.schoolId) return;
-
-    try {
-      setLoading(true);
-
-      let schoolData = null;
-
-      // Try to fetch school info using the proper school API
-      try {
-        console.log('Fetching school info using school API...');
-        console.log('User context:', { schoolId: user?.schoolId, schoolCode: user?.schoolCode });
-        let response;
-
-        // Use the new reliable school info endpoint that only uses main database
-        const schoolIdentifier = user?.schoolId || user?.schoolCode;
-        if (schoolIdentifier) {
-          console.log('Trying with school info endpoint:', schoolIdentifier);
-          try {
-            // Use the new /info endpoint that bypasses school-specific database issues
-            response = await api.get(`/schools/${schoolIdentifier}/info`);
-            console.log('Success with school info endpoint:', response?.data);
-          } catch (infoError: any) {
-            console.log('School info endpoint failed:', infoError.response?.status, 'Trying original endpoint...');
-            // Fallback to original endpoint if new one fails
-            response = await schoolAPI.getSchoolById(schoolIdentifier);
-            console.log('Success with original endpoint:', response?.data);
-          }
-        }
-
-        // Handle both wrapped and direct response formats
-        const data = response?.data?.data || response?.data;
-        if (data && (data.name || data.schoolName)) {
-          console.log('School data found:', data);
-
-          // Format address from nested structure (concise version)
-          let formattedAddress = '123 School Street, City, State 12345';
-          if (data.address) {
-            const addr = data.address;
-            // Create a more concise address format
-            const addressParts = [
-              addr.area || addr.street?.substring(0, 30), // Limit street to 30 chars or use area
-              addr.city,
-              addr.state,
-              addr.pinCode || addr.zipCode
-            ].filter(Boolean);
-            
-            // Join with commas and limit total length
-            formattedAddress = addressParts.join(', ');
-            if (formattedAddress.length > 60) {
-              formattedAddress = formattedAddress.substring(0, 57) + '...';
-            }
-          }
-
-          // Format website URL to be more concise
-          let formattedWebsite = data.contact?.website || data.website || 'www.edulogix.com';
-          if (formattedWebsite.length > 25) {
-            // Remove protocol and www if present, then truncate
-            formattedWebsite = formattedWebsite
-              .replace(/^https?:\/\//, '')
-              .replace(/^www\./, '');
-            if (formattedWebsite.length > 25) {
-              formattedWebsite = formattedWebsite.substring(0, 22) + '...';
-            }
-          }
-
-          // Construct full logo URL with backend base URL (same as ManageUsers.tsx)
-          let logoUrl = '';
-          if (data.logoUrl || data.logo) {
-            const rawLogoUrl = data.logoUrl || data.logo;
-            // If logoUrl starts with /uploads, prepend the backend URL
-            if (rawLogoUrl.startsWith('/uploads')) {
-              // Use the same approach as ManageUsers.tsx - get base URL without /api suffix
-              const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
-              const baseUrl = envBase.replace(/\/api\/?$/, '');
-              logoUrl = `${baseUrl}${rawLogoUrl}`;
-              console.log('🔧 Environment base URL:', envBase);
-              console.log('🔧 Calculated base URL:', baseUrl);
-              console.log('🔧 Raw logo URL from DB:', rawLogoUrl);
-              console.log('🖼️ Final constructed logo URL:', logoUrl);
-            } else {
-              logoUrl = rawLogoUrl;
-              console.log('🖼️ Using direct logo URL:', logoUrl);
-            }
-          }
-
-          schoolData = {
-            schoolName: data.name || data.schoolName || user?.schoolName,
-            schoolCode: data.code || data.schoolCode || user?.schoolCode,
-            address: formattedAddress,
-            phone: data.contact?.phone || data.phone || data.contactNumber || '+91-XXXXXXXXXX',
-            email: data.contact?.email || data.email || data.contactEmail || data.principalEmail || 'info@school.com',
-            website: formattedWebsite,
-            logoUrl: logoUrl
-          };
-        }
-      } catch (error: any) {
-        console.log('Failed to fetch from school API:', error.response?.status || error.message);
-
-        // Try alternative school endpoints as fallback
-        try {
-          console.log('Trying alternative school endpoints...');
-          let fallbackResponse;
-          
-          // Try different possible school endpoints
-          const possibleEndpoints = [
-            `/admin/schools/${user.schoolCode}`,
-            `/schools/${user.schoolCode}`,
-            `/api/schools/${user.schoolCode}`,
-            `/school/${user.schoolCode}`,
-            `/admin/school/${user.schoolCode}`
-          ];
-          
-          for (const endpoint of possibleEndpoints) {
-            try {
-              console.log(`Trying endpoint: ${endpoint}`);
-              fallbackResponse = await api.get(endpoint);
-              if (fallbackResponse?.data?.success || fallbackResponse?.data) {
-                console.log(`Success with endpoint: ${endpoint}`, fallbackResponse.data);
-                break;
-              }
-            } catch (endpointError: any) {
-              console.log(`Failed endpoint ${endpoint}:`, endpointError.response?.status);
-              continue;
-            }
-          }
-
-          if (fallbackResponse?.data) {
-            const data = fallbackResponse.data.data || fallbackResponse.data;
-            console.log('School data found from alternative endpoint:', data);
-
-            // Format address from nested structure (concise version)
-            let formattedAddress = '123 School Street, City, State 12345';
-            if (data.address && typeof data.address === 'object') {
-              const addr = data.address;
-              const addressParts = [
-                addr.area || addr.street?.substring(0, 30),
-                addr.city,
-                addr.state,
-                addr.pinCode || addr.zipCode
-              ].filter(Boolean);
-              
-              formattedAddress = addressParts.join(', ');
-              if (formattedAddress.length > 60) {
-                formattedAddress = formattedAddress.substring(0, 57) + '...';
-              }
-            } else if (typeof data.address === 'string') {
-              formattedAddress = data.address.length > 60 ? data.address.substring(0, 57) + '...' : data.address;
-            }
-
-            // Format website URL to be more concise
-            let formattedWebsite = data.contact?.website || data.website || 'www.edulogix.com';
-            if (formattedWebsite.length > 25) {
-              formattedWebsite = formattedWebsite
-                .replace(/^https?:\/\//, '')
-                .replace(/^www\./, '');
-              if (formattedWebsite.length > 25) {
-                formattedWebsite = formattedWebsite.substring(0, 22) + '...';
-              }
-            }
-
-            schoolData = {
-              schoolName: data.name || data.schoolName || user?.schoolName,
-              schoolCode: data.code || data.schoolCode || user?.schoolCode,
-              address: formattedAddress,
-              phone: data.contact?.phone || data.phone || data.contactNumber || '+91-XXXXXXXXXX',
-              email: data.contact?.email || data.email || data.contactEmail || data.principalEmail || 'info@school.com',
-              website: formattedWebsite,
-              logoUrl: data.logoUrl || data.logo || ''
-            };
-          }
-        } catch (fallbackError: any) {
-          console.log('Alternative endpoints also failed:', fallbackError.response?.status || fallbackError.message);
-
-          // Try one more fallback - get all schools and find by code
-          if (user?.schoolCode && !schoolData) {
-            try {
-              console.log('Trying getAllSchools as final fallback...');
-              const allSchoolsResponse = await schoolAPI.getAllSchools();
-              if (allSchoolsResponse?.data?.success && allSchoolsResponse.data?.data) {
-                const schools = allSchoolsResponse.data.data;
-                const school = schools.find((s: any) =>
-                  s.schoolCode === user.schoolCode ||
-                  s.code === user.schoolCode ||
-                  s.name?.toLowerCase().includes(user.schoolName?.toLowerCase() || '')
-                );
-                if (school) {
-                  console.log('School found in getAllSchools:', school);
-                  
-                  // Format address from nested structure (concise version)
-                  let formattedAddress = '123 School Street, City, State 12345';
-                  if (school.address && typeof school.address === 'object') {
-                    const addr = school.address;
-                    const addressParts = [
-                      addr.area || addr.street?.substring(0, 30),
-                      addr.city,
-                      addr.state,
-                      addr.pinCode || addr.zipCode
-                    ].filter(Boolean);
-                    
-                    formattedAddress = addressParts.join(', ');
-                    if (formattedAddress.length > 60) {
-                      formattedAddress = formattedAddress.substring(0, 57) + '...';
-                    }
-                  } else if (typeof school.address === 'string') {
-                    formattedAddress = school.address.length > 60 ? school.address.substring(0, 57) + '...' : school.address;
-                  } else if (school.location?.address) {
-                    const locAddr = school.location.address;
-                    formattedAddress = locAddr.length > 60 ? locAddr.substring(0, 57) + '...' : locAddr;
-                  }
-                  
-                  // Format website URL to be more concise
-                  let formattedWebsite = school.contact?.website || school.website || 'www.edulogix.com';
-                  if (formattedWebsite.length > 25) {
-                    formattedWebsite = formattedWebsite
-                      .replace(/^https?:\/\//, '')
-                      .replace(/^www\./, '');
-                    if (formattedWebsite.length > 25) {
-                      formattedWebsite = formattedWebsite.substring(0, 22) + '...';
-                    }
-                  }
-                  
-                  schoolData = {
-                    schoolName: school.name || school.schoolName || user?.schoolName,
-                    schoolCode: school.code || school.schoolCode || user?.schoolCode,
-                    address: formattedAddress,
-                    phone: school.contact?.phone || school.phone || school.contactNumber || '+91-XXXXXXXXXX',
-                    email: school.contact?.email || school.email || school.contactEmail || school.principalEmail || 'info@school.com',
-                    website: formattedWebsite,
-                    logoUrl: school.logoUrl || school.logo || ''
-                  };
-                }
-              }
-            } catch (finalError: any) {
-              console.log('Final fallback also failed:', finalError.response?.status || finalError.message);
-            }
-          }
-        }
-      }
-
-      // If we got school data, update the template settings
-      if (schoolData) {
-        console.log('Updating template settings with school data:', schoolData);
-        setTemplateSettings(prev => ({
-          ...prev,
-          schoolName: schoolData.schoolName || prev.schoolName,
-          schoolCode: schoolData.schoolCode || prev.schoolCode,
-          address: schoolData.address || prev.address,
-          phone: schoolData.phone || prev.phone,
-          email: schoolData.email || prev.email,
-          website: schoolData.website || prev.website,
-          logoUrl: schoolData.logoUrl || prev.logoUrl
-        }));
-      } else {
-        // Fallback to auth context data
-        console.log('Using fallback data from user context');
-        setTemplateSettings(prev => ({
-          ...prev,
-          schoolName: user?.schoolName || prev.schoolName,
-          schoolCode: user?.schoolCode || prev.schoolCode,
-          address: prev.address,
-          phone: prev.phone,
-          email: prev.email,
-          website: prev.website
-        }));
-      }
-    } catch (error) {
-      console.error('Failed to fetch school data:', error);
-      // Keep existing values from auth context
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Empty template data for different document types
-  const templateData = {
-    invoice: {
-      title: 'INVOICE',
-      recipientTitle: 'INVOICE TO:',
-      showContent: false
-    },
-    admit_card: {
-      title: 'ADMIT CARD',
-      recipientTitle: 'STUDENT DETAILS:',
-      showContent: false
-    },
-    certificate: {
-      title: 'CERTIFICATE',
-      recipientTitle: 'AWARDED TO:',
-      showContent: false
-    },
-    custom: {
-      title: 'DOCUMENT',
-      recipientTitle: 'DETAILS:',
-      showContent: false
+  // Generate sample data for different template types
+  const getSampleData = () => {
+    switch (templateType) {
+      case 'invoice':
+        return {
+          invoiceNumber: 'INV-2024-001',
+          date: new Date().toLocaleDateString(),
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+          clientName: 'John Doe',
+          clientAddress: '123 Student Street, City, State 12345',
+          items: [
+            { description: 'Tuition Fee', quantity: 1, rate: 5000, amount: 5000 },
+            { description: 'Library Fee', quantity: 1, rate: 500, amount: 500 },
+            { description: 'Lab Fee', quantity: 1, rate: 1000, amount: 1000 }
+          ],
+          subtotal: 6500,
+          tax: 650,
+          total: 7150
+        };
+      case 'admit_card':
+        return {
+          student: {
+            id: '1',
+            name: 'John Doe',
+            rollNumber: 'R001',
+            sequenceId: 'SEQ001',
+            className: '10',
+            section: 'A',
+            profileImage: ''
+          },
+          subjects: [
+            { id: '1', name: 'Mathematics', examDate: '2024-03-15', examTime: '09:00 AM', examHour: '09', examMinute: '00', examAmPm: 'AM' },
+            { id: '2', name: 'Science', examDate: '2024-03-16', examTime: '09:00 AM', examHour: '09', examMinute: '00', examAmPm: 'AM' },
+            { id: '3', name: 'English', examDate: '2024-03-17', examTime: '09:00 AM', examHour: '09', examMinute: '00', examAmPm: 'AM' }
+          ],
+          testName: 'Final Examination 2024',
+          enableRoomNumbers: true
+        };
+      case 'certificate':
+        return {
+          recipientName: 'John Doe',
+          courseName: 'Academic Excellence',
+          completionDate: new Date().toLocaleDateString(),
+          certificateNumber: 'CERT-2024-001',
+          signatory: 'Principal Name',
+          signatoryTitle: 'Principal'
+        };
+      default:
+        return {};
     }
   };
 
@@ -364,189 +99,103 @@ const UniversalTemplate: React.FC = () => {
       return;
     }
 
-    // Generate different HTML content based on template type
-    let htmlContent = '';
+    // Generate component HTML using renderToString
+    let componentHTML = '';
 
-    if (templateType === 'invoice') {
-      // Invoice template with partitioned layout
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Invoice Template Preview</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <style>
-              @media print {
-                body { margin: 0; padding: 0; }
-                .no-print { display: none !important; }
-              }
-              @page {
-                size: A4 landscape;
-                margin: 10mm;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-                font-family: Arial, sans-serif;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="w-full bg-white" style="font-family: Arial, sans-serif; min-height: 100vh; padding: 10mm; box-sizing: border-box;">
-              <!-- Header -->
-              <div class="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-300">
-                <div class="flex items-center space-x-4">
-                  ${templateSettings.logoUrl ?
-        `<img src="${templateSettings.logoUrl}" alt="Logo" class="w-12 h-12 object-contain" />` :
-        `<div class="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center">
-                    <div class="w-6 h-6 border-2 border-white rounded transform rotate-45"></div>
-                  </div>`
+    try {
+      switch (templateType) {
+        case 'invoice':
+          const invoiceData = getSampleData() as any;
+          componentHTML = renderToString(
+            React.createElement(InvoiceTemplate, {
+              settings: templateSettings,
+              invoiceData: invoiceData,
+              mode: 'print'
+            })
+          );
+          break;
+        case 'certificate':
+          const certificateData = getSampleData() as any;
+          componentHTML = renderToString(
+            React.createElement(CertificateTemplate, {
+              settings: templateSettings,
+              certificateData: certificateData,
+              mode: 'print'
+            })
+          );
+          break;
+        case 'admit_card':
+          const admitCardData = getSampleData() as any;
+          componentHTML = renderToString(
+            React.createElement(AdmitCardTemplate, {
+              settings: templateSettings,
+              student: admitCardData.student,
+              subjects: admitCardData.subjects,
+              testName: admitCardData.testName,
+              enableRoomNumbers: admitCardData.enableRoomNumbers,
+              instructions: [
+                'Bring this admit card to the examination hall',
+                'Arrive at least 30 minutes before the exam starts',
+                'Carry a valid ID proof along with this admit card',
+                'Mobile phones and electronic devices are not allowed',
+                'Follow all examination rules and regulations'
+              ],
+              mode: 'print'
+            })
+          );
+          break;
+        default:
+          componentHTML = `
+            <div style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
+              <h1>Custom Template</h1>
+              <p>Your content will appear here</p>
+            </div>
+          `;
       }
-                  <div>
-                    <h1 class="text-xl font-bold text-gray-800">${templateSettings.schoolName}</h1>
-                    <p class="text-xs text-gray-600">Code: ${templateSettings.schoolCode}</p>
-                    <p class="text-xs text-gray-600">${templateSettings.address}</p>
-                    <p class="text-xs text-gray-600">${templateSettings.phone} | ${templateSettings.email}</p>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <h2 class="text-2xl font-bold text-gray-800">FEE RECEIPT</h2>
-                </div>
-              </div>
-
-              <!-- Partitioned Content -->
-              <div class="flex gap-4" style="height: calc(100vh - 200px);">
-                <!-- Admin Copy -->
-                <div class="flex-1 border-r-2 border-dashed border-gray-400 pr-4 flex flex-col">
-                  <div class="text-center mb-4">
-                    <h3 class="text-lg font-bold text-gray-800">ADMIN COPY</h3>
-                    <div class="w-full h-px bg-gray-300 mt-2"></div>
-                  </div>
-                  
-                  <div class="flex-1 flex items-center justify-center">
-                    <div class="text-center text-gray-400">
-                      <div class="text-4xl mb-2">🧾</div>
-                      <p class="text-sm font-medium">Admin Copy</p>
-                      <p class="text-xs">Fee details and records</p>
-                    </div>
-                  </div>
-
-                  <div class="text-center mt-auto text-xs text-gray-600 border-t pt-2">
-                    <div class="mb-1">This is a computer generated copy.</div>
-                    <div class="flex items-center justify-center gap-1 mt-1">
-                      <span>Powered by</span>
-                      <strong style="color: #2563eb;">EduLgix</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Student Copy -->
-                <div class="flex-1 flex flex-col">
-                  <div class="text-center mb-4">
-                    <h3 class="text-lg font-bold text-gray-800">STUDENT COPY</h3>
-                    <div class="w-full h-px bg-gray-300 mt-2"></div>
-                  </div>
-                  
-                  <div class="flex-1 flex items-center justify-center">
-                    <div class="text-center text-gray-400">
-                      <div class="text-4xl mb-2">🧾</div>
-                      <p class="text-sm font-medium">Student Copy</p>
-                      <p class="text-xs">Student details</p>
-                    </div>
-                  </div>
-
-                  <div class="text-center mt-auto text-xs text-gray-600 border-t pt-2">
-                    <div class="mb-1">This is a computer generated copy.</div>
-                    <div class="flex items-center justify-center gap-1 mt-1">
-                      <span>Powered by</span>
-                      <strong style="color: #2563eb;">EduLgix</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </body>
-        </html>
-      `;
-    } else {
-      // Regular template for other document types
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Template Preview - ${templateData[templateType].title}</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <style>
-              @media print {
-                body { margin: 0; padding: 0; }
-                .no-print { display: none !important; }
-              }
-              @page {
-                size: A4;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-                font-family: Arial, sans-serif;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="w-full bg-white flex flex-col" style="font-family: Arial, sans-serif; min-height: 100vh; padding: 20mm; box-sizing: border-box;">
-              <!-- Header -->
-              <div class="flex justify-between items-start mb-8 pb-4 border-b-2 border-gray-300">
-                <div class="flex items-center space-x-4">
-                  ${templateSettings.logoUrl ?
-          `<img src="${templateSettings.logoUrl}" alt="Logo" class="w-16 h-16 object-contain" />` :
-          `<div class="w-16 h-16 bg-gray-800 rounded-lg flex items-center justify-center">
-                      <div class="w-10 h-10 border-2 border-white rounded transform rotate-45"></div>
-                    </div>`
-        }
-                  <div>
-                    <h1 class="text-2xl font-bold text-gray-800">
-                      ${templateSettings.schoolName}
-                    </h1>
-                    <p class="text-sm text-gray-600">School Code: ${templateSettings.schoolCode}</p>
-                    <p class="text-sm text-gray-600">${templateSettings.address}</p>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <h2 class="text-4xl font-bold text-gray-800">${templateData[templateType].title}</h2>
-                </div>
-              </div>
-              
-              <!-- Empty Content Area -->
-              <div class="flex-1 flex items-center justify-center">
-                <div class="text-center text-gray-400">
-                  <div class="text-6xl mb-4">📄</div>
-                  <p class="text-lg font-medium">Template Preview</p>
-                  <p class="text-sm">Content will appear here when documents are generated</p>
-                </div>
-              </div>
-              
-              <!-- Footer -->
-              <div class="mt-auto bg-gray-50 px-8 py-4 border-t">
-                <div class="flex justify-between items-center text-sm text-gray-600">
-                  <div class="flex items-center space-x-4">
-                    <span>${templateSettings.phone}</span>
-                    <span>${templateSettings.email}</span>
-                    <span>${templateSettings.website}</span>
-                  </div>
-                  <div class="flex items-center text-xs text-gray-500">
-                    <span>Powered by</span>
-                    <div class="ml-2 flex items-center">
-                      <div class="w-4 h-4 bg-blue-600 rounded-sm mr-1"></div>
-                      <span class="font-semibold">EduLgix</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </body>
-        </html>
+    } catch (error) {
+      console.error('Error rendering component:', error);
+      componentHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
+          <h1>Template Preview Error</h1>
+          <p>There was an error rendering the template preview.</p>
+        </div>
       `;
     }
+
+    // Create complete HTML document
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Template Preview - ${templateType.replace('_', ' ').toUpperCase()}</title>
+          <style>
+            @media print {
+              body { margin: 0; padding: 0; }
+              .no-print { display: none !important; }
+            }
+            @page {
+              size: A4;
+              margin: 0;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: Arial, sans-serif;
+            }
+          </style>
+        </head>
+        <body>
+          ${componentHTML}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
 
     printWindow.document.write(htmlContent);
     printWindow.document.close();
@@ -563,208 +212,160 @@ const UniversalTemplate: React.FC = () => {
     }
   };
 
+  // Fetch school data from database (simplified version)
+  const fetchSchoolData = async () => {
+    if (!user?.schoolCode && !user?.schoolId) return;
+
+    try {
+      setLoading(true);
+      const schoolIdentifier = user?.schoolId || user?.schoolCode;
+      if (schoolIdentifier) {
+        const response = await api.get(`/schools/${schoolIdentifier}/info`);
+        const data = response?.data?.data || response?.data;
+
+        if (data && (data.name || data.schoolName)) {
+          let logoUrl = '';
+          if (data.logoUrl || data.logo) {
+            const rawLogoUrl = data.logoUrl || data.logo;
+            if (rawLogoUrl.startsWith('/uploads')) {
+              const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+              const baseUrl = envBase.replace(/\/api\/?$/, '');
+              logoUrl = `${baseUrl}${rawLogoUrl}`;
+            } else {
+              logoUrl = rawLogoUrl;
+            }
+          }
+
+          // Format address from object to string
+          let formattedAddress = '123 School Street, City, State 12345';
+          if (data.address) {
+            if (typeof data.address === 'string') {
+              formattedAddress = data.address;
+            } else if (typeof data.address === 'object') {
+              const addr = data.address;
+              const addressParts = [
+                addr.street || addr.area,
+                addr.city,
+                addr.district || addr.taluka,
+                addr.state,
+                addr.pinCode || addr.zipCode
+              ].filter(Boolean);
+              
+              if (addressParts.length > 0) {
+                formattedAddress = addressParts.join(', ');
+              }
+            }
+          }
+
+          setTemplateSettings(prev => ({
+            ...prev,
+            schoolName: data.name || data.schoolName || prev.schoolName,
+            schoolCode: data.code || data.schoolCode || prev.schoolCode,
+            address: formattedAddress || prev.address,
+            phone: data.phone || data.contact?.phone || prev.phone,
+            email: data.email || data.contact?.email || prev.email,
+            website: data.website || data.contact?.website || prev.website,
+            logoUrl: logoUrl || prev.logoUrl
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch school data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadTemplateSettings();
     fetchSchoolData();
   }, [user?.schoolCode]);
 
   const TemplatePreview = () => {
-    const data = templateData[templateType];
+    const sampleData = getSampleData() as any;
 
-    // Special layout for invoice template (portrait with vertical partition)
-    if (templateType === 'invoice') {
-      return (
-        <div className="w-full max-w-4xl mx-auto bg-white shadow-lg" style={{
-          fontFamily: 'Arial, sans-serif',
-          aspectRatio: '210/148', // A5 landscape ratio (smaller height)
-          minHeight: '148mm',
-          width: '210mm',
-          padding: '8mm',
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'row'
-        }}>
-          {/* Admin Copy */}
-          <div style={{
-            flex: 1,
-            borderRight: '2px dashed #ccc',
-            paddingRight: '5mm',
-            marginRight: '5mm',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%'
-          }}>
-            {/* Header */}
-            <div className="flex flex-col items-center mb-2 pb-1 border-b-2 border-gray-300">
-              <div className="flex items-center space-x-1 mb-1">
-                {templateSettings.logoUrl ? (
-                  <img src={templateSettings.logoUrl} alt="Logo" className="w-6 h-6 object-contain" />
-                ) : (
-                  <div className="w-6 h-6 bg-gray-800 rounded-lg flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-white rounded transform rotate-45"></div>
+    switch (templateType) {
+      case 'invoice':
+        return (
+          <div className="transform scale-75 origin-top-left">
+            <InvoiceTemplate
+              settings={templateSettings}
+              invoiceData={sampleData}
+              mode="preview"
+            />
+          </div>
+        );
+      case 'certificate':
+        return (
+          <div className="transform scale-75 origin-top-left">
+            <CertificateTemplate
+              settings={templateSettings}
+              certificateData={sampleData}
+              mode="preview"
+            />
+          </div>
+        );
+      case 'admit_card':
+        return (
+          <div className="transform scale-75 origin-top-left">
+            <AdmitCardTemplate
+              settings={templateSettings}
+              student={sampleData.student}
+              subjects={sampleData.subjects}
+              testName={sampleData.testName}
+              enableRoomNumbers={sampleData.enableRoomNumbers}
+              instructions={[
+                'Bring this admit card to the examination hall',
+                'Arrive at least 30 minutes before the exam starts',
+                'Carry a valid ID proof along with this admit card',
+                'Mobile phones and electronic devices are not allowed',
+                'Follow all examination rules and regulations'
+              ]}
+              mode="preview"
+            />
+          </div>
+        );
+      default:
+        return (
+          <div className="transform scale-75 origin-top-left">
+            <div className="w-full max-w-4xl mx-auto bg-white shadow-lg flex flex-col" style={{
+              fontFamily: 'Arial, sans-serif',
+              aspectRatio: '210/297',
+              minHeight: '297mm',
+              width: '210mm',
+              padding: '20mm',
+              boxSizing: 'border-box'
+            }}>
+              <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-300">
+                <div className="flex items-center space-x-4">
+                  {templateSettings.logoUrl ? (
+                    <img src={templateSettings.logoUrl} alt="Logo" className="w-16 h-16 object-contain" />
+                  ) : (
+                    <div className="w-16 h-16 bg-gray-800 rounded-lg flex items-center justify-center">
+                      <div className="w-10 h-10 border-2 border-white rounded transform rotate-45"></div>
+                    </div>
+                  )}
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-800">{templateSettings.schoolName}</h1>
+                    <p className="text-sm text-gray-600">School Code: {templateSettings.schoolCode}</p>
+                    <p className="text-sm text-gray-600">{templateSettings.address}</p>
                   </div>
-                )}
-                <div className="text-center">
-                  <h1 className="text-xs font-bold text-gray-800">
-                    {templateSettings.schoolName}
-                  </h1>
-                  <p className="text-xs text-gray-600">{templateSettings.address}</p>
-                  <p className="text-xs text-gray-600">Phone: {templateSettings.phone}</p>
                 </div>
               </div>
-              <div className="bg-blue-600 text-white px-1 py-0.5 rounded text-xs font-bold">
-                ADMIN COPY
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">CUSTOM DOCUMENT</h2>
               </div>
-            </div>
-
-            <div className="text-center mb-2">
-              <h2 className="text-xs font-bold text-gray-800">
-                PAYMENT RECEIPT
-              </h2>
-            </div>
-
-            <div className="text-center text-gray-400 flex-1 flex items-center justify-center">
-              <div>
-                <div className="text-2xl mb-2">🧾</div>
-                <p className="text-xs font-medium">Admin Copy</p>
-                <p className="text-xs">Student details</p>
-              </div>
-            </div>
-
-            <div className="text-center mt-auto text-xs text-gray-600 border-t pt-2">
-              <div className="mb-1">This is a computer generated copy.</div>
-              <div className="flex items-center justify-center gap-1 mt-1">
-                <span>Powered by</span>
-                <strong style={{ color: '#2563eb' }}>EduLogix</strong>
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center text-gray-400">
+                  <div className="text-6xl mb-4">📄</div>
+                  <p className="text-lg font-medium">Template Preview</p>
+                  <p className="text-sm">Content will appear here when documents are generated</p>
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Student Copy */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%'
-          }}>
-            {/* Header */}
-            <div className="flex flex-col items-center mb-2 pb-1 border-b-2 border-gray-300">
-              <div className="flex items-center space-x-1 mb-1">
-                {templateSettings.logoUrl ? (
-                  <img src={templateSettings.logoUrl} alt="Logo" className="w-6 h-6 object-contain" />
-                ) : (
-                  <div className="w-6 h-6 bg-gray-800 rounded-lg flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-white rounded transform rotate-45"></div>
-                  </div>
-                )}
-                <div className="text-center">
-                  <h1 className="text-xs font-bold text-gray-800">
-                    {templateSettings.schoolName}
-                  </h1>
-                  <p className="text-xs text-gray-600">{templateSettings.address}</p>
-                  <p className="text-xs text-gray-600">Phone: {templateSettings.phone}</p>
-                </div>
-              </div>
-              <div className="bg-blue-600 text-white px-1 py-0.5 rounded text-xs font-bold">
-                STUDENT COPY
-              </div>
-            </div>
-
-            <div className="text-center mb-2">
-              <h2 className="text-xs font-bold text-gray-800">
-                PAYMENT RECEIPT
-              </h2>
-            </div>
-
-            <div className="text-center text-gray-400 flex-1 flex items-center justify-center">
-              <div>
-                <div className="text-2xl mb-2">🧾</div>
-                <p className="text-xs font-medium">Student Copy</p>
-                <p className="text-xs">Student details</p>
-              </div>
-            </div>
-
-            <div className="text-center mt-auto text-xs text-gray-600 border-t pt-2">
-              <div className="mb-1">This is a computer generated copy.</div>
-              <div className="flex items-center justify-center gap-1 mt-1">
-                <span>Powered by</span>
-                <strong style={{ color: '#2563eb' }}>EduLogix</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
+        );
     }
-
-    // Regular portrait layout for other templates
-    return (
-      <div className="w-full max-w-4xl mx-auto bg-white shadow-lg flex flex-col" style={{
-        fontFamily: 'Arial, sans-serif',
-        aspectRatio: '210/297', // A4 ratio
-        minHeight: '297mm',
-        width: '210mm',
-        padding: '20mm',
-        boxSizing: 'border-box'
-      }}>
-        {/* Header */}
-        <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-300">
-          <div className="flex items-center space-x-4">
-            {templateSettings.logoUrl ? (
-              <img src={templateSettings.logoUrl} alt="Logo" className="w-16 h-16 object-contain" />
-            ) : (
-              <div className="w-16 h-16 bg-gray-800 rounded-lg flex items-center justify-center">
-                <div className="w-10 h-10 border-2 border-white rounded transform rotate-45"></div>
-              </div>
-            )}
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">
-                {templateSettings.schoolName}
-              </h1>
-              <p className="text-sm text-gray-600">School Code: {templateSettings.schoolCode}</p>
-              <p className="text-sm text-gray-600">{templateSettings.address}</p>
-              <p className="text-sm text-gray-600">Phone: {templateSettings.phone} | Email: {templateSettings.email}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Document Title Below Header */}
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">
-            {data.title}
-          </h2>
-        </div>
-
-        {/* Empty Content Area */}
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-gray-400">
-            <div className="text-6xl mb-4">📄</div>
-            <p className="text-lg font-medium">Template Preview</p>
-            <p className="text-sm">Content will appear here when documents are generated</p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-auto bg-gray-50 px-8 py-4 border-t">
-          <div className="text-center mb-3">
-            <p className="text-sm text-gray-600 font-medium">This is a computer generated copy. Signature is not required.</p>
-          </div>
-          <div className="flex justify-between items-center text-sm text-gray-600">
-            <div className="flex items-center space-x-4">
-              <span>{templateSettings.phone}</span>
-              <span>{templateSettings.email}</span>
-              <span>{templateSettings.website}</span>
-            </div>
-            <div className="flex items-center text-xs text-gray-500">
-              <span>Powered by</span>
-              <div className="ml-2 flex items-center">
-                <div className="w-4 h-4 bg-blue-600 rounded-sm mr-1"></div>
-                <span className="font-semibold">EduLogix</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   if (previewMode) {
@@ -800,11 +401,8 @@ const UniversalTemplate: React.FC = () => {
           </div>
         </div>
 
-        {/* A4 Preview Container */}
         <div className="bg-gray-100 p-8 rounded-lg overflow-auto">
-          <div className="transform scale-75 origin-top-left">
-            <TemplatePreview />
-          </div>
+          <TemplatePreview />
         </div>
       </div>
     );
@@ -844,7 +442,6 @@ const UniversalTemplate: React.FC = () => {
         </div>
       </div>
 
-      {/* School Information - Read Only */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h4 className="text-lg font-medium text-gray-900 mb-4">
           School Information
@@ -922,7 +519,6 @@ const UniversalTemplate: React.FC = () => {
           </div>
         </div>
       </div>
-
 
       <div className="mt-8 p-4 bg-gray-50 rounded-lg">
         <h4 className="text-sm font-medium text-gray-900 mb-2">Template Usage</h4>

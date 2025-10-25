@@ -1985,14 +1985,20 @@ const ManageUsers: React.FC = () => {
                   processedUser.studentDetails = {
                     studentId: userData.userId || userData._id,
                     class: userData.academicInfo?.class || userData.class || 'Not assigned',
-                    section: userData.academicInfo?.section || userData.section || 'Not assigned'
+                    section: userData.academicInfo?.section || userData.section || 'Not assigned',
+                    rollNumber: userData.studentDetails?.rollNumber || userData.rollNumber || ''
                   };
                 } else if (role === 'teacher') {
                   processedUser.teacherDetails = {
-                    employeeId: userData.employeeId || userData.teacherId || 'Not assigned',
+                    employeeId: userData.teacherDetails?.employeeId || userData.employeeId || userData.teacherId || 'Not assigned',
                     subjects: userData.subjects || [],
                     qualification: userData.qualification || 'Not provided',
                     experience: userData.experience || 0
+                  };
+                } else if (role === 'admin') {
+                  processedUser.adminDetails = {
+                    employeeId: userData.adminDetails?.employeeId || userData.employeeId || 'Not assigned',
+                    designation: userData.adminDetails?.designation || 'Administrator'
                   };
                 }
 
@@ -3162,6 +3168,48 @@ const ManageUsers: React.FC = () => {
     const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || user.studentDetails?.class === selectedGrade;
     const matchesSection = activeTab !== 'student' || selectedSection === 'all' || user.studentDetails?.section === selectedSection;
     return matchesSearch && matchesRole && matchesGrade && matchesSection;
+  }).sort((a, b) => {
+    // Sort students by rollNumber (Student ID)
+    if (a.role === 'student' && b.role === 'student') {
+      const rollA = a.studentDetails?.rollNumber || '';
+      const rollB = b.studentDetails?.rollNumber || '';
+      // Try numeric comparison first, fall back to string comparison
+      const numA = parseInt(rollA);
+      const numB = parseInt(rollB);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return rollA.localeCompare(rollB);
+    }
+
+    // Sort teachers by employeeId (Employee ID)
+    if (a.role === 'teacher' && b.role === 'teacher') {
+      const empA = a.teacherDetails?.employeeId || '';
+      const empB = b.teacherDetails?.employeeId || '';
+      // Try numeric comparison first, fall back to string comparison
+      const numA = parseInt(empA);
+      const numB = parseInt(empB);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return empA.localeCompare(empB);
+    }
+
+    // Sort admins by employeeId (Employee ID)
+    if (a.role === 'admin' && b.role === 'admin') {
+      const empA = a.adminDetails?.employeeId || '';
+      const empB = b.adminDetails?.employeeId || '';
+      // Try numeric comparison first, fall back to string comparison
+      const numA = parseInt(empA);
+      const numB = parseInt(empB);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return empA.localeCompare(empB);
+    }
+
+    // Default: maintain existing order
+    return 0;
   });
 
   // Simple form validity check for disabling submit button
