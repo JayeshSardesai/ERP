@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { renderToString } from 'react-dom/server';
 import {
   Plus, Trash2, BookOpen, ChevronDown, ChevronRight, FileText, Search, Calendar, MapPin, CreditCard
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
+import {
+  AdmitCardTemplate,
+  IDCardTemplate,
+  useTemplateData,
+  TEMPLATE_COLORS
+} from '../../../components/templates';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import api, { schoolAPI } from '../../../services/api';
 
@@ -123,14 +130,14 @@ const AcademicDetails: React.FC = () => {
       preview: 'Blue header with white body, professional layout'
     },
     {
-      id: 'template2', 
+      id: 'template2',
       name: 'Modern Green Template',
       description: 'Contemporary green design with rounded corners',
       preview: 'Green gradient header, modern typography'
     },
     {
       id: 'template3',
-      name: 'Elegant Purple Template', 
+      name: 'Elegant Purple Template',
       description: 'Sophisticated purple theme with elegant borders',
       preview: 'Purple accents, elegant border design'
     },
@@ -693,8 +700,21 @@ const AcademicDetails: React.FC = () => {
                 sequenceId: student.userId || student.studentDetails?.admissionNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
                 className: hallTicketClass,
                 section: hallTicketSection,
-                // Include profile image from database - this is the key fix!
-                profileImage: student.profileImage || student.profilePicture || null
+                // Include profile image from database with proper URL construction
+                profileImage: (() => {
+                  const rawImageUrl = student.profileImage || student.profilePicture;
+                  if (!rawImageUrl) return null;
+                  
+                  // If it starts with /uploads, construct full URL
+                  if (rawImageUrl.startsWith('/uploads')) {
+                    const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+                    const baseUrl = envBase.replace(/\/api\/?$/, '');
+                    return `${baseUrl}${rawImageUrl}`;
+                  }
+                  
+                  // Otherwise return as is (for external URLs or full URLs)
+                  return rawImageUrl;
+                })()
               }));
 
               setStudents(studentsWithSeqId);
@@ -750,8 +770,21 @@ const AcademicDetails: React.FC = () => {
                 sequenceId: student.userId || student.studentDetails?.admissionNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
                 className: hallTicketClass,
                 section: hallTicketSection,
-                // Include profile image from database - this is the key fix for fallback endpoint too!
-                profileImage: student.profileImage || student.profilePicture || null
+                // Include profile image from database with proper URL construction
+                profileImage: (() => {
+                  const rawImageUrl = student.profileImage || student.profilePicture;
+                  if (!rawImageUrl) return null;
+                  
+                  // If it starts with /uploads, construct full URL
+                  if (rawImageUrl.startsWith('/uploads')) {
+                    const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+                    const baseUrl = envBase.replace(/\/api\/?$/, '');
+                    return `${baseUrl}${rawImageUrl}`;
+                  }
+                  
+                  // Otherwise return as is (for external URLs or full URLs)
+                  return rawImageUrl;
+                })()
               }));
 
               setStudents(studentsWithSeqId);
@@ -823,13 +856,13 @@ const AcademicDetails: React.FC = () => {
 
         if (response.ok) {
           const data = await response.json();
-          
+
           if (data.success && data.data && data.data.length > 0) {
             // Filter students by class and section
             const filteredStudents = data.data.filter((student: any) => {
               const studentClass = student.studentDetails?.currentClass || student.currentclass || student.class || student.className;
               const studentSection = student.studentDetails?.currentSection || student.currentsection || student.section;
-              
+
               return String(studentClass) === String(idCardClass) &&
                 String(studentSection).toUpperCase() === String(idCardSection).toUpperCase();
             });
@@ -904,15 +937,15 @@ const AcademicDetails: React.FC = () => {
         const hour = field === 'examHour' ? value : (currentData.examHour || '00');
         const minute = field === 'examMinute' ? value : (currentData.examMinute || '00');
         const ampm = field === 'examAmPm' ? value : (currentData.examAmPm || 'AM');
-        
+
         // Convert to 24-hour format for examTime field
         let hour24 = parseInt(hour);
         if (hour === '00') hour24 = 12; // Handle "00" as 12
         if (ampm === 'AM' && hour24 === 12) hour24 = 0;
         if (ampm === 'PM' && hour24 !== 12) hour24 += 12;
-        
+
         updatedData.examTime = `${hour24.toString().padStart(2, '0')}:${minute}`;
-        
+
         console.log(`🔄 Auto-updating examTime: ${hour}:${minute} ${ampm} → ${updatedData.examTime}`);
       }
 
@@ -977,10 +1010,10 @@ const AcademicDetails: React.FC = () => {
   const generateHallTickets = async () => {
     const completedSubjects = subjectExams.filter(subject => {
       const examData = hallTicketData[subject.id];
-      const hasRequiredFields = examData?.examDate && 
-                               examData?.examHour && 
-                               examData?.examMinute && 
-                               examData?.examAmPm;
+      const hasRequiredFields = examData?.examDate &&
+        examData?.examHour &&
+        examData?.examMinute &&
+        examData?.examAmPm;
 
       console.log(`🔍 Checking subject ${subject.name}:`, {
         examDate: examData?.examDate,
@@ -1232,7 +1265,7 @@ const AcademicDetails: React.FC = () => {
       // Function to format time from 12-hour components
       const formatTime12Hour = (hour: string, minute: string, ampm: string): string => {
         if (!hour || !minute || !ampm) return 'Time not set';
-        
+
         try {
           // Convert "00" hour to "12" for display
           const displayHour = hour === '00' ? '12' : hour;
@@ -1249,277 +1282,96 @@ const AcademicDetails: React.FC = () => {
       const sortedSubjects = [...completedSubjects].sort((a, b) => {
         const examDataA = hallTicketData[a.id];
         const examDataB = hallTicketData[b.id];
-        
+
         console.log(`📅 Sorting: ${a.name} (${examDataA.examDate} ${examDataA.examTime}) vs ${b.name} (${examDataB.examDate} ${examDataB.examTime})`);
-        
+
         // First sort by date
         const dateA = new Date(examDataA.examDate);
         const dateB = new Date(examDataB.examDate);
-        
+
         // Compare dates
         if (dateA.getTime() !== dateB.getTime()) {
           const result = dateA.getTime() - dateB.getTime();
           console.log(`📅 Date comparison: ${examDataA.examDate} vs ${examDataB.examDate} = ${result}`);
           return result;
         }
-        
+
         // If dates are same, sort by time (convert 12-hour to minutes for proper comparison)
         const getMinutesFrom12Hour = (hour: string, minute: string, ampm: string): number => {
           if (!hour || !minute || !ampm) return 0;
-          
+
           let hourNum = parseInt(hour);
           const minuteNum = parseInt(minute);
-          
+
           // Handle "00" hour case - treat as 12
           if (hourNum === 0) hourNum = 12;
-          
+
           // Convert 12-hour to 24-hour for comparison
           if (ampm === 'AM' && hourNum === 12) hourNum = 0;
           if (ampm === 'PM' && hourNum !== 12) hourNum += 12;
-          
+
           return hourNum * 60 + minuteNum;
         };
-        
+
         const minutesA = getMinutesFrom12Hour(examDataA.examHour, examDataA.examMinute, examDataA.examAmPm);
         const minutesB = getMinutesFrom12Hour(examDataB.examHour, examDataB.examMinute, examDataB.examAmPm);
         const timeResult = minutesA - minutesB;
-        
+
         console.log(`🕐 Time comparison: ${examDataA.examHour}:${examDataA.examMinute} ${examDataA.examAmPm} (${minutesA}min) vs ${examDataB.examHour}:${examDataB.examMinute} ${examDataB.examAmPm} (${minutesB}min) = ${timeResult}`);
         return timeResult;
       });
 
-      console.log('📋 Final sorted subjects:', sortedSubjects.map(s => ({ 
-        name: s.name, 
-        date: hallTicketData[s.id].examDate, 
-        time: hallTicketData[s.id].examTime 
+      console.log('📋 Final sorted subjects:', sortedSubjects.map(s => ({
+        name: s.name,
+        date: hallTicketData[s.id].examDate,
+        time: hallTicketData[s.id].examTime
       })));
 
-      // Create hall ticket HTML for each student using UniversalTemplate admit card style
+      // Create hall ticket HTML for each student using AdmitCardTemplate component
+
       const hallTicketsHTML = students.map(student => {
-        const subjectRows = sortedSubjects.map(subject => {
+        // Convert subjects to the format expected by AdmitCardTemplate
+        const templateSubjects = sortedSubjects.map(subject => {
           const examData = hallTicketData[subject.id];
-          const formattedTime = formatTime12Hour(examData.examHour, examData.examMinute, examData.examAmPm);
-          console.log(`🎫 Hall ticket row for ${subject.name}: ${examData.examDate} ${examData.examHour}:${examData.examMinute} ${examData.examAmPm} → ${formattedTime}`);
-          
+          return {
+            id: subject.id,
+            name: subject.name,
+            examDate: examData.examDate,
+            examTime: examData.examTime,
+            examHour: examData.examHour,
+            examMinute: examData.examMinute,
+            examAmPm: examData.examAmPm,
+            roomNumber: examData.roomNumber
+          };
+        });
+
+        // Use AdmitCardTemplate component to generate HTML
+        try {
+          return renderToString(
+            React.createElement(AdmitCardTemplate, {
+              settings: templateSettings,
+              student: student,
+              subjects: templateSubjects,
+              testName: testName,
+              enableRoomNumbers: enableRoomNumbers,
+              instructions: customInstructions.length > 0 ? customInstructions : undefined,
+              mode: 'print'
+            })
+          );
+        } catch (error) {
+          console.error('Error rendering AdmitCardTemplate:', error);
+          // Fallback to a simple HTML structure
           return `
-            <tr>
-              <td class="px-2 py-2 border border-gray-300 text-xs">${subject.name}</td>
-              <td class="px-2 py-2 border border-gray-300 text-xs">${examData.examDate}</td>
-              <td class="px-2 py-2 border border-gray-300 text-xs">${formattedTime}</td>
-              ${enableRoomNumbers ? `<td class="px-2 py-2 border border-gray-300 text-xs">${examData.roomNumber || 'N/A'}</td>` : ''}
-              <td class="px-2 py-2 border border-gray-300 text-xs" style="height: 30px; min-height: 30px;"></td>
-            </tr>
-          `;
-        }).join('');
-
-        return `
-          <div class="hall-ticket" style="page-break-after: always; margin-bottom: 20px;">
-            <div class="w-full max-w-4xl mx-auto bg-white shadow-lg flex flex-col" style="font-family: Arial, sans-serif; aspect-ratio: 210/297; min-height: 297mm; width: 210mm; padding: 20mm; box-sizing: border-box;">
-              <!-- Header - EXACT UniversalTemplate Structure -->
-              <div class="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-300">
-                <div class="flex items-center space-x-4">
-                  ${(logoBase64 || templateSettings.logoUrl) ?
-            `<img src="${logoBase64 || templateSettings.logoUrl}" alt="Logo" class="w-16 h-16 object-contain" 
-                         style="max-width: 64px; max-height: 64px; display: block; print-color-adjust: exact;" 
-                         onload="console.log('Logo loaded successfully')" 
-                         onerror="console.log('Logo failed to load'); this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                     <div class="w-16 h-16 bg-gray-800 rounded-lg flex items-center justify-center" style="display: none;">
-                       <div class="w-10 h-10 border-2 border-white rounded transform rotate-45"></div>
-                     </div>` :
-            `<div class="w-16 h-16 bg-gray-800 rounded-lg flex items-center justify-center">
-                      <div class="w-10 h-10 border-2 border-white rounded transform rotate-45"></div>
-                    </div>`
-          }
-                  <div>
-                    <h1 class="text-2xl font-bold text-gray-800">${templateSettings.schoolName}</h1>
-                    <p class="text-sm text-gray-600">School Code: ${templateSettings.schoolCode}</p>
-                    <p class="text-sm text-gray-600">${templateSettings.address}</p>
-                    <p class="text-sm text-gray-600">Phone: ${templateSettings.phone} | Email: ${templateSettings.email}</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Document Title Below Header - EXACT UniversalTemplate Structure -->
-              <div class="text-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">ADMIT CARD</h2>
-              </div>
-
-              <!-- Test Name - Centered -->
-              <div class="text-center mb-6">
-                <h3 class="text-xl font-semibold text-gray-700">${testName}</h3>
-              </div>
-
-              <!-- Content Area - Optimized for single page -->
-              <div class="flex-1 min-h-0">
-                <!-- Student Details Section - Compact -->
-                <div class="mb-3">
-                  <h3 class="text-base font-semibold text-gray-800 mb-2 border-b border-gray-300 pb-1">STUDENT DETAILS:</h3>
-                  <div class="grid grid-cols-3 gap-4">
-                    <!-- Student Information -->
-                    <div class="col-span-2 space-y-2">
-                      <div class="grid grid-cols-2 gap-3">
-                        <div>
-                          <span class="text-xs font-medium text-gray-600">Student Name:</span>
-                          <div class="text-sm font-bold text-gray-800 border-b border-gray-300 pb-1">${student.name}</div>
-                        </div>
-                        <div>
-                          <span class="text-xs font-medium text-gray-600">Roll Number:</span>
-                          <div class="text-sm font-bold text-blue-600 border-b border-gray-300 pb-1">${student.rollNumber}</div>
-                        </div>
-                      </div>
-                      <div class="grid grid-cols-2 gap-3">
-                        <div>
-                          <span class="text-xs font-medium text-gray-600">Class:</span>
-                          <div class="text-sm font-semibold text-gray-800 border-b border-gray-300 pb-1">Class ${hallTicketClass}</div>
-                        </div>
-                        <div>
-                          <span class="text-xs font-medium text-gray-600">Section:</span>
-                          <div class="text-sm font-semibold text-gray-800 border-b border-gray-300 pb-1">Section ${hallTicketSection}</div>
-                        </div>
-                      </div>
-                      <div>
-                        <span class="text-xs font-medium text-gray-600">Student ID:</span>
-                        <div class="text-sm font-bold text-blue-600 border-b border-gray-300 pb-1">${student.sequenceId}</div>
-                      </div>
-                    </div>
-                    
-                    <!-- Photo Space - Dynamic -->
-                    <div class="flex flex-col items-center">
-                      ${(() => {
-            // Construct student photo URL if available (same as ManageUsers.tsx)
-            let studentPhotoUrl = '';
-            console.log('🔍 Processing student:', student.name, 'profileImage:', student.profileImage);
-
-            // Only use real profile images from database
-            if (student.profileImage) {
-              if (student.profileImage.startsWith('/uploads')) {
-                // Use the same approach as ManageUsers.tsx - get base URL without /api suffix
-                const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
-                const baseUrl = envBase.replace(/\/api\/?$/, '');
-                studentPhotoUrl = `${baseUrl}${student.profileImage}`;
-                console.log('📸 Constructed student photo URL for', student.name, ':', studentPhotoUrl);
-              } else {
-                studentPhotoUrl = student.profileImage;
-                console.log('📸 Using direct student photo URL for', student.name, ':', studentPhotoUrl);
-              }
-            }
-
-            // Always show image if we have a URL (either real or generated placeholder)
-            console.log('🎯 Final studentPhotoUrl for', student.name, ':', studentPhotoUrl);
-            if (studentPhotoUrl) {
-              return `
-                            <div class="w-24 h-32 border-2 border-gray-400 rounded overflow-hidden bg-gray-50">
-                              <img src="${studentPhotoUrl}" alt="Student Photo" class="w-full h-full object-cover" 
-                                   style="print-color-adjust: exact; display: block;"
-                                   onload="console.log('✅ Student photo loaded:', '${student.name}', '${studentPhotoUrl}');" 
-                                   onerror="console.log('❌ Student photo failed to load:', '${student.name}', '${studentPhotoUrl}'); this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                              <div class="w-full h-full border-2 border-gray-400 border-dashed flex flex-col items-center justify-center bg-gray-50" style="display: none;">
-                                <div class="text-2xl text-gray-400 mb-1">📷</div>
-                                <p class="text-xs text-gray-500 text-center font-medium leading-tight">PHOTO<br/>FAILED</p>
-                              </div>
-                            </div>
-                          `;
-            } else {
-              return `
-                            <div class="w-24 h-32 border-2 border-gray-400 border-dashed flex flex-col items-center justify-center bg-gray-50 rounded">
-                              <div class="text-2xl text-gray-400 mb-1">📷</div>
-                              <p class="text-xs text-gray-500 text-center font-medium leading-tight">PASTE<br/>PHOTO<br/>HERE</p>
-                            </div>
-                          `;
-            }
-          })()}
-                      <div class="mt-1 text-center">
-                        <div class="w-20 h-px border-b border-gray-400 mb-1"></div>
-                        <p class="text-xs text-gray-500">Signature</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Exam Schedule - Compact -->
-                <div class="mb-3">
-                  <h3 class="text-base font-semibold text-gray-800 mb-2 border-b border-gray-300 pb-1">EXAMINATION SCHEDULE:</h3>
-                  <table class="w-full border-collapse border border-gray-300 bg-white text-xs">
-                    <thead>
-                      <tr class="bg-gray-100">
-                        <th class="px-2 py-2 border border-gray-300 text-left font-semibold">Subject</th>
-                        <th class="px-2 py-2 border border-gray-300 text-left font-semibold">Date</th>
-                        <th class="px-2 py-2 border border-gray-300 text-left font-semibold">Time</th>
-                        ${enableRoomNumbers ? '<th class="px-2 py-2 border border-gray-300 text-left font-semibold">Room No.</th>' : ''}
-                        <th class="px-2 py-2 border border-gray-300 text-left font-semibold">Invigilator Sign</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${subjectRows}
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Instructions - Dynamic -->
-                <div class="mb-4">
-                  <h4 class="text-base font-semibold text-gray-800 mb-2 border-b border-gray-300 pb-1">INSTRUCTIONS:</h4>
-                  <div class="grid grid-cols-2 gap-3 text-xs text-gray-700">
-                    ${(() => {
-            const halfLength = Math.ceil(customInstructions.length / 2);
-            const firstHalf = customInstructions.slice(0, halfLength);
-            const secondHalf = customInstructions.slice(halfLength);
-
-            return `
-                        <ul class="space-y-1">
-                          ${firstHalf.map(instruction => `
-                            <li class="flex items-start">
-                              <span class="text-blue-600 mr-1 text-xs">•</span>
-                              <span>${instruction}</span>
-                            </li>
-                          `).join('')}
-                        </ul>
-                        <ul class="space-y-1">
-                          ${secondHalf.map(instruction => `
-                            <li class="flex items-start">
-                              <span class="text-blue-600 mr-1 text-xs">•</span>
-                              <span>${instruction}</span>
-                            </li>
-                          `).join('')}
-                        </ul>
-                      `;
-          })()}
-                  </div>
-                </div>
-
-                <!-- Principal Signature Section -->
-                <div class="mb-4">
-                  <div class="flex justify-end">
-                    <div class="text-center">
-                      <div class="w-32 h-16 border-b border-gray-400 mb-2"></div>
-                      <p class="text-xs text-gray-600 font-medium">Principal Signature</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Footer - EXACT UniversalTemplate Structure -->
-              <div class="mt-auto bg-gray-50 px-8 py-4 border-t">
-                <div class="text-center mb-3">
-                  <p class="text-sm text-gray-600 font-medium">This is a computer generated copy. Signature is not required.</p>
-                </div>
-                <div class="flex justify-between items-center text-sm text-gray-600">
-                  <div class="flex items-center space-x-4">
-                    <span>${templateSettings.phone}</span>
-                    <span>${templateSettings.email}</span>
-                    <span>${templateSettings.website}</span>
-                  </div>
-                  <div class="flex items-center text-xs text-gray-500">
-                    <span>Powered by</span>
-                    <div class="ml-2 flex items-center">
-                      <div class="w-4 h-4 bg-blue-600 rounded-sm mr-1"></div>
-                      <span class="font-semibold">EduLogix</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div style="page-break-after: always; padding: 20px; font-family: Arial, sans-serif;">
+              <h1>${templateSettings.schoolName}</h1>
+              <h2>ADMIT CARD</h2>
+              <p><strong>Student:</strong> ${student.name}</p>
+              <p><strong>Class:</strong> ${student.className} - Section ${student.section}</p>
+              <p><strong>Roll Number:</strong> ${student.rollNumber}</p>
+              <p>Error rendering template. Please try again.</p>
             </div>
-          </div>
-        `;
+          `;
+        }
       }).join('');
 
       // Complete HTML document
@@ -1527,25 +1379,11 @@ const AcademicDetails: React.FC = () => {
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Admit Cards - ${testName}</title>
-            <!-- School Data Source: ${savedTemplate ? 'UniversalTemplate localStorage' : 'API or defaults'} -->
-            <!-- School: ${templateSettings.schoolName} (${templateSettings.schoolCode}) -->
-            <script src="https://cdn.tailwindcss.com"></script>
+            <title>Hall Tickets - ${testName}</title>
             <style>
               @media print {
                 body { margin: 0; padding: 0; }
-                .hall-ticket { 
-                  page-break-after: always; 
-                  height: 100vh;
-                  overflow: hidden;
-                }
-                .hall-ticket:last-child { page-break-after: avoid; }
-                img { 
-                  print-color-adjust: exact; 
-                  -webkit-print-color-adjust: exact;
-                  max-width: 100% !important;
-                  height: auto !important;
-                }
+                .no-print { display: none !important; }
               }
               @page {
                 size: A4;
@@ -1557,11 +1395,6 @@ const AcademicDetails: React.FC = () => {
                 font-family: Arial, sans-serif;
                 line-height: 1.3;
                 font-size: 12px;
-              }
-              .truncate {
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
               }
             </style>
           </head>
@@ -1589,141 +1422,144 @@ const AcademicDetails: React.FC = () => {
         testName
       });
 
-    } catch (error: any) {
-      console.error('Error generating admit cards:', error);
-      toast.dismiss(loadingToast);
-      toast.error('Failed to generate admit cards');
-    }
-  };
+  } catch (error: any) {
+    console.error('Error generating admit cards:', error);
+    toast.dismiss(loadingToast);
+    toast.error('Failed to generate admit cards');
+  }
+};
 
-  // Generate ID Cards function
-  const generateIdCards = async () => {
-    if (!selectedTemplate) {
-      toast.error('Please select a template first');
-      return;
-    }
+// Generate ID Cards function
+const generateIdCards = async () => {
+  if (!selectedTemplate) {
+    toast.error('Please select a template first');
+    return;
+  }
 
-    if (idCardStudents.length === 0) {
-      toast.error('No students found. Please select class and section first');
-      return;
-    }
+  if (idCardStudents.length === 0) {
+    toast.error('No students found. Please select class and section first');
+    return;
+  }
 
-    const loadingToast = toast.loading('Generating ID cards...');
+  const loadingToast = toast.loading('Generating ID cards...');
 
-    try {
-      const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      const token = localStorage.getItem('erp.authToken');
-      
-      // Get school data (same as hall tickets)
-      let templateSettings = {
-        schoolName: 'School Name',
-        schoolCode: 'SCH001',
-        address: '123 School Street, City, State 12345',
-        phone: '+91-XXXXXXXXXX',
-        email: 'info@school.com',
-        logoUrl: ''
-      };
+  try {
+    const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
+    const token = localStorage.getItem('erp.authToken');
 
-      // Get saved template data (same as hall tickets)
-      const savedTemplate = localStorage.getItem('universalTemplate');
-      if (savedTemplate) {
-        try {
-          const templateData = JSON.parse(savedTemplate);
-          templateSettings = { ...templateSettings, ...templateData };
-          console.log('✅ Using saved UniversalTemplate settings for ID cards:', templateSettings);
-        } catch (e) {
-          console.log('❌ Failed to parse saved template data:', e);
-        }
-      }
+    // Get school data (same as hall tickets)
+    let templateSettings = {
+      schoolName: 'School Name',
+      schoolCode: 'SCH001',
+      address: '123 School Street, City, State 12345',
+      phone: '+91-XXXXXXXXXX',
+      email: 'info@school.com',
+      website: 'www.school.com',
+      logoUrl: '',
+      headerColor: '#1E40AF',
+      accentColor: '#3B82F6'
+    };
 
-      // Try to fetch fresh school data from API (same as hall tickets)
+    // Get saved template data (same as hall tickets)
+    const savedTemplate = localStorage.getItem('universalTemplate');
+    if (savedTemplate) {
       try {
-        const schoolResponse = await fetch(`http://localhost:5050/api/schools/profile`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'X-School-Code': schoolCode,
-            'Content-Type': 'application/json'
-          }
-        });
+        const templateData = JSON.parse(savedTemplate);
+        templateSettings = { ...templateSettings, ...templateData };
+        console.log('✅ Using saved UniversalTemplate settings for ID cards:', templateSettings);
+      } catch (e) {
+        console.log('❌ Failed to parse saved template data:', e);
+      }
+    }
 
-        if (schoolResponse.ok) {
-          const schoolData = await schoolResponse.json();
-          console.log('🏫 Fetched fresh school data for ID cards:', schoolData);
-          
-          if (schoolData.success && schoolData.data) {
-            const data = schoolData.data;
-            let logoUrl = '';
-            
-            if (data.logo) {
-              if (data.logo.startsWith('/uploads')) {
-                const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
-                const baseUrl = envBase.replace(/\/api\/?$/, '');
-                logoUrl = `${baseUrl}${data.logo}`;
-              } else {
-                logoUrl = data.logo;
-              }
+    // Try to fetch fresh school data from API (same as hall tickets)
+    try {
+      const schoolResponse = await fetch(`http://localhost:5050/api/schools/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-School-Code': schoolCode,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (schoolResponse.ok) {
+        const schoolData = await schoolResponse.json();
+        console.log('🏫 Fetched fresh school data for ID cards:', schoolData);
+
+        if (schoolData.success && schoolData.data) {
+          const data = schoolData.data;
+          let logoUrl = '';
+
+          if (data.logo) {
+            if (data.logo.startsWith('/uploads')) {
+              const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+              const baseUrl = envBase.replace(/\/api\/?$/, '');
+              logoUrl = `${baseUrl}${data.logo}`;
+            } else {
+              logoUrl = data.logo;
             }
-
-            templateSettings = {
-              ...templateSettings,
-              schoolName: data.name || data.schoolName || templateSettings.schoolName,
-              schoolCode: data.code || data.schoolCode || templateSettings.schoolCode,
-              address: data.address || templateSettings.address,
-              phone: data.phone || data.contact?.phone || templateSettings.phone,
-              email: data.email || data.contact?.email || templateSettings.email,
-              logoUrl: logoUrl || templateSettings.logoUrl
-            };
-            console.log('✅ Updated template settings with fresh school data:', templateSettings);
           }
-        }
-      } catch (error: any) {
-        console.log('Failed to fetch fresh school data for ID cards:', error.message);
-      }
 
-      // Convert logo to base64 if available
-      let logoBase64 = '';
-      if (templateSettings.logoUrl) {
-        try {
-          logoBase64 = await convertImageToBase64(templateSettings.logoUrl);
-        } catch (error) {
-          console.log('Failed to convert logo to base64');
+          templateSettings = {
+            ...templateSettings,
+            schoolName: data.name || data.schoolName || templateSettings.schoolName,
+            schoolCode: data.code || data.schoolCode || templateSettings.schoolCode,
+            address: data.address || templateSettings.address,
+            phone: data.phone || data.contact?.phone || templateSettings.phone,
+            email: data.email || data.contact?.email || templateSettings.email,
+            logoUrl: logoUrl || templateSettings.logoUrl
+          };
+          console.log('✅ Updated template settings with fresh school data:', templateSettings);
         }
       }
+    } catch (error: any) {
+      console.log('Failed to fetch fresh school data for ID cards:', error.message);
+    }
 
-      // Get template colors based on selection
-      const getTemplateColors = (templateId: string) => {
-        switch (templateId) {
-          case 'template1':
-            return { primary: '#1E40AF', secondary: '#3B82F6', accent: '#DBEAFE' };
-          case 'template2':
-            return { primary: '#059669', secondary: '#10B981', accent: '#D1FAE5' };
-          case 'template3':
-            return { primary: '#7C3AED', secondary: '#8B5CF6', accent: '#EDE9FE' };
-          case 'template4':
-            return { primary: '#EA580C', secondary: '#F97316', accent: '#FED7AA' };
-          default:
-            return { primary: '#1E40AF', secondary: '#3B82F6', accent: '#DBEAFE' };
-        }
-      };
+    // Convert logo to base64 if available
+    let logoBase64 = '';
+    if (templateSettings.logoUrl) {
+      try {
+        logoBase64 = await convertImageToBase64(templateSettings.logoUrl);
+      } catch (error) {
+        console.log('Failed to convert logo to base64');
+      }
+    }
 
-      const colors = getTemplateColors(selectedTemplate);
+    // Get template colors based on selection
+    const getTemplateColors = (templateId: string) => {
+      switch (templateId) {
+        case 'template1':
+          return { primary: '#1E40AF', secondary: '#3B82F6', accent: '#DBEAFE' };
+        case 'template2':
+          return { primary: '#059669', secondary: '#10B981', accent: '#D1FAE5' };
+        case 'template3':
+          return { primary: '#7C3AED', secondary: '#8B5CF6', accent: '#EDE9FE' };
+        case 'template4':
+          return { primary: '#EA580C', secondary: '#F97316', accent: '#FED7AA' };
+        default:
+          return { primary: '#1E40AF', secondary: '#3B82F6', accent: '#DBEAFE' };
+      }
+    };
 
-      // Generate ID cards HTML
-      const idCardsHtml = idCardStudents.map((student, index) => {
-        // Construct student photo URL
-        let studentPhotoUrl = '';
-        if (student.profileImage) {
-          if (student.profileImage.startsWith('/uploads')) {
-            const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
-            const baseUrl = envBase.replace(/\/api\/?$/, '');
-            studentPhotoUrl = `${baseUrl}${student.profileImage}`;
-          } else {
-            studentPhotoUrl = student.profileImage;
-          }
-        }
+    const colors = getTemplateColors(selectedTemplate);
 
+    // Generate ID cards HTML using IDCardTemplate component
+    const idCardsHtml = idCardStudents.map((student: any, index: number) => {
+      try {
+        return renderToString(
+          React.createElement(IDCardTemplate, {
+            settings: templateSettings,
+            student: student,
+            templateId: selectedTemplate as 'template1' | 'template2' | 'template3' | 'template4',
+            mode: 'print'
+          })
+        );
+      } catch (error) {
+        console.error('Error rendering IDCardTemplate:', error);
+        // Fallback to a simple HTML structure
         return `
-          <div class="id-card" style="
+          <div style="
             width: 3.375in; 
             height: 2.125in; 
             background: white; 
@@ -1735,254 +1571,386 @@ const AcademicDetails: React.FC = () => {
             vertical-align: top;
             position: relative;
             overflow: hidden;
+            padding: 20px;
+            font-family: Arial, sans-serif;
           ">
-            <!-- Header -->
-            <div style="
-              background: linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%);
-              color: white;
-              padding: 8px;
-              text-align: center;
-              position: relative;
-            ">
-              <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
-                ${(logoBase64 || templateSettings.logoUrl) ? 
-                  `<img src="${logoBase64 || templateSettings.logoUrl}" alt="Logo" style="width: 24px; height: 24px; object-fit: contain;" />` :
-                  `<div style="width: 24px; height: 24px; background: white; border-radius: 4px; opacity: 0.9;"></div>`
-                }
-                <div>
-                  <h3 style="margin: 0; font-size: 12px; font-weight: bold;">${templateSettings.schoolName}</h3>
-                  <p style="margin: 0; font-size: 8px; opacity: 0.9;">STUDENT ID CARD</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Body -->
-            <div style="padding: 12px; display: flex; gap: 12px;">
-              <!-- Photo -->
-              <div style="flex-shrink: 0;">
-                ${studentPhotoUrl ? `
-                  <img src="${studentPhotoUrl}" alt="Student Photo" style="
-                    width: 60px; 
-                    height: 80px; 
-                    object-fit: cover; 
-                    border-radius: 4px;
-                    border: 2px solid ${colors.accent};
-                  " />
-                ` : `
-                  <div style="
-                    width: 60px; 
-                    height: 80px; 
-                    background: ${colors.accent}; 
-                    border-radius: 4px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    border: 2px solid ${colors.primary};
-                  ">
-                    <span style="font-size: 24px; color: ${colors.primary};">📷</span>
-                  </div>
-                `}
-              </div>
-
-              <!-- Details -->
-              <div style="flex: 1; font-size: 9px; line-height: 1.3;">
-                <div style="margin-bottom: 4px;">
-                  <strong style="color: ${colors.primary};">${student.name}</strong>
-                </div>
-                <div style="margin-bottom: 2px;">
-                  <span style="color: #666;">Class:</span> <strong>${student.className}-${student.section}</strong>
-                </div>
-                <div style="margin-bottom: 2px;">
-                  <span style="color: #666;">Roll No:</span> <strong>${student.rollNumber}</strong>
-                </div>
-                <div style="margin-bottom: 2px;">
-                  <span style="color: #666;">ID:</span> <strong>${student.sequenceId}</strong>
-                </div>
-                <div style="margin-bottom: 2px;">
-                  <span style="color: #666;">DOB:</span> ${student.dateOfBirth || 'N/A'}
-                </div>
-                <div style="margin-bottom: 2px;">
-                  <span style="color: #666;">Blood:</span> ${student.bloodGroup || 'N/A'}
-                </div>
-              </div>
-            </div>
-
-            <!-- Footer -->
-            <div style="
-              position: absolute;
-              bottom: 0;
-              left: 0;
-              right: 0;
-              background: ${colors.accent};
-              padding: 4px 8px;
-              text-align: center;
-              font-size: 7px;
-              color: ${colors.primary};
-              font-weight: bold;
-            ">
-              ${templateSettings.schoolCode} | ${templateSettings.phone}
-            </div>
+            <h3>${templateSettings.schoolName}</h3>
+            <h4>STUDENT ID CARD</h4>
+            <p><strong>Name:</strong> ${student.name}</p>
+            <p><strong>Class:</strong> ${student.className}-${student.section}</p>
+            <p><strong>Roll No:</strong> ${student.rollNumber}</p>
+            <p>Error rendering template. Please try again.</p>
           </div>
         `;
-      }).join('');
-
-      // Complete HTML document
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Student ID Cards - ${templateSettings.schoolName}</title>
-            <style>
-              @media print {
-                body { margin: 0; padding: 10px; }
-                .id-card { 
-                  page-break-inside: avoid;
-                  margin: 5px !important;
-                }
-              }
-              body {
-                font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 20px;
-                background: #f5f5f5;
-              }
-              .container {
-                text-align: center;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h1 style="text-align: center; margin-bottom: 20px; color: ${colors.primary};">
-                Student ID Cards - Class ${idCardClass} Section ${idCardSection}
-              </h1>
-              ${idCardsHtml}
-            </div>
-            <script>
-              window.onload = function() {
-                setTimeout(function() {
-                  window.print();
-                }, 500);
-              };
-            </script>
-          </body>
-        </html>
-      `;
-
-      // Open in new window and print
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
       }
+    }).join('');
 
-      toast.dismiss(loadingToast);
-      toast.success(`Generated ID cards for ${idCardStudents.length} students`);
+    // Complete HTML document
+    const htmlContent = 
+      '<!DOCTYPE html>' +
+      '<html>' +
+      '<head>' +
+      '<title>ID Cards - Class ' + idCardClass + ' Section ' + idCardSection + '</title>' +
+      '<style>' +
+      '@media print { body { margin: 0; padding: 0; } .no-print { display: none !important; } }' +
+      '@page { size: A4 landscape; margin: 10mm; }' +
+      'body { margin: 0; padding: 0; font-family: Arial, sans-serif; text-align: center; }' +
+      '</style>' +
+      '</head>' +
+      '<body>' +
+      idCardsHtml +
+      '<script>' +
+      'window.onload = function() { setTimeout(function() { window.print(); }, 500); };' +
+      '</script>' +
+      '</body>' +
+      '</html>';
 
-      console.log('ID cards generated successfully:', {
-        students: idCardStudents.length,
-        template: selectedTemplate,
-        class: idCardClass,
-        section: idCardSection
-      });
-
-    } catch (error) {
-      console.error('Error generating ID cards:', error);
-      toast.dismiss(loadingToast);
-      toast.error('Failed to generate ID cards');
+    // Open in new window and print
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
     }
-  };
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <BookOpen className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-800">Academic Management</h1>
-          </div>
-          <p className="text-gray-600">Manage subjects and generate hall tickets for your school</p>
+    toast.dismiss(loadingToast);
+    toast.success(`Generated ID cards for ${idCardStudents.length} students`);
+
+    console.log('ID cards generated successfully:', {
+      students: idCardStudents.length,
+      template: selectedTemplate,
+      class: idCardClass,
+      section: idCardSection
+    });
+
+  } catch (error) {
+    console.error('Error generating ID cards:', error);
+    toast.dismiss(loadingToast);
+    toast.error('Failed to generate ID cards');
+  }
+};
+
+return (
+  <div className="min-h-screen bg-gray-50 p-6">
+    <div className="max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <BookOpen className="h-6 w-6 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-800">Academic Management</h1>
         </div>
+        <p className="text-gray-600">Manage subjects and generate hall tickets for your school</p>
+      </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-white rounded-lg shadow-md mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6">
-              <button
-                onClick={() => setActiveTab('subjects')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'subjects'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-              >
-                <div className="flex items-center gap-2">
-                  <BookOpen className="h-4 w-4" />
-                  Class Subjects Management
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('hallticket')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'hallticket'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-              >
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Hall Ticket Generation
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('idcard')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'idcard'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-              >
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  School ID Card Generation
-                </div>
-              </button>
-            </nav>
+      {/* Tab Navigation */}
+      <div className="bg-white rounded-lg shadow-md mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            <button
+              onClick={() => setActiveTab('subjects')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'subjects'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Class Subjects Management
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('hallticket')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'hallticket'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Hall Ticket Generation
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('idcard')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'idcard'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                School ID Card Generation
+              </div>
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Show error if classes failed to load */}
+      {classesError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <p className="text-red-800 text-sm">
+            Error loading classes: {classesError}
+          </p>
+        </div>
+      )}
+
+      {/* Show message if no classes are configured */}
+      {!classesLoading && !hasClasses() && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <p className="text-yellow-800 text-sm">
+            No classes have been configured for your school yet. Please contact your super admin to add classes.
+          </p>
+        </div>
+      )}
+
+      {/* Tab Content */}
+      {activeTab === 'subjects' && (
+        <div>
+
+          {/* Add Subject Section */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Add New Subject</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Class Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Class <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Choose a class...</option>
+                  {classList.map(cls => (
+                    <option key={cls} value={cls}>
+                      Class {cls}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Section Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Section <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  disabled={!selectedClass || availableSections.length === 0}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">Choose section...</option>
+                  {availableSections.map(section => (
+                    <option key={section.value} value={section.value}>
+                      Section {section.section}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Subject Name Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Subject Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newSubjectName}
+                  onChange={(e) => setNewSubjectName(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Enter subject name..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Add Button */}
+              <div className="flex items-end">
+                <button
+                  onClick={addSubject}
+                  disabled={!selectedClass || !selectedSection || !newSubjectName.trim()}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Subject
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Classes List */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Classes & Subjects</h2>
+
+            {loading || classesLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-gray-600 mt-2">Loading classes...</p>
+              </div>
+            ) : classList.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No classes configured. Please contact your super admin.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {classList.map(className => {
+                  const isClassExpanded = expandedClass === className;
+                  const classSections = classesData?.sectionsByClass?.[className] || [];
+
+                  return (
+                    <div key={className} className="border border-gray-200 rounded-lg">
+                      {/* Class Header */}
+                      <div
+                        onClick={() => toggleClassExpansion(className)}
+                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
+                      >
+                        <div className="flex items-center gap-3">
+                          {isClassExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-gray-600" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-gray-600" />
+                          )}
+                          <h3 className="text-lg font-medium text-gray-800">
+                            Class {className}
+                          </h3>
+                          <span className="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded-full">
+                            {classSections.length} section{classSections.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Sections List */}
+                      {isClassExpanded && (
+                        <div className="border-t border-gray-200 bg-gray-50">
+                          {classSections.length === 0 ? (
+                            <p className="text-gray-500 text-center py-4">
+                              No sections configured for Class {className}
+                            </p>
+                          ) : (
+                            <div className="space-y-2 p-4">
+                              {classSections.map((sectionObj: any) => {
+                                const section = sectionObj.section;
+                                const sectionKey = `${className}-${section}`;
+                                const isSectionExpanded = expandedSection === sectionKey;
+                                const subjects = getClassSectionSubjects(className, section);
+
+                                return (
+                                  <div key={sectionKey} className="border border-gray-300 rounded-lg bg-white">
+                                    {/* Section Header */}
+                                    <div
+                                      onClick={() => toggleSectionExpansion(className, section)}
+                                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        {isSectionExpanded ? (
+                                          <ChevronDown className="h-3 w-3 text-gray-600" />
+                                        ) : (
+                                          <ChevronRight className="h-3 w-3 text-gray-600" />
+                                        )}
+                                        <h4 className="text-base font-medium text-gray-700">
+                                          Section {section}
+                                        </h4>
+                                        <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">
+                                          {subjects.length} subject{subjects.length !== 1 ? 's' : ''}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Subjects for this section */}
+                                    {isSectionExpanded && (
+                                      <div className="border-t border-gray-200 p-3">
+                                        {subjects.length === 0 ? (
+                                          <p className="text-gray-500 text-center py-3 text-sm">
+                                            No subjects added yet for Class {className} Section {section}
+                                          </p>
+                                        ) : (
+                                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                            {subjects.map((subject, index) => (
+                                              <div
+                                                key={index}
+                                                className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200"
+                                              >
+                                                <span className="text-gray-800 font-medium text-sm">
+                                                  {subject.name}
+                                                </span>
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    removeSubject(className, section, subject.name);
+                                                  }}
+                                                  className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                                  title="Remove subject"
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
+      )}
 
-        {/* Show error if classes failed to load */}
-        {classesError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-800 text-sm">
-              Error loading classes: {classesError}
-            </p>
-          </div>
-        )}
+      {activeTab === 'hallticket' && (
+        <div>
+          {/* Debug Information */}
+          {classesData && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <h3 className="text-sm font-medium text-yellow-800 mb-2">Debug Info:</h3>
+              <div className="text-xs text-yellow-700 space-y-1">
+                <p>Classes Data Loaded: ✅</p>
+                <p>Total Tests: {classesData.tests?.length || 0}</p>
+                <p>Tests by Class Keys: {Object.keys(classesData.testsByClass || {}).join(', ')}</p>
+                <p>Selected Class: {hallTicketClass}</p>
+                <p>Selected Section: {hallTicketSection}</p>
+                <p>Available Tests: {availableTests.length}</p>
+                <p>Selected Test: {selectedTest}</p>
+                <p>Subjects Found: {subjectExams.length}</p>
+              </div>
+              {hallTicketClass && hallTicketSection && subjectExams.length === 0 && (
+                <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded">
+                  <p className="text-xs text-red-700">
+                    ⚠️ No subjects found for Class {hallTicketClass} Section {hallTicketSection}.
+                    Please add subjects in the "Class Subjects Management" tab first.
+                  </p>
+                  <p className="text-xs text-red-600 mt-1">
+                    💡 Available classes in database: Check console for details
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Show message if no classes are configured */}
-        {!classesLoading && !hasClasses() && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <p className="text-yellow-800 text-sm">
-              No classes have been configured for your school yet. Please contact your super admin to add classes.
-            </p>
-          </div>
-        )}
+          {/* Hall Ticket Generation Content */}
+          <div className="space-y-6">
+            {/* Class, Section, and Test Selection */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Generate Hall Tickets</h2>
 
-        {/* Tab Content */}
-        {activeTab === 'subjects' && (
-          <div>
-
-            {/* Add Subject Section */}
-            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Add New Subject</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 {/* Class Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Select Class <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
+                    value={hallTicketClass}
+                    onChange={(e) => setHallTicketClass(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Choose a class...</option>
@@ -2000,13 +1968,13 @@ const AcademicDetails: React.FC = () => {
                     Select Section <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={selectedSection}
-                    onChange={(e) => setSelectedSection(e.target.value)}
-                    disabled={!selectedClass || availableSections.length === 0}
+                    value={hallTicketSection}
+                    onChange={(e) => setHallTicketSection(e.target.value)}
+                    disabled={!hallTicketClass || hallTicketSections.length === 0}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="">Choose section...</option>
-                    {availableSections.map(section => (
+                    {hallTicketSections.map(section => (
                       <option key={section.value} value={section.value}>
                         Section {section.section}
                       </option>
@@ -2014,644 +1982,409 @@ const AcademicDetails: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Subject Name Input */}
+                {/* Test Name Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Subject Name <span className="text-red-500">*</span>
+                    Test Name <span className="text-red-500">*</span>
                   </label>
+                  <select
+                    value={selectedTest}
+                    onChange={(e) => setSelectedTest(e.target.value)}
+                    disabled={!hallTicketClass || !hallTicketSection || availableTests.length === 0}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Choose test...</option>
+                    {availableTests.map(test => (
+                      <option key={test.id} value={test.id}>
+                        {test.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Room Number Toggle */}
+              <div className="mb-4">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="enableRoomNumbers"
+                    checked={enableRoomNumbers}
+                    onChange={(e) => setEnableRoomNumbers(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="enableRoomNumbers" className="text-sm font-medium text-gray-700">
+                    Include Room Numbers in Hall Tickets
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mt-1 ml-7">
+                  {enableRoomNumbers
+                    ? "Room numbers will be required and displayed in the hall tickets"
+                    : "Room numbers will be optional and not displayed in the hall tickets"
+                  }
+                </p>
+              </div>
+
+              {/* Instructions Management */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Manage Hall Ticket Instructions</h3>
+
+                {/* Add New Instruction */}
+                <div className="flex gap-2 mb-3">
                   <input
                     type="text"
-                    value={newSubjectName}
-                    onChange={(e) => setNewSubjectName(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Enter subject name..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={newInstruction}
+                    onChange={(e) => setNewInstruction(e.target.value)}
+                    placeholder="Enter new instruction..."
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onKeyPress={(e) => e.key === 'Enter' && addInstruction()}
                   />
+                  <button
+                    onClick={addInstruction}
+                    disabled={!newInstruction.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    Add
+                  </button>
                 </div>
 
-                {/* Add Button */}
+                {/* Current Instructions */}
+                <div className="space-y-2 mb-3">
+                  <p className="text-xs text-gray-600 font-medium">Current Instructions:</p>
+                  {customInstructions.map((instruction, index) => (
+                    <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
+                      <span className="text-xs text-gray-700 flex-1">{instruction}</span>
+                      <button
+                        onClick={() => removeInstruction(index)}
+                        className="ml-2 px-2 py-1 bg-red-100 text-red-600 text-xs rounded hover:bg-red-200"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Reset Button */}
+                <button
+                  onClick={resetToDefaultInstructions}
+                  className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700"
+                >
+                  Reset to Default Instructions
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {/* Search Button */}
                 <div className="flex items-end">
                   <button
-                    onClick={addSubject}
-                    disabled={!selectedClass || !selectedSection || !newSubjectName.trim()}
+                    onClick={fetchSubjects}
+                    disabled={!hallTicketClass || !hallTicketSection || !selectedTest}
                     className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    <Plus className="h-4 w-4" />
-                    Add Subject
+                    <Search className="h-4 w-4" />
+                    Search Subjects
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* Classes List */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Classes & Subjects</h2>
-
-              {loading || classesLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="text-gray-600 mt-2">Loading classes...</p>
-                </div>
-              ) : classList.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No classes configured. Please contact your super admin.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {classList.map(className => {
-                    const isClassExpanded = expandedClass === className;
-                    const classSections = classesData?.sectionsByClass?.[className] || [];
-
-                    return (
-                      <div key={className} className="border border-gray-200 rounded-lg">
-                        {/* Class Header */}
-                        <div
-                          onClick={() => toggleClassExpansion(className)}
-                          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
-                        >
-                          <div className="flex items-center gap-3">
-                            {isClassExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-gray-600" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-gray-600" />
-                            )}
-                            <h3 className="text-lg font-medium text-gray-800">
-                              Class {className}
-                            </h3>
-                            <span className="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded-full">
-                              {classSections.length} section{classSections.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Sections List */}
-                        {isClassExpanded && (
-                          <div className="border-t border-gray-200 bg-gray-50">
-                            {classSections.length === 0 ? (
-                              <p className="text-gray-500 text-center py-4">
-                                No sections configured for Class {className}
-                              </p>
-                            ) : (
-                              <div className="space-y-2 p-4">
-                                {classSections.map((sectionObj: any) => {
-                                  const section = sectionObj.section;
-                                  const sectionKey = `${className}-${section}`;
-                                  const isSectionExpanded = expandedSection === sectionKey;
-                                  const subjects = getClassSectionSubjects(className, section);
-
-                                  return (
-                                    <div key={sectionKey} className="border border-gray-300 rounded-lg bg-white">
-                                      {/* Section Header */}
-                                      <div
-                                        onClick={() => toggleSectionExpansion(className, section)}
-                                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          {isSectionExpanded ? (
-                                            <ChevronDown className="h-3 w-3 text-gray-600" />
-                                          ) : (
-                                            <ChevronRight className="h-3 w-3 text-gray-600" />
-                                          )}
-                                          <h4 className="text-base font-medium text-gray-700">
-                                            Section {section}
-                                          </h4>
-                                          <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">
-                                            {subjects.length} subject{subjects.length !== 1 ? 's' : ''}
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      {/* Subjects for this section */}
-                                      {isSectionExpanded && (
-                                        <div className="border-t border-gray-200 p-3">
-                                          {subjects.length === 0 ? (
-                                            <p className="text-gray-500 text-center py-3 text-sm">
-                                              No subjects added yet for Class {className} Section {section}
-                                            </p>
-                                          ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                              {subjects.map((subject, index) => (
-                                                <div
-                                                  key={index}
-                                                  className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200"
-                                                >
-                                                  <span className="text-gray-800 font-medium text-sm">
-                                                    {subject.name}
-                                                  </span>
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      removeSubject(className, section, subject.name);
-                                                    }}
-                                                    className="p-1 text-red-600 hover:bg-red-100 rounded"
-                                                    title="Remove subject"
-                                                  >
-                                                    <Trash2 className="h-3 w-3" />
-                                                  </button>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </div>
-        )}
 
-        {activeTab === 'hallticket' && (
-          <div>
-            {/* Debug Information */}
-            {classesData && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <h3 className="text-sm font-medium text-yellow-800 mb-2">Debug Info:</h3>
-                <div className="text-xs text-yellow-700 space-y-1">
-                  <p>Classes Data Loaded: ✅</p>
-                  <p>Total Tests: {classesData.tests?.length || 0}</p>
-                  <p>Tests by Class Keys: {Object.keys(classesData.testsByClass || {}).join(', ')}</p>
-                  <p>Selected Class: {hallTicketClass}</p>
-                  <p>Selected Section: {hallTicketSection}</p>
-                  <p>Available Tests: {availableTests.length}</p>
-                  <p>Selected Test: {selectedTest}</p>
-                  <p>Subjects Found: {subjectExams.length}</p>
-                </div>
-                {hallTicketClass && hallTicketSection && subjectExams.length === 0 && (
-                  <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded">
-                    <p className="text-xs text-red-700">
-                      ⚠️ No subjects found for Class {hallTicketClass} Section {hallTicketSection}.
-                      Please add subjects in the "Class Subjects Management" tab first.
-                    </p>
-                    <p className="text-xs text-red-600 mt-1">
-                      💡 Available classes in database: Check console for details
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Hall Ticket Generation Content */}
+          {/* Subjects and Students List */}
+          {subjectExams.length > 0 && (
             <div className="space-y-6">
-              {/* Class, Section, and Test Selection */}
+              {/* Subjects Table */}
               <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Generate Hall Tickets</h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  {/* Class Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Class <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={hallTicketClass}
-                      onChange={(e) => setHallTicketClass(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Choose a class...</option>
-                      {classList.map(cls => (
-                        <option key={cls} value={cls}>
-                          Class {cls}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Section Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Section <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={hallTicketSection}
-                      onChange={(e) => setHallTicketSection(e.target.value)}
-                      disabled={!hallTicketClass || hallTicketSections.length === 0}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    >
-                      <option value="">Choose section...</option>
-                      {hallTicketSections.map(section => (
-                        <option key={section.value} value={section.value}>
-                          Section {section.section}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Test Name Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Test Name <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={selectedTest}
-                      onChange={(e) => setSelectedTest(e.target.value)}
-                      disabled={!hallTicketClass || !hallTicketSection || availableTests.length === 0}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    >
-                      <option value="">Choose test...</option>
-                      {availableTests.map(test => (
-                        <option key={test.id} value={test.id}>
-                          {test.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Room Number Toggle */}
-                <div className="mb-4">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      id="enableRoomNumbers"
-                      checked={enableRoomNumbers}
-                      onChange={(e) => setEnableRoomNumbers(e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="enableRoomNumbers" className="text-sm font-medium text-gray-700">
-                      Include Room Numbers in Hall Tickets
-                    </label>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1 ml-7">
-                    {enableRoomNumbers
-                      ? "Room numbers will be required and displayed in the hall tickets"
-                      : "Room numbers will be optional and not displayed in the hall tickets"
-                    }
-                  </p>
-                </div>
-
-                {/* Instructions Management */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h3 className="text-sm font-semibold text-gray-800 mb-3">Manage Hall Ticket Instructions</h3>
-
-                  {/* Add New Instruction */}
-                  <div className="flex gap-2 mb-3">
-                    <input
-                      type="text"
-                      value={newInstruction}
-                      onChange={(e) => setNewInstruction(e.target.value)}
-                      placeholder="Enter new instruction..."
-                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      onKeyPress={(e) => e.key === 'Enter' && addInstruction()}
-                    />
-                    <button
-                      onClick={addInstruction}
-                      disabled={!newInstruction.trim()}
-                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {/* Current Instructions */}
-                  <div className="space-y-2 mb-3">
-                    <p className="text-xs text-gray-600 font-medium">Current Instructions:</p>
-                    {customInstructions.map((instruction, index) => (
-                      <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
-                        <span className="text-xs text-gray-700 flex-1">{instruction}</span>
-                        <button
-                          onClick={() => removeInstruction(index)}
-                          className="ml-2 px-2 py-1 bg-red-100 text-red-600 text-xs rounded hover:bg-red-200"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Reset Button */}
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    Subjects for {availableTests.find(test => test.id === selectedTest)?.name} - Class {hallTicketClass} Section {hallTicketSection}
+                  </h2>
                   <button
-                    onClick={resetToDefaultInstructions}
-                    className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700"
+                    onClick={generateHallTickets}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
                   >
-                    Reset to Default Instructions
+                    <FileText className="h-4 w-4" />
+                    Generate Hall Tickets
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  {/* Search Button */}
-                  <div className="flex items-end">
-                    <button
-                      onClick={fetchSubjects}
-                      disabled={!hallTicketClass || !hallTicketSection || !selectedTest}
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      <Search className="h-4 w-4" />
-                      Search Subjects
-                    </button>
+                {loadingSubjects ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-gray-600 mt-2">Loading subjects...</p>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Subjects and Students List */}
-            {subjectExams.length > 0 && (
-              <div className="space-y-6">
-                {/* Subjects Table */}
-                <div className="bg-white rounded-lg shadow-md p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold text-gray-800">
-                      Subjects for {availableTests.find(test => test.id === selectedTest)?.name} - Class {hallTicketClass} Section {hallTicketSection}
-                    </h2>
-                    <button
-                      onClick={generateHallTickets}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
-                    >
-                      <FileText className="h-4 w-4" />
-                      Generate Hall Tickets
-                    </button>
-                  </div>
-
-                  {loadingSubjects ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                      <p className="text-gray-600 mt-2">Loading subjects...</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Subject Name
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Exam Date
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Exam Time
+                          </th>
+                          {enableRoomNumbers && (
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Subject Name
+                              Room Number
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Exam Date
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Exam Time
-                            </th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {subjectExams.map((subject) => (
+                          <tr key={subject.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {subject.name}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-gray-400" />
+                                <input
+                                  type="date"
+                                  value={hallTicketData[subject.id]?.examDate || ''}
+                                  onChange={(e) => updateHallTicketData(subject.id, 'examDate', e.target.value)}
+                                  className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div className="flex items-center gap-1">
+                                {/* Hour Dropdown (00, 1-12) */}
+                                <select
+                                  value={hallTicketData[subject.id]?.examHour || '00'}
+                                  onChange={(e) => updateHallTicketData(subject.id, 'examHour', e.target.value)}
+                                  className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  style={{ width: '60px' }}
+                                >
+                                  <option value="00">00</option>
+                                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(hour => (
+                                    <option key={hour} value={hour.toString()}>{hour}</option>
+                                  ))}
+                                </select>
+                                <span className="text-gray-500">:</span>
+                                {/* Minute Dropdown (00-59) */}
+                                <select
+                                  value={hallTicketData[subject.id]?.examMinute || '00'}
+                                  onChange={(e) => updateHallTicketData(subject.id, 'examMinute', e.target.value)}
+                                  className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  style={{ width: '60px' }}
+                                >
+                                  {Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0')).map(minute => (
+                                    <option key={minute} value={minute}>{minute}</option>
+                                  ))}
+                                </select>
+                                {/* AM/PM Dropdown */}
+                                <select
+                                  value={hallTicketData[subject.id]?.examAmPm || 'AM'}
+                                  onChange={(e) => updateHallTicketData(subject.id, 'examAmPm', e.target.value)}
+                                  className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  style={{ width: '60px' }}
+                                >
+                                  <option value="AM">AM</option>
+                                  <option value="PM">PM</option>
+                                </select>
+                              </div>
+                            </td>
                             {enableRoomNumbers && (
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Room Number
-                              </th>
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {subjectExams.map((subject) => (
-                            <tr key={subject.id} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {subject.name}
-                              </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 <div className="flex items-center gap-2">
-                                  <Calendar className="h-4 w-4 text-gray-400" />
+                                  <MapPin className="h-4 w-4 text-gray-400" />
                                   <input
-                                    type="date"
-                                    value={hallTicketData[subject.id]?.examDate || ''}
-                                    onChange={(e) => updateHallTicketData(subject.id, 'examDate', e.target.value)}
+                                    type="text"
+                                    value={hallTicketData[subject.id]?.roomNumber || ''}
+                                    onChange={(e) => updateHallTicketData(subject.id, 'roomNumber', e.target.value)}
+                                    placeholder="Room No."
                                     className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                   />
                                 </div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="flex items-center gap-1">
-                                  {/* Hour Dropdown (00, 1-12) */}
-                                  <select
-                                    value={hallTicketData[subject.id]?.examHour || '00'}
-                                    onChange={(e) => updateHallTicketData(subject.id, 'examHour', e.target.value)}
-                                    className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    style={{ width: '60px' }}
-                                  >
-                                    <option value="00">00</option>
-                                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(hour => (
-                                      <option key={hour} value={hour.toString()}>{hour}</option>
-                                    ))}
-                                  </select>
-                                  <span className="text-gray-500">:</span>
-                                  {/* Minute Dropdown (00-59) */}
-                                  <select
-                                    value={hallTicketData[subject.id]?.examMinute || '00'}
-                                    onChange={(e) => updateHallTicketData(subject.id, 'examMinute', e.target.value)}
-                                    className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    style={{ width: '60px' }}
-                                  >
-                                    {Array.from({length: 60}, (_, i) => i.toString().padStart(2, '0')).map(minute => (
-                                      <option key={minute} value={minute}>{minute}</option>
-                                    ))}
-                                  </select>
-                                  {/* AM/PM Dropdown */}
-                                  <select
-                                    value={hallTicketData[subject.id]?.examAmPm || 'AM'}
-                                    onChange={(e) => updateHallTicketData(subject.id, 'examAmPm', e.target.value)}
-                                    className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    style={{ width: '60px' }}
-                                  >
-                                    <option value="AM">AM</option>
-                                    <option value="PM">PM</option>
-                                  </select>
-                                </div>
-                              </td>
-                              {enableRoomNumbers && (
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                  <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-gray-400" />
-                                    <input
-                                      type="text"
-                                      value={hallTicketData[subject.id]?.roomNumber || ''}
-                                      onChange={(e) => updateHallTicketData(subject.id, 'roomNumber', e.target.value)}
-                                      placeholder="Room No."
-                                      className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                  </div>
-                                </td>
-                              )}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Students List */}
-                {students.length > 0 && (
-                  <div className="bg-white rounded-lg shadow-md p-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                      Eligible Students ({students.length})
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {students.map((student) => (
-                        <div key={student.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900">{student.name}</p>
-                              <p className="text-sm text-blue-600 font-medium">Sequence ID: {student.sequenceId || student.rollNumber}</p>
-                              <p className="text-xs text-gray-500">Class {student.className} - Section {student.section}</p>
-                            </div>
-                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                              <span className="text-blue-600 font-bold text-xs">{(student.sequenceId || student.rollNumber).split('-').pop()}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
-            )}
-          </div>
-        )}
 
-        {/* School ID Card Generation Content */}
-        {activeTab === 'idcard' && (
-          <div>
-            {/* Class, Section, and Template Selection */}
-            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Generate School ID Cards</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                {/* Class Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Class <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={idCardClass}
-                    onChange={(e) => {
-                      setIdCardClass(e.target.value);
-                      setIdCardSection('');
-                      setIdCardStudents([]);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Choose a class...</option>
-                    {classList.map(cls => (
-                      <option key={cls} value={cls}>
-                        Class {cls}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Section Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Section <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={idCardSection}
-                    onChange={(e) => {
-                      setIdCardSection(e.target.value);
-                      setIdCardStudents([]);
-                    }}
-                    disabled={!idCardClass}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Choose section...</option>
-                    {idCardClass && getSectionsByClass(idCardClass).map(section => (
-                      <option key={section.value} value={section.value}>
-                        Section {section.section}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Fetch Students Button */}
-              <div className="mb-6">
-                <button
-                  onClick={fetchStudentsForIdCards}
-                  disabled={!idCardClass || !idCardSection}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <Search className="h-4 w-4" />
-                  Load Students
-                </button>
-              </div>
-
-              {/* Template Selection */}
-              {idCardStudents.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Choose ID Card Template</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {idCardTemplates.map(template => (
-                      <div
-                        key={template.id}
-                        onClick={() => setSelectedTemplate(template.id)}
-                        className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                          selectedTemplate === template.id
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="text-center">
-                          <div className={`w-full h-24 rounded-lg mb-3 flex items-center justify-center ${
-                            template.id === 'template1' ? 'bg-blue-100' :
-                            template.id === 'template2' ? 'bg-green-100' :
-                            template.id === 'template3' ? 'bg-purple-100' :
-                            'bg-orange-100'
-                          }`}>
-                            <CreditCard className={`h-8 w-8 ${
-                              template.id === 'template1' ? 'text-blue-600' :
-                              template.id === 'template2' ? 'text-green-600' :
-                              template.id === 'template3' ? 'text-purple-600' :
-                              'text-orange-600'
-                            }`} />
+              {/* Students List */}
+              {students.length > 0 && (
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                    Eligible Students ({students.length})
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {students.map((student) => (
+                      <div key={student.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-900">{student.name}</p>
+                            <p className="text-sm text-blue-600 font-medium">Sequence ID: {student.sequenceId || student.rollNumber}</p>
+                            <p className="text-xs text-gray-500">Class {student.className} - Section {student.section}</p>
                           </div>
-                          <h4 className="font-semibold text-sm text-gray-800 mb-1">{template.name}</h4>
-                          <p className="text-xs text-gray-600 mb-2">{template.description}</p>
-                          <p className="text-xs text-gray-500">{template.preview}</p>
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-blue-600 font-bold text-xs">{(student.sequenceId || student.rollNumber).split('-').pop()}</span>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
 
-              {/* Generate Button */}
-              {idCardStudents.length > 0 && selectedTemplate && (
-                <div className="flex justify-center">
-                  <button
-                    onClick={generateIdCards}
-                    className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 text-lg"
-                  >
-                    <CreditCard className="h-5 w-5" />
-                    Generate ID Cards ({idCardStudents.length} students)
-                  </button>
-                </div>
-              )}
+      {/* School ID Card Generation Content */}
+      {activeTab === 'idcard' && (
+        <div>
+          {/* Class, Section, and Template Selection */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Generate School ID Cards</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {/* Class Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Class <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={idCardClass}
+                  onChange={(e) => {
+                    setIdCardClass(e.target.value);
+                    setIdCardSection('');
+                    setIdCardStudents([]);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Choose a class...</option>
+                  {classList.map(cls => (
+                    <option key={cls} value={cls}>
+                      Class {cls}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Section Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Section <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={idCardSection}
+                  onChange={(e) => {
+                    setIdCardSection(e.target.value);
+                    setIdCardStudents([]);
+                  }}
+                  disabled={!idCardClass}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">Choose section...</option>
+                  {idCardClass && getSectionsByClass(idCardClass).map(section => (
+                    <option key={section.value} value={section.value}>
+                      Section {section.section}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {/* Students List */}
+            {/* Fetch Students Button */}
+            <div className="mb-6">
+              <button
+                onClick={fetchStudentsForIdCards}
+                disabled={!idCardClass || !idCardSection}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <Search className="h-4 w-4" />
+                Load Students
+              </button>
+            </div>
+
+            {/* Template Selection */}
             {idCardStudents.length > 0 && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                  Eligible Students ({idCardStudents.length})
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {idCardStudents.map((student) => (
-                    <div key={student.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900">{student.name}</p>
-                          <p className="text-sm text-blue-600 font-medium">Sequence ID: {student.sequenceId || student.rollNumber}</p>
-                          <p className="text-xs text-gray-500">Class {student.className} - Section {student.section}</p>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Choose ID Card Template</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {idCardTemplates.map(template => (
+                    <div
+                      key={template.id}
+                      onClick={() => setSelectedTemplate(template.id)}
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedTemplate === template.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                    >
+                      <div className="text-center">
+                        <div className={`w-full h-24 rounded-lg mb-3 flex items-center justify-center ${template.id === 'template1' ? 'bg-blue-100' :
+                          template.id === 'template2' ? 'bg-green-100' :
+                            template.id === 'template3' ? 'bg-purple-100' :
+                              'bg-orange-100'
+                          }`}>
+                          <CreditCard className={`h-8 w-8 ${template.id === 'template1' ? 'text-blue-600' :
+                            template.id === 'template2' ? 'text-green-600' :
+                              template.id === 'template3' ? 'text-purple-600' :
+                                'text-orange-600'
+                            }`} />
                         </div>
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-600 font-bold text-xs">{(student.sequenceId || student.rollNumber).split('-').pop()}</span>
-                        </div>
+                        <h4 className="font-semibold text-sm text-gray-800 mb-1">{template.name}</h4>
+                        <p className="text-xs text-gray-600 mb-2">{template.description}</p>
+                        <p className="text-xs text-gray-500">{template.preview}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Generate Button */}
+            {idCardStudents.length > 0 && selectedTemplate && (
+              <div className="flex justify-center">
+                <button
+                  onClick={generateIdCards}
+                  className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 text-lg"
+                >
+                  <CreditCard className="h-5 w-5" />
+                  Generate ID Cards ({idCardStudents.length} students)
+                </button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* Students List */}
+          {idCardStudents.length > 0 && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                Eligible Students ({idCardStudents.length})
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {idCardStudents.map((student) => (
+                  <div key={student.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">{student.name}</p>
+                        <p className="text-sm text-blue-600 font-medium">Sequence ID: {student.sequenceId || student.rollNumber}</p>
+                        <p className="text-xs text-gray-500">Class {student.className} - Section {student.section}</p>
+                      </div>
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 font-bold text-xs">{(student.sequenceId || student.rollNumber).split('-').pop()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
 };
 
 export default AcademicDetails;
