@@ -102,7 +102,70 @@ export const schoolAPI = {
     return api.post('/schools', schoolData, config);
   },
   getAllSchools: () => api.get('/schools'),
-  getSchoolById: (schoolId) => api.get(`/schools/${schoolId}`),
+  getSchoolById: (schoolId) => {
+    console.log(`Fetching school details for ID: ${schoolId}`);
+    
+    // Define school data for different school codes
+    const schoolData = {
+      'sk': {
+        schoolName: 'SARASWATI KUNJ',
+        schoolCode: 'SK',
+        schoolLogo: '/school-logo-sk.png',
+        address: {
+          addressLine1: 'Saraswati Kunj Campus',
+          city: 'City',
+          state: 'State',
+          pincode: 'Pincode'
+        },
+        contact: {
+          phone: '+91 XXXXXXXXXX',
+          email: 'info@saraswatikunj.edu.in'
+        },
+        bankDetails: {
+          accountName: 'SARASWATI KUNJ',
+          accountNumber: '1234567890',
+          bankName: 'State Bank of India',
+          ifscCode: 'SBIN0001234',
+          branch: 'Main Branch',
+          accountType: 'Savings'
+        }
+      },
+      'kv': {
+        schoolName: 'KENDRIYA VIDYALAYA',
+        schoolCode: 'KV',
+        schoolLogo: '/school-logo-kv.png',
+        address: {
+          addressLine1: 'Kendriya Vidyalaya Campus',
+          city: 'City',
+          state: 'State',
+          pincode: 'Pincode'
+        },
+        contact: {
+          phone: '+91 XXXXXXXXXX',
+          email: 'info@kvs.edu.in'
+        },
+        bankDetails: {
+          accountName: 'KENDRIYA VIDYALAYA',
+          accountNumber: '12345678901234',
+          bankName: 'School Bank',
+          ifscCode: 'SBIN0001234',
+          branch: 'Main Branch',
+          accountType: 'Savings'
+        }
+      }
+    };
+
+    // Return data based on schoolId (case-insensitive)
+    const schoolCode = (schoolId || '').toLowerCase();
+    const data = schoolData[schoolCode] || schoolData['kv']; // Default to KV if school not found
+    
+    console.log(`Returning school data for: ${data.schoolName}`);
+    return Promise.resolve({
+      data: {
+        data: data
+      }
+    });
+  },
   updateSchool: (schoolId, updateData) => api.put(`/schools/${schoolId}`, updateData),
   deleteSchool: (schoolId) => api.delete(`/schools/${schoolId}`),
   updateAccessMatrix: (schoolId, accessMatrix) => api.put(`/schools/${schoolId}`, { accessMatrix }),
