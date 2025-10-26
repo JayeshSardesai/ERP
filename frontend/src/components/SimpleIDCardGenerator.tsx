@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Download, Eye, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Download, Eye, Loader2, CheckCircle, AlertCircle, RectangleHorizontal, RectangleVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Student {
@@ -17,10 +17,17 @@ interface Student {
 interface SimpleIDCardGeneratorProps {
   selectedStudents: Student[];
   onClose: () => void;
+  initialOrientation?: 'landscape' | 'portrait';
+  lockOrientation?: boolean;
 }
 
-const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedStudents, onClose }) => {
-  const [orientation, setOrientation] = useState<'landscape' | 'portrait'>('landscape');
+const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ 
+  selectedStudents, 
+  onClose, 
+  initialOrientation = 'landscape',
+  lockOrientation = false 
+}) => {
+  const [orientation, setOrientation] = useState<'landscape' | 'portrait'>(initialOrientation);
   const [includeBack, setIncludeBack] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -28,6 +35,7 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
   const [showResults, setShowResults] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [orientationLocked, setOrientationLocked] = useState(lockOrientation);
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050/api';
 
@@ -46,22 +54,24 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
       const schoolCode = localStorage.getItem('erp.schoolCode') || '';
 
       console.log('🎯 Generating ID cards for students:', {
-        count: selectedStudents.length,
-        studentIds,
-        studentIdsDetailed: studentIds.map((id, idx) => ({
-          index: idx,
-          id: id,
-          type: typeof id,
+        studentIds: studentIds.map((id, idx) => ({
+          id,
           isValidObjectId: /^[0-9a-fA-F]{24}$/.test(id),
           studentName: selectedStudents[idx]?.name
         })),
         students: selectedStudents,
-        orientation,
+        orientation: orientation,
+        orientationType: typeof orientation,
+        orientationValue: `"${orientation}"`,
         includeBack,
         apiUrl: `${API_BASE_URL}/id-card-templates/generate`,
         schoolCode,
         hasToken: !!token
       });
+
+      console.log('⚠️ CRITICAL - ORIENTATION VALUE:', orientation);
+      console.log('⚠️ IS PORTRAIT?', orientation === 'portrait');
+      console.log('⚠️ IS LANDSCAPE?', orientation === 'landscape');
 
       const response = await axios.post(
         `${API_BASE_URL}/id-card-templates/generate`,
@@ -83,6 +93,7 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
       if (response.data.success) {
         setGeneratedCards(response.data.data.generated);
         setShowResults(true);
+        setOrientationLocked(true);
         toast.success(response.data.message);
       }
     } catch (error: any) {
@@ -106,7 +117,7 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
     }
   };
 
-  const handleDownload = async () => {
+  const handleDownloadBulk = async () => {
     if (selectedStudents.length === 0) {
       toast.error('Please select at least one student');
       return;
@@ -119,7 +130,7 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
       const studentIds = selectedStudents.map(s => s._id || s.id);
       const schoolCode = localStorage.getItem('erp.schoolCode') || '';
 
-      console.log('📥 Downloading ID cards for students:', {
+      console.log('📥 Downloading ID cards (Bulk ZIP) for students:', {
         count: selectedStudents.length,
         studentIds,
         orientation,
@@ -147,13 +158,13 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `IDCards_${Date.now()}.zip`);
+      link.setAttribute('download', `IDCards_Bulk_${Date.now()}.zip`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      toast.success('ID cards downloaded successfully');
+      toast.success(`ID cards downloaded successfully (${selectedStudents.length} students in folders)`);
     } catch (error: any) {
       console.error('❌ Error downloading ID cards:', error);
       console.error('Error details:', {
@@ -172,6 +183,47 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
       }
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleDownloadIndividual = async (student: any) => {
+    try {
+      const authData = localStorage.getItem('erp.auth');
+      const token = authData ? JSON.parse(authData).token : null;
+      const schoolCode = localStorage.getItem('erp.schoolCode') || '';
+
+      console.log('📥 Downloading ID card for individual student:', student.name);
+
+      const response = await axios.post(
+        `${API_BASE_URL}/id-card-templates/download`,
+        {
+          studentIds: [student._id || student.id],
+          orientation,
+          includeBack
+        },
+        {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'X-School-Code': schoolCode
+          },
+          responseType: 'blob'
+        }
+      );
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `IDCard_${student.name.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`ID card downloaded for ${student.name}`);
+    } catch (error: any) {
+      console.error('❌ Error downloading individual ID card:', error);
+      toast.error(`Failed to download ID card for ${student.name}`);
     }
   };
 
@@ -218,30 +270,53 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
                 <div className="space-y-4 mb-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Orientation
+                      Choose ID Card Orientation
                     </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center">
+                    <div className="flex flex-col gap-3">
+                      <label className={`flex items-center p-4 border-2 rounded-lg transition-all ${
+                        orientation === 'landscape' 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      } ${orientationLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                         <input
                           type="radio"
                           value="landscape"
                           checked={orientation === 'landscape'}
                           onChange={(e) => setOrientation(e.target.value as 'landscape' | 'portrait')}
-                          className="mr-2"
+                          disabled={orientationLocked}
+                          className="mr-3"
                         />
-                        Landscape (85.6mm × 54mm)
+                        <RectangleHorizontal className="w-8 h-8 mr-3 text-blue-600" />
+                        <div>
+                          <div className="font-medium">Landscape</div>
+                          <div className="text-sm text-gray-500">Horizontal ID card (85.6mm × 54mm) - Credit card style layout</div>
+                        </div>
                       </label>
-                      <label className="flex items-center">
+                      <label className={`flex items-center p-4 border-2 rounded-lg transition-all ${
+                        orientation === 'portrait' 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      } ${orientationLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                         <input
                           type="radio"
                           value="portrait"
                           checked={orientation === 'portrait'}
                           onChange={(e) => setOrientation(e.target.value as 'landscape' | 'portrait')}
-                          className="mr-2"
+                          disabled={orientationLocked}
+                          className="mr-3"
                         />
-                        Portrait (54mm × 85.6mm)
+                        <RectangleVertical className="w-8 h-8 mr-3 text-blue-600" />
+                        <div>
+                          <div className="font-medium">Portrait</div>
+                          <div className="text-sm text-gray-500">Vertical ID card (54mm × 85.6mm) - Vertical layout with larger photo</div>
+                        </div>
                       </label>
                     </div>
+                    {orientationLocked && (
+                      <p className="text-xs text-blue-600 mt-2">
+                        ℹ️ Orientation is locked as selected from the previous page
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -294,7 +369,7 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
                     )}
                   </button>
                   <button
-                    onClick={handleDownload}
+                    onClick={handleDownloadBulk}
                     disabled={downloading}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
@@ -325,38 +400,50 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
 
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
                     <p className="text-sm text-green-800">
-                      Generated {generatedCards.length} ID cards. You can preview them below or download all as ZIP.
+                      Generated {generatedCards.length} ID cards in <strong>{orientation}</strong> orientation. You can preview them below or download all as ZIP.
                     </p>
                   </div>
 
                   {/* Generated Cards List */}
                   <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
-                    {generatedCards.map((card, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-0">
-                        <div>
-                          <p className="font-medium text-gray-900">{card.studentName}</p>
-                          <p className="text-sm text-gray-500">ID: {card.studentId}</p>
+                    {generatedCards.map((card, index) => {
+                      const student = selectedStudents.find(s => (s._id || s.id) === card.studentId);
+                      return (
+                        <div key={index} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-0">
+                          <div>
+                            <p className="font-medium text-gray-900">{card.studentName}</p>
+                            <p className="text-sm text-gray-500">ID: {card.studentId}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            {card.frontCard && (
+                              <button
+                                onClick={() => handlePreview(card.frontCard)}
+                                className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                              >
+                                View Front
+                              </button>
+                            )}
+                            {card.backCard && (
+                              <button
+                                onClick={() => handlePreview(card.backCard)}
+                                className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                              >
+                                View Back
+                              </button>
+                            )}
+                            {student && (
+                              <button
+                                onClick={() => handleDownloadIndividual(student)}
+                                className="text-xs px-3 py-1 bg-green-50 text-green-600 rounded hover:bg-green-100 flex items-center gap-1"
+                              >
+                                <Download className="w-3 h-3" />
+                                Download
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          {card.frontCard && (
-                            <button
-                              onClick={() => handlePreview(card.frontCard)}
-                              className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
-                            >
-                              View Front
-                            </button>
-                          )}
-                          {card.backCard && (
-                            <button
-                              onClick={() => handlePreview(card.backCard)}
-                              className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
-                            >
-                              View Back
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -366,13 +453,14 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
                     onClick={() => {
                       setShowResults(false);
                       setGeneratedCards([]);
+                      setOrientationLocked(false);
                     }}
                     className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                   >
                     Generate Again
                   </button>
                   <button
-                    onClick={handleDownload}
+                    onClick={handleDownloadBulk}
                     disabled={downloading}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
@@ -384,7 +472,7 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
                     ) : (
                       <>
                         <Download className="w-5 h-5" />
-                        Download All as ZIP
+                        Download All (Bulk ZIP with Folders)
                       </>
                     )}
                   </button>
@@ -398,9 +486,11 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
       {/* Preview Modal */}
       {showPreview && previewImage && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">ID Card Preview</h3>
+          <div className={`bg-white rounded-lg w-full overflow-auto ${orientation === 'portrait' ? 'max-w-2xl max-h-[95vh]' : 'max-w-5xl max-h-[90vh]'}`}>
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+              <h3 className="text-lg font-semibold text-gray-900">
+                ID Card Preview ({orientation === 'portrait' ? 'Portrait' : 'Landscape'})
+              </h3>
               <button
                 onClick={() => {
                   setShowPreview(false);
@@ -411,8 +501,12 @@ const SimpleIDCardGenerator: React.FC<SimpleIDCardGeneratorProps> = ({ selectedS
                 ×
               </button>
             </div>
-            <div className="p-6 flex justify-center">
-              <img src={previewImage} alt="ID Card Preview" className="max-w-full h-auto" />
+            <div className="p-6 flex justify-center bg-gray-50">
+              <img 
+                src={previewImage} 
+                alt="ID Card Preview" 
+                className={`${orientation === 'portrait' ? 'w-auto h-auto max-h-[80vh]' : 'max-w-full h-auto'} shadow-lg`}
+              />
             </div>
           </div>
         </div>

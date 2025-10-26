@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Users, FileText, Search, Calendar, Clock, MapPin, CreditCard, Download, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, Users, FileText, Search, Calendar, Clock, MapPin, CreditCard, Download, ChevronDown, ChevronRight, Plus, Trash2, RectangleHorizontal, RectangleVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import { renderToString } from 'react-dom/server';
@@ -1564,6 +1564,7 @@ const AcademicDetails: React.FC = () => {
     return (
       <SimpleIDCardGenerator
         selectedStudents={idCardStudents.map(student => ({
+          id: student.id,
           _id: student.id,
           name: student.name,
           sequenceId: student.sequenceId || student.rollNumber || `STU${student.id}`,
@@ -1580,6 +1581,8 @@ const AcademicDetails: React.FC = () => {
           email: student.email
         }))}
         onClose={() => setShowPreview(false)}
+        initialOrientation={selectedOrientation as 'landscape' | 'portrait'}
+        lockOrientation={true}
       />
     );
   }
@@ -2280,7 +2283,11 @@ const AcademicDetails: React.FC = () => {
                       >
                         <div className="text-center">
                           <div className={`w-full h-24 rounded-lg mb-3 flex items-center justify-center ${orientation.id === 'landscape' ? 'bg-blue-100' : 'bg-green-100'}`}>
-                            <CreditCard className={`h-8 w-8 ${orientation.id === 'landscape' ? 'text-blue-600 rotate-90' : 'text-green-600'}`} />
+                            {orientation.id === 'landscape' ? (
+                              <RectangleHorizontal className="h-12 w-12 text-blue-600" />
+                            ) : (
+                              <RectangleVertical className="h-12 w-12 text-green-600" />
+                            )}
                           </div>
                           <h4 className="font-semibold text-sm text-gray-800 mb-1">{orientation.name}</h4>
                           <p className="text-xs text-gray-600 mb-2">{orientation.description}</p>

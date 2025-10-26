@@ -2,6 +2,7 @@ const idCardGenerator = require('../utils/simpleIDCardGenerator');
 const archiver = require('archiver');
 const path = require('path');
 const fs = require('fs');
+const { cleanupOldIDCards } = require('../utils/cleanupIDCards');
 
 /**
  * Simple ID Card Generation Controller
@@ -11,6 +12,8 @@ const fs = require('fs');
 // Generate ID cards for selected students
 const generateIDCards = async (req, res) => {
   try {
+    // Clean up old ID cards before generating new ones (files older than 30 minutes)
+    cleanupOldIDCards(30).catch(err => console.warn('Cleanup warning:', err.message));
     const { schoolId } = req.user;
     const { 
       studentIds, 
@@ -123,27 +126,136 @@ const generateIDCards = async (req, res) => {
       });
     }
 
-    // Map student data to expected format (matching UserGenerator schema)
-    const mappedStudents = students.map(s => ({
-      _id: s._id,
-      name: s.name?.displayName || `${s.name?.firstName || ''} ${s.name?.lastName || ''}`.trim(),
-      sequenceId: s.userId || s.studentId,
-      rollNumber: s.academicInfo?.rollNumber || s.rollNumber,
-      className: s.academicInfo?.currentClass || s.currentClass || s.class,
-      section: s.academicInfo?.currentSection || s.currentSection || s.section,
-      dateOfBirth: s.personalInfo?.dateOfBirth || s.dateOfBirth || s.dob,
-      bloodGroup: s.personalInfo?.bloodGroup || s.bloodGroup,
-      profileImage: s.profileImage
-    }));
+    // Map student data to expected format (matching actual student structure)
+    const mappedStudents = students.map(s => {
+      // Format date of birth
+      let formattedDOB = 'N/A';
+      if (s.studentDetails?.dateOfBirth) {
+        const dob = new Date(s.studentDetails.dateOfBirth);
+        formattedDOB = dob.toLocaleDateString('en-GB'); // DD/MM/YYYY format
+      }
+
+      // Format address from multiple possible locations
+      let formattedStudentAddress = '';
+      
+      // Debug: Log the entire address structure
+      console.log('🔍 Raw address data for', s.name?.displayName, ':', {
+        contact: s.contact,
+        address: s.address,
+        studentDetails: s.studentDetails
+      });
+      
+      // Try address.permanent first (User model structure)
+      if (s.address?.permanent) {
+        const addr = s.address.permanent;
+        const parts = [
+          addr.street,
+          addr.area,
+          addr.locality,
+          addr.city,
+          addr.state,
+          addr.pinCode || addr.zipCode
+        ].filter(Boolean);
+        formattedStudentAddress = parts.join(', ');
+      }
+      // Try address.current
+      else if (s.address?.current) {
+        const addr = s.address.current;
+        const parts = [
+          addr.street,
+          addr.area,
+          addr.locality,
+          addr.city,
+          addr.state,
+          addr.pinCode || addr.zipCode
+        ].filter(Boolean);
+        formattedStudentAddress = parts.join(', ');
+      }
+      // Try contact.address
+      else if (s.contact?.address) {
+        const addr = s.contact.address;
+        const parts = [
+          addr.street || addr.houseNo,
+          addr.area || addr.locality,
+          addr.city,
+          addr.state,
+          addr.pinCode || addr.zipCode
+        ].filter(Boolean);
+        formattedStudentAddress = parts.join(', ');
+      } 
+      // Try address object (check if it's a string or object)
+      else if (s.address) {
+        if (typeof s.address === 'string') {
+          formattedStudentAddress = s.address;
+        } else if (typeof s.address === 'object') {
+          const addr = s.address;
+          const parts = [
+            addr.street || addr.houseNo,
+            addr.area || addr.locality,
+            addr.city,
+            addr.state,
+            addr.pinCode || addr.zipCode
+          ].filter(Boolean);
+          formattedStudentAddress = parts.join(', ');
+        }
+      }
+      // Try studentDetails for address fields
+      else if (s.studentDetails) {
+        const parts = [
+          s.studentDetails.address,
+          s.studentDetails.city,
+          s.studentDetails.state,
+          s.studentDetails.pinCode
+        ].filter(Boolean);
+        formattedStudentAddress = parts.join(', ');
+      }
+      
+      console.log('📍 Address result:', {
+        studentName: s.name?.displayName,
+        formattedAddress: formattedStudentAddress || 'NOT FOUND'
+      });
+
+      return {
+        _id: s._id,
+        name: s.name?.displayName || `${s.name?.firstName || ''} ${s.name?.lastName || ''}`.trim(),
+        sequenceId: s.userId,
+        rollNumber: s.studentDetails?.rollNumber || 'N/A',
+        className: s.studentDetails?.currentClass || 'N/A',
+        section: s.studentDetails?.currentSection || 'N/A',
+        dateOfBirth: formattedDOB,
+        bloodGroup: s.studentDetails?.bloodGroup || 'N/A',
+        address: formattedStudentAddress || 'N/A',
+        phone: s.contact?.primaryPhone || s.studentDetails?.fatherPhone || s.studentDetails?.motherPhone || 'N/A',
+        profileImage: s.profileImage
+      };
+    });
 
     // Get school info
     const School = require('../models/School');
-    const school = await School.findById(schoolId).select('name address');
+    const school = await School.findById(schoolId).select('name address logoUrl contact email phone');
+
+    // Format school address
+    let formattedAddress = '';
+    if (school?.address) {
+      const addr = school.address;
+      const addressParts = [
+        addr.street,
+        addr.area,
+        addr.city,
+        addr.state,
+        addr.pinCode || addr.zipCode
+      ].filter(Boolean);
+      formattedAddress = addressParts.join(', ');
+    }
 
     console.log('🏫 School info:', {
       schoolId,
       schoolName: school?.name,
-      hasAddress: !!school?.address
+      hasAddress: !!school?.address,
+      hasLogo: !!school?.logoUrl,
+      formattedAddress,
+      phone: school?.contact?.phone || school?.phone,
+      email: school?.contact?.email || school?.email
     });
 
     console.log('👥 Mapped students for generation:', {
@@ -157,14 +269,17 @@ const generateIDCards = async (req, res) => {
       }))
     });
 
-    // Generate ID cards
+    // Generate ID cards with school info including logo
     const results = await idCardGenerator.generateBulkIDCards(
       mappedStudents,
       orientation,
       includeBack,
       {
         schoolName: school?.name || '',
-        address: school?.address || ''
+        address: formattedAddress,
+        logoUrl: school?.logoUrl || null,
+        phone: school?.contact?.phone || school?.phone || '',
+        email: school?.contact?.email || school?.email || ''
       }
     );
 
@@ -273,27 +388,119 @@ const downloadIDCards = async (req, res) => {
 
     console.log(`📥 Download: Found ${students.length} students`);
 
-    // Map student data to expected format (matching UserGenerator schema)
-    const mappedStudents = students.map(s => ({
-      _id: s._id,
-      name: s.name?.displayName || `${s.name?.firstName || ''} ${s.name?.lastName || ''}`.trim(),
-      sequenceId: s.userId || s.studentId,
-      rollNumber: s.academicInfo?.rollNumber || s.rollNumber,
-      className: s.academicInfo?.currentClass || s.currentClass || s.class,
-      section: s.academicInfo?.currentSection || s.currentSection || s.section,
-      dateOfBirth: s.personalInfo?.dateOfBirth || s.dateOfBirth || s.dob,
-      bloodGroup: s.personalInfo?.bloodGroup || s.bloodGroup,
-      profileImage: s.profileImage
-    }));
+    // Map student data to expected format (matching actual student structure)
+    const mappedStudents = students.map(s => {
+      // Format date of birth
+      let formattedDOB = 'N/A';
+      if (s.studentDetails?.dateOfBirth) {
+        const dob = new Date(s.studentDetails.dateOfBirth);
+        formattedDOB = dob.toLocaleDateString('en-GB');
+      }
+
+      // Format address from multiple possible locations
+      let formattedStudentAddress = '';
+      
+      // Try address.permanent first (User model structure)
+      if (s.address?.permanent) {
+        const addr = s.address.permanent;
+        const parts = [
+          addr.street,
+          addr.area,
+          addr.locality,
+          addr.city,
+          addr.state,
+          addr.pinCode || addr.zipCode
+        ].filter(Boolean);
+        formattedStudentAddress = parts.join(', ');
+      }
+      // Try address.current
+      else if (s.address?.current) {
+        const addr = s.address.current;
+        const parts = [
+          addr.street,
+          addr.area,
+          addr.locality,
+          addr.city,
+          addr.state,
+          addr.pinCode || addr.zipCode
+        ].filter(Boolean);
+        formattedStudentAddress = parts.join(', ');
+      }
+      // Try contact.address
+      else if (s.contact?.address) {
+        const addr = s.contact.address;
+        const parts = [
+          addr.street || addr.houseNo,
+          addr.area || addr.locality,
+          addr.city,
+          addr.state,
+          addr.pinCode || addr.zipCode
+        ].filter(Boolean);
+        formattedStudentAddress = parts.join(', ');
+      } 
+      else if (s.address) {
+        if (typeof s.address === 'string') {
+          formattedStudentAddress = s.address;
+        } else if (typeof s.address === 'object') {
+          const addr = s.address;
+          const parts = [
+            addr.street || addr.houseNo,
+            addr.area || addr.locality,
+            addr.city,
+            addr.state,
+            addr.pinCode || addr.zipCode
+          ].filter(Boolean);
+          formattedStudentAddress = parts.join(', ');
+        }
+      } else if (s.studentDetails) {
+        const parts = [
+          s.studentDetails.address,
+          s.studentDetails.city,
+          s.studentDetails.state,
+          s.studentDetails.pinCode
+        ].filter(Boolean);
+        formattedStudentAddress = parts.join(', ');
+      }
+
+      return {
+        _id: s._id,
+        name: s.name?.displayName || `${s.name?.firstName || ''} ${s.name?.lastName || ''}`.trim(),
+        sequenceId: s.userId,
+        rollNumber: s.studentDetails?.rollNumber || 'N/A',
+        className: s.studentDetails?.currentClass || 'N/A',
+        section: s.studentDetails?.currentSection || 'N/A',
+        dateOfBirth: formattedDOB,
+        bloodGroup: s.studentDetails?.bloodGroup || 'N/A',
+        address: formattedStudentAddress || 'N/A',
+        phone: s.contact?.primaryPhone || s.studentDetails?.fatherPhone || s.studentDetails?.motherPhone || 'N/A',
+        profileImage: s.profileImage
+      };
+    });
 
     // Get school info
     const School = require('../models/School');
-    const school = await School.findById(schoolId).select('name address');
+    const school = await School.findById(schoolId).select('name address logoUrl contact email phone');
+
+    // Format school address
+    let formattedAddress = '';
+    if (school?.address) {
+      const addr = school.address;
+      const addressParts = [
+        addr.street,
+        addr.area,
+        addr.city,
+        addr.state,
+        addr.pinCode || addr.zipCode
+      ].filter(Boolean);
+      formattedAddress = addressParts.join(', ');
+    }
 
     console.log('🏫 School info for download:', {
       schoolId,
       schoolName: school?.name,
-      hasAddress: !!school?.address
+      hasAddress: !!school?.address,
+      hasLogo: !!school?.logoUrl,
+      formattedAddress
     });
 
     console.log('👥 Mapped students for download:', {
@@ -306,14 +513,17 @@ const downloadIDCards = async (req, res) => {
       }))
     });
 
-    // Generate ID cards
+    // Generate ID cards with school info including logo
     const results = await idCardGenerator.generateBulkIDCards(
       mappedStudents,
       orientation,
       includeBack,
       {
         schoolName: school?.name || '',
-        address: school?.address || ''
+        address: formattedAddress,
+        logoUrl: school?.logoUrl || null,
+        phone: school?.contact?.phone || school?.phone || '',
+        email: school?.contact?.email || school?.email || ''
       }
     );
 
@@ -360,15 +570,20 @@ const downloadIDCards = async (req, res) => {
     // Pipe archive to response
     archive.pipe(res);
 
-    // Add generated ID cards to ZIP
+    // Add generated ID cards to ZIP - Create folder for each student using sequence ID
     let filesAdded = 0;
     for (const result of results.success) {
+      // Create folder name using sequence ID (e.g., KVS-S-001)
+      const studentFolderName = result.sequenceId || result.studentId || 'ID';
+      
       if (result.frontCard) {
         const frontPath = path.join(__dirname, '..', result.frontCard);
         if (fs.existsSync(frontPath)) {
-          archive.file(frontPath, { name: path.basename(frontPath) });
+          // Add to student's folder in ZIP with renamed file
+          const frontFileName = `${result.sequenceId}_front.png`;
+          archive.file(frontPath, { name: `${studentFolderName}/${frontFileName}` });
           filesAdded++;
-          console.log('📄 Added front card:', path.basename(frontPath));
+          console.log(`📄 Added front card to ${studentFolderName}:`, frontFileName);
         } else {
           console.warn('⚠️ Front card file not found:', frontPath);
         }
@@ -376,9 +591,11 @@ const downloadIDCards = async (req, res) => {
       if (result.backCard) {
         const backPath = path.join(__dirname, '..', result.backCard);
         if (fs.existsSync(backPath)) {
-          archive.file(backPath, { name: path.basename(backPath) });
+          // Add to student's folder in ZIP with renamed file
+          const backFileName = `${result.sequenceId}_back.png`;
+          archive.file(backPath, { name: `${studentFolderName}/${backFileName}` });
           filesAdded++;
-          console.log('📄 Added back card:', path.basename(backPath));
+          console.log(`📄 Added back card to ${studentFolderName}:`, backFileName);
         } else {
           console.warn('⚠️ Back card file not found:', backPath);
         }
@@ -390,6 +607,32 @@ const downloadIDCards = async (req, res) => {
     // Finalize archive
     await archive.finalize();
     console.log('✅ ZIP file finalized and sent');
+
+    // Clean up generated files after ZIP is sent
+    archive.on('end', async () => {
+      console.log('🧹 Cleaning up generated ID card files...');
+      const fs = require('fs').promises;
+      let deletedCount = 0;
+      
+      for (const result of results.success) {
+        try {
+          if (result.frontCard) {
+            const frontPath = path.join(__dirname, '..', result.frontCard);
+            await fs.unlink(frontPath);
+            deletedCount++;
+          }
+          if (result.backCard) {
+            const backPath = path.join(__dirname, '..', result.backCard);
+            await fs.unlink(backPath);
+            deletedCount++;
+          }
+        } catch (err) {
+          console.warn('⚠️ Error deleting file:', err.message);
+        }
+      }
+      
+      console.log(`✅ Cleaned up ${deletedCount} generated files`);
+    });
   } catch (error) {
     console.error('❌ Error downloading ID cards:', error);
     console.error('Error stack:', error.stack);
@@ -456,7 +699,21 @@ const previewIDCard = async (req, res) => {
 
     // Get school info
     const School = require('../models/School');
-    const school = await School.findById(schoolId).select('name address');
+    const school = await School.findById(schoolId).select('name address logoUrl contact email phone');
+
+    // Format school address
+    let formattedAddress = '';
+    if (school?.address) {
+      const addr = school.address;
+      const addressParts = [
+        addr.street,
+        addr.area,
+        addr.city,
+        addr.state,
+        addr.pinCode || addr.zipCode
+      ].filter(Boolean);
+      formattedAddress = addressParts.join(', ');
+    }
 
     // Generate preview
     const result = await idCardGenerator.generateIDCard(
@@ -465,7 +722,10 @@ const previewIDCard = async (req, res) => {
       side,
       {
         schoolName: school?.name || '',
-        address: school?.address || ''
+        address: formattedAddress,
+        logoUrl: school?.logoUrl || null,
+        phone: school?.contact?.phone || school?.phone || '',
+        email: school?.contact?.email || school?.email || ''
       }
     );
 
