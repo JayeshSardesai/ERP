@@ -1,0 +1,90 @@
+================================================================================
+                    HOW TO RESTART BACKEND SERVER
+================================================================================
+
+STEP 1: STOP THE OLD SERVER
+----------------------------
+Find your terminal/command prompt where the backend is running.
+You'll see something like:
+
+    Server running on port 5050
+    Connected to MongoDB
+
+Press: Ctrl + C
+
+You should see the cursor return and the server stop.
+
+
+STEP 2: START THE NEW SERVER
+----------------------------
+In the same terminal, type:
+
+    npm start
+
+Press Enter.
+
+Wait for:
+    Server running on port 5050
+    Connected to MongoDB
+
+
+STEP 3: TEST AGAIN
+-------------------
+Go back to your browser and try generating ID cards again.
+
+
+================================================================================
+                         ALTERNATIVE METHOD
+================================================================================
+
+If you can't find the terminal window:
+
+1. Open File Explorer
+2. Navigate to: d:\ERP\ERP\
+3. Double-click: restart-backend.bat
+4. A new window will open with the backend server
+
+
+================================================================================
+                         WHAT YOU'LL SEE
+================================================================================
+
+BEFORE RESTART (Current - OLD CODE):
+- Generate: 400 Bad Request - "No students found"
+- Download: 404 Not Found
+- No debug logs in backend console
+
+AFTER RESTART (NEW CODE):
+- Generate: Success or detailed error with debug info
+- Download: Success or detailed error
+- Backend console shows:
+  🎯 ID Card Generation Request
+  🔍 Debug - All matching students by ID
+  📚 Students found in database
+  ⚠️ Students found but schoolId mismatch (if applicable)
+
+
+================================================================================
+                    WHY RESTART IS REQUIRED
+================================================================================
+
+Node.js loads all files into memory when it starts.
+Changes to files are NOT automatically picked up.
+You MUST restart the server to load new code.
+
+Think of it like:
+- Editing a Word document (making code changes)
+- But still viewing the old PDF (old server running)
+- You need to regenerate the PDF (restart server) to see changes
+
+
+================================================================================
+                         NEED HELP?
+================================================================================
+
+See these files for more details:
+- CRITICAL_RESTART_INSTRUCTIONS.md
+- ID_CARD_SCHOOLID_FIX.md
+- URGENT_FIX_README.md
+
+================================================================================

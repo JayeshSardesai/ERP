@@ -46,7 +46,15 @@ export interface Subject {
 
 export interface IDCardTemplateProps extends TemplateProps {
   student: Student;
-  templateId: 'template1' | 'template2' | 'template3' | 'template4';
+  templateId: 'landscape' | 'portrait';
+  side: 'front' | 'back';
+}
+
+export interface CustomIDCardTemplateProps extends IDCardTemplateProps {
+  templateImage: string;
+  dataFields: any;
+  photoPlacement: any;
+  schoolLogoPlacement?: any;
 }
 
 export interface AdmitCardTemplateProps extends TemplateProps {

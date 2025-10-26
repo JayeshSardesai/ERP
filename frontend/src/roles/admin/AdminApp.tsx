@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import ManageUsers from './pages/ManageUsers'
 import SchoolSettings from './pages/SchoolSettings'
 import AcademicDetails from './pages/AcademicDetails'
+import IDCardTemplatePreview from '../../pages/Settings/IDCardTemplatePreview'
 import AcademicDetailsSimple from './pages/AcademicDetailsSimple'
 import MarkAttendance from './pages/MarkAttendance'
 import Assignments from './pages/Assignments'
@@ -25,6 +26,7 @@ export function AdminApp() {
         <Route path="manage-users" element={<ManageUsers />} />
         <Route path="settings" element={<SchoolSettings />} />
         <Route path="school-settings" element={<SchoolSettings />} />
+        <Route path="settings/idcard-templates" element={<IDCardTemplatePreview />} />
         <Route path="academic-details" element={
           <ErrorBoundary>
             <AcademicDetails />

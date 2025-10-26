@@ -7,7 +7,7 @@ import './index.css';
 import { Toaster } from 'react-hot-toast';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <BrowserRouter>
+  <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
     <AuthProvider>
       <Toaster position="top-right" />
       <App />
