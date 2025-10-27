@@ -268,7 +268,7 @@ const AdmitCardTemplate: React.FC<AdmitCardTemplateProps> = ({
               borderBottom: '2px solid #bfdbfe'
             } : {}}
           >
-            📅 Examination Schedule
+            Examination Schedule
           </h3>
           <table 
             className={mode === 'print' ? '' : 'w-full border-collapse border border-gray-300'}
@@ -352,31 +352,24 @@ const AdmitCardTemplate: React.FC<AdmitCardTemplateProps> = ({
 
         {/* Instructions */}
         <div 
-          className={mode === 'print' ? '' : 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg'}
+          className={mode === 'print' ? '' : 'mb-4'}
           style={mode === 'print' ? { 
             marginBottom: '16px',
-            padding: '12px',
-            backgroundColor: '#fefce8',
-            border: '1px solid #fde047',
-            borderRadius: '8px',
             pageBreakInside: 'avoid',
             display: 'block',
             visibility: 'visible'
           } : {}}
         >
           <h3 
-            className={mode === 'print' ? '' : 'text-base font-semibold text-gray-800 mb-3 flex items-center'}
+            className={mode === 'print' ? '' : 'text-base font-semibold text-gray-800 mb-3'}
             style={mode === 'print' ? { 
               fontSize: '14px', 
               fontWeight: '600', 
               color: '#1f2937', 
-              marginBottom: '12px',
-              display: 'flex',
-              alignItems: 'center'
+              marginBottom: '12px'
             } : {}}
           >
-            <span style={mode === 'print' ? { marginRight: '8px', fontSize: '16px' } : {}}>⚠️</span>
-            Important Instructions
+            Instructions
           </h3>
           <div 
             className={mode === 'print' ? '' : 'grid grid-cols-2 gap-x-4 gap-y-1'}

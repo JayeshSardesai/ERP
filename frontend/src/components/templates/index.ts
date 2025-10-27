@@ -1,6 +1,8 @@
 // Template Components Export
-export { default as AdmitCardTemplate } from './AdmitCardTemplate';
 export { default as IDCardTemplate } from './IDCardTemplate';
+export { default as NewIDCardTemplate } from './NewIDCardTemplate';
+export { default as CustomIDCardTemplate } from './CustomIDCardTemplate';
+export { default as AdmitCardTemplate } from './AdmitCardTemplate';
 export { default as InvoiceTemplate } from './InvoiceTemplate';
 export { default as CertificateTemplate } from './CertificateTemplate';
 
@@ -12,6 +14,7 @@ export type {
   TemplateSettings,
   TemplateProps,
   IDCardTemplateProps,
+  CustomIDCardTemplateProps,
   AdmitCardTemplateProps,
   InvoiceTemplateProps,
   CertificateTemplateProps,

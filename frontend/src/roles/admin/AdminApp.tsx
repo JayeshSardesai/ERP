@@ -5,8 +5,11 @@ import Dashboard from './pages/Dashboard'
 import ManageUsers from './pages/ManageUsers'
 import SchoolSettings from './pages/SchoolSettings'
 import AcademicDetails from './pages/AcademicDetails'
+import IDCardTemplatePreview from '../../pages/Settings/IDCardTemplatePreview'
 import AcademicDetailsSimple from './pages/AcademicDetailsSimple'
+import AttendanceHome from './pages/AttendanceHome'
 import MarkAttendance from './pages/MarkAttendance'
+import ViewAttendanceRecords from './pages/ViewAttendanceRecords'
 import Assignments from './pages/Assignments'
 import Results from './pages/Results'
 import TestComponent from './pages/TestComponent'
@@ -20,84 +23,39 @@ import { PermissionProvider } from '../../hooks/usePermissions'
 
 export function AdminApp() {
   return (
-    <PermissionProvider>
-      <AdminLayout>
-        <Routes>
-          <Route index element={<Dashboard />} />
-          <Route path="users" element={
-            <PermissionGuard permission="manageUsers" permissionName="Manage Users">
-              <ManageUsers />
-            </PermissionGuard>
-          } />
-          <Route path="manage-users" element={
-            <PermissionGuard permission="manageUsers" permissionName="Manage Users">
-              <ManageUsers />
-            </PermissionGuard>
-          } />
-          <Route path="settings" element={
-            <PermissionGuard permission="manageSchoolSettings" permissionName="School Settings">
-              <SchoolSettings />
-            </PermissionGuard>
-          } />
-          <Route path="school-settings" element={
-            <PermissionGuard permission="manageSchoolSettings" permissionName="School Settings">
-              <SchoolSettings />
-            </PermissionGuard>
-          } />
-          <Route path="academic-details" element={
-            <PermissionGuard permission="viewAcademicDetails" permissionName="Academic Details">
-              <ErrorBoundary>
-                <AcademicDetails />
-              </ErrorBoundary>
-            </PermissionGuard>
-          } />
-          <Route path="attendance/mark" element={
-            <PermissionGuard permission="viewAttendance" permissionName="Attendance">
-              <MarkAttendance />
-            </PermissionGuard>
-          } />
-          <Route path="assignments" element={
-            <PermissionGuard permission="viewAssignments" permissionName="Assignments">
-              <ErrorBoundary>
-                <Assignments />
-              </ErrorBoundary>
-            </PermissionGuard>
-          } />
-          <Route path="results" element={
-            <PermissionGuard permission="viewResults" permissionName="Results">
-              <Results />
-            </PermissionGuard>
-          } />
-          <Route path="results/entry" element={
-            <PermissionGuard permission="viewResults" permissionName="Results">
-              <ErrorBoundary>
-                <AcademicResultsEntry />
-              </ErrorBoundary>
-            </PermissionGuard>
-          } />
-          <Route path="messages" element={
-            <PermissionGuard permission="messageStudentsParents" permissionName="Messages">
-              <MessagesPage />
-            </PermissionGuard>
-          } />
-          <Route path="fees/structure" element={
-            <PermissionGuard permission="viewFees" permissionName="Fees">
-              <FeesPage />
-            </PermissionGuard>
-          } />
-          <Route path="fees/payments" element={
-            <PermissionGuard permission="viewFees" permissionName="Fees">
-              <FeesPage />
-            </PermissionGuard>
-          } />
-          <Route path="reports" element={
-            <PermissionGuard permission="viewReports" permissionName="Reports">
-              <ReportsPage />
-            </PermissionGuard>
-          } />
-          <Route path="*" element={<Navigate to="/admin" />} />
-        </Routes>
-      </AdminLayout>
-    </PermissionProvider>
+    <AdminLayout>
+      <Routes>
+        <Route index element={<Dashboard />} />
+        <Route path="users" element={<ManageUsers />} />
+        <Route path="manage-users" element={<ManageUsers />} />
+        <Route path="settings" element={<SchoolSettings />} />
+        <Route path="school-settings" element={<SchoolSettings />} />
+        <Route path="settings/idcard-templates" element={<IDCardTemplatePreview />} />
+        <Route path="academic-details" element={
+          <ErrorBoundary>
+            <AcademicDetails />
+          </ErrorBoundary>
+        } />
+        <Route path="attendance" element={<AttendanceHome />} />
+        <Route path="attendance/mark" element={<AttendanceHome />} />
+        <Route path="attendance/view" element={<AttendanceHome />} />
+        <Route path="assignments" element={
+          <ErrorBoundary>
+            <Assignments />
+          </ErrorBoundary>
+        } />
+        <Route path="results" element={<Results />} />
+        <Route path="results/entry" element={
+          <ErrorBoundary>
+            <AcademicResultsEntry />
+          </ErrorBoundary>
+        } />
+        <Route path="messages" element={<MessagesPage />} />
+        <Route path="fees/structure" element={<FeesPage />} />
+        <Route path="fees/payments" element={<FeesPage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="*" element={<Navigate to="/admin" />} />
+      </Routes>
+    </AdminLayout>
   )
 }

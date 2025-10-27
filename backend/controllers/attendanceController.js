@@ -245,6 +245,13 @@ exports.markSessionAttendance = async (req, res) => {
           continue;
         }
 
+        // Validate status - only 'present' or 'absent' allowed
+        if (!['present', 'absent'].includes(studentData.status)) {
+          console.log(`❌ Invalid status '${studentData.status}' for student: ${studentData.studentId}`);
+          failCount++;
+          continue;
+        }
+
         // Get student information using UserGenerator
         console.log(`🔎 Looking up student: ${studentData.studentId} in school: ${schoolCode}`);
         const student = await UserGenerator.getUserByIdOrEmail(schoolCode, studentData.studentId);
@@ -268,7 +275,7 @@ exports.markSessionAttendance = async (req, res) => {
           },
           class: className,
           section: section,
-          status: studentData.status, // "present", "absent", "half-day"
+          status: studentData.status, // "present" or "absent"
           markedAt: new Date(),
           rollNumber: student.studentDetails?.rollNumber || student.userId
         });

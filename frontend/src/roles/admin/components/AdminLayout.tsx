@@ -29,30 +29,16 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   // Define navigation with permission requirements
   const navigation = [
-    { name: 'Dashboard', href: '/admin/', icon: Home, permission: null },
-    { name: 'Manage Users', href: '/admin/users', icon: Users, permission: 'manageUsers' as PermissionKey },
-    { name: 'School Settings', href: '/admin/settings', icon: Settings, permission: 'manageSchoolSettings' as PermissionKey },
-    { name: 'Academic Details', href: '/admin/academic-details', icon: GraduationCap, permission: 'viewAcademicDetails' as PermissionKey },
-    {
-      name: 'Attendance',
-      icon: UserCheck,
-      permission: 'viewAttendance' as PermissionKey,
-      children: [
-        { name: 'Mark Attendance', href: '/admin/attendance/mark', permission: 'viewAttendance' as PermissionKey }
-      ]
-    },
-    { name: 'Assignments', href: '/admin/assignments', icon: BookOpen, permission: 'viewAssignments' as PermissionKey },
-    {
-      name: 'Results',
-      icon: BarChart3,
-      permission: 'viewResults' as PermissionKey,
-      children: [
-        { name: 'View Results', href: '/admin/results', permission: 'viewResults' as PermissionKey }
-      ]
-    },
-    { name: 'Messages', href: '/admin/messages', icon: MessageSquare, permission: 'messageStudentsParents' as PermissionKey },
-    { name: 'Fees', href: '/admin/fees/structure', icon: CreditCard, permission: 'viewFees' as PermissionKey },
-    { name: 'Reports', href: '/admin/reports', icon: FileText, permission: 'viewReports' as PermissionKey },
+    { name: 'Dashboard', href: '/admin/', icon: Home },
+    { name: 'Manage Users', href: '/admin/users', icon: Users },
+    { name: 'School Settings', href: '/admin/settings', icon: Settings },
+    { name: 'Academic Details', href: '/admin/academic-details', icon: GraduationCap },
+    { name: 'Attendance', href: '/admin/attendance', icon: UserCheck },
+    { name: 'Assignments', href: '/admin/assignments', icon: BookOpen },
+    { name: 'Results', href: '/admin/results', icon: BarChart3 },
+    { name: 'Messages', href: '/admin/messages', icon: MessageSquare },
+    { name: 'Fees', href: '/admin/fees/structure', icon: CreditCard },
+    { name: 'Reports', href: '/admin/reports', icon: FileText },
   ];
 
   const handleNavClick = (e: React.MouseEvent, href: string, permission: PermissionKey | null, name: string) => {
@@ -73,45 +59,18 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
         <nav className="mt-8 px-4 space-y-2">
           {navigation.map((item) => (
-            <div key={item.name}>
-              {item.children ? (
-                <div>
-                  <div className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 rounded-lg">
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.name}
-                  </div>
-                  <div className="ml-8 space-y-1">
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.href}
-                        to={child.href}
-                        onClick={(e) => handleNavClick(e, child.href, child.permission, child.name)}
-                        className={`block px-4 py-2 text-sm rounded-lg transition-colors ${
-                          isActive(child.href)
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        {child.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <Link
-                  to={item.href}
-                  onClick={(e) => handleNavClick(e, item.href, item.permission, item.name)}
-                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    isActive(item.href)
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Link>
-              )}
-            </div>
+            <Link
+              key={item.name}
+              to={item.href}
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                isActive(item.href) || location.pathname.startsWith(item.href + '/')
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <item.icon className="mr-3 h-5 w-5" />
+              {item.name}
+            </Link>
           ))}
         </nav>
       </div>
@@ -136,45 +95,19 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
         <nav className="mt-8 px-4 space-y-2">
           {navigation.map((item) => (
-            <div key={item.name}>
-              {item.children ? (
-                <div>
-                  <div className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 rounded-lg">
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.name}
-                  </div>
-                  <div className="ml-8 space-y-1">
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.href}
-                        to={child.href}
-                        onClick={(e) => handleNavClick(e, child.href, child.permission, child.name)}
-                        className={`block px-4 py-2 text-sm rounded-lg transition-colors ${
-                          isActive(child.href)
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        {child.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <Link
-                  to={item.href}
-                  onClick={(e) => handleNavClick(e, item.href, item.permission, item.name)}
-                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    isActive(item.href)
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Link>
-              )}
-            </div>
+            <Link
+              key={item.name}
+              to={item.href}
+              onClick={() => setSidebarOpen(false)}
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                isActive(item.href) || location.pathname.startsWith(item.href + '/')
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <item.icon className="mr-3 h-5 w-5" />
+              {item.name}
+            </Link>
           ))}
         </nav>
       </div>
