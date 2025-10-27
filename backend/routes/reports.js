@@ -3,12 +3,16 @@ const router = express.Router();
 const reportsController = require('../controllers/reportsController');
 const authMiddleware = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
+const checkPermission = require('../middleware/permissionCheck');
 
 // Apply authentication middleware to all routes
 router.use(authMiddleware.auth);
 
 // Apply role check - only ADMIN and SUPER_ADMIN can access
 router.use(roleCheck(['admin', 'superadmin']));
+
+// Apply permission check - requires viewReports permission
+router.use(checkPermission('viewReports'));
 
 // Reports routes
 router.get('/summary', reportsController.getSchoolSummary);

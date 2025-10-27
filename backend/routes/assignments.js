@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const assignmentController = require('../controllers/assignmentController');
 const { auth, authorize } = require('../middleware/auth');
+const checkPermission = require('../middleware/permissionCheck');
 
 // Configure multer for assignment file uploads
 const storage = multer.diskStorage({
@@ -47,8 +48,10 @@ router.use((req, res, next) => {
   next();
 });
 
-// Assignment management routes
+// Assignment management routes - require addAssignments permission for creation
 router.post('/', upload.array('attachments', 5), 
+  authorize(['admin', 'teacher']),
+  checkPermission('addAssignments'),
   (req, res, next) => {
     // Log assignment creation attempt
     console.log('[ASSIGNMENT CREATE] Attempt by user:', {
@@ -64,22 +67,23 @@ router.post('/', upload.array('attachments', 5),
     });
     next();
   },
-  // Allow any authenticated user to create assignments temporarily for testing
   assignmentController.createAssignment
 );
-router.get('/', assignmentController.getAssignments);
-router.get('/stats', authorize(['admin', 'teacher']), assignmentController.getAssignmentStats);
 
-// Assignment-specific routes
-router.get('/:assignmentId', assignmentController.getAssignmentById);
-router.put('/:assignmentId', authorize(['admin', 'teacher']), assignmentController.updateAssignment);
-router.patch('/:assignmentId/publish', authorize(['admin', 'teacher']), assignmentController.publishAssignment);
-router.delete('/:assignmentId', authorize(['admin', 'teacher']), assignmentController.deleteAssignment);
+// View assignments - require viewAssignments permission
+router.get('/', checkPermission('viewAssignments'), assignmentController.getAssignments);
+router.get('/stats', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.getAssignmentStats);
 
-// Submission routes
+// Assignment-specific routes - require addAssignments permission for modifications
+router.get('/:assignmentId', checkPermission('viewAssignments'), assignmentController.getAssignmentById);
+router.put('/:assignmentId', authorize(['admin', 'teacher']), checkPermission('addAssignments'), assignmentController.updateAssignment);
+router.patch('/:assignmentId/publish', authorize(['admin', 'teacher']), checkPermission('addAssignments'), assignmentController.publishAssignment);
+router.delete('/:assignmentId', authorize(['admin', 'teacher']), checkPermission('addAssignments'), assignmentController.deleteAssignment);
+
+// Submission routes - students can submit, teachers can view/grade
 router.post('/:assignmentId/submit', upload.array('attachments', 5), authorize(['student']), assignmentController.submitAssignment);
 router.get('/:assignmentId/submission', assignmentController.getStudentSubmission);
-router.get('/:assignmentId/submissions', authorize(['admin', 'teacher']), assignmentController.getAssignmentSubmissions);
-router.put('/submissions/:submissionId/grade', authorize(['admin', 'teacher']), assignmentController.gradeSubmission);
+router.get('/:assignmentId/submissions', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.getAssignmentSubmissions);
+router.put('/submissions/:submissionId/grade', authorize(['admin', 'teacher']), checkPermission('updateResults'), assignmentController.gradeSubmission);
 
 module.exports = router;

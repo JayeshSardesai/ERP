@@ -23,39 +23,118 @@ import { PermissionProvider } from '../../hooks/usePermissions'
 
 export function AdminApp() {
   return (
-    <AdminLayout>
-      <Routes>
-        <Route index element={<Dashboard />} />
-        <Route path="users" element={<ManageUsers />} />
-        <Route path="manage-users" element={<ManageUsers />} />
-        <Route path="settings" element={<SchoolSettings />} />
-        <Route path="school-settings" element={<SchoolSettings />} />
-        <Route path="settings/idcard-templates" element={<IDCardTemplatePreview />} />
-        <Route path="academic-details" element={
-          <ErrorBoundary>
-            <AcademicDetails />
-          </ErrorBoundary>
-        } />
-        <Route path="attendance" element={<AttendanceHome />} />
-        <Route path="attendance/mark" element={<AttendanceHome />} />
-        <Route path="attendance/view" element={<AttendanceHome />} />
-        <Route path="assignments" element={
-          <ErrorBoundary>
-            <Assignments />
-          </ErrorBoundary>
-        } />
-        <Route path="results" element={<Results />} />
-        <Route path="results/entry" element={
-          <ErrorBoundary>
-            <AcademicResultsEntry />
-          </ErrorBoundary>
-        } />
-        <Route path="messages" element={<MessagesPage />} />
-        <Route path="fees/structure" element={<FeesPage />} />
-        <Route path="fees/payments" element={<FeesPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="*" element={<Navigate to="/admin" />} />
-      </Routes>
-    </AdminLayout>
+    <PermissionProvider>
+      <AdminLayout>
+        <Routes>
+          <Route index element={<Dashboard />} />
+          
+          {/* User Management - Requires manageUsers permission */}
+          <Route path="users" element={
+            <PermissionGuard permission="manageUsers" permissionName="User Management">
+              <ManageUsers />
+            </PermissionGuard>
+          } />
+          <Route path="manage-users" element={
+            <PermissionGuard permission="manageUsers" permissionName="User Management">
+              <ManageUsers />
+            </PermissionGuard>
+          } />
+          
+          {/* School Settings - Requires manageSchoolSettings permission */}
+          <Route path="settings" element={
+            <PermissionGuard permission="manageSchoolSettings" permissionName="School Settings">
+              <SchoolSettings />
+            </PermissionGuard>
+          } />
+          <Route path="school-settings" element={
+            <PermissionGuard permission="manageSchoolSettings" permissionName="School Settings">
+              <SchoolSettings />
+            </PermissionGuard>
+          } />
+          <Route path="settings/idcard-templates" element={
+            <PermissionGuard permission="manageSchoolSettings" permissionName="ID Card Templates">
+              <IDCardTemplatePreview />
+            </PermissionGuard>
+          } />
+          
+          {/* Academic Details - Requires viewAcademicDetails permission */}
+          <Route path="academic-details" element={
+            <PermissionGuard permission="viewAcademicDetails" permissionName="Academic Details">
+              <ErrorBoundary>
+                <AcademicDetails />
+              </ErrorBoundary>
+            </PermissionGuard>
+          } />
+          
+          {/* Attendance - Requires viewAttendance permission */}
+          <Route path="attendance" element={
+            <PermissionGuard permission="viewAttendance" permissionName="Attendance">
+              <AttendanceHome />
+            </PermissionGuard>
+          } />
+          <Route path="attendance/mark" element={
+            <PermissionGuard permission="viewAttendance" permissionName="Mark Attendance">
+              <AttendanceHome />
+            </PermissionGuard>
+          } />
+          <Route path="attendance/view" element={
+            <PermissionGuard permission="viewAttendance" permissionName="View Attendance">
+              <AttendanceHome />
+            </PermissionGuard>
+          } />
+          
+          {/* Assignments - Requires viewAssignments permission */}
+          <Route path="assignments" element={
+            <PermissionGuard permission="viewAssignments" permissionName="Assignments">
+              <ErrorBoundary>
+                <Assignments />
+              </ErrorBoundary>
+            </PermissionGuard>
+          } />
+          
+          {/* Results - Requires viewResults permission */}
+          <Route path="results" element={
+            <PermissionGuard permission="viewResults" permissionName="Results">
+              <Results />
+            </PermissionGuard>
+          } />
+          <Route path="results/entry" element={
+            <PermissionGuard permission="viewResults" permissionName="Results Entry">
+              <ErrorBoundary>
+                <AcademicResultsEntry />
+              </ErrorBoundary>
+            </PermissionGuard>
+          } />
+          
+          {/* Messages - Requires messageStudentsParents permission */}
+          <Route path="messages" element={
+            <PermissionGuard permission="messageStudentsParents" permissionName="Messages">
+              <MessagesPage />
+            </PermissionGuard>
+          } />
+          
+          {/* Fees - Requires viewFees permission */}
+          <Route path="fees/structure" element={
+            <PermissionGuard permission="viewFees" permissionName="Fee Structure">
+              <FeesPage />
+            </PermissionGuard>
+          } />
+          <Route path="fees/payments" element={
+            <PermissionGuard permission="viewFees" permissionName="Fee Payments">
+              <FeesPage />
+            </PermissionGuard>
+          } />
+          
+          {/* Reports - Requires viewReports permission */}
+          <Route path="reports" element={
+            <PermissionGuard permission="viewReports" permissionName="Reports">
+              <ReportsPage />
+            </PermissionGuard>
+          } />
+          
+          <Route path="*" element={<Navigate to="/admin" />} />
+        </Routes>
+      </AdminLayout>
+    </PermissionProvider>
   )
 }
