@@ -37,6 +37,8 @@
     "@types/react-toastify": "^4.0.2",
     "antd": "^5.27.6",
     "axios": "^1.11.0",
+    "html2canvas": "^1.4.1",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.452.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
