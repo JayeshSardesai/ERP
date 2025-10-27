@@ -7,6 +7,8 @@ import AdmitCardTemplate from '../../../components/templates/AdmitCardTemplate';
 import SimpleIDCardGenerator from '../../../components/SimpleIDCardGenerator';
 import { useTemplateData } from '../hooks/useTemplateData';
 import { useAuth } from '../../../auth/AuthContext';
+import api from '../../../services/api';
+import { schoolAPI } from '../../../services/api';
 
 interface Subject {
   name: string;
@@ -530,6 +532,14 @@ const AcademicDetails: React.FC = () => {
         });
 
         if (response.ok) {
+          const responseData = await response.json();
+          console.log('📥 Class-subjects API response:', responseData);
+          
+          // Find the class data for the selected class and section
+          const classData = responseData?.data?.classes?.find((c: any) => 
+            c.className === hallTicketClass && c.section === hallTicketSection
+          );
+          
           if (classData && classData.subjects) {
             // Filter only active subjects
             const activeSubjects = classData.subjects.filter((subject: any) => subject.isActive !== false);
@@ -564,18 +574,21 @@ const AcademicDetails: React.FC = () => {
             await fetchStudentsForClass();
 
             toast.success(`Found ${subjectExamsList.length} subjects`);
+            return; // Success, exit the function
           } else {
-            console.log('❌ No subjects found for class-section combination');
-            toast.error(`No subjects configured for Class ${hallTicketClass} Section ${hallTicketSection}. Please add subjects first in the "Class Subjects Management" tab.`);
-            setSubjectExams([]);
-            setHallTicketData({});
+            console.log('❌ No subjects found for class-section combination in primary API');
+            // Don't throw error, let it fall through to fallback
           }
         } else {
-          throw new Error('Failed to fetch subjects');
+          console.log('❌ Primary API response not OK:', response.status);
         }
       } catch (apiError) {
-        console.log('API failed, using fallback method...');
-        // Fallback to direct endpoint
+        console.log('🔄 Primary API failed, using fallback method...', apiError);
+      }
+      
+      // Fallback to direct endpoint if primary API didn't return data
+      try {
+        console.log('🔄 Trying fallback endpoint for subjects...');
         const response = await fetch(`/api/direct-test/class-subjects/${hallTicketClass}?schoolCode=${schoolCode}`, {
           headers: {
             'x-school-code': schoolCode
@@ -584,7 +597,9 @@ const AcademicDetails: React.FC = () => {
 
         if (response.ok) {
           const data = await response.json();
-          if (data.data && data.data.subjects) {
+          console.log('📥 Fallback API response:', data);
+          
+          if (data.data && data.data.subjects && data.data.subjects.length > 0) {
             const subjectExamsList: SubjectExam[] = data.data.subjects.map((subject: any, index: number) => ({
               id: `${hallTicketClass}-${hallTicketSection}-${subject.name}-${selectedTest}`,
               name: subject.name,
@@ -613,12 +628,23 @@ const AcademicDetails: React.FC = () => {
             // Also fetch students for this class and section
             await fetchStudentsForClass();
 
-            toast.success(`Found ${subjectExamsList.length} subjects`);
+            toast.success(`Found ${subjectExamsList.length} subjects via fallback`);
+            return; // Success
+          } else {
+            console.log('❌ Fallback API returned no subjects');
           }
         } else {
-          throw new Error('No subjects found');
+          console.log('❌ Fallback API response not OK:', response.status);
         }
+      } catch (fallbackError) {
+        console.error('❌ Fallback API also failed:', fallbackError);
       }
+      
+      // If we reach here, both APIs failed
+      console.log('❌ No subjects found for class-section combination');
+      toast.error(`No subjects configured for Class ${hallTicketClass} Section ${hallTicketSection}. Please add subjects first in the "Class Subjects Management" tab.`);
+      setSubjectExams([]);
+      setHallTicketData({});
     } catch (error) {
       console.error('Error fetching subjects:', error);
       toast.error('Failed to fetch subjects');
@@ -636,10 +662,12 @@ const AcademicDetails: React.FC = () => {
 
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      const token = localStorage.getItem('erp.authToken');
+      // Use token from useAuth hook instead of localStorage
+      const authToken = token || localStorage.getItem('erp.authToken');
 
-      if (!schoolCode || !token) {
+      if (!schoolCode || !authToken) {
         toast.error('Authentication required. Please login again.');
+        console.error('❌ Missing credentials:', { schoolCode: !!schoolCode, token: !!authToken });
         return;
       }
 
@@ -649,7 +677,7 @@ const AcademicDetails: React.FC = () => {
       try {
         const response = await fetch(`http://localhost:5050/api/users/role/student`, {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${authToken}`,
             'X-School-Code': schoolCode.toUpperCase(),
             'Content-Type': 'application/json'
           }
@@ -713,7 +741,7 @@ const AcademicDetails: React.FC = () => {
 
         const altResponse = await fetch(`http://localhost:5050/api/school-users/${schoolCode}/users`, {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
           }
         });
@@ -966,23 +994,46 @@ const AcademicDetails: React.FC = () => {
   // Function to convert image to base64 for better print compatibility
   const convertImageToBase64 = (url: string): Promise<string> => {
     return new Promise((resolve, reject) => {
+      console.log('🖼️ Starting image conversion for URL:', url);
+      
       const img = new Image();
+      
+      // Set crossOrigin before setting src
       img.crossOrigin = 'anonymous';
+      
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx?.drawImage(img, 0, 0);
+        console.log('✅ Image loaded successfully, converting to base64...');
         try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'));
+            return;
+          }
+          
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          
           const base64 = canvas.toDataURL('image/png');
+          console.log('✅ Base64 conversion successful, length:', base64.length);
           resolve(base64);
         } catch (error) {
+          console.error('❌ Canvas conversion error:', error);
           reject(error);
         }
       };
-      img.onerror = () => reject(new Error('Failed to load image'));
+      
+      img.onerror = (error) => {
+        console.error('❌ Image load error:', error);
+        console.error('❌ Failed URL:', url);
+        reject(new Error('Failed to load image from URL'));
+      };
+      
+      // Set src after setting up event handlers
       img.src = url;
+      console.log('📡 Image src set, waiting for load...');
     });
   };
 
@@ -1219,6 +1270,11 @@ const AcademicDetails: React.FC = () => {
           console.log('🖼️ Converting logo to base64 for print compatibility...');
           logoBase64 = await convertImageToBase64(templateSettings.logoUrl);
           console.log('✅ Logo converted to base64 successfully');
+          // Use base64 logo for printing if conversion was successful
+          if (logoBase64) {
+            templateSettings.logoUrl = logoBase64;
+            console.log('✅ Using base64 logo for hall tickets');
+          }
         } catch (error) {
           console.log('❌ Failed to convert logo to base64:', error);
           console.log('📝 Will use original URL as fallback');
