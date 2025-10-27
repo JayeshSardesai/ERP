@@ -17,6 +17,7 @@ router.get('/', checkPermission('viewAttendance'), attendanceController.getAtten
 router.get('/session-status', checkPermission('viewAttendance'), attendanceController.checkSessionStatus);
 router.get('/class', checkPermission('viewAttendance'), attendanceController.getClassAttendance);
 router.get('/stats', checkPermission('viewAttendance'), attendanceController.getAttendanceStats);
+router.get('/daily-stats', checkPermission('viewAttendance'), attendanceController.getDailyAttendanceStats);
 router.get('/student-report', checkPermission('viewAttendance'), attendanceController.getStudentAttendanceReport);
 
 // Attendance-specific routes

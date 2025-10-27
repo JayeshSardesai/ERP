@@ -737,6 +737,102 @@ exports.checkSessionStatus = async (req, res) => {
   }
 };
 
+// Get daily attendance statistics for the last 7 days
+exports.getDailyAttendanceStats = async (req, res) => {
+  try {
+    const { schoolCode } = req.query;
+
+    // Check if user has access
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const userSchoolCode = schoolCode || req.user.schoolCode;
+
+    if (!userSchoolCode) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'School code is required' 
+      });
+    }
+
+    // Use school-specific database for attendance
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(userSchoolCode);
+    const attendanceCollection = schoolConnection.collection('attendances');
+
+    // Get last 7 days
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    console.log(`[DAILY STATS] Fetching attendance from ${sevenDaysAgo.toISOString()} to ${today.toISOString()}`);
+
+    // Fetch attendance sessions for the last 7 days
+    const sessions = await attendanceCollection.find({
+      date: {
+        $gte: sevenDaysAgo,
+        $lte: today
+      }
+    }).toArray();
+
+    console.log(`[DAILY STATS] Found ${sessions.length} sessions`);
+
+    // Group by date and calculate daily attendance rate
+    const dailyMap = {};
+
+    sessions.forEach(session => {
+      const dateStr = session.dateString || new Date(session.date).toISOString().split('T')[0];
+      
+      if (!dailyMap[dateStr]) {
+        dailyMap[dateStr] = {
+          date: dateStr,
+          totalPresent: 0,
+          totalAbsent: 0
+        };
+      }
+
+      dailyMap[dateStr].totalPresent += (session.successCount || 0);
+      dailyMap[dateStr].totalAbsent += (session.failCount || 0);
+    });
+
+    // Calculate attendance rate for each day
+    const dailyStats = Object.values(dailyMap).map(day => {
+      const total = day.totalPresent + day.totalAbsent;
+      const attendanceRate = total > 0 ? Math.round((day.totalPresent / total) * 100 * 10) / 10 : 0;
+      
+      return {
+        date: day.date,
+        totalPresent: day.totalPresent,
+        totalAbsent: day.totalAbsent,
+        totalRecords: total,
+        attendanceRate
+      };
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    console.log(`[DAILY STATS] Calculated stats for ${dailyStats.length} days`);
+
+    res.json({
+      success: true,
+      dailyStats,
+      period: {
+        from: sevenDaysAgo.toISOString().split('T')[0],
+        to: today.toISOString().split('T')[0]
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching daily attendance stats:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching daily attendance stats', 
+      error: error.message 
+    });
+  }
+};
+
 // Get attendance statistics
 exports.getAttendanceStats = async (req, res) => {
   try {
@@ -750,7 +846,7 @@ exports.getAttendanceStats = async (req, res) => {
     const schoolCode = req.user.schoolCode;
     
     // Build match query
-    const matchQuery = { schoolCode };
+    const matchQuery = {};
     if (className && className !== 'all') matchQuery.class = className;
     if (section) matchQuery.section = section;
     
@@ -761,50 +857,67 @@ exports.getAttendanceStats = async (req, res) => {
       };
     }
 
-    const stats = await Attendance.aggregate([
-      { $match: matchQuery },
-      {
-        $group: {
-          _id: null,
-          totalDays: { $sum: 1 },
-          totalPresent: { $sum: '$presentCount' },
-          totalAbsent: { $sum: '$absentCount' },
-          totalLate: { $sum: '$lateCount' },
-          totalHalfDay: { $sum: '$halfDayCount' },
-          totalExcused: { $sum: '$excusedCount' }
-        }
-      }
-    ]);
+    // Use school-specific database for attendance
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const attendanceCollection = schoolConnection.collection('attendances');
 
-    if (stats.length === 0) {
+    // Fetch all attendance session documents (morning and afternoon)
+    const sessionDocs = await attendanceCollection.find(matchQuery).toArray();
+
+    console.log(`[ATTENDANCE STATS] Found ${sessionDocs.length} session documents for school: ${schoolCode}`);
+
+    if (sessionDocs.length === 0) {
       return res.json({
-        totalDays: 0,
+        success: true,
+        totalSessions: 0,
         totalPresent: 0,
         totalAbsent: 0,
-        totalLate: 0,
-        totalHalfDay: 0,
-        totalExcused: 0,
-        averageAttendance: 0
+        totalRecords: 0,
+        averageAttendance: 0,
+        attendanceRate: '0.0%'
       });
     }
 
-    const stat = stats[0];
-    const totalStudents = stat.totalPresent + stat.totalAbsent + stat.totalLate + stat.totalHalfDay + stat.totalExcused;
-    const averageAttendance = totalStudents > 0 ? Math.round((stat.totalPresent / totalStudents) * 100) : 0;
+    // Calculate statistics from session documents using successCount and failCount
+    let totalPresent = 0;
+    let totalAbsent = 0;
+    let totalSessions = sessionDocs.length;
+
+    sessionDocs.forEach(doc => {
+      // successCount represents students present
+      // failCount represents students absent
+      const present = doc.successCount || 0;
+      const absent = doc.failCount || 0;
+      
+      totalPresent += present;
+      totalAbsent += absent;
+      
+      console.log(`[SESSION] ${doc.session || 'unknown'} on ${doc.dateString || doc.date}: Present=${present}, Absent=${absent}`);
+    });
+
+    const totalRecords = totalPresent + totalAbsent;
+    const averageAttendance = totalRecords > 0 ? Math.round((totalPresent / totalRecords) * 100 * 10) / 10 : 0;
+
+    console.log(`[ATTENDANCE STATS] Total: ${totalRecords}, Present: ${totalPresent}, Absent: ${totalAbsent}, Rate: ${averageAttendance}%`);
 
     res.json({
-      totalDays: stat.totalDays,
-      totalPresent: stat.totalPresent,
-      totalAbsent: stat.totalAbsent,
-      totalLate: stat.totalLate,
-      totalHalfDay: stat.totalHalfDay,
-      totalExcused: stat.totalExcused,
-      averageAttendance
+      success: true,
+      totalSessions,
+      totalPresent,
+      totalAbsent,
+      totalRecords,
+      averageAttendance,
+      attendanceRate: `${averageAttendance}%`
     });
 
   } catch (error) {
     console.error('Error fetching attendance stats:', error);
-    res.status(500).json({ message: 'Error fetching attendance stats', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching attendance stats', 
+      error: error.message 
+    });
   }
 };
 

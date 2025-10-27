@@ -104,6 +104,9 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [attendanceRate, setAttendanceRate] = useState<string>('0.0%');
+  const [gradeDistribution, setGradeDistribution] = useState<Array<{name: string, students: number}>>([]);
+  const [dailyAttendance, setDailyAttendance] = useState<Array<{name: string, attendance: number}>>([]);
 
   // Get auth token - improved to use AuthContext first
   const getAuthToken = () => {
@@ -267,6 +270,175 @@ const Dashboard: React.FC = () => {
   }, [user]);
   console.log(user);
 
+  // Fetch attendance statistics
+  useEffect(() => {
+    const fetchAttendanceStats = async () => {
+      try {
+        const token = getAuthToken();
+        if (!token || !user?.schoolCode) return;
+
+        const response = await fetch(
+          `http://localhost:5050/api/attendance/stats`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.attendanceRate) {
+            setAttendanceRate(data.attendanceRate);
+          } else if (data.averageAttendance !== undefined) {
+            setAttendanceRate(`${data.averageAttendance}%`);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching attendance stats:', err);
+        // Keep default value on error
+      }
+    };
+
+    fetchAttendanceStats();
+  }, [user]);
+
+  // Fetch daily attendance data for the weekly graph
+  useEffect(() => {
+    const fetchDailyAttendance = async () => {
+      try {
+        const token = getAuthToken();
+        if (!token || !user?.schoolCode) return;
+
+        // Get last 7 days
+        const today = new Date();
+        const last7Days = [];
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
+          last7Days.push(date);
+        }
+
+        console.log('📅 Fetching attendance for last 7 days');
+
+        // Fetch attendance data from backend
+        const response = await fetch(
+          `http://localhost:5050/api/attendance/daily-stats?schoolCode=${user.schoolCode}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📅 Daily attendance data:', data);
+          
+          if (data.success && data.dailyStats) {
+            // Format data for the chart
+            const formattedData = data.dailyStats.map((day: any) => ({
+              name: new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }),
+              attendance: day.attendanceRate || 0,
+              date: day.date
+            }));
+            setDailyAttendance(formattedData);
+          } else {
+            // Fallback: create chart with last 7 days showing 0%
+            const fallbackData = last7Days.map(date => ({
+              name: date.toLocaleDateString('en-US', { weekday: 'short' }),
+              attendance: 0,
+              date: date.toISOString().split('T')[0]
+            }));
+            setDailyAttendance(fallbackData);
+          }
+        } else {
+          // Fallback data
+          const fallbackData = last7Days.map(date => ({
+            name: date.toLocaleDateString('en-US', { weekday: 'short' }),
+            attendance: 0,
+            date: date.toISOString().split('T')[0]
+          }));
+          setDailyAttendance(fallbackData);
+        }
+      } catch (err) {
+        console.error('Error fetching daily attendance:', err);
+        // Fallback to showing last 7 days with 0%
+        const today = new Date();
+        const fallbackData = [];
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
+          fallbackData.push({
+            name: date.toLocaleDateString('en-US', { weekday: 'short' }),
+            attendance: 0,
+            date: date.toISOString().split('T')[0]
+          });
+        }
+        setDailyAttendance(fallbackData);
+      }
+    };
+
+    fetchDailyAttendance();
+  }, [user]);
+
+  // Calculate grade distribution from actual student data
+  useEffect(() => {
+    if (users.length > 0) {
+      const students = users.filter(u => u.role === 'student');
+      
+      console.log('📊 Calculating grade distribution for', students.length, 'students');
+      
+      // Group students by class/grade
+      const gradeMap: Record<string, number> = {};
+      
+      students.forEach(student => {
+        // Get class from studentDetails.currentClass (primary field in school database)
+        const studentClass = (student as any).studentDetails?.currentClass || 
+                            (student as any).studentDetails?.class || 
+                            (student as any).class || 
+                            (student as any).currentClass ||
+                            'Unassigned';
+        
+        console.log('Student:', (student as any).name || student.email, 'Class:', studentClass);
+        
+        if (gradeMap[studentClass]) {
+          gradeMap[studentClass]++;
+        } else {
+          gradeMap[studentClass] = 1;
+        }
+      });
+      
+      console.log('📊 Grade distribution map:', gradeMap);
+      
+      // Convert to array format for the chart
+      const distribution = Object.entries(gradeMap)
+        .map(([name, students]) => ({ name, students }))
+        .sort((a, b) => {
+          // Sort by class name (handle numeric and text classes)
+          const aNum = parseInt(a.name);
+          const bNum = parseInt(b.name);
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return aNum - bNum;
+          }
+          return a.name.localeCompare(b.name);
+        });
+      
+      console.log('📊 Final distribution for chart:', distribution);
+      
+      setGradeDistribution(distribution.length > 0 ? distribution : [
+        { name: 'No Data', students: 0 }
+      ]);
+    } else {
+      // Fallback data when no students
+      setGradeDistribution([
+        { name: 'No Students', students: 0 }
+      ]);
+    }
+  }, [users]);
+
   // Calculate stats from actual user data
   const totalStudents = users.filter(user => user.role === 'student').length;
   const totalTeachers = users.filter(user => user.role === 'teacher').length;
@@ -274,23 +446,19 @@ const Dashboard: React.FC = () => {
   // Use real data from the school or fallback to sample data
   const stats = [
     { name: 'Total Students', value: totalStudents.toString(), icon: Users, color: 'bg-blue-500' },
-    { name: 'Attendance Rate', value: '94.2%', icon: UserCheck, color: 'bg-green-500' },
+    { name: 'Attendance Rate', value: attendanceRate, icon: UserCheck, color: 'bg-green-500' },
     { name: 'Total Teachers', value: totalTeachers.toString(), icon: BookOpen, color: 'bg-purple-500' },
   ];
 
-  const attendanceData = [
-    { name: 'Mon', attendance: 95 },
-    { name: 'Tue', attendance: 92 },
-    { name: 'Wed', attendance: 98 },
-    { name: 'Thu', attendance: 89 },
-    { name: 'Fri', attendance: 94 },
-  ];
-
-  const gradeDistribution = [
-    { name: 'Grade 1-2', students: 245 },
-    { name: 'Grade 3-5', students: 312 },
-    { name: 'Grade 6-8', students: 398 },
-    { name: 'Grade 9-10', students: 292 },
+  // Use dynamic daily attendance data
+  const attendanceData = dailyAttendance.length > 0 ? dailyAttendance : [
+    { name: 'Mon', attendance: 0 },
+    { name: 'Tue', attendance: 0 },
+    { name: 'Wed', attendance: 0 },
+    { name: 'Thu', attendance: 0 },
+    { name: 'Fri', attendance: 0 },
+    { name: 'Sat', attendance: 0 },
+    { name: 'Sun', attendance: 0 },
   ];
 
   const pieData = [
