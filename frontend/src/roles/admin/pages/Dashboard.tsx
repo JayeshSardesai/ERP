@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Users, UserCheck, BookOpen, TrendingUp, Calendar, Clock, AlertCircle, Building, Phone, Mail, MapPin, RefreshCw, Bug, LogOut } from 'lucide-react';
 import { schoolAPI } from '../../../services/api';
 import { schoolUserAPI } from '../../../api/schoolUsers';
+import api from '../../../services/api';
 import { useAuth } from '../../../auth/AuthContext';
 
 interface School {
@@ -155,9 +156,9 @@ const Dashboard: React.FC = () => {
           }
 
           try {
-            // Fetch school details
+            // Fetch school details using the /info endpoint which bypasses school database connection issues
             console.log('📡 Fetching school details for identifier:', schoolIdentifier);
-            const schoolResponse = await schoolAPI.getSchoolById(schoolIdentifier);
+            const schoolResponse = await api.get(`/schools/${schoolIdentifier}/info`);
             console.log('✅ School response:', schoolResponse);
             setSchool(schoolResponse.data);
 

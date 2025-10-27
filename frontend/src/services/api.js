@@ -360,7 +360,18 @@ export const feesAPI = {
   getFeeStructures: (params) => api.get('/fees/structures', { params }),
   getStudentFeeRecords: (params) => api.get('/fees/records', { params }),
   getStudentFeeRecord: (studentId) => api.get(`/fees/records/${studentId}`),
-  getStudentByUserId: (userId) => api.get(`/admin/students/user/${userId}`), // Fetch student by userId
+  getStudentByUserId: (userId) => {
+    return api.get(`/users/role/student`).then(response => {
+      // Find the student with matching userId
+      const students = response.data?.data || [];
+      const student = students.find(s => s._id === userId || s.userId === userId);
+      if (student) {
+        return { data: { data: student } };
+      }
+      // If not found, try the user endpoint directly
+      return api.get(`/users/${userId}`);
+    });
+  },
   getSchoolInfo: (schoolCode) => api.get(`/admin/classes/${schoolCode}/classes-sections`), // Use existing working endpoint
   downloadReceipt: (receiptNumber) => api.get(`/fees/receipts/${receiptNumber}`, { responseType: 'blob' }),
   recordOfflinePayment: (studentId, paymentData) => api.post(`/fees/records/${studentId}/offline-payment`, paymentData),

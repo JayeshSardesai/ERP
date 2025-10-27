@@ -2100,37 +2100,3 @@ exports.getUsersByRole = async (req, res) => {
   }
 };
 
-// Get specific user by ID from school database
-exports.getUserById = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { schoolCode } = req;
-
-    const ModelFactory = require('../utils/modelFactory');
-    const SchoolUser = ModelFactory.getUserModel(schoolCode);
-
-    const user = await SchoolUser.findById(userId)
-      .select('-password -temporaryPassword -passwordHistory')
-      .populate('schoolId', 'name code');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found in this school'
-      });
-    }
-
-    res.json({
-      success: true,
-      user: user
-    });
-
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching user',
-      error: error.message
-    });
-  }
-};

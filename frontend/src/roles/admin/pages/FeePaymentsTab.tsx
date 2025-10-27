@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Search, Plus, X, FileText } from 'lucide-react';
+import { Search, Plus, X, FileText, Receipt } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
 import ClassSectionSelect from '../components/ClassSectionSelect';
 import { feesAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
+import DualCopyReceipt from '../../../components/receipts/DualCopyReceipt';
 
 const FeePaymentsTab: React.FC = () => {
   const { user } = useAuth();
@@ -33,6 +34,12 @@ const FeePaymentsTab: React.FC = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyRecord, setHistoryRecord] = useState<any | null>(null);
   const [historyInstallmentName, setHistoryInstallmentName] = useState<string>('');
+  const [historyStudent, setHistoryStudent] = useState<any | null>(null);
+
+  // Receipt modal state
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [receiptData, setReceiptData] = useState<any | null>(null);
+  const [selectedReceiptNumber, setSelectedReceiptNumber] = useState<string>('');
 
   const fetchRecords = async () => {
     try {
@@ -46,7 +53,9 @@ const FeePaymentsTab: React.FC = () => {
       });
       const data = res.data?.data?.records || [];
       const mapped = data.map((r: any) => ({
-        id: r.id,
+        id: r.id, // Keep the fee record ID as id for backward compatibility
+        studentId: r.studentId || r.student?._id || r.userId, // Add student ID from student collection
+        userId: r.userId, // Also store userId separately if available
         name: r.studentName,
         class: r.studentClass,
         section: r.studentSection,
@@ -67,7 +76,7 @@ const FeePaymentsTab: React.FC = () => {
   };
 
 
-  const handleDownloadReceipt = async (receiptNumber: string) => {
+  const generateReceiptData = async (receiptNumber: string) => {
     try {
       if (!historyRecord) {
         toast.error('No payment history available');
@@ -109,220 +118,257 @@ const FeePaymentsTab: React.FC = () => {
         return;
       }
 
-      // Generate HTML content for PDF using FeeStructureTab styling
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Payment Receipt</title>
-          <style>
-            @page { size: A4; margin: 15mm; }
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-              margin: 0; 
-              padding: 0;
-              line-height: 1.5;
-              color: #374151;
-            }
-            .container {
-              max-width: 800px;
-              margin: 0 auto;
-              background: white;
-              padding: 24px;
-            }
-            .header { 
-              text-align: center; 
-              margin-bottom: 32px; 
-              padding-bottom: 24px;
-              border-bottom: 2px solid #e5e7eb;
-            }
-            .school-name { 
-              font-size: 28px; 
-              font-weight: 700; 
-              margin-bottom: 8px; 
-              color: #111827;
-            }
-            .receipt-title { 
-              font-size: 20px; 
-              font-weight: 600; 
-              color: #6b7280;
-              margin-bottom: 16px;
-            }
-            .receipt-number {
-              background: #dbeafe;
-              color: #1e40af;
-              padding: 8px 16px;
-              border-radius: 6px;
-              font-weight: 600;
-              display: inline-block;
-            }
-            .content-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 32px;
-              margin-bottom: 32px;
-            }
-            .section {
-              background: #f9fafb;
-              padding: 20px;
-              border-radius: 8px;
-              border: 1px solid #e5e7eb;
-            }
-            .section-title {
-              font-size: 16px;
-              font-weight: 600;
-              color: #374151;
-              margin-bottom: 16px;
-              padding-bottom: 8px;
-              border-bottom: 1px solid #d1d5db;
-            }
-            .detail-row { 
-              display: flex; 
-              justify-content: space-between; 
-              margin-bottom: 12px;
-              padding: 8px 0;
-            }
-            .label { 
-              font-weight: 500; 
-              color: #6b7280;
-            }
-            .value {
-              color: #111827;
-              font-weight: 500;
-            }
-            .amount-section {
-              background: #dbeafe;
-              padding: 20px;
-              border-radius: 8px;
-              text-align: center;
-              margin: 24px 0;
-            }
-            .amount { 
-              font-size: 24px; 
-              font-weight: 700; 
-              color: #1d4ed8; 
-              margin: 8px 0;
-            }
-            .footer { 
-              margin-top: 40px; 
-              text-align: center; 
-              font-size: 12px; 
-              color: #6b7280; 
-              border-top: 1px solid #e5e7eb;
-              padding-top: 20px;
-            }
-            .success-badge {
-              background: #dcfce7;
-              color: #166534;
-              padding: 4px 12px;
-              border-radius: 4px;
-              font-size: 12px;
-              font-weight: 600;
-              display: inline-block;
-              margin-top: 8px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <div class="school-name">${user?.schoolName || 'School Name'}</div>
-              <div class="receipt-title">Payment Receipt</div>
-              <div class="receipt-number">Receipt #${receiptNumber}</div>
-            </div>
-            
-            <div class="content-grid">
-              <div class="section">
-                <div class="section-title">Student Information</div>
-                <div class="detail-row">
-                  <span class="label">Student Name</span>
-                  <span class="value">${historyRecord.studentName}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">Class & Section</span>
-                  <span class="value">${historyRecord.studentClass}-${historyRecord.studentSection}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">Academic Year</span>
-                  <span class="value">2024-25</span>
-                </div>
-              </div>
-              
-              <div class="section">
-                <div class="section-title">Payment Details</div>
-                <div class="detail-row">
-                  <span class="label">Payment Date</span>
-                  <span class="value">${new Date(targetPayment.paymentDate || targetPayment.date).toLocaleDateString('en-IN')}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">Payment Method</span>
-                  <span class="value">${targetPayment.paymentMethod || targetPayment.method || 'Cash'}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">Reference</span>
-                  <span class="value">${targetPayment.paymentReference || targetPayment.reference || '-'}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">Installment</span>
-                  <span class="value">${targetInstallment?.name || targetPayment.installmentName || 'N/A'}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div class="amount-section">
-              <div style="font-size: 14px; color: #6b7280; margin-bottom: 8px;">Amount Paid</div>
-              <div class="amount">₹${(targetPayment.amount || 0).toLocaleString('en-IN')}</div>
-              <div class="success-badge">Payment Successful</div>
-            </div>
-            
-            <div class="footer">
-              <p><strong>This is a computer generated receipt.</strong></p>
-              <p>Thank you for your payment!</p>
-              <p>Generated on: ${new Date().toLocaleString('en-IN')}</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
+      // Get school data
+      const schoolData = {
+        schoolName: user?.schoolName || 'School Name',
+        schoolCode: user?.schoolCode || 'SCH001',
+        address: '123 School Street, City, State 12345',
+        phone: '+91-XXXXXXXXXX',
+        email: 'info@school.com',
+        website: 'www.edulogix.com'
+      };
 
-      // Generate PDF using browser's print to PDF functionality
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-        
-        // Wait for content to load then trigger print
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.focus();
-            printWindow.print();
-          }, 500);
-        };
-        
-        // Note: User will need to select "Save as PDF" in print dialog
-        toast.success('Receipt ready for download - Select "Save as PDF" in the print dialog');
-      } else {
-        // Fallback: create downloadable HTML file
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        const url = window.URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `receipt-${receiptNumber}.html`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        window.URL.revokeObjectURL(url);
-        toast.success('Receipt downloaded as HTML - Open in browser and print to PDF');
+      // Try to get school info from template settings
+      try {
+        const saved = localStorage.getItem('universalTemplate');
+        if (saved) {
+          const templateSettings = JSON.parse(saved);
+          schoolData.schoolName = templateSettings.schoolName || schoolData.schoolName;
+          schoolData.schoolCode = templateSettings.schoolCode || schoolData.schoolCode;
+          schoolData.address = templateSettings.address || schoolData.address;
+          schoolData.phone = templateSettings.phone || schoolData.phone;
+          schoolData.email = templateSettings.email || schoolData.email;
+          schoolData.website = templateSettings.website || schoolData.website;
+        }
+      } catch (error) {
+        console.log('Failed to load template settings, using defaults');
       }
 
-      toast.success('Receipt downloaded successfully!');
+      // Student ID handling - prioritize userId from student collection
+      let studentId = '';
+      
+      // Debug: Log available student data
+      console.log('Student ID Debug - historyRecord:', {
+        sequenceNumber: historyRecord.sequenceNumber,
+        studentUniqueId: historyRecord.studentUniqueId,
+        enrollmentNo: historyRecord.enrollmentNo,
+        admissionNo: historyRecord.admissionNo,
+        studentId: historyRecord.studentId,
+        userId: historyRecord.userId,
+        rollNumber: historyRecord.rollNumber,
+        studentRollNumber: historyRecord.studentRollNumber,
+        studentName: historyRecord.studentName
+      });
+      
+      console.log('Student ID Debug - historyStudent:', historyStudent);
+      
+      // Try to fetch complete student data if we have a userId
+      let completeStudentData = historyStudent;
+      
+      // Debug: Check what userId sources we have
+      console.log('Student ID Debug - Available userId sources:', {
+        'historyRecord.userId': historyRecord.userId,
+        'historyStudent?.userId': historyStudent?.userId,
+        'historyRecord.studentId': historyRecord.studentId,
+        'historyRecord._id': historyRecord._id
+      });
+      
+      // Try multiple approaches to get the userId
+      const userIdToFetch = historyRecord.userId || historyRecord.studentId || historyRecord._id;
+      
+      // First, check if we already have userId in the fee record
+      if (historyRecord.userId && historyRecord.userId !== 'undefined' && historyRecord.userId !== 'null') {
+        console.log('Student ID Debug - Found userId in fee record:', historyRecord.userId);
+        completeStudentData = { userId: historyRecord.userId };
+      } else if (userIdToFetch && !historyStudent?.userId) {
+        try {
+          console.log('Fetching complete student data using userId:', userIdToFetch);
+          
+          // Try to get all students and find the one with matching userId
+          const allStudentsResponse = await feesAPI.getStudentFeeRecords({});
+          const allStudents = allStudentsResponse.data?.data || [];
+          
+          // Look for student with matching userId in the fee records
+          const matchingStudent = allStudents.find(student => 
+            student.userId === userIdToFetch || 
+            student.studentId === userIdToFetch ||
+            student._id === userIdToFetch
+          );
+          
+          if (matchingStudent) {
+            console.log('Found matching student in fee records:', matchingStudent);
+            completeStudentData = matchingStudent;
+          } else {
+            // Fallback to the original API call
+            const studentDataResponse = await feesAPI.getStudentByUserId(userIdToFetch);
+            completeStudentData = studentDataResponse.data?.data;
+            console.log('Complete student data from students collection:', completeStudentData);
+          }
+          
+          // If we still don't have userId, try to find it in the response
+          if (!completeStudentData?.userId && completeStudentData) {
+            const studentData = completeStudentData;
+            console.log('Student data structure:', {
+              userId: studentData.userId,
+              _id: studentData._id,
+              studentId: studentData.studentId,
+              allKeys: Object.keys(studentData)
+            });
+          }
+        } catch (error) {
+          console.log('Failed to fetch complete student data:', error);
+          console.log('Using existing data:', historyStudent);
+        }
+      }
+      
+      // Priority order for Student ID extraction:
+      // 1. userId from student collection (this is the actual Student ID like "SK-S-0850")
+      // 2. Other valid student identifiers
+      const possibleIds = [
+        completeStudentData?.userId,  // This is the primary Student ID from student collection
+        historyRecord.userId,         // Fallback to fee record userId
+        historyRecord.sequenceNumber,
+        historyRecord.studentUniqueId,
+        historyRecord.enrollmentNo,
+        historyRecord.admissionNo,
+        historyRecord.studentId,
+        historyRecord.rollNumber,
+        historyRecord.studentRollNumber,
+        completeStudentData?.studentId,
+        completeStudentData?.studentDetails?.studentId,
+        completeStudentData?.rollNumber,
+        completeStudentData?.studentDetails?.rollNumber
+      ].filter(id => id && id !== 'undefined' && id !== 'null' && !/^[a-fA-F0-9]{24}$/.test(id));
+      
+      console.log('Student ID Debug - possibleIds:', possibleIds);
+      console.log('Student ID Debug - completeStudentData:', completeStudentData);
+      
+      if (possibleIds.length > 0) {
+        // Use the first valid ID found
+        studentId = String(possibleIds[0]).trim();
+        console.log('Student ID Debug - Using found ID:', studentId);
+      } else {
+        console.log('Student ID Debug - No valid IDs found, using fallback logic');
+        // Fallback: generate a meaningful ID using school code and roll number
+        const schoolCode = ((schoolData.schoolCode || 'SC').toString().trim() || 'SC').toUpperCase();
+        
+        // Try to extract roll number from various sources
+        let rawRoll = '';
+        const rollSources = [
+          historyRecord.rollNumber,
+          historyRecord.studentRollNumber,
+          completeStudentData?.rollNumber,
+          completeStudentData?.studentDetails?.rollNumber
+        ];
+        
+        for (const source of rollSources) {
+          if (source && source !== 'undefined' && source !== 'null') {
+            rawRoll = String(source).trim();
+            break;
+          }
+        }
+        
+        // If no roll number, try to extract from admission/enrollment numbers
+        if (!rawRoll) {
+          const source = String(historyRecord.admissionNo || historyRecord.enrollmentNo || '');
+          const digits = (source.match(/\d+/g) || []).join('');
+          rawRoll = digits.slice(-4);
+        }
+        
+        // Generate student ID
+        if (rawRoll) {
+          const n = parseInt(rawRoll, 10);
+          const padded = Number.isFinite(n) ? n.toString().padStart(4, '0') : rawRoll.padStart(4, '0');
+          studentId = `${schoolCode}-S-${padded}`;
+          console.log('Student ID Debug - Generated from roll number:', studentId);
+        } else {
+          // Last resort: use student name initials + sequence
+          const nameInitials = (historyRecord.studentName || 'STU').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+          const timestamp = Date.now().toString().slice(-4);
+          studentId = `${schoolCode}-${nameInitials}-${timestamp}`;
+          console.log('Student ID Debug - Generated from name initials:', studentId, 'from name:', historyRecord.studentName);
+        }
+      }
+      
+      console.log('Student ID Debug - Final studentId:', studentId);
+
+      // Prepare student data
+      const studentData = {
+        name: historyRecord.studentName,
+        studentId: studentId,
+        class: historyRecord.studentClass,
+        section: historyRecord.studentSection,
+        academicYear: historyRecord.academicYear || `${new Date().getFullYear()}-${String((new Date().getFullYear()+1)).slice(-2)}`
+      };
+
+      // Prepare payment data with proper date handling
+      const paymentDate = targetPayment.paymentDate || targetPayment.date;
+      const currentDate = new Date();
+      
+      // Better date validation and handling
+      let finalPaymentDate;
+      if (paymentDate) {
+        const parsedDate = new Date(paymentDate);
+        // Check if the date is valid and not in the future (unless it's today)
+        if (!isNaN(parsedDate.getTime()) && parsedDate <= currentDate) {
+          finalPaymentDate = paymentDate;
+        } else {
+          // If date is invalid or in future, use current date
+          finalPaymentDate = currentDate.toISOString();
+        }
+      } else {
+        // No payment date found, use current date
+        finalPaymentDate = currentDate.toISOString();
+      }
+
+      const paymentData = {
+        receiptNumber: receiptNumber,
+        paymentDate: finalPaymentDate,
+        paymentMethod: targetPayment.paymentMethod || targetPayment.method || 'Cash',
+        paymentReference: targetPayment.paymentReference || targetPayment.reference || '-',
+        amount: targetPayment.amount || 0,
+        installmentName: targetInstallment?.name || targetPayment.installmentName || 'N/A'
+      };
+
+      // Debug: Log the payment date to see what we're getting
+      console.log('Payment date from database:', paymentDate);
+      console.log('Final payment date:', paymentData.paymentDate);
+      console.log('Current date:', currentDate.toISOString());
+
+      // Prepare installment details
+      const installmentDetails = (historyRecord.installments || []).map((inst: any) => ({
+        name: inst.name,
+        amount: inst.amount || 0,
+        paid: inst.paidAmount || 0,
+        remaining: Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0)),
+        isCurrent: inst.name === targetInstallment?.name
+      }));
+
+      // Calculate totals
+      const totalAmount = historyRecord.totalAmount || 0;
+      const totalPaid = historyRecord.totalPaid || 0;
+      const totalRemaining = Math.max(0, totalAmount - totalPaid);
+
+      // Set receipt data and open modal
+      setReceiptData({
+        schoolData,
+        studentData,
+        paymentData,
+        installments: installmentDetails,
+        totalAmount,
+        totalPaid,
+        totalRemaining
+      });
+      setSelectedReceiptNumber(receiptNumber);
+      setIsReceiptOpen(true);
+
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Failed to download receipt');
+      toast.error(e?.response?.data?.message || 'Failed to generate receipt data');
     }
+  };
+
+  const handleDownloadReceipt = async (receiptNumber: string) => {
+    await generateReceiptData(receiptNumber);
   };
 
 
@@ -335,7 +381,7 @@ const FeePaymentsTab: React.FC = () => {
         <meta charset="UTF-8">
         <title>Payment Receipt</title>
         <style>
-          @page { size: A4; margin: 15mm; }
+          @page { size: A4 landscape; margin: 15mm; }
           body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             margin: 0; 
@@ -537,7 +583,8 @@ const FeePaymentsTab: React.FC = () => {
   const handleGenerateInvoice = async (student: any) => {
     try {
       // Fetch detailed student data from database
-      const studentResponse = await feesAPI.getStudentFeeRecord(student.id);
+      // Try to use studentId first, fall back to id if not available
+      const studentResponse = await feesAPI.getStudentFeeRecord(student.studentId || student.id);
       const studentDetails = studentResponse.data?.data;
 
       if (!studentDetails) {
@@ -554,6 +601,7 @@ const FeePaymentsTab: React.FC = () => {
           completeStudentData = studentDataResponse.data?.data;
           console.log('Complete student data from students collection:', completeStudentData);
         }
+      
       } catch (error) {
         console.log('Failed to fetch complete student data, using fee record data');
       }
@@ -715,13 +763,48 @@ const FeePaymentsTab: React.FC = () => {
     try {
       setHistoryLoading(true);
       setIsHistoryOpen(true);
-      const res = await feesAPI.getStudentFeeRecord(student.id);
+      setHistoryStudent(student);
+      
+      // Use studentId if available, otherwise fall back to id
+      const res = await feesAPI.getStudentFeeRecord(student.studentId || student.id);
       const rec = res.data?.data;
       setHistoryRecord(rec || null);
       const firstInst = (rec?.installments || [])[0];
       setHistoryInstallmentName(firstInst?.name || '');
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Failed to load payment history');
+      
+      // If we already have a roll number, we're done
+      if (student?.rollNumber) return;
+      
+      try {
+        // First try to get rollNumber from the fee record data
+        const rollNumberFromRecord = rec?.student?.rollNumber || rec?.studentDetails?.rollNumber;
+        if (rollNumberFromRecord) {
+          setHistoryStudent((prev: any) => ({ ...(prev || {}), rollNumber: rollNumberFromRecord }));
+          return;
+        }
+        
+        // Fallback: try to get from student ID or user ID
+        const userId = rec?.userId || rec?.student?.userId || rec?.studentId || student.id;
+        if (!userId) return;
+        
+        // Try to get roll number from other fields as a last resort
+        const possibleRollNumber = 
+          rec?.rollNumber || 
+          rec?.student?.rollNumber || 
+          rec?.studentDetails?.rollNumber ||
+          String(rec?.admissionNo || '').slice(-4) ||
+          String(rec?.enrollmentNo || '').slice(-4);
+          
+        if (possibleRollNumber) {
+          setHistoryStudent((prev: any) => ({ ...(prev || {}), rollNumber: possibleRollNumber }));
+        }
+      } catch (error) {
+        console.log('Error processing roll number:', error);
+        // Continue without rollNumber - it's not critical for receipt generation
+      }
+    } catch (error: any) {
+      console.error('Error in openHistoryModal:', error);
+      toast.error(error?.response?.data?.message || 'Failed to load payment history');
       setIsHistoryOpen(false);
     } finally {
       setHistoryLoading(false);
@@ -759,7 +842,7 @@ const FeePaymentsTab: React.FC = () => {
   const openPaymentModal = (student: any) => {
     setActiveStudent(student);
     setPayMethod('cash');
-    setPayDate('');
+    setPayDate(new Date().toISOString().split('T')[0]); // Set today's date as default
     setPayRef('');
     // Auto-select first pending installment if available
     const list = student.installments || [];
@@ -795,6 +878,16 @@ const FeePaymentsTab: React.FC = () => {
     const amt = Number(payAmount);
     if (!selectedInstallmentName) return toast.error('Select an installment');
     if (Number.isNaN(amt) || amt <= 0) return toast.error('Enter a valid amount');
+    if (!payDate || payDate.trim() === '') return toast.error('Payment date is required');
+    
+    // Optional: Validate that payment date is not in the future
+    const paymentDate = new Date(payDate);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
+    if (paymentDate > today) {
+      return toast.error('Payment date cannot be in the future');
+    }
+    
     const inst = (activeStudent.installments || []).find((i: any) => i.name === selectedInstallmentName);
     if (inst) {
       const pendingForInst = Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0));
@@ -810,7 +903,7 @@ const FeePaymentsTab: React.FC = () => {
         installmentName: selectedInstallmentName,
         amount: amt,
         paymentMethod: payMethod,
-        paymentDate: payDate || undefined,
+        paymentDate: payDate,
         paymentReference: payRef || undefined,
       });
       await fetchRecords();
@@ -928,8 +1021,9 @@ const FeePaymentsTab: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => openHistoryModal(student)}
-                        className="text-left text-sm font-medium text-blue-600 hover:underline"
+                        className="text-left text-sm font-medium text-blue-600 hover:underline flex items-center gap-1"
                       >
+                        <Receipt size={14} />
                         {student.name}
                       </button>
                       {(student.class || student.section || student.rollNumber) && (
@@ -1144,12 +1238,13 @@ const FeePaymentsTab: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
                     <input
                       type="date"
                       value={payDate}
                       onChange={(e) => setPayDate(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      required
                     />
                   </div>
                   <div>
@@ -1192,6 +1287,36 @@ const FeePaymentsTab: React.FC = () => {
       )}
       {error && (
         <div className="text-sm text-red-600">{error}</div>
+      )}
+
+      {/* Receipt Modal */}
+      {isReceiptOpen && receiptData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Payment Receipt - {receiptData.studentData.name}
+              </h3>
+              <button 
+                onClick={() => setIsReceiptOpen(false)} 
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <DualCopyReceipt
+                schoolData={receiptData.schoolData}
+                studentData={receiptData.studentData}
+                paymentData={receiptData.paymentData}
+                installments={receiptData.installments}
+                totalAmount={receiptData.totalAmount}
+                totalPaid={receiptData.totalPaid}
+                totalRemaining={receiptData.totalRemaining}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -8,7 +8,7 @@ const auth = async (req, res, next) => {
   try {
     console.log('🔑 AUTH middleware called for:', req.method, req.originalUrl);
     console.log('Authorization header:', req.headers.authorization);
-    
+
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
       console.error('[AUTH ERROR] Missing Authorization header');
@@ -27,7 +27,7 @@ const auth = async (req, res, next) => {
 
     // Handle different user ID formats based on userType
     let userId = decoded.userId;
-    
+
     // Only convert to ObjectId for non-school users
     if (decoded.userType !== 'school_user') {
       try {
@@ -45,12 +45,12 @@ const auth = async (req, res, next) => {
         console.error('[AUTH ERROR] Superadmin user not found for decoded token:', decoded);
         return res.status(401).json({ success: false, message: 'User not found' });
       }
-      
+
       if (!superAdmin.isActive) {
         console.error('[AUTH ERROR] Superadmin is deactivated:', decoded);
         return res.status(401).json({ success: false, message: 'Account deactivated' });
       }
-      
+
       req.user = superAdmin;
       return next();
     }
@@ -63,7 +63,7 @@ const auth = async (req, res, next) => {
       const UserGenerator = require('../utils/userGenerator');
       user = await UserGenerator.getUserByIdOrEmail(decoded.schoolCode, userId);
       console.log(`[AUTH DEBUG] Found user:`, user ? { id: user._id, userId: user.userId, name: user.name } : 'null');
-      
+
       // For school users, we need to add the schoolId from the School collection
       if (user) {
         const School = require('../models/School');
@@ -80,7 +80,7 @@ const auth = async (req, res, next) => {
       // For global users, check the main users collection
       console.log(`[AUTH DEBUG] Looking for user ID: ${userId} in main database`);
       user = await User.findById(userId);
-      
+
       // For global users that have a schoolCode, populate schoolId
       if (user && user.schoolCode) {
         const School = require('../models/School');
@@ -90,7 +90,7 @@ const auth = async (req, res, next) => {
         }
       }
     }
-    
+
     if (!user) {
       console.error('[AUTH ERROR] User not found for decoded token:', decoded);
       return res.status(401).json({ success: false, message: 'User not found' });
@@ -114,7 +114,7 @@ const authorize = (...roles) => {
     }
 
     console.log(`[AUTHORIZE DEBUG] Checking if role "${req.user.role}" is in allowed roles:`, roles);
-    
+
     if (!roles.includes(req.user.role)) {
       console.error(`[AUTHORIZE ERROR] User role "${req.user.role}" not in allowed roles:`, roles);
       return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
@@ -131,11 +131,11 @@ const schoolAccess = async (req, res, next) => {
     if (req.user.role === 'superadmin') {
       return next(); // Super admin has access to all schools
     }
-    
+
     if (req.user.role === 'admin' && req.user.schoolId) {
       return next(); // Admin has access to their school
     }
-    
+
     return res.status(403).json({ message: 'Access denied. School access required.' });
   } catch (error) {
     res.status(500).json({ message: 'Server error.' });
@@ -149,19 +149,19 @@ const resourceOwnership = (model, resourceIdField = 'id') => {
       if (req.user.role === 'superadmin') {
         return next(); // Super admin has access to all resources
       }
-      
+
       const resourceId = req.params[resourceIdField];
       const resource = await model.findById(resourceId);
-      
+
       if (!resource) {
         return res.status(404).json({ message: 'Resource not found.' });
       }
-      
+
       // Check if admin has access to the resource's school
       if (req.user.role === 'admin' && req.user.schoolId?.toString() !== resource.schoolId?.toString()) {
         return res.status(403).json({ message: 'Access denied. Resource not in your school.' });
       }
-      
+
       next();
     } catch (error) {
       res.status(500).json({ message: 'Server error.' });

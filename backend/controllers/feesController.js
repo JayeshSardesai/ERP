@@ -651,6 +651,14 @@ exports.recordOfflinePayment = async (req, res) => {
       });
     }
     
+    // Validate payment date is provided
+    if (!paymentDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment date is required'
+      });
+    }
+    
     const schoolCode = req.user.schoolCode;
     const conn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = conn.db || conn;
