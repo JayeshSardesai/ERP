@@ -9,10 +9,6 @@ interface Installment {
   amount: number;
   dueDate: string;
   description: string;
-  chalanNumber?: string;
-  chalanDate?: string;
-  chalanBank?: string;
-  chalanStatus?: 'pending' | 'generated' | 'paid';
 }
 
 const FeeStructureTab: React.FC = () => {
@@ -30,11 +26,7 @@ const FeeStructureTab: React.FC = () => {
       name: '',
       amount: 0,
       dueDate: '',
-      description: '',
-      chalanNumber: '',
-      chalanDate: '',
-      chalanBank: '',
-      chalanStatus: 'pending'
+      description: ''
     }
   ]);
   const [installmentCount, setInstallmentCount] = useState<number>(1);
@@ -78,11 +70,7 @@ const FeeStructureTab: React.FC = () => {
       name: '',
       amount: 0,
       dueDate: '',
-      description: '',
-      chalanNumber: '',
-      chalanDate: '',
-      chalanBank: '',
-      chalanStatus: 'pending'
+      description: ''
     }]);
   };
 
@@ -166,11 +154,7 @@ const FeeStructureTab: React.FC = () => {
           name: i.name,
           amount: Number(i.amount || 0),
           dueDate: i.dueDate,
-          description: i.description,
-          chalanNumber: i.chalanNumber || '',
-          chalanDate: i.chalanDate || '',
-          chalanBank: i.chalanBank || '',
-          chalanStatus: i.chalanStatus || 'pending'
+          description: i.description
         })),
         applyToStudents,
       };
@@ -198,11 +182,7 @@ const FeeStructureTab: React.FC = () => {
         name: '',
         amount: 0,
         dueDate: '',
-        description: '',
-        chalanNumber: '',
-        chalanDate: '',
-        chalanBank: '',
-        chalanStatus: 'pending'
+        description: ''
       }]);
       setApplyToStudents(false);
       
@@ -386,37 +366,6 @@ const FeeStructureTab: React.FC = () => {
                         onChange={(e) => handleInstallmentChange(index, 'description', e.target.value)}
                         className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
-                      <div className="col-span-2 mt-2 pt-2 border-t border-gray-100">
-                        <p className="text-xs font-medium text-gray-500 mb-1">Chalan Details</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            placeholder="Chalan Number"
-                            value={installment.chalanNumber || ''}
-                            onChange={(e) => handleInstallmentChange(index, 'chalanNumber', e.target.value)}
-                            className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                          <input
-                            type="date"
-                            placeholder="Chalan Date"
-                            value={installment.chalanDate || ''}
-                            onChange={(e) => handleInstallmentChange(index, 'chalanDate', e.target.value)}
-                            className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                          <select
-                            value={installment.chalanBank || ''}
-                            onChange={(e) => handleInstallmentChange(index, 'chalanBank', e.target.value)}
-                            className="col-span-2 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          >
-                            <option value="">Select Bank</option>
-                            <option value="SBI">State Bank of India</option>
-                            <option value="HDFC">HDFC Bank</option>
-                            <option value="ICICI">ICICI Bank</option>
-                            <option value="PNB">Punjab National Bank</option>
-                            <option value="other">Other</option>
-                          </select>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 ))}

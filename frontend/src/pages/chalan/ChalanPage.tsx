@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Chalan } from '../../types/chalan';
 import ChalanList from '../../components/chalan/ChalanList';
 import ChalanGenerationForm from '../../components/chalan/ChalanGenerationForm';
-import ChalanView from '../../components/chalan/ChalanView';
+import ViewChalan from '../../components/fees/ViewChalan';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { PlusIcon, PrinterIcon, XIcon } from '@heroicons/react/outline';
@@ -25,16 +25,26 @@ const ChalanPage: React.FC = () => {
   };
 
   const handleViewChalan = (chalan: Chalan) => {
+    console.log('Viewing chalan:', chalan);
     setViewChalan(chalan);
+    setPrintMode(false);
   };
 
   const handlePrintChalan = (chalan: Chalan) => {
+    console.log('Printing chalan:', chalan);
     setViewChalan(chalan);
     setPrintMode(true);
-    // This will be handled by the browser's print functionality
+    
+    // Small delay to ensure the modal is rendered before printing
     setTimeout(() => {
-      window.print();
-      setPrintMode(false);
+      try {
+        window.print();
+      } catch (error) {
+        console.error('Error during printing:', error);
+      } finally {
+        // Don't close print mode immediately to allow print dialog to stay open
+        setTimeout(() => setPrintMode(false), 1000);
+      }
     }, 500);
   };
 
@@ -84,59 +94,54 @@ const ChalanPage: React.FC = () => {
       </Modal>
 
       {/* View Chalan Modal */}
-      {viewChalan && (
-        <div className={`fixed inset-0 z-50 overflow-y-auto ${printMode ? 'block' : 'flex items-center justify-center p-4'}`}>
-          <div className={`bg-white rounded-lg shadow-xl ${printMode ? 'w-full h-full p-4' : 'w-full max-w-4xl'}`}>
-            {!printMode && (
-              <div className="flex justify-between items-center p-4 border-b">
-                <h2 className="text-xl font-semibold">Chalan Details</h2>
-                <div className="flex space-x-2">
-                  <Button
-                    onClick={() => handlePrintChalan(viewChalan)}
-                    className="bg-blue-100 text-blue-700 hover:bg-blue-200"
-                  >
-                    <PrinterIcon className="h-4 w-4 mr-1" />
-                    Print
-                  </Button>
-                  <Button
-                    onClick={handleCloseView}
-                    className="text-gray-500 hover:text-gray-700"
-                    variant="ghost"
-                  >
-                    <XIcon className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-            )}
-            <div className="p-4">
-              {!printMode ? (
-                <ChalanView chalan={viewChalan} />
-              ) : (
-                <>
-                  {/* Print all three copies */}
-                  <div className="space-y-8">
-                    <ChalanView chalan={viewChalan} copyType="student" className="mb-8" />
-                    <div className="break-after-page">
-                      <ChalanView chalan={viewChalan} copyType="office" className="mb-8" />
-                    </div>
-                    <ChalanView chalan={viewChalan} copyType="admin" />
-                  </div>
-                  
-                  {/* Print button for print view */}
-                  <div className="hidden print:block text-center mt-8">
-                    <button
-                      onClick={() => window.print()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md"
-                    >
-                      Print All Copies
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <ViewChalan
+        isOpen={!!viewChalan}
+        onClose={handleCloseView}
+        printMode={printMode}
+        chalan={{
+          chalanNumber: viewChalan?.chalanNumber || 'N/A',
+          chalanDate: viewChalan?.createdAt 
+            ? new Date(viewChalan.createdAt).toISOString() 
+            : new Date().toISOString(),
+          chalanStatus: viewChalan?.status || 'unpaid',
+          installmentName: viewChalan?.installmentName || 'Fee Payment',
+          amount: viewChalan?.amount || 0,
+          totalAmount: viewChalan?.totalAmount || viewChalan?.amount || 0,
+          dueDate: viewChalan?.dueDate 
+            ? new Date(viewChalan.dueDate).toISOString() 
+            : new Date().toISOString(),
+          studentName: (typeof viewChalan?.studentId === 'object' 
+            ? viewChalan.studentId.name 
+            : viewChalan?.studentName) || 'N/A',
+          studentId: typeof viewChalan?.studentId === 'object' 
+            ? viewChalan.studentId._id 
+            : viewChalan?.studentId || '',
+          admissionNumber: viewChalan?.admissionNumber || 
+            (typeof viewChalan?.studentId === 'object' ? viewChalan.studentId.admissionNo : '') || 'N/A',
+          className: viewChalan?.class || 'N/A',
+          section: viewChalan?.section || 'N/A',
+          schoolId: viewChalan?.schoolId || '',
+          academicYear: (viewChalan as any)?.academicYear || new Date().getFullYear().toString(),
+          schoolName: 'Your School Name',
+          schoolAddress: 'School Address',
+          schoolPhone: '',
+          schoolEmail: '',
+          schoolLogo: '',
+          bankDetails: {
+            bankName: 'Your Bank',
+            accountNumber: '1234567890',
+            ifscCode: 'ABCD0123456',
+            branch: 'Main Branch',
+            accountHolderName: 'School Name'
+          },
+          schoolData: {
+            name: 'Your School Name',
+            address: 'School Address',
+            phone: '',
+            email: ''
+          }
+        }}
+      />
 
       {/* Print styles */}
       <style jsx global>{`

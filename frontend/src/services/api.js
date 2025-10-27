@@ -104,67 +104,7 @@ export const schoolAPI = {
   getAllSchools: () => api.get('/schools'),
   getSchoolById: (schoolId) => {
     console.log(`Fetching school details for ID: ${schoolId}`);
-    
-    // Define school data for different school codes
-    const schoolData = {
-      'sk': {
-        schoolName: 'SARASWATI KUNJ',
-        schoolCode: 'SK',
-        schoolLogo: '/school-logo-sk.png',
-        address: {
-          addressLine1: 'Saraswati Kunj Campus',
-          city: 'City',
-          state: 'State',
-          pincode: 'Pincode'
-        },
-        contact: {
-          phone: '+91 XXXXXXXXXX',
-          email: 'info@saraswatikunj.edu.in'
-        },
-        bankDetails: {
-          accountName: 'SARASWATI KUNJ',
-          accountNumber: '1234567890',
-          bankName: 'State Bank of India',
-          ifscCode: 'SBIN0001234',
-          branch: 'Main Branch',
-          accountType: 'Savings'
-        }
-      },
-      'kv': {
-        schoolName: 'KENDRIYA VIDYALAYA',
-        schoolCode: 'KV',
-        schoolLogo: '/school-logo-kv.png',
-        address: {
-          addressLine1: 'Kendriya Vidyalaya Campus',
-          city: 'City',
-          state: 'State',
-          pincode: 'Pincode'
-        },
-        contact: {
-          phone: '+91 XXXXXXXXXX',
-          email: 'info@kvs.edu.in'
-        },
-        bankDetails: {
-          accountName: 'KENDRIYA VIDYALAYA',
-          accountNumber: '12345678901234',
-          bankName: 'School Bank',
-          ifscCode: 'SBIN0001234',
-          branch: 'Main Branch',
-          accountType: 'Savings'
-        }
-      }
-    };
-
-    // Return data based on schoolId (case-insensitive)
-    const schoolCode = (schoolId || '').toLowerCase();
-    const data = schoolData[schoolCode] || schoolData['kv']; // Default to KV if school not found
-    
-    console.log(`Returning school data for: ${data.schoolName}`);
-    return Promise.resolve({
-      data: {
-        data: data
-      }
-    });
+    return api.get(`/schools/${schoolId}/info`);
   },
   updateSchool: (schoolId, updateData) => api.put(`/schools/${schoolId}`, updateData),
   deleteSchool: (schoolId) => api.delete(`/schools/${schoolId}`),
@@ -416,26 +356,108 @@ export const classesAPI = {
 
 // Fees API
 export const feesAPI = {
+  // Get next chalan number from the server
+  getNextChalanNumber: async () => {
+    try {
+      const response = await api.get('/chalans/next-chalan-number');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting next chalan number:', error);
+      throw error;
+    }
+  },
   createFeeStructure: (feeStructureData) => api.post('/fees/structures', feeStructureData),
   getFeeStructures: (params) => api.get('/fees/structures', { params }),
   getStudentFeeRecords: (params) => api.get('/fees/records', { params }),
-  getStudentFeeRecord: (studentId) => api.get(`/fees/records/${studentId}`),
+  getStudentFeeRecord: async (identifier) => {
+    if (!identifier) {
+      throw new Error('No student identifier provided');
+    }
+
+    console.log(`Attempting to fetch fee record for identifier: ${identifier}`);
+    
+    try {
+      // Use the correct endpoint for fetching fee records
+      const response = await api.get(`/fees/records/${identifier}`);
+      console.log('Successfully fetched fee record:', response.data);
+      return response;
+    } catch (error) {
+      console.error('Error fetching student fee record:', error);
+      
+      // Provide a detailed error message
+      let errorMessage = 'Failed to fetch student fee record.\n\n';
+      errorMessage += `Tried endpoint: /fees/records/${identifier}\n\n`;
+      errorMessage += 'Please check that the student exists and has fee records.';
+      
+      throw new Error(errorMessage);
+    }
+  },
   getStudentByUserId: (userId) => {
-    return api.get(`/users/role/student`).then(response => {
-      // Find the student with matching userId
-      const students = response.data?.data || [];
-      const student = students.find(s => s._id === userId || s.userId === userId);
-      if (student) {
-        return { data: { data: student } };
-      }
-      // If not found, try the user endpoint directly
-      return api.get(`/users/${userId}`);
-    });
+    // First try to get the user directly by ID
+    return api.get(`/users/${userId}`)
+      .then(response => {
+        // If successful, return the user data
+        return { data: { data: response.data } };
+      })
+      .catch(() => {
+        // If direct fetch fails, search by role
+        return api.get(`/users/role/student?userId=${userId}`)
+          .then(response => {
+            const students = response.data?.data || [];
+            const student = students.find(s => 
+              s._id === userId || 
+              s.userId === userId ||
+              s.user_id === userId
+            );
+            
+            if (student) {
+              return { data: { data: student } };
+            }
+            throw new Error('Student not found');
+          });
+      });
   },
   getSchoolInfo: (schoolCode) => api.get(`/admin/classes/${schoolCode}/classes-sections`), // Use existing working endpoint
   downloadReceipt: (receiptNumber) => api.get(`/fees/receipts/${receiptNumber}`, { responseType: 'blob' }),
   recordOfflinePayment: (studentId, paymentData) => api.post(`/fees/records/${studentId}/offline-payment`, paymentData),
   getFeeStats: (params) => api.get('/fees/stats', { params }),
+  
+  // Generate a new chalan
+  generateChalan: async (chalanData) => {
+    try {
+      // First, get the next available chalan number
+      const { data: { chalanNumber } } = await api.get('/chalans/next-chalan-number');
+      
+      // Add the chalan number to the request data
+      const requestData = {
+        ...chalanData,
+        chalanNumber,
+        status: 'generated',
+        generatedAt: new Date().toISOString(),
+        // Add school ID from the current user's context
+        schoolId: JSON.parse(localStorage.getItem('user') || '{}').schoolId
+      };
+      
+      // Make the API call to generate the chalan
+      const response = await api.post('/chalans/generate', requestData);
+      
+      // Return the response data with success status
+      return {
+        success: true,
+        data: response.data,
+        message: 'Chalan generated successfully'
+      };
+    } catch (error) {
+      console.error('Error generating chalan:', error);
+      
+      // Return a structured error response
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message || 'Failed to generate chalan',
+        status: error.response?.status || 500
+      };
+    }
+  },
 };
 
 // Reports API

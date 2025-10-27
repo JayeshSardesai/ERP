@@ -13,6 +13,7 @@ export interface PaymentData {
 export interface StudentData {
   name: string;
   studentId: string;
+  userId?: string;
   class: string;
   section: string;
   academicYear: string;
@@ -25,6 +26,8 @@ export interface SchoolData {
   phone: string;
   email: string;
   website: string;
+  hasSchoolLogo?: boolean;
+  schoolLogo?: string;
 }
 
 export interface InstallmentDetail {
@@ -132,356 +135,425 @@ const DualCopyReceipt: React.FC<DualCopyReceiptProps> = ({
   const generatePrintHTML = () => {
     return `
       <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Payment Receipt - ${paymentData.receiptNumber}</title>
-        <style>
-          @page { 
-            size: A4 landscape; 
-            margin: 8mm; 
-          }
-          * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
-          }
-          body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 11px;
-            line-height: 1.3;
-            color: #374151;
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Receipt - ${paymentData.receiptNumber}</title>
+    <style>
+        /* Base styles matching the component's 'print' mode and image aesthetics */
+        @page {
+            size: A4 landscape;
+            margin: 8mm;
+        }
+        body {
+            font-family: Arial, sans-serif; /* Changed font to match reference */
+            font-size: 10px; /* Base font size */
+            margin: 0;
+            padding: 0;
             background: white;
-          }
-          .receipt-container {
+            color: #000; /* Primary text color */
+        }
+        .receipt-container {
             display: flex;
-            gap: 8mm;
+            flex-direction: row;
+            gap: 16px; /* Space between the two copies - matched reference */
             width: 100%;
-            height: 100vh;
-          }
-          .receipt-copy {
+            min-height: 200mm; /* A bit less than A4 height for safety */
+            box-sizing: border-box;
+            padding: 10mm; /* Padding around the container, adjusting for margin */
+        }
+        .receipt-copy {
             flex: 1;
-            border: 1px solid #d1d5db;
-            border-radius: 4px;
-            overflow: hidden;
+            border: 1px solid #d1d5db; /* Light grey border - matched reference */
+            padding: 12px; /* Increased internal padding - matched reference */
             display: flex;
             flex-direction: column;
-          }
-          .receipt-header {
-            background: #f9fafb;
-            padding: 6px 8px;
-            border-bottom: 1px solid #d1d5db;
+            border-radius: 0; /* Removing border-radius for cleaner print look */
+        }
+
+        /* --- Header Section (Refactored to match Invoice structure) --- */
+
+        .copy-type-section {
             text-align: center;
-          }
-          .receipt-title {
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #9ca3af; /* Darker border for section break */
+        }
+        .copy-header-title {
             font-size: 12px;
-            font-weight: 700;
-            color: #111827;
-            margin-bottom: 2px;
-          }
-          .school-info {
-            font-size: 10px;
-            color: #6b7280;
-            margin-bottom: 3px;
-          }
-          .copy-badge {
-            background: #3b82f6;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 8px;
-            font-weight: 600;
-            display: inline-block;
-            margin-top: 2px;
-          }
-          .receipt-number {
-            background: #dbeafe;
-            color: #1e40af;
-            padding: 3px 8px;
-            border-radius: 3px;
-            font-size: 9px;
-            font-weight: 600;
-            display: inline-block;
-            margin-top: 3px;
-          }
-          .receipt-content {
-            flex: 1;
-            padding: 6px 8px;
+            font-weight: bold;
+            color: #1f2937;
+            margin: 0;
+        }
+        
+        /* School Info (Refactored to match Invoice logo/address section) */
+        .school-logo-section {
             display: flex;
-            flex-direction: column;
-          }
-          .student-info {
-            background: #f9fafb;
-            padding: 6px;
-            border-radius: 3px;
-            margin-bottom: 6px;
-            border: 1px solid #e5e7eb;
-          }
-          .info-row {
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #d1d5db;
+        }
+        .school-logo-placeholder { /* For dynamic logo or simple text */
+            width: 32px;
+            height: 32px;
+            background: #c53030; /* Example red for placeholder/accent */
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .school-logo-placeholder > div {
+            width: 16px;
+            height: 16px;
+            border: 1px solid white;
+            border-radius: 2px;
+            transform: rotate(45deg);
+        }
+        .school-logo-actual {
+            max-width: 40px; 
+            max-height: 40px; 
+            object-fit: contain;
+        }
+
+        .school-name-title {
+            font-size: 14px; /* Slightly larger for prominence */
+            font-weight: 900; /* Ultra bold */
+            color: #000; /* Dark black */
+            margin: 0;
+        }
+        .school-address {
+            font-size: 8px;
+            color: #4b5563;
+            margin: 1px 0;
+        }
+        
+        /* Document Title (RECEIPT) */
+        .doc-title-section {
+            text-align: center;
+            margin-bottom: 24px; /* Increased space before details */
+        }
+        .doc-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2563eb; /* Blue color for RECEIPT/INVOICE */
+            margin: 0;
+        }
+        .receipt-number {
+            font-size: 10px;
+            color: #4b5563;
+            margin-top: 2px;
+        }
+
+        /* --- Details Section (Matching Invoice Details Grid) --- */
+        
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            margin-bottom: 32px;
+            font-size: 10px;
+            color: #374151;
+        }
+        .details-box-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 4px;
+        }
+        .info-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 2px;
-            font-size: 9px;
-          }
-          .info-label {
+            margin-bottom: 4px;
+            font-size: 10px;
+        }
+        .info-label {
             color: #6b7280;
-            font-weight: 500;
-          }
-          .info-value {
-            color: #111827;
+            font-weight: normal;
+        }
+        .info-value {
+            color: #1f2937;
             font-weight: 600;
-          }
-          .payment-info {
-            background: #f9fafb;
-            padding: 6px;
-            border-radius: 3px;
-            margin-bottom: 6px;
-            border: 1px solid #e5e7eb;
-          }
-          .installment-table {
+        }
+
+        /* --- Table Section (Matching Invoice Table) --- */
+        
+        .items-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 6px 0;
-            font-size: 9px;
-          }
-          .installment-table th {
-            background: #f3f4f6;
-            padding: 4px 6px;
+            margin-bottom: 32px;
+            font-size: 10px;
+        }
+        .items-table th, .items-table td {
+            padding: 8px 12px; /* Adjusted padding for better fit */
             border: 1px solid #d1d5db;
-            font-weight: 600;
             text-align: left;
-          }
-          .installment-table td {
-            padding: 4px 6px;
-            border: 1px solid #d1d5db;
-          }
-          .installment-table .text-right {
-            text-align: right;
-          }
-          .current-payment {
-            background: #dbeafe;
-            padding: 8px;
-            border-radius: 4px;
-            text-align: center;
-            margin: 6px 0;
-          }
-          .current-payment-label {
-            font-size: 9px;
-            color: #6b7280;
-            margin-bottom: 2px;
-          }
-          .current-payment-amount {
-            font-size: 14px;
-            font-weight: 700;
+        }
+        .items-table th {
+            background-color: #f3f4f6; /* Light grey header background */
+            font-weight: 600;
+        }
+        .text-center { text-align: center !important; }
+        .text-right { text-align: right !important; }
+        .text-green { color: #047857; font-weight: 600; }
+        .text-red { color: #dc2626; font-weight: 600; }
+
+        /* --- Totals/Payment Section (Matching Invoice Totals) --- */
+
+        .totals-section-container {
+            display: flex;
+            justify-content: flex-end;
+        }
+        .totals-box {
+            width: 256px; /* Matched width from reference */
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #d1d5db;
+        }
+        .current-payment-row { 
+            padding: 12px 0;
+            font-weight: bold;
+            font-size: 18px;
+            border-bottom: 2px solid #1f2937;
             color: #1d4ed8;
-          }
-          .receipt-footer {
-            background: #f9fafb;
-            padding: 6px 8px;
+        }
+        .current-payment-label {
+            font-size: 14px;
+            color: #4b5563;
+        }
+        .current-payment-amount {
+            font-weight: bold;
+        }
+
+        /* --- Footer (Matching Invoice Footer) --- */
+
+        .receipt-footer {
+            margin-top: auto;
+            padding-top: 32px;
             border-top: 1px solid #d1d5db;
             text-align: center;
-            font-size: 8px;
-            color: #6b7280;
-            margin-top: auto;
-          }
-          .footer-line {
-            margin-bottom: 1px;
-          }
-          .footer-bold {
+            font-size: 10px; /* Slightly larger footer text */
+            color: #4b5563;
+        }
+        .footer-line {
+            margin: 2px 0;
+        }
+        .footer-bold {
             font-weight: 600;
-          }
-          .footer-blue {
+            color: #1f2937;
+        }
+        .footer-blue {
             color: #2563eb;
             font-weight: 600;
-          }
-          .text-green {
-            color: #047857;
-            font-weight: 600;
-          }
-          .text-red {
-            color: #dc2626;
-            font-weight: 600;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="receipt-container">
-          <!-- Admin Copy -->
-          <div class="receipt-copy">
-            <div class="receipt-header">
-              <div class="receipt-title">${schoolData.schoolName}</div>
-              <div class="school-info">School Code: ${schoolData.schoolCode} • ${schoolData.address}</div>
-              <div class="copy-badge">ADMIN COPY</div>
-              <div class="receipt-number">Receipt #${paymentData.receiptNumber}</div>
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-container">
+        <div class="receipt-copy">
+            
+            <div class="copy-type-section">
+                <h3 class="copy-header-title">ADMIN COPY</h3>
             </div>
-            <div class="receipt-content">
-              <div class="student-info">
-                <div class="info-row">
-                  <span class="info-label">Student Name</span>
-                  <span class="info-value">${studentData.name}</span>
+            
+            <div class="school-logo-section">
+                ${schoolData.hasSchoolLogo && schoolData.schoolLogo ? 
+                    `<img src="${schoolData.schoolLogo}" alt="${schoolData.schoolName} Logo" class="school-logo-actual" />` : 
+                    `<div class="school-logo-placeholder"><div></div></div>`
+                }
+                <div>
+                    <h1 class="school-name-title">${schoolData.schoolName}</h1>
+                    <p class="school-address">${schoolData.address}</p>
                 </div>
-                <div class="info-row">
-                  <span class="info-label">Student ID</span>
-                  <span class="info-value">${studentData.studentId}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Class & Section</span>
-                  <span class="info-value">${studentData.class}-${studentData.section}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Academic Year</span>
-                  <span class="info-value">${studentData.academicYear}</span>
-                </div>
-              </div>
-              <div class="payment-info">
-                <div class="info-row">
-                  <span class="info-label">Payment Date</span>
-                  <span class="info-value">${formatDateTime(paymentData.paymentDate)}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Payment Method</span>
-                  <span class="info-value">${paymentData.paymentMethod}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Reference</span>
-                  <span class="info-value">${paymentData.paymentReference || '-'}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Installment</span>
-                  <span class="info-value">${paymentData.installmentName}</span>
-                </div>
-              </div>
-              <div style="background: #f3f4f6; padding: 4px 6px; border-radius: 3px; margin: 4px 0; font-size: 9px; font-weight: 600;">
-                Installment Details
-              </div>
-              <table class="installment-table">
-                <thead>
-                  <tr>
-                    <th>Installment</th>
-                    <th class="text-right">Amount</th>
-                    <th class="text-right">Paid</th>
-                    <th class="text-right">Remaining</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${installments.map(inst => `
-                    <tr>
-                      <td>${inst.isCurrent ? inst.name + ' (Current)' : inst.name}</td>
-                      <td class="text-right">${formatCurrency(inst.amount)}</td>
-                      <td class="text-right text-green">${formatCurrency(inst.paid)}</td>
-                      <td class="text-right text-red">${formatCurrency(inst.remaining)}</td>
-                    </tr>
-                  `).join('')}
-                  <tr style="background: #f9fafb; font-weight: 600;">
-                    <td>Total</td>
-                    <td class="text-right">${formatCurrency(totalAmount)}</td>
-                    <td class="text-right text-green">${formatCurrency(totalPaid)}</td>
-                    <td class="text-right text-red">${formatCurrency(totalRemaining)}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <div class="current-payment">
-                <div class="current-payment-label">Current Payment</div>
-                <div class="current-payment-amount">${formatCurrency(paymentData.amount)}</div>
-              </div>
+                <div style="flex-grow: 1; text-align: right;"></div>
             </div>
-            <div class="receipt-footer">
-              <div class="footer-line footer-bold">This is a computer generated copy.</div>
-              <div class="footer-line">Powered by <span class="footer-blue">EduLogix</span></div>
-              <div class="footer-line">Thank you for your payment! • ${schoolData.website}</div>
-              <div class="footer-line">${schoolData.phone} • ${schoolData.email}</div>
-            </div>
-          </div>
 
-          <!-- Student Copy -->
-          <div class="receipt-copy">
-            <div class="receipt-header">
-              <div class="receipt-title">${schoolData.schoolName}</div>
-              <div class="school-info">School Code: ${schoolData.schoolCode} • ${schoolData.address}</div>
-              <div class="copy-badge">STUDENT COPY</div>
-              <div class="receipt-number">Receipt #${paymentData.receiptNumber}</div>
+            <div class="doc-title-section">
+                <h2 class="doc-title">PAYMENT RECEIPT</h2>
+                <p class="receipt-number">#${paymentData.receiptNumber}</p>
             </div>
-            <div class="receipt-content">
-              <div class="student-info">
-                <div class="info-row">
-                  <span class="info-label">Student Name</span>
-                  <span class="info-value">${studentData.name}</span>
+
+            <div class="details-grid">
+                <div>
+                    <h3 class="details-box-title">PAID BY:</h3>
+                    <div class="info-row">
+                        <span class="info-label">Student Name:</span>
+                        <span class="info-value">${studentData.name}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Student ID:</span>
+                        <span class="info-value">${studentData.userId || studentData.studentId}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Class & Section:</span>
+                        <span class="info-value">${studentData.class}-${studentData.section}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Academic Year:</span>
+                        <span class="info-value">${studentData.academicYear}</span>
+                    </div>
                 </div>
-                <div class="info-row">
-                  <span class="info-label">Student ID</span>
-                  <span class="info-value">${studentData.studentId}</span>
+                
+                <div>
+                    <h3 class="details-box-title" style="text-align: right;">PAYMENT INFO:</h3>
+                    <div class="info-row" style="justify-content: flex-end;">
+                        <span class="info-label" style="margin-right: 8px;">Payment Date:</span>
+                        <span class="info-value">${formatDateTime(paymentData.paymentDate)}</span>
+                    </div>
+                    <div class="info-row" style="justify-content: flex-end;">
+                        <span class="info-label" style="margin-right: 8px;">Payment Method:</span>
+                        <span class="info-value">${paymentData.paymentMethod}</span>
+                    </div>
+                    <div class="info-row" style="justify-content: flex-end;">
+                        <span class="info-label" style="margin-right: 8px;">Reference:</span>
+                        <span class="info-value">${paymentData.paymentReference || '-'}</span>
+                    </div>
+                    <div class="info-row" style="justify-content: flex-end;">
+                        <span class="info-label" style="margin-right: 8px;">Installment Paid:</span>
+                        <span class="info-value">${paymentData.installmentName}</span>
+                    </div>
                 </div>
-                <div class="info-row">
-                  <span class="info-label">Class & Section</span>
-                  <span class="info-value">${studentData.class}-${studentData.section}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Academic Year</span>
-                  <span class="info-value">${studentData.academicYear}</span>
-                </div>
-              </div>
-              <div class="payment-info">
-                <div class="info-row">
-                  <span class="info-label">Payment Date</span>
-                  <span class="info-value">${formatDateTime(paymentData.paymentDate)}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Payment Method</span>
-                  <span class="info-value">${paymentData.paymentMethod}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Reference</span>
-                  <span class="info-value">${paymentData.paymentReference || '-'}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Installment</span>
-                  <span class="info-value">${paymentData.installmentName}</span>
-                </div>
-              </div>
-              <div style="background: #f3f4f6; padding: 4px 6px; border-radius: 3px; margin: 4px 0; font-size: 9px; font-weight: 600;">
-                Installment Details
-              </div>
-              <table class="installment-table">
+            </div>
+            
+            <h3 class="details-box-title" style="margin-bottom: 8px;">FEE & INSTALLMENT DETAILS</h3>
+
+            <table class="items-table">
                 <thead>
-                  <tr>
-                    <th>Installment</th>
-                    <th class="text-right">Amount</th>
-                    <th class="text-right">Paid</th>
-                    <th class="text-right">Remaining</th>
-                  </tr>
+                    <tr>
+                        <th style="width: 50%;">Installment / Fee Head</th>
+                        <th style="width: 25%;" class="text-right">Amount Due</th>
+                        <th style="width: 25%;" class="text-right">Paid to Date</th>
+                    </tr>
                 </thead>
                 <tbody>
-                  ${installments.map(inst => `
-                    <tr>
-                      <td>${inst.isCurrent ? inst.name + ' (Current)' : inst.name}</td>
-                      <td class="text-right">${formatCurrency(inst.amount)}</td>
-                      <td class="text-right text-green">${formatCurrency(inst.paid)}</td>
-                      <td class="text-right text-red">${formatCurrency(inst.remaining)}</td>
+                    ${installments.map(inst => `
+                        <tr>
+                            <td>${inst.isCurrent ? inst.name + ' (Current Payment)' : inst.name}</td>
+                            <td class="text-right">${formatCurrency(inst.amount)}</td>
+                            <td class="text-right text-green">${formatCurrency(inst.paid)}</td>
+                        </tr>
+                    `).join('')}
+                    <tr style="background: #f9fafb; font-weight: 600;">
+                        <td>Overall Total</td>
+                        <td class="text-right">${formatCurrency(totalAmount)}</td>
+                        <td class="text-right text-green">${formatCurrency(totalPaid)}</td>
                     </tr>
-                  `).join('')}
-                  <tr style="background: #f9fafb; font-weight: 600;">
-                    <td>Total</td>
-                    <td class="text-right">${formatCurrency(totalAmount)}</td>
-                    <td class="text-right text-green">${formatCurrency(totalPaid)}</td>
-                    <td class="text-right text-red">${formatCurrency(totalRemaining)}</td>
-                  </tr>
                 </tbody>
-              </table>
-              <div class="current-payment">
-                <div class="current-payment-label">Current Payment</div>
-                <div class="current-payment-amount">${formatCurrency(paymentData.amount)}</div>
-              </div>
-            </div>
+            </table>
+            
             <div class="receipt-footer">
-              <div class="footer-line footer-bold">This is a computer generated copy.</div>
-              <div class="footer-line">Powered by <span class="footer-blue">EduLogix</span></div>
-              <div class="footer-line">Thank you for your payment! • ${schoolData.website}</div>
-              <div class="footer-line">${schoolData.phone} • ${schoolData.email}</div>
+                <div class="footer-line footer-bold">Thank you for your payment!</div>
+                <div class="footer-line">Powered by <span class="footer-blue">EduLogix</span></div>
+                <div class="footer-line">This is a computer generated receipt.</div>
             </div>
-          </div>
         </div>
-      </body>
-      </html>
+
+        <div class="receipt-copy">
+            
+            <div class="copy-type-section">
+                <h3 class="copy-header-title">STUDENT COPY</h3>
+            </div>
+            
+            <div class="school-logo-section">
+                ${schoolData.hasSchoolLogo && schoolData.schoolLogo ? 
+                    `<img src="${schoolData.schoolLogo}" alt="${schoolData.schoolName} Logo" class="school-logo-actual" />` : 
+                    `<div class="school-logo-placeholder"><div></div></div>`
+                }
+                <div>
+                    <h1 class="school-name-title">${schoolData.schoolName}</h1>
+                    <p class="school-address">${schoolData.address}</p>
+                </div>
+                <div style="flex-grow: 1; text-align: right;"></div>
+            </div>
+
+            <div class="doc-title-section">
+                <h2 class="doc-title">PAYMENT RECEIPT</h2>
+                <p class="receipt-number">#${paymentData.receiptNumber}</p>
+            </div>
+
+            <div class="details-grid">
+                <div>
+                    <h3 class="details-box-title">PAID BY:</h3>
+                    <div class="info-row">
+                        <span class="info-label">Student Name:</span>
+                        <span class="info-value">${studentData.name}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Student ID:</span>
+                        <span class="info-value">${studentData.userId || studentData.studentId}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Class & Section:</span>
+                        <span class="info-value">${studentData.class}-${studentData.section}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Academic Year:</span>
+                        <span class="info-value">${studentData.academicYear}</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="details-box-title" style="text-align: right;">PAYMENT INFO:</h3>
+                    <div class="info-row" style="justify-content: flex-end;">
+                        <span class="info-label" style="margin-right: 8px;">Payment Date:</span>
+                        <span class="info-value">${formatDateTime(paymentData.paymentDate)}</span>
+                    </div>
+                    <div class="info-row" style="justify-content: flex-end;">
+                        <span class="info-label" style="margin-right: 8px;">Payment Method:</span>
+                        <span class="info-value">${paymentData.paymentMethod}</span>
+                    </div>
+                    <div class="info-row" style="justify-content: flex-end;">
+                        <span class="info-label" style="margin-right: 8px;">Reference:</span>
+                        <span class="info-value">${paymentData.paymentReference || '-'}</span>
+                    </div>
+                    <div class="info-row" style="justify-content: flex-end;">
+                        <span class="info-label" style="margin-right: 8px;">Installment Paid:</span>
+                        <span class="info-value">${paymentData.installmentName}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <h3 class="details-box-title" style="margin-bottom: 8px;">FEE & INSTALLMENT DETAILS</h3>
+
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50%;">Installment / Fee Head</th>
+                        <th style="width: 25%;" class="text-right">Amount Due</th>
+                        <th style="width: 25%;" class="text-right">Paid to Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${installments.map(inst => `
+                        <tr>
+                            <td>${inst.isCurrent ? inst.name + ' (Current Payment)' : inst.name}</td>
+                            <td class="text-right">${formatCurrency(inst.amount)}</td>
+                            <td class="text-right text-green">${formatCurrency(inst.paid)}</td>
+                        </tr>
+                    `).join('')}
+                    <tr style="background: #f9fafb; font-weight: 600;">
+                        <td>Overall Total</td>
+                        <td class="text-right">${formatCurrency(totalAmount)}</td>
+                        <td class="text-right text-green">${formatCurrency(totalPaid)}</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="receipt-footer">
+                <div class="footer-line footer-bold">Thank you for your payment!</div>
+                <div class="footer-line">Powered by <span class="footer-blue">EduLogix</span></div>
+                <div class="footer-line">This is a computer generated receipt.</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
     `;
   };
 
@@ -673,14 +745,35 @@ const DualCopyReceipt: React.FC<DualCopyReceiptProps> = ({
         {/* Admin Copy */}
         <div className="receipt-copy flex-1 border border-gray-300 rounded-lg overflow-hidden">
           {/* Header */}
-          <div className="receipt-header bg-gray-50 px-4 py-3 border-b border-gray-200">
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
             <div className="text-center">
-              <h1 className="receipt-title text-lg font-bold text-gray-800">{schoolData.schoolName}</h1>
-              <p className="school-info text-sm text-gray-600">
-                School Code: {schoolData.schoolCode} • {schoolData.address}
-              </p>
+              <div className="flex items-center justify-center gap-4 mb-2">
+                {schoolData.hasSchoolLogo && schoolData.schoolLogo && (
+                  <img 
+                    src={schoolData.schoolLogo} 
+                    alt={`${schoolData.schoolName} Logo`} 
+                    className="h-16 w-auto object-contain"
+                    onError={(e) => {
+                      // Hide the image if it fails to load
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                )}
+                <div>
+                  <h1 className="text-lg font-bold text-gray-800">{schoolData.schoolName}</h1>
+                  <p className="text-sm text-gray-600">
+                    School Code: {schoolData.schoolCode}
+                  </p>
+                  {schoolData.address && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {schoolData.address}
+                    </p>
+                  )}
+                </div>
+              </div>
               <div className="mt-2">
-                <span className="copy-badge inline-block bg-blue-600 text-white px-3 py-1 rounded text-xs font-semibold">
+                <span className="inline-block bg-blue-600 text-white px-3 py-1 rounded text-xs font-semibold">
                   ADMIN COPY
                 </span>
               </div>
@@ -689,7 +782,7 @@ const DualCopyReceipt: React.FC<DualCopyReceiptProps> = ({
                   {formatDateTime(paymentData.paymentDate)}
                 </div>
                 <div className="mt-1">
-                  <span className="receipt-number inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded text-xs font-semibold">
+                  <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded text-xs font-semibold">
                     Receipt #{paymentData.receiptNumber}
                   </span>
                 </div>
@@ -707,7 +800,7 @@ const DualCopyReceipt: React.FC<DualCopyReceiptProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Student ID</span>
-                  <span className="font-medium">{studentData.studentId}</span>
+                  <span className="font-medium">{studentData.userId || studentData.studentId}</span>
                 </div>
               </div>
               <div className="space-y-2">
@@ -867,10 +960,31 @@ const DualCopyReceipt: React.FC<DualCopyReceiptProps> = ({
           {/* Header */}
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
             <div className="text-center">
-              <h1 className="text-lg font-bold text-gray-800">{schoolData.schoolName}</h1>
-              <p className="text-sm text-gray-600">
-                School Code: {schoolData.schoolCode} • {schoolData.address}
-              </p>
+              <div className="flex items-center justify-center gap-4 mb-2">
+                {schoolData.hasSchoolLogo && schoolData.schoolLogo && (
+                  <img 
+                    src={schoolData.schoolLogo} 
+                    alt={`${schoolData.schoolName} Logo`} 
+                    className="h-16 w-auto object-contain"
+                    onError={(e) => {
+                      // Hide the image if it fails to load
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                )}
+                <div>
+                  <h1 className="text-lg font-bold text-gray-800">{schoolData.schoolName}</h1>
+                  <p className="text-sm text-gray-600">
+                    School Code: {schoolData.schoolCode}
+                  </p>
+                  {schoolData.address && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {schoolData.address}
+                    </p>
+                  )}
+                </div>
+              </div>
               <div className="mt-2">
                 <span className="inline-block bg-blue-600 text-white px-3 py-1 rounded text-xs font-semibold">
                   STUDENT COPY
@@ -899,7 +1013,7 @@ const DualCopyReceipt: React.FC<DualCopyReceiptProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Student ID</span>
-                  <span className="font-medium">{studentData.studentId}</span>
+                  <span className="font-medium">{studentData.userId || studentData.studentId}</span>
                 </div>
               </div>
               <div className="space-y-2">

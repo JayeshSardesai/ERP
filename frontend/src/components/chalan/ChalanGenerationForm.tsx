@@ -29,6 +29,7 @@ const ChalanGenerationForm: React.FC<ChalanGenerationFormProps> = ({
     class: '',
     section: '',
     installmentName: '',
+    amount: 0,
     dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to 7 days from now
   });
 
@@ -101,20 +102,40 @@ const ChalanGenerationForm: React.FC<ChalanGenerationFormProps> = ({
       return;
     }
 
+    if (!formData.amount || formData.amount <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    if (!formData.dueDate) {
+      toast.error('Please select a due date');
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const data: GenerateChalanData = {
+      // Convert amount to number
+      const dataToSend = {
         ...formData,
-        studentIds: selectedStudents
+        amount: Number(formData.amount),
+        studentIds: selectedStudents,
       };
       
-      await chalanAPI.generateChalans(data);
+      console.log('Sending chalan data:', dataToSend);
       
-      toast.success('Chalans generated successfully');
-      onSuccess?.();
-    } catch (error) {
+      const response = await chalanAPI.generateChalans(dataToSend);
+      
+      console.log('Chalan generation response:', response);
+      
+      if (response && response.success) {
+        toast.success(`Successfully generated ${response.data?.length || 0} chalans`);
+        if (onSuccess) onSuccess();
+      } else {
+        throw new Error(response?.message || 'Failed to generate chalans');
+      }
+    } catch (error: any) {
       console.error('Error generating chalans:', error);
-      toast.error('Failed to generate chalans');
+      toast.error(error.message || 'Failed to generate chalans');
     } finally {
       setIsLoading(false);
     }
@@ -123,45 +144,63 @@ const ChalanGenerationForm: React.FC<ChalanGenerationFormProps> = ({
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h2 className="text-xl font-semibold mb-6">Generate Fee Chalans</h2>
-      
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
             <select
               name="class"
               value={formData.class}
               onChange={handleInputChange}
-              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full p-2 border rounded"
               required
             >
               <option value="">Select Class</option>
               {classes.map(cls => (
-                <option key={cls} value={cls}>
-                  {cls}
-                </option>
+                <option key={cls} value={cls}>{cls}</option>
               ))}
             </select>
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Section *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
             <select
               name="section"
               value={formData.section}
               onChange={handleInputChange}
-              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full p-2 border rounded"
               required
             >
               <option value="">Select Section</option>
-              {sections.map(section => (
-                <option key={section} value={section}>
-                  {section}
-                </option>
+              {sections.map(sec => (
+                <option key={sec} value={sec}>{sec}</option>
               ))}
             </select>
           </div>
-
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
+            <input
+              type="number"
+              name="amount"
+              value={formData.amount}
+              onChange={handleInputChange}
+              className="w-full p-2 border rounded"
+              placeholder="Enter amount"
+              min="1"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+            <input
+              type="date"
+              name="dueDate"
+              value={formData.dueDate}
+              onChange={handleInputChange}
+              className="w-full p-2 border rounded"
+              required
+              min={new Date().toISOString().split('T')[0]}
+            />
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Installment</label>
             <select

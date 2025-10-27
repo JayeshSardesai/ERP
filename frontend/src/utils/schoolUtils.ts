@@ -1,51 +1,52 @@
 import { schoolAPI } from '../services/api';
 
 // Default school details that will be used if API fails
-const defaultSchoolDetails = {
+export const defaultSchoolDetails = {
   schoolName: 'KENDRIYA VIDYALAYA',
   schoolCode: 'KV',
-  schoolLogo: '/school-logo.png', // Default logo path
-  address: {
-    addressLine1: 'School Address',
-    city: 'City',
-    state: 'State',
-    pincode: 'Pincode'
-  },
-  contact: {
-    phone: '+91 XXXXXXXXXX',
-    email: 'info@school.edu.in'
-  },
+  logoUrl: '/default-school-logo.svg', // Default logo path
+  address: 'School Address, City, State - Pincode',
+  phone: '+91 XXXXXXXXXX',
+  email: 'info@school.edu.in',
+  website: 'www.school.edu.in',
+  headerColor: '#1f2937',
+  accentColor: '#3b82f6',
   bankDetails: {
-    accountName: 'KENDRIYA VIDYALAYA',
-    accountNumber: '12345678901234',
     bankName: 'School Bank',
+    accountNumber: '12345678901234',
     ifscCode: 'SBIN0001234',
     branch: 'Main Branch',
-    accountType: 'Savings'  // Added account type which is commonly needed in challans
+    accountHolderName: 'KENDRIYA VIDYALAYA'
   }
 };
 
 /**
  * Fetches school details from the API or returns default values if the API fails
  * @param schoolId The ID of the school to fetch details for
- * @returns Promise that resolves to school details
+ * @returns Promise that resolves to school details in TemplateSettings format
  */
 export const getSchoolDetails = async (schoolId: string) => {
   try {
     console.log(`[getSchoolDetails] Fetching school data for ID: ${schoolId}`);
-    // Try to fetch from API
     const response = await schoolAPI.getSchoolById(schoolId);
     
-    console.log('[getSchoolDetails] API Response:', response);
-    
-    // If we have a valid response with data, return it
     if (response?.data?.data) {
+      const apiData = response.data.data;
+      
+      // Transform API data to match TemplateSettings format
       const schoolData = {
-        ...defaultSchoolDetails,  // Use defaults as fallback
-        ...response.data.data,    // Override with API data
+        schoolName: apiData.schoolName || apiData.name || defaultSchoolDetails.schoolName,
+        schoolCode: apiData.schoolCode || apiData.code || defaultSchoolDetails.schoolCode,
+        logoUrl: getSchoolLogo(apiData),
+        address: formatAddress(apiData.address || apiData.schoolAddress || defaultSchoolDetails.address),
+        phone: apiData.contact?.phone || apiData.phone || defaultSchoolDetails.phone,
+        email: apiData.contact?.email || apiData.email || defaultSchoolDetails.email,
+        website: apiData.website || defaultSchoolDetails.website,
+        headerColor: apiData.headerColor || defaultSchoolDetails.headerColor,
+        accentColor: apiData.accentColor || defaultSchoolDetails.accentColor,
         bankDetails: {
           ...defaultSchoolDetails.bankDetails,
-          ...(response.data.data.bankDetails || {})  // Merge bank details
+          ...(apiData.bankDetails || apiData.bank || {})
         }
       };
       
@@ -62,12 +63,50 @@ export const getSchoolDetails = async (schoolId: string) => {
 };
 
 /**
- * Gets the school logo URL, with a fallback to default logo
+ * Gets the school logo URL with proper formatting
  * @param schoolDetails School details object
  * @returns URL to the school logo
  */
-export const getSchoolLogo = (schoolDetails: any) => {
-  return schoolDetails?.schoolLogo || defaultSchoolDetails.schoolLogo;
+export const getSchoolLogo = (schoolDetails: any): string => {
+  if (!schoolDetails) return defaultSchoolDetails.logoUrl;
+  
+  // Check for logo in different possible properties
+  const logoUrl = schoolDetails.logoUrl || 
+                 schoolDetails.schoolLogo || 
+                 schoolDetails.logo;
+  
+  if (!logoUrl) return defaultSchoolDetails.logoUrl;
+  
+  // If it's already a full URL, return as is
+  if (logoUrl.startsWith('http')) return logoUrl;
+  
+  // If it's a path, ensure it has a leading slash
+  return logoUrl.startsWith('/') ? logoUrl : `/${logoUrl}`;
+};
+
+/**
+ * Formats address from different possible formats into a single string
+ */
+const formatAddress = (address: string | {
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  [key: string]: any;
+}): string => {
+  if (typeof address === 'string') return address;
+  
+  const parts = [
+    address.addressLine1,
+    address.addressLine2,
+    address.area,
+    address.city,
+    address.state,
+    address.pincode || address.zipCode
+  ].filter(Boolean);
+  
+  return parts.join(', ');
 };
 
 /**

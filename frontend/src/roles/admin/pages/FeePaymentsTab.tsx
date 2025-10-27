@@ -1,142 +1,138 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, X, FileText, Receipt, Eye } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
 import ClassSectionSelect from '../components/ClassSectionSelect';
 import { feesAPI, userAPI, schoolAPI } from '../../../services/api';
-import { getSchoolDetails as fetchSchoolDetails } from '../../../utils/schoolUtils';
 import toast from 'react-hot-toast';
 import DualCopyReceipt from '../../../components/receipts/DualCopyReceipt';
 import ViewChalan from '../../../components/fees/ViewChalan';
-
-// Type definitions
-interface Address {
-  addressLine1?: string;
-  city?: string;
-  state?: string;
-  pincode?: string;
-}
-
-interface Contact {
-  phone?: string;
-  email?: string;
-}
-
-interface BankDetails {
-  bankName?: string;
-  accountNumber?: string;
-  ifscCode?: string;
-  branch?: string;
-  accountName?: string;
-  accountHolderName?: string;
-  accountNo?: string;
-  ifsc?: string;
-  branchName?: string;
-}
-
-interface SchoolData {
-  _id?: string;
-  schoolId?: string;
-  schoolName?: string;
-  name?: string;
-  address?: Address;
-  schoolAddress?: string;
-  contact?: Contact;
-  phone?: string;
-  email?: string;
-  bankDetails?: BankDetails;
-  bank?: BankDetails;
-  schoolDetails?: {
-    bankDetails?: BankDetails;
-  };
-  [key: string]: any; // For any additional properties
-}
+import ChalanContextMenu from '../../../components/fees/ChalanContextMenu';
+import useChalanContextMenu from '../../../hooks/useChalanContextMenu';
 
 const FeePaymentsTab: React.FC = () => {
   const { user } = useAuth();
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [selectedSection, setSelectedSection] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [schoolData, setSchoolData] = useState<SchoolData>({
-    schoolName: 'KENDRIYA VIDYALAYA',
-    schoolCode: 'KV',
-    schoolLogo: '/school-logo.png',
-    address: {
-      addressLine1: 'School Address',
-      city: 'City',
-      state: 'State',
-      pincode: 'Pincode',
-    },
-    contact: {
-      phone: '+91 XXXXXXXXXX',
-      email: 'info@school.edu.in',
-    },
-    bankDetails: {
-      accountName: 'KENDRIYA VIDYALAYA',
-      accountNumber: '12345678901234',
-      bankName: 'School Bank',
-      ifscCode: 'SBIN0001234',
-      branch: 'Main Branch',
-      accountType: 'Savings',
-    },
-  });
-
-  // Get formatted bank details and address
-  const formattedBankDetails = `${schoolData.bankDetails?.accountName ? `A/C Holder: ${schoolData.bankDetails.accountName}\n` : ''}${schoolData.bankDetails?.accountNumber ? `A/C No: ${schoolData.bankDetails.accountNumber}\n` : ''}${schoolData.bankDetails?.bankName ? `Bank: ${schoolData.bankDetails.bankName}\n` : ''}${schoolData.bankDetails?.ifscCode ? `IFSC: ${schoolData.bankDetails.ifscCode}\n` : ''}${schoolData.bankDetails?.branch ? `Branch: ${schoolData.bankDetails.branch}` : ''}`;
-
-  const formattedSchoolAddress = `${schoolData.address?.addressLine1 || ''}\n${schoolData.address?.city || ''} ${schoolData.address?.state || ''} - ${schoolData.address?.pincode || ''}\nPh: ${schoolData.contact?.phone || ''}`;
-
+  const [schoolDetails, setSchoolDetails] = useState<{
+    schoolName?: string;
+    schoolCode?: string;
+    address?: {
+      addressLine1?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
+      area?: string;
+      district?: string;
+      country?: string;
+    };
+    contact?: {
+      phone?: string;
+      email?: string;
+      website?: string;
+    };
+    logo?: {
+      finalLogoUrl?: string | null;
+      rawLogoUrl?: string | null;
+      apiBase?: string | null;
+    };
+    bankDetails?: {
+      accountName?: string;
+      accountNumber?: string;
+      bankName?: string;
+      ifscCode?: string;
+      branch?: string;
+    };
+  }>({});
+  
   // Fetch school details when component mounts or school changes
   useEffect(() => {
-    const loadSchoolData = async () => {
-      if (!user?.schoolId) {
-        console.warn('No schoolId found in user object');
-        return;
-      }
+    const fetchSchoolDetails = async () => {
+      if (!user?.schoolId) return;
 
       try {
-        console.log(`[FeePaymentsTab] Fetching school details for ID: ${user.schoolId}`);
-        const details = await fetchSchoolDetails(user.schoolId);
-        
-        // Debug: Log the raw details from the API
-        console.log('[FeePaymentsTab] Raw school details from API:', JSON.parse(JSON.stringify(details)));
-        
-        // Ensure we have the correct school code (SK instead of KV)
-        const schoolCode = 'SK'; // Force SK school code
-        const schoolLogo = details.schoolLogo || 
-                          (schoolCode === 'SK' ? '/school-logo-sk.png' : '/school-logo-kv.png');
-        
-        const schoolData = {
-          ...details,
-          schoolCode: schoolCode,
-          schoolLogo: schoolLogo,
-          // Only update bank details if we have them from the API
-          bankDetails: details.bankDetails || {
-            accountName: 'SARASWATI KUNJ',
-            accountNumber: '1234567890',
-            bankName: 'State Bank of India',
-            ifscCode: 'SBIN0001234',
-            branch: 'Main Branch',
+        console.log("Fetching school details for:", user.schoolId);
+
+        const response = await schoolAPI.getSchoolById(user.schoolId);
+        const schoolData = response?.data?.data || {};
+        console.log("School API response:", schoolData);
+
+        // Format the school data
+        const formattedData = {
+          schoolName: schoolData.name || schoolData.schoolName || 'School Name',
+          schoolCode: schoolData.code || schoolData.schoolCode || 'SCH',
+          address: {
+            addressLine1: schoolData.address?.street || schoolData.address?.addressLine1 || 'School Address',
+            city: schoolData.address?.city || 'City',
+            state: schoolData.address?.state || 'State',
+            pincode: schoolData.address?.pincode || '000000',
+            area: schoolData.address?.area || '',
+            district: schoolData.address?.district || '',
+            country: schoolData.address?.country || 'India'
+          },
+          contact: {
+            phone: schoolData.contact?.phone || schoolData.mobile || '+91 XXXXXXXXXX',
+            email: schoolData.contact?.email || schoolData.principalEmail || 'info@school.edu.in',
+            website: schoolData.website || ''
+          },
+          logo: {
+            finalLogoUrl: schoolData.logoUrl ? 
+              (schoolData.logoUrl.startsWith('http') ? 
+                schoolData.logoUrl : 
+                `http://localhost:5050${schoolData.logoUrl}`) : 
+              '',
+            rawLogoUrl: schoolData.logoUrl || '',
+            apiBase: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050/api'
+          },
+          bankDetails: schoolData.bankDetails || {
+            accountName: 'School Account',
+            accountNumber: '',
+            bankName: '',
+            ifscCode: '',
+            branch: '',
             accountType: 'Savings'
           }
         };
-        
-        // Debug: Log the final school data being set
-        console.log('[FeePaymentsTab] Final school data being set:', {
-          ...schoolData,
-          // Don't log the entire details object to avoid circular references
-          details: '[Object]',
-          bankDetails: schoolData.bankDetails || {}
-        });
-        
-        setSchoolData(schoolData);
-      } catch (error) {
-        console.error('Error fetching school details:', error);
-        // Keep the default values already set in the state
-      }
-    };
 
-    loadSchoolData();
-  }, [user?.schoolId]);
+        console.log('Formatted school data:', formattedData);
+        setSchoolDetails(formattedData);
+
+      } catch (error) {
+        console.error("Error fetching school:", error);
+        
+        // Set default values on error
+        setSchoolDetails({
+          schoolName: "School Name",
+          schoolCode: "SC",
+          address: {
+            addressLine1: "School Address",
+            city: "City",
+            state: "State",
+            pincode: "000000"
+          },
+          contact: {
+            phone: "+91 XXXXXXXXXX",
+            email: "info@school.edu.in"
+          },
+          logo: {
+          rawLogoUrl: null,
+          apiBase: null
+        },
+        bankDetails: {
+          accountName: "School Account",
+          accountNumber: "XXXXXXXXXXXX",
+          bankName: "Bank Name",
+          ifscCode: "IFSCXXXXXXX",
+          branch: "Branch Name"
+        }
+      });
+    }
+  };
+
+  fetchSchoolDetails();
+}, [user?.schoolId]);
+
+  console.log('FeePaymentsTab render', { schoolDetails });
 
   // Real data from API
   const [students, setStudents] = useState<any[]>([]);
@@ -148,57 +144,87 @@ const FeePaymentsTab: React.FC = () => {
   const [activeStudent, setActiveStudent] = useState<any | null>(null);
   const [selectedInstallmentName, setSelectedInstallmentName] = useState<string>('');
 
-  // View chalan details
-  const [viewChalan, setViewChalan] = useState<any | null>(null);
-  
-  // Function to get chalan with updated school data
-  const getChalanWithSchoolData = (chalan: any) => {
-    // Get the school code, default to 'SK' if not set
-    const schoolCode = schoolData.schoolCode || 'SK';
-    
-    // Get the school logo from the school data or use default based on school code
-    const schoolLogo = schoolData.schoolLogo || 
-                      (schoolCode === 'SK' ? '/White green minimalist education knowledge logo copy.png' : '/logo.png');
-    
-    // Get the school name, default to 'SARASWATI KUNJ' if not set
-    const schoolName = schoolData.schoolName || 'SARASWATI KUNJ';
-    
-    console.log('School data in getChalanWithSchoolData:', {
-      schoolName: schoolName,
-      schoolLogo: schoolLogo,
-      schoolCode: schoolCode,
-      hasSchoolLogo: !!schoolLogo
-    });
-    
-    // Format the school address
-    const formattedAddress = schoolData.address ? 
-      `${schoolData.address.addressLine1 || ''}\n${schoolData.address.city || ''} ${schoolData.address.state || ''} - ${schoolData.address.pincode || ''}` :
-      'School Address, City, State - Pincode';
-    
-    return {
-      ...chalan,
-      schoolName: schoolName,
-      schoolCode: schoolCode,
-      schoolAddress: formattedAddress,
-      schoolEmail: schoolData.contact?.email || 'info@saraswatikunj.edu.in',
-      schoolPhone: schoolData.contact?.phone || '+91 XXXXXXXXXX',
-      schoolLogo: schoolLogo,
-      bankDetails: {
-        bankName: schoolData.bankDetails?.bankName || 'State Bank of India',
-        accountNumber: schoolData.bankDetails?.accountNumber || '1234567890',
-        ifscCode: schoolData.bankDetails?.ifscCode || 'SBIN0001234',
-        branch: schoolData.bankDetails?.branch || 'Main Branch',
-        accountHolderName: schoolData.bankDetails?.accountName || schoolName
-      }
-    };
-  };
+  // Chalan state
+  const [viewingChalan, setViewingChalan] = useState<any | null>(null);
   const [isChalanModalOpen, setIsChalanModalOpen] = useState(false);
 
+  // Chalan context menu hooks
+  const {
+    isContextMenuOpen,
+    contextMenuPosition,
+    selectedStudent,
+    handleContextMenu,
+    closeContextMenu,
+  } = useChalanContextMenu();
+
+  // Handle chalan generation
+  const handleGenerateChalan = useCallback(async (data: {
+    amount: number;
+    dueDate: string;
+    paymentDate?: string;
+    description?: string;
+  }) => {
+    if (!selectedStudent) {
+      toast.error('No student selected');
+      return;
+    }
+    
+    try {
+      // Prepare chalan data in the format expected by the backend
+      const chalanData = {
+        student: {
+          _id: selectedStudent.id || selectedStudent._id,
+          name: selectedStudent.name,
+          admissionNumber: selectedStudent.admissionNumber || selectedStudent.rollNumber || '',
+          class: selectedStudent.class || selectedStudent.className || '',
+          section: selectedStudent.section || '',
+          academicYear: selectedStudent.academicYear || '2024-2025'
+        },
+        amount: data.amount,
+        dueDate: data.dueDate,
+        paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
+        description: data.description || 'Fee payment chalan',
+        status: 'generated',
+        installments: [{
+          name: 'Fee Payment',
+          amount: data.amount,
+          dueDate: data.dueDate,
+          description: data.description || 'Fee payment chalan',
+          status: 'unpaid',
+          chalanDate: data.paymentDate || new Date().toISOString().split('T')[0]
+        }],
+        schoolId: user?.schoolId,
+        createdBy: user?.id || 'system'
+      };
+      
+      console.log('Sending chalan data:', chalanData);
+      
+      // Call the API to generate chalan
+      const response = await feesAPI.generateChalan(chalanData);
+      
+      if (response.success) {
+        toast.success('Chalan generated successfully');
+        // Refresh the student data
+        if (fetchRecords) {
+          await fetchRecords();
+        } else if (fetchStudents) {
+          await fetchStudents();
+        }
+      } else {
+        throw new Error(response.message || 'Failed to generate chalan');
+      }
+    } catch (error: any) {
+      console.error('Error generating chalan:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to generate chalan';
+      toast.error(errorMessage);
+    }
+  }, [selectedStudent, user]);
+
+  
   // Debug effect for chalan modal
   React.useEffect(() => {
-    console.log('Chalan modal state changed:', { isChalanModalOpen, viewChalan });
-  }, [isChalanModalOpen, viewChalan]);
-
+    console.log('Chalan modal state changed:', { isChalanModalOpen, viewingChalan });
+  }, [isChalanModalOpen, viewingChalan]);
   const [payAmount, setPayAmount] = useState<string>('');
   const [payMethod, setPayMethod] = useState<string>('cash');
   const [payDate, setPayDate] = useState<string>('');
@@ -221,98 +247,134 @@ const FeePaymentsTab: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-
+      
       console.log('Fetching fee records with params:', {
         class: selectedClass,
         section: selectedSection,
-        search: searchTerm,
+        search: searchTerm
       });
-
-      // First, fetch the student fee records
-      let feeRes;
-      try {
-        feeRes = await feesAPI.getStudentFeeRecords({
+      
+      // Fetch fee records and student details in parallel
+      const [feeRes, studentsRes] = await Promise.all([
+        feesAPI.getStudentFeeRecords({
           class: selectedClass,
           section: selectedSection,
           search: searchTerm,
           limit: 50,
-        });
-        console.log('Fee records response:', feeRes);
-      } catch (feeError: any) {
-        console.error('Error fetching fee records:', {
-          message: feeError.message,
-          response: feeError.response?.data,
-          status: feeError.response?.status,
-        });
-        throw new Error(`Failed to load fee records: ${feeError.message}`);
-      }
-
-      // Then fetch the student details to get the userId (KVS-S-XXXX)
-      let studentsRes;
-      try {
-        // Use userAPI to fetch students by role
-        studentsRes = await userAPI.getUsersByRole('student', {
+          fields: 'studentId,installments,totalAmount,paidAmount,balance'
+        }),
+        userAPI.getUsersByRole('student', {
           class: selectedClass,
           section: selectedSection,
           search: searchTerm,
           limit: 50,
-        });
-        console.log('Students response:', studentsRes);
-      } catch (studentError: any) {
-        console.error('Error fetching student details:', {
-          message: studentError.message,
-          response: studentError.response?.data,
-          status: studentError.response?.status,
-        });
-        // Continue with empty students if this fails, as we can still show fee records
-        console.warn('Continuing without student details');
-        studentsRes = { data: { data: { students: [] } } };
+          fields: '_id,userId,name,studentId,class,section,admissionNumber'
+        })
+      ]);
+      
+      console.log('Fee records response:', feeRes);
+      
+      // Process student details in parallel with fee records
+      const studentDetails = new Map();
+      let students = [];
+      
+      // Handle different response structures
+      if (Array.isArray(studentsRes.data)) {
+        students = studentsRes.data;
+      } else if (studentsRes.data?.data) {
+        students = Array.isArray(studentsRes.data.data) 
+          ? studentsRes.data.data 
+          : studentsRes.data.data?.students || [];
       }
-
-      // Create a map of studentId to userId for quick lookup
-      const studentIdMap = new Map();
-      (studentsRes.data?.data?.students || []).forEach((student: any) => {
-        studentIdMap.set(student._id, student.userId);
+      
+      // Create a map of studentId to userId
+      students.forEach((student: any) => {
+        const userId = student.userId || student._id;
+        const studentId = student.studentId || student._id;
+        
+        if (studentId && userId) {
+          studentDetails.set(studentId.toString(), userId.toString());
+        }
       });
-
+      
+      console.log('Student details map:', Object.fromEntries(studentDetails));
+      
+      // Process fee records with optimized mapping
       const data = feeRes.data?.data?.records || [];
       const mapped = data.map((r: any) => {
-        // Get the KVS-S-XXXX ID from our map
-        const kvsId = studentIdMap.get(r.studentId) || r.userId;
-
-        // Map installments to include chalan information
+        // Get userId from the record or fall back to the map
+        const userId = r.userId || studentDetails.get(r.studentId?.toString()) || r.studentId;
+        
+        // Process installments with minimal data transformation
         const installments = (r.installments || []).map((i: any) => ({
           ...i,
-          // Ensure these fields exist in the installment data
           chalanNumber: i.chalanNumber || '',
           chalanDate: i.chalanDate || '',
           chalanBank: i.chalanBank || '',
-          chalanStatus: i.chalanStatus || 'pending',
+          chalanStatus: i.chalanStatus || 'pending'
         }));
-
-        // Log for debugging
-        console.log('Student ID mapping:', {
+        
+        // Enhanced debug log for student record
+        const debugUserId = userId || 
+                          r.userId || 
+                          (r.user ? (r.user.userId || r.user._id) : null) || 
+                          studentDetails.get(r.studentId?.toString());
+                          
+        console.log('Student record:', {
           name: r.studentName,
           studentId: r.studentId,
-          kvsId: kvsId,
-          hasKvsId: !!kvsId,
-        });
-
-        return {
-          id: r.id,
-          // Use the KVS ID if available, otherwise fall back to the MongoDB ID
-          studentId: kvsId || r.studentId,
-          // Keep the original fields for reference
-          userId: kvsId, // This will be used for display
-          mongoId: r.studentId, // Store the MongoDB _id separately
-          name: r.studentName,
+          userId: debugUserId,  // Using the resolved userId with fallbacks
+          r_userId: r.userId,  // The userId from the raw record
           class: r.studentClass,
           section: r.studentSection,
-          rollNumber: r.rollNumber,
-          totalAmount: r.totalAmount,
-          totalPaid: r.totalPaid,
-          balance: r.totalPending,
-          status: r.status,
+          // Show where we found the userId (for debugging)
+          userIdSource: debugUserId === r.userId ? 'r.userId' : 
+                       (r.user && (debugUserId === r.user.userId || debugUserId === r.user._id)) ? 'r.user' : 
+                       studentDetails.has(r.studentId?.toString()) ? 'studentDetails map' : 'Not found',
+          rawData: {
+            ...r,
+            // Include specific fields that might contain user/student IDs
+            _id: r._id,
+            userId: r.userId,
+            studentId: r.studentId,
+            user: r.user ? {
+              _id: r.user._id,
+              userId: r.user.userId,
+              // Include all user properties for debugging
+              ...Object.entries(r.user).reduce((acc, [key, value]) => {
+                if (typeof value !== 'object' && !Array.isArray(value)) {
+                  acc[key] = value;
+                } else if (key === 'studentDetails') {
+                  // Flatten student details for easier debugging
+                  acc.studentDetails = value ? '[...]' : null;
+                }
+                return acc;
+              }, {} as Record<string, any>)
+            } : 'No user object',
+            // Include studentDetails if it exists
+            studentDetails: r.studentDetails ? '[...]' : 'No studentDetails'
+          },
+          // Include the studentDetails map entry for this student
+          studentDetailsMapEntry: studentDetails.get(r.studentId?.toString()) ? 
+            { userId: studentDetails.get(r.studentId?.toString()) } : 
+            'Not in studentDetails map'
+        });
+        
+        return {
+          id: r.id,
+          // Use the resolved userId as the primary student identifier
+          studentId: userId || r.studentId,
+          // Keep the original fields for reference
+          userId: userId,  // Using the resolved userId
+          mongoId: r.studentId, // Store the MongoDB _id separately
+          name: r.studentName,
+        class: r.studentClass,
+        section: r.studentSection,
+        rollNumber: r.rollNumber,
+        totalAmount: r.totalAmount,
+        totalPaid: r.totalPaid,
+        balance: r.totalPending,
+        status: r.status,
           installments,
         };
       });
@@ -323,7 +385,7 @@ const FeePaymentsTab: React.FC = () => {
         error: e,
         message: e.message,
         response: e.response?.data,
-        stack: e.stack,
+        stack: e.stack
       });
       setError(errorMessage);
       setStudents([]);
@@ -331,6 +393,7 @@ const FeePaymentsTab: React.FC = () => {
       setLoading(false);
     }
   };
+
 
   const generateReceiptData = async (receiptNumber: string) => {
     try {
@@ -361,8 +424,8 @@ const FeePaymentsTab: React.FC = () => {
           if (payment.receiptNumber === receiptNumber) {
             targetPayment = payment;
             // Find the installment for this payment
-            targetInstallment = (historyRecord.installments || []).find((inst: any) =>
-              inst.name === payment.installmentName,
+            targetInstallment = (historyRecord.installments || []).find((inst: any) => 
+              inst.name === payment.installmentName
             );
             break;
           }
@@ -374,35 +437,90 @@ const FeePaymentsTab: React.FC = () => {
         return;
       }
 
-      // Get school data
-      const schoolData = {
+      // Get school data - fetch from API
+      let schoolData = {
         schoolName: user?.schoolName || 'School Name',
         schoolCode: user?.schoolCode || 'SCH001',
         address: '123 School Street, City, State 12345',
         phone: '+91-XXXXXXXXXX',
         email: 'info@school.com',
         website: 'www.edulogix.com',
+        hasSchoolLogo: false,
+        schoolLogo: ''
       };
 
-      // Try to get school info from template settings
+      // Try to fetch school info from API first
       try {
-        const saved = localStorage.getItem('universalTemplate');
-        if (saved) {
-          const templateSettings = JSON.parse(saved);
-          schoolData.schoolName = templateSettings.schoolName || schoolData.schoolName;
-          schoolData.schoolCode = templateSettings.schoolCode || schoolData.schoolCode;
-          schoolData.address = templateSettings.address || schoolData.address;
-          schoolData.phone = templateSettings.phone || schoolData.phone;
-          schoolData.email = templateSettings.email || schoolData.email;
-          schoolData.website = templateSettings.website || schoolData.website;
+        const schoolIdentifier = user?.schoolId || user?.schoolCode;
+        if (schoolIdentifier) {
+          const response = await schoolAPI.getSchoolById(schoolIdentifier);
+          const data = response?.data?.data || response?.data;
+          
+          if (data) {
+            console.log('School data fetched from API:', data);
+            
+            // Logo URL is now handled in the school data mapping below
+            
+            // Format address from object to string
+            let formattedAddress = '';
+            if (data.address) {
+              if (typeof data.address === 'string') {
+                formattedAddress = data.address;
+              } else {
+                const parts = [
+                  data.address.street,
+                  data.address.area,
+                  data.address.city,
+                  data.address.district,
+                  data.address.state,
+                  data.address.pincode ? `- ${data.address.pincode}` : '',
+                  data.address.country
+                ].filter(Boolean);
+                formattedAddress = parts.join(', ');
+              }
+            }
+            
+            schoolData = {
+              schoolName: data.name || data.schoolName || schoolData.schoolName,
+              schoolCode: data.code || data.schoolCode || schoolData.schoolCode,
+              address: formattedAddress || schoolData.address,
+              phone: data.phone || data.contact?.phone || data.mobile || schoolData.phone,
+              email: data.email || data.contact?.email || data.principalEmail || schoolData.email,
+              website: data.website || schoolData.website,
+hasSchoolLogo: !!(data.logoUrl || data.logo || schoolData.schoolLogo),
+              schoolLogo: data.logoUrl ? (data.logoUrl.startsWith('http') ? data.logoUrl : `http://localhost:5050${data.logoUrl}`) : schoolData.schoolLogo,
+              principalName: data.principalName || ''
+            };
+            
+            console.log('Processed school data for receipt:', schoolData);
+          }
         }
       } catch (error) {
-        console.log('Failed to load template settings, using defaults');
+        console.log('Failed to fetch school from API, trying template settings...', error);
+        
+        // Fallback to template settings
+        try {
+          const saved = localStorage.getItem('universalTemplate');
+          if (saved) {
+            const templateSettings = JSON.parse(saved);
+            schoolData.schoolName = templateSettings.schoolName || schoolData.schoolName;
+            schoolData.schoolCode = templateSettings.schoolCode || schoolData.schoolCode;
+            schoolData.address = templateSettings.address || schoolData.address;
+            schoolData.phone = templateSettings.phone || schoolData.phone;
+            schoolData.email = templateSettings.email || schoolData.email;
+            schoolData.website = templateSettings.website || schoolData.website;
+            const logoUrl = templateSettings.logoUrl;
+            schoolData.schoolLogo = logoUrl ? `http://localhost:5050${logoUrl}` : schoolData.schoolLogo;
+            schoolData.hasSchoolLogo = !!schoolData.schoolLogo;
+          }
+        } catch (settingsError) {
+          console.log('Failed to load template settings, using defaults');
+        }
       }
 
       // Student ID handling - prioritize userId from student collection
       let studentId = '';
-
+      
       // Debug: Log available student data
       console.log('Student ID Debug - historyRecord:', {
         sequenceNumber: historyRecord.sequenceNumber,
@@ -413,25 +531,25 @@ const FeePaymentsTab: React.FC = () => {
         userId: historyRecord.userId,
         rollNumber: historyRecord.rollNumber,
         studentRollNumber: historyRecord.studentRollNumber,
-        studentName: historyRecord.studentName,
+        studentName: historyRecord.studentName
       });
-
+      
       console.log('Student ID Debug - historyStudent:', historyStudent);
-
+      
       // Try to fetch complete student data if we have a userId
       let completeStudentData = historyStudent;
-
+      
       // Debug: Check what userId sources we have
       console.log('Student ID Debug - Available userId sources:', {
         'historyRecord.userId': historyRecord.userId,
         'historyStudent?.userId': historyStudent?.userId,
         'historyRecord.studentId': historyRecord.studentId,
-        'historyRecord._id': historyRecord._id,
+        'historyRecord._id': historyRecord._id
       });
-
+      
       // Try multiple approaches to get the userId
       const userIdToFetch = historyRecord.userId || historyRecord.studentId || historyRecord._id;
-
+      
       // First, check if we already have userId in the fee record
       if (historyRecord.userId && historyRecord.userId !== 'undefined' && historyRecord.userId !== 'null') {
         console.log('Student ID Debug - Found userId in fee record:', historyRecord.userId);
@@ -439,16 +557,18 @@ const FeePaymentsTab: React.FC = () => {
       } else if (userIdToFetch && !historyStudent?.userId) {
         try {
           console.log('Fetching complete student data using userId:', userIdToFetch);
-
+          
           // Try to get all students and find the one with matching userId
           const allStudentsResponse = await feesAPI.getStudentFeeRecords({});
           const allStudents = allStudentsResponse.data?.data || [];
-
+          
           // Look for student with matching userId in the fee records
-          const matchingStudent = allStudents.find((student: any) =>
-            student.userId === userIdToFetch || student.studentId === userIdToFetch || student._id === userIdToFetch,
+          const matchingStudent = allStudents.find(student => 
+            student.userId === userIdToFetch || 
+            student.studentId === userIdToFetch ||
+            student._id === userIdToFetch
           );
-
+          
           if (matchingStudent) {
             console.log('Found matching student in fee records:', matchingStudent);
             completeStudentData = matchingStudent;
@@ -458,7 +578,7 @@ const FeePaymentsTab: React.FC = () => {
             completeStudentData = studentDataResponse.data?.data;
             console.log('Complete student data from students collection:', completeStudentData);
           }
-
+          
           // If we still don't have userId, try to find it in the response
           if (!completeStudentData?.userId && completeStudentData) {
             const studentData = completeStudentData;
@@ -466,7 +586,7 @@ const FeePaymentsTab: React.FC = () => {
               userId: studentData.userId,
               _id: studentData._id,
               studentId: studentData.studentId,
-              allKeys: Object.keys(studentData),
+              allKeys: Object.keys(studentData)
             });
           }
         } catch (error) {
@@ -474,13 +594,13 @@ const FeePaymentsTab: React.FC = () => {
           console.log('Using existing data:', historyStudent);
         }
       }
-
+      
       // Priority order for Student ID extraction:
       // 1. userId from student collection (this is the actual Student ID like "SK-S-0850")
       // 2. Other valid student identifiers
       const possibleIds = [
-        completeStudentData?.userId, // This is the primary Student ID from student collection
-        historyRecord.userId, // Fallback to fee record userId
+        completeStudentData?.userId,  // This is the primary Student ID from student collection
+        historyRecord.userId,         // Fallback to fee record userId
         historyRecord.sequenceNumber,
         historyRecord.studentUniqueId,
         historyRecord.enrollmentNo,
@@ -491,12 +611,12 @@ const FeePaymentsTab: React.FC = () => {
         completeStudentData?.studentId,
         completeStudentData?.studentDetails?.studentId,
         completeStudentData?.rollNumber,
-        completeStudentData?.studentDetails?.rollNumber,
-      ].filter((id) => id && id !== 'undefined' && id !== 'null' && !/^[a-fA-F0-9]{24}$/.test(id));
-
+        completeStudentData?.studentDetails?.rollNumber
+      ].filter(id => id && id !== 'undefined' && id !== 'null' && !/^[a-fA-F0-9]{24}$/.test(id));
+      
       console.log('Student ID Debug - possibleIds:', possibleIds);
       console.log('Student ID Debug - completeStudentData:', completeStudentData);
-
+      
       if (possibleIds.length > 0) {
         // Use the first valid ID found
         studentId = String(possibleIds[0]).trim();
@@ -505,30 +625,30 @@ const FeePaymentsTab: React.FC = () => {
         console.log('Student ID Debug - No valid IDs found, using fallback logic');
         // Fallback: generate a meaningful ID using school code and roll number
         const schoolCode = ((schoolData.schoolCode || 'SC').toString().trim() || 'SC').toUpperCase();
-
+        
         // Try to extract roll number from various sources
         let rawRoll = '';
         const rollSources = [
           historyRecord.rollNumber,
           historyRecord.studentRollNumber,
           completeStudentData?.rollNumber,
-          completeStudentData?.studentDetails?.rollNumber,
+          completeStudentData?.studentDetails?.rollNumber
         ];
-
+        
         for (const source of rollSources) {
           if (source && source !== 'undefined' && source !== 'null') {
             rawRoll = String(source).trim();
             break;
           }
         }
-
+        
         // If no roll number, try to extract from admission/enrollment numbers
         if (!rawRoll) {
           const source = String(historyRecord.admissionNo || historyRecord.enrollmentNo || '');
           const digits = (source.match(/\d+/g) || []).join('');
           rawRoll = digits.slice(-4);
         }
-
+        
         // Generate student ID
         if (rawRoll) {
           const n = parseInt(rawRoll, 10);
@@ -537,18 +657,13 @@ const FeePaymentsTab: React.FC = () => {
           console.log('Student ID Debug - Generated from roll number:', studentId);
         } else {
           // Last resort: use student name initials + sequence
-          const nameInitials = (historyRecord.studentName || 'STU')
-            .split(' ')
-            .map((n) => n[0])
-            .join('')
-            .toUpperCase()
-            .slice(0, 2);
+          const nameInitials = (historyRecord.studentName || 'STU').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
           const timestamp = Date.now().toString().slice(-4);
           studentId = `${schoolCode}-${nameInitials}-${timestamp}`;
           console.log('Student ID Debug - Generated from name initials:', studentId, 'from name:', historyRecord.studentName);
         }
       }
-
+      
       console.log('Student ID Debug - Final studentId:', studentId);
 
       // Prepare student data
@@ -557,13 +672,13 @@ const FeePaymentsTab: React.FC = () => {
         studentId: studentId,
         class: historyRecord.studentClass,
         section: historyRecord.studentSection,
-        academicYear: historyRecord.academicYear || `${new Date().getFullYear()}-${String((new Date().getFullYear() + 1)).slice(-2)}`,
+        academicYear: historyRecord.academicYear || `${new Date().getFullYear()}-${String((new Date().getFullYear()+1)).slice(-2)}`
       };
 
       // Prepare payment data with proper date handling
       const paymentDate = targetPayment.paymentDate || targetPayment.date;
       const currentDate = new Date();
-
+      
       // Better date validation and handling
       let finalPaymentDate;
       if (paymentDate) {
@@ -586,7 +701,7 @@ const FeePaymentsTab: React.FC = () => {
         paymentMethod: targetPayment.paymentMethod || targetPayment.method || 'Cash',
         paymentReference: targetPayment.paymentReference || targetPayment.reference || '-',
         amount: targetPayment.amount || 0,
-        installmentName: targetInstallment?.name || targetPayment.installmentName || 'N/A',
+        installmentName: targetInstallment?.name || targetPayment.installmentName || 'N/A'
       };
 
       // Debug: Log the payment date to see what we're getting
@@ -600,7 +715,7 @@ const FeePaymentsTab: React.FC = () => {
         amount: inst.amount || 0,
         paid: inst.paidAmount || 0,
         remaining: Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0)),
-        isCurrent: inst.name === targetInstallment?.name,
+        isCurrent: inst.name === targetInstallment?.name
       }));
 
       // Calculate totals
@@ -616,10 +731,11 @@ const FeePaymentsTab: React.FC = () => {
         installments: installmentDetails,
         totalAmount,
         totalPaid,
-        totalRemaining,
+        totalRemaining
       });
       setSelectedReceiptNumber(receiptNumber);
       setIsReceiptOpen(true);
+
     } catch (e: any) {
       toast.error(e?.response?.data?.message || 'Failed to generate receipt data');
     }
@@ -628,6 +744,7 @@ const FeePaymentsTab: React.FC = () => {
   const handleDownloadReceipt = async (receiptNumber: string) => {
     await generateReceiptData(receiptNumber);
   };
+
 
   const generateSimpleReceiptForStudent = (studentData: any, paymentData: any) => {
     // Create professional HTML receipt using FeeStructureTab styling
@@ -808,7 +925,7 @@ const FeePaymentsTab: React.FC = () => {
     if (printWindow) {
       printWindow.document.write(htmlContent);
       printWindow.document.close();
-
+      
       // Wait for content to load then trigger print
       printWindow.onload = () => {
         setTimeout(() => {
@@ -816,14 +933,14 @@ const FeePaymentsTab: React.FC = () => {
           printWindow.print();
         }, 500);
       };
-
+      
       // Note: User will need to select "Save as PDF" in print dialog
       toast.success('Receipt ready for download - Select "Save as PDF" in the print dialog');
     } else {
       // Fallback: create downloadable HTML file
       const blob = new Blob([htmlContent], { type: 'text/html' });
       const url = window.URL.createObjectURL(blob);
-
+      
       const link = document.createElement('a');
       link.href = url;
       link.download = `receipt-${paymentData.receiptNumber}.html`;
@@ -831,7 +948,7 @@ const FeePaymentsTab: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
+      
       window.URL.revokeObjectURL(url);
       toast.success('Receipt downloaded as HTML - Open in browser and print to PDF');
     }
@@ -854,40 +971,13 @@ const FeePaymentsTab: React.FC = () => {
       try {
         if (studentDetails.userId) {
           console.log('Fetching complete student data using userId:', studentDetails.userId);
-
-          // Try to get all students and find the one with matching userId
-          const allStudentsResponse = await feesAPI.getStudentFeeRecords({});
-          const allStudents = allStudentsResponse.data?.data || [];
-
-          // Look for student with matching userId in the fee records
-          const matchingStudent = allStudents.find((student: any) =>
-            student.userId === studentDetails.userId || student.studentId === studentDetails.userId || student._id === studentDetails.userId,
-          );
-
-          if (matchingStudent) {
-            console.log('Found matching student in fee records:', matchingStudent);
-            completeStudentData = matchingStudent;
-          } else {
-            // Fallback to the original API call
-            const studentDataResponse = await feesAPI.getStudentByUserId(studentDetails.userId);
-            completeStudentData = studentDataResponse.data?.data;
-            console.log('Complete student data from students collection:', completeStudentData);
-          }
-
-          // If we still don't have userId, try to find it in the response
-          if (!completeStudentData?.userId && completeStudentData) {
-            const studentData = completeStudentData;
-            console.log('Student data structure:', {
-              userId: studentData.userId,
-              _id: studentData._id,
-              studentId: studentData.studentId,
-              allKeys: Object.keys(studentData),
-            });
-          }
+          const studentDataResponse = await feesAPI.getStudentByUserId(studentDetails.userId);
+          completeStudentData = studentDataResponse.data?.data;
+          console.log('Complete student data from students collection:', completeStudentData);
         }
+      
       } catch (error) {
-        console.log('Failed to fetch complete student data:', error);
-        console.log('Using existing data:', historyStudent);
+        console.log('Failed to fetch complete student data, using fee record data');
       }
 
       // Create fee structure from paid installments with detailed payment info
@@ -906,18 +996,51 @@ const FeePaymentsTab: React.FC = () => {
 
       // Create comprehensive student data using students collection data
       const studentData = {
-        name: completeStudentData?.name?.displayName || studentDetails.studentName || student.name,
-        rollNumber: completeStudentData?.studentDetails?.rollNumber || studentDetails.rollNumber || student.rollNumber || 'N/A',
-        sequenceNumber: completeStudentData?.userId || studentDetails.userId || `SEQ-${String(student.id || Date.now()).slice(-4)}`,
-        class: completeStudentData?.studentDetails?.currentClass || studentDetails.studentClass || student.class,
-        section: completeStudentData?.studentDetails?.currentSection || studentDetails.studentSection || student.section,
-        academicYear: completeStudentData?.studentDetails?.academicYear || studentDetails.academicYear || '2024-2025',
-        address: completeStudentData?.address?.permanent
-          ? `${completeStudentData.address.permanent.street || ''} ${completeStudentData.address.permanent.city || ''} ${completeStudentData.address.permanent.state || ''} ${completeStudentData.address.permanent.pincode || ''}`.trim()
-          : `Class ${completeStudentData?.studentDetails?.currentClass || student.class}-${completeStudentData?.studentDetails?.currentSection || student.section}`,
-        email: completeStudentData?.email || completeStudentData?.studentDetails?.fatherEmail || completeStudentData?.studentDetails?.motherEmail || studentDetails.email || studentDetails.contactEmail || studentDetails.parentEmail || student.email || 'student@school.com',
-        phone: completeStudentData?.contact?.primaryPhone || completeStudentData?.studentDetails?.fatherPhone || completeStudentData?.studentDetails?.motherPhone || studentDetails.phone || studentDetails.contactNumber || studentDetails.parentPhone || student.phone || '+91-XXXXXXXXXX',
-        parentName: completeStudentData?.studentDetails?.fatherName || completeStudentData?.studentDetails?.guardianName || studentDetails.parentName || studentDetails.guardianName || student.parentName || 'Parent Name',
+        name: completeStudentData?.name?.displayName || 
+              studentDetails.studentName || 
+              student.name,
+        rollNumber: completeStudentData?.studentDetails?.rollNumber || 
+                   studentDetails.rollNumber || 
+                   student.rollNumber || 
+                   'N/A',
+        sequenceNumber: completeStudentData?.userId || 
+                       studentDetails.userId || 
+                       `SEQ-${String(student.id || Date.now()).slice(-4)}`,
+        class: completeStudentData?.studentDetails?.currentClass || 
+               studentDetails.studentClass || 
+               student.class,
+        section: completeStudentData?.studentDetails?.currentSection || 
+                studentDetails.studentSection || 
+                student.section,
+        academicYear: completeStudentData?.studentDetails?.academicYear || 
+                     studentDetails.academicYear || 
+                     '2024-2025',
+        address: completeStudentData?.address?.permanent ? 
+                `${completeStudentData.address.permanent.street || ''} ${completeStudentData.address.permanent.city || ''} ${completeStudentData.address.permanent.state || ''} ${completeStudentData.address.permanent.pincode || ''}`.trim() ||
+                `Class ${completeStudentData?.studentDetails?.currentClass || student.class}-${completeStudentData?.studentDetails?.currentSection || student.section}` :
+                `Class ${studentDetails.studentClass || student.class}-${studentDetails.studentSection || student.section}`,
+        email: completeStudentData?.email || 
+               completeStudentData?.studentDetails?.fatherEmail ||
+               completeStudentData?.studentDetails?.motherEmail ||
+               studentDetails.email || 
+               studentDetails.contactEmail || 
+               studentDetails.parentEmail || 
+               student.email || 
+               'student@school.com',
+        phone: completeStudentData?.contact?.primaryPhone || 
+               completeStudentData?.studentDetails?.fatherPhone ||
+               completeStudentData?.studentDetails?.motherPhone ||
+               studentDetails.phone || 
+               studentDetails.contactNumber || 
+               studentDetails.parentPhone || 
+               student.phone || 
+               '+91-XXXXXXXXXX',
+        parentName: completeStudentData?.studentDetails?.fatherName || 
+                   completeStudentData?.studentDetails?.guardianName ||
+                   studentDetails.parentName || 
+                   studentDetails.guardianName || 
+                   student.parentName || 
+                   'Parent Name'
       };
 
       // Create fee structure with payment details
@@ -926,7 +1049,7 @@ const FeePaymentsTab: React.FC = () => {
         amount: inst.paidAmount || 0,
         totalAmount: inst.amount || 0,
         pendingAmount: (inst.amount || 0) - (inst.paidAmount || 0),
-        payments: inst.payments || [],
+        payments: inst.payments || []
       }));
 
       // Payment data with receipt information
@@ -937,7 +1060,7 @@ const FeePaymentsTab: React.FC = () => {
         reference: recentPayment?.reference || '-',
         totalPaid: studentDetails.totalPaid || 0,
         totalFees: studentDetails.totalAmount || 0,
-        remainingFees: (studentDetails.totalAmount || 0) - (studentDetails.totalPaid || 0),
+        remainingFees: (studentDetails.totalAmount || 0) - (studentDetails.totalPaid || 0)
       };
 
       // Fetch school data from school_info collection
@@ -947,24 +1070,24 @@ const FeePaymentsTab: React.FC = () => {
         address: '123 School Street, City, State 12345',
         phone: '+91-XXXXXXXXXX',
         email: 'info@school.com',
-        website: 'www.school.com',
+        website: 'www.school.com'
       };
 
       try {
         console.log('Fetching school info from classes endpoint for invoice...');
         const schoolResponse = await feesAPI.getSchoolInfo(user?.schoolCode);
-
+        
         if (schoolResponse.data?.success && schoolResponse.data?.data) {
           const data = schoolResponse.data.data;
           console.log('School data found for invoice:', data);
-
+          
           schoolData = {
             schoolName: data.schoolName || data.school?.name || user?.schoolName || 'School Name',
             schoolCode: data.schoolCode || data.school?.code || user?.schoolCode || 'SCH001',
             address: data.school?.address || data.address || '123 School Street, City, State 12345',
             phone: data.school?.phone || data.phone || '+91-XXXXXXXXXX',
             email: data.school?.email || data.email || 'info@school.com',
-            website: data.school?.website || data.website || 'www.school.com',
+            website: data.school?.website || data.website || 'www.school.com'
           };
         } else {
           // Fallback to template settings
@@ -977,7 +1100,7 @@ const FeePaymentsTab: React.FC = () => {
               address: templateSettings.address || schoolData.address,
               phone: templateSettings.phone || schoolData.phone,
               email: templateSettings.email || schoolData.email,
-              website: templateSettings.website || schoolData.website,
+              website: templateSettings.website || schoolData.website
             };
           }
         }
@@ -993,7 +1116,7 @@ const FeePaymentsTab: React.FC = () => {
               address: templateSettings.address || schoolData.address,
               phone: templateSettings.phone || schoolData.phone,
               email: templateSettings.email || schoolData.email,
-              website: templateSettings.website || schoolData.website,
+              website: templateSettings.website || schoolData.website
             };
           }
         } catch (settingsError) {
@@ -1015,17 +1138,65 @@ const FeePaymentsTab: React.FC = () => {
       setHistoryLoading(true);
       setIsHistoryOpen(true);
       setHistoryStudent(student);
-
-      // Use studentId if available, otherwise fall back to id
-      const res = await feesAPI.getStudentFeeRecord(student.studentId || student.id);
-      const rec = res.data?.data;
+      
+      // Log all available student data for debugging
+      console.log('Student data:', JSON.stringify(student, null, 2));
+      
+      // Define all possible identifiers in order of preference
+      const identifiers = [
+        { type: 'admissionNumber', value: student.admissionNumber },
+        { type: '_id', value: student._id },
+        { type: 'id', value: student.id },
+        { type: 'userId', value: student.userId },
+        { type: 'studentId', value: student.studentId }
+      ].filter(id => id.value); // Remove any undefined/null values
+      
+      console.log('Trying identifiers in order:', identifiers);
+      
+      if (identifiers.length === 0) {
+        throw new Error('No valid student identifier found. Available fields: ' + Object.keys(student).join(', '));
+      }
+      
+      let res;
+      let lastError;
+      
+      // Try each identifier in order
+      for (const { type, value } of identifiers) {
+        try {
+          console.log(`Attempting to fetch fee record using ${type}:`, value);
+          res = await feesAPI.getStudentFeeRecord(value);
+          console.log(`Successfully fetched fee record using ${type}`, res);
+          break; // Exit loop if successful
+        } catch (error) {
+          lastError = error;
+          console.warn(`Failed to fetch with ${type} ${value}:`, error.message);
+          
+          // If this was the last identifier, try the chalan API as a fallback
+          if (type === identifiers[identifiers.length - 1].type) {
+            console.log('All identifiers failed, trying chalan API...');
+            try {
+              const chalanRes = await api.get(`/api/chalans/student/${value}`);
+              if (chalanRes.data) {
+                console.log('Successfully fetched chalan data:', chalanRes.data);
+                res = { data: { data: chalanRes.data } }; // Format to match fee record structure
+                break;
+              }
+            } catch (chalanError) {
+              console.error('Chalan API also failed:', chalanError);
+              throw new Error(`Failed to fetch fee records. Last error: ${lastError?.message || 'Unknown error'}`);
+            }
+          }
+        }
+      }
+      
+      const rec = res?.data?.data || res?.data;
       setHistoryRecord(rec || null);
       const firstInst = (rec?.installments || [])[0];
       setHistoryInstallmentName(firstInst?.name || '');
-
+      
       // If we already have a roll number, we're done
       if (student?.rollNumber) return;
-
+      
       try {
         // First try to get rollNumber from the fee record data
         const rollNumberFromRecord = rec?.student?.rollNumber || rec?.studentDetails?.rollNumber;
@@ -1033,23 +1204,23 @@ const FeePaymentsTab: React.FC = () => {
           setHistoryStudent((prev: any) => ({ ...(prev || {}), rollNumber: rollNumberFromRecord }));
           return;
         }
-
+        
         // Fallback: try to get from student ID or user ID
         const userId = rec?.userId || rec?.student?.userId || rec?.studentId || student.id;
         if (!userId) return;
-
+        
         // Try to get roll number from other fields as a last resort
-        const possibleRollNumber =
-          rec?.rollNumber ||
-          rec?.student?.rollNumber ||
+        const possibleRollNumber = 
+          rec?.rollNumber || 
+          rec?.student?.rollNumber || 
           rec?.studentDetails?.rollNumber ||
           String(rec?.admissionNo || '').slice(-4) ||
           String(rec?.enrollmentNo || '').slice(-4);
-
+          
         if (possibleRollNumber) {
           setHistoryStudent((prev: any) => ({ ...(prev || {}), rollNumber: possibleRollNumber }));
         }
-      } catch (error) {
+  } catch (error) {
         console.log('Error processing roll number:', error);
         // Continue without rollNumber - it's not critical for receipt generation
       }
@@ -1057,204 +1228,69 @@ const FeePaymentsTab: React.FC = () => {
       console.error('Error in openHistoryModal:', error);
       toast.error(error?.response?.data?.message || 'Failed to load payment history');
       setIsHistoryOpen(false);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
+  } finally {
+    setHistoryLoading(false);
+  }
+};
 
   const handleViewChalan = (student: any, installment: any) => {
-    // Create bank details object with fallback values
+    // Use the already fetched bank details from schoolDetails
     const bankDetails = {
-      bankName: schoolData.bankDetails?.bankName || 'School Bank',
-      accountNumber: schoolData.bankDetails?.accountNumber || '12345678901234',
-      ifscCode: schoolData.bankDetails?.ifscCode || 'SBIN0001234',
-      branch: schoolData.bankDetails?.branch || 'Main Branch',
-      accountHolderName: schoolData.bankDetails?.accountName || 'KENDRIYA VIDYALAYA',
-      // Add fallback values for alternative property names
-      accountNo: schoolData.bankDetails?.accountNumber || '12345678901234',
-      ifsc: schoolData.bankDetails?.ifscCode || 'SBIN0001234',
-      accountHolder: schoolData.bankDetails?.accountName || 'KENDRIYA VIDYALAYA',
+      bankName: schoolDetails.bankDetails?.bankName || 'Not Available',
+      accountNumber: schoolDetails.bankDetails?.accountNumber || 'Not Available',
+      ifscCode: schoolDetails.bankDetails?.ifscCode || 'Not Available',
+      branch: schoolDetails.bankDetails?.branch || 'Not Available',
+      accountHolderName: schoolDetails.bankDetails?.accountName || 'School Account'
     };
 
-    console.log('School details for chalan:', {
-      schoolDetails: schoolData,
-      bankDetails,
-    });
+    console.log('School details:', schoolDetails);
+    console.log('Bank details to be passed:', bankDetails);
 
-    // Create the chalan data object
-    const chalanData: any = {
+    setViewingChalan({
       ...installment,
-      // Student details
       studentName: student.name,
       className: student.class,
-      section: student.section || 'A', // Add section with a default value
-      studentId: student.studentId || student.id || 'N/A',
       academicYear: '2024-25',
-
       // School details
-      schoolName: schoolData.schoolName || 'KENDRIYA VIDYALAYA',
-      schoolLogo: schoolData.schoolLogo || '/school-logo.png', // Default logo path
-      schoolAddress: formattedSchoolAddress,
-      schoolPhone: schoolData.contact?.phone || '+91 XXXXXXXXXX',
-      schoolEmail: schoolData.contact?.email || 'info@school.edu.in',
-      
-      // Bank details - structured as expected by ViewChalan
-      bankDetails: {
-        bankName: bankDetails.bankName,
-        accountNumber: bankDetails.accountNumber,
-        ifscCode: bankDetails.ifscCode,
-        branch: bankDetails.branch,
-        accountHolderName: bankDetails.accountHolderName
-      },
-      
-      // Also include bank details at the top level for backward compatibility
-      ...bankDetails
-    };
-
-    // Ensure chalanNumber is set
-    if (!chalanData.chalanNumber) {
-      chalanData.chalanNumber = `CHL-${Date.now().toString().slice(-6)}`;
-    }
+      schoolName: schoolDetails.schoolName || 'School Name',
+      schoolAddress: [
+        schoolDetails.address?.addressLine1,
+        schoolDetails.address?.city,
+        schoolDetails.address?.state,
+        schoolDetails.address?.pincode
+      ].filter(Boolean).join(', ') || 'School Address',
+      schoolPhone: schoolDetails.contact?.phone || '',
+      schoolEmail: schoolDetails.contact?.email || '',
+      // Bank details
+      bankDetails: bankDetails
+    });
     
-    // Ensure chalanDate is set
-    if (!chalanData.chalanDate) {
-      chalanData.chalanDate = new Date().toISOString();
-    }
-
-    console.log('Chalan data being set:', chalanData);
+    console.log('Viewing chalan data:', {
+      ...installment,
+      studentName: student.name,
+      className: student.class,
+      bankDetails: bankDetails
+    });
     
-    setViewChalan(chalanData);
     setIsChalanModalOpen(true);
   };
 
   const handleCloseChalanModal = () => {
     setIsChalanModalOpen(false);
-    setViewChalan(null);
+    setViewingChalan(null);
   };
 
   React.useEffect(() => {
     const fetchSchoolDetails = async () => {
       if (user?.schoolId) {
         try {
-          console.log('Fetching school details for schoolId:', user.schoolId);
-          
-          // First try to get school info directly
-          let schoolData: SchoolData = {};
-          
-          try {
-            // Try the direct endpoint first
-            const response = await schoolAPI.getSchoolById(user.schoolId);
-            console.log('School API response:', response);
-            
-            // Handle different response formats
-            if (response?.data?.data) {
-              schoolData = response.data.data;
-            } else if (response?.data) {
-              schoolData = response.data;
-            } else {
-              schoolData = response || {};
-            }
-          } catch (apiError) {
-            console.warn('Error fetching school details via API, using fallback:', apiError);
-            // If API fails, try to get from localStorage as fallback
-            const cachedSchool = localStorage.getItem('schoolData');
-            if (cachedSchool) {
-              schoolData = JSON.parse(cachedSchool);
-              console.log('Using cached school data from localStorage');
-            }
-          }
-          
-          // Log the extracted school data
-          console.group('Extracted School Data');
-          console.log('School data:', schoolData);
-          console.log('School name:', schoolData.schoolName || schoolData.name);
-          console.log('Address:', schoolData.address);
-          console.log('Bank details:', schoolData.bankDetails || schoolData.bank);
-          console.groupEnd();
-          
-          // Default bank details
-          const defaultBankDetails = {
-            bankName: 'Not Available',
-            accountNumber: 'Not Available',
-            ifscCode: 'Not Available',
-            branch: 'Not Available',
-            accountName: 'School Account'
-          };
-          
-          // Extract bank details with better error handling
-          let bankDetails = { ...defaultBankDetails };
-          
-          try {
-            const source = schoolData.bankDetails || schoolData.bank || schoolData.schoolDetails?.bankDetails || {};
-            bankDetails = {
-              bankName: source.bankName || defaultBankDetails.bankName,
-              accountNumber: source.accountNumber || source.accountNo || defaultBankDetails.accountNumber,
-              ifscCode: source.ifscCode || source.ifsc || defaultBankDetails.ifscCode,
-              branch: source.branch || source.branchName || defaultBankDetails.branch,
-              accountName: source.accountName || source.accountHolderName || defaultBankDetails.accountName
-            };
-          } catch (bankError) {
-            console.error('Error extracting bank details:', bankError);
-          }
-
-          console.group('Final Bank Details');
-          console.log('Bank details:', bankDetails);
-          console.groupEnd();
-          
-          // Create the school details object
-          const schoolDetails = {
-            schoolName: schoolData.schoolName || schoolData.name || 'School Name',
-            address: {
-              addressLine1: schoolData.address?.addressLine1 || schoolData.schoolAddress || 'School Address',
-              city: schoolData.address?.city || 'City',
-              state: schoolData.address?.state || 'State',
-              pincode: schoolData.address?.pincode || 'Pincode'
-            },
-            contact: {
-              phone: schoolData.contact?.phone || schoolData.phone || '+91 XXXXXXXXXX',
-              email: schoolData.contact?.email || schoolData.email || 'info@school.edu.in'
-            },
-            bankDetails: bankDetails
-          };
-
-          console.log('Final school details being set:', schoolData);
-          
-          // Cache the school data in localStorage
-          try {
-            localStorage.setItem('schoolData', JSON.stringify(schoolData));
-          } catch (e) {
-            console.warn('Failed to cache school data in localStorage:', e);
-          }
-          
-          setSchoolData(schoolData);
-          
+          const response = await schoolAPI.getSchoolById(user.schoolId);
+          setSchoolDetails(response.data || {});
+          console.log('School details loaded:', response.data);
         } catch (error) {
-          console.error('Critical error in fetchSchoolDetails:', error);
-          
-          // Set default values if everything fails
-          setSchoolData({
-            schoolName: 'School Name',
-            address: {
-              addressLine1: 'School Address',
-              city: 'City',
-              state: 'State',
-              pincode: 'Pincode'
-            },
-            contact: {
-              phone: '+91 XXXXXXXXXX',
-              email: 'info@school.edu.in'
-            },
-            bankDetails: {
-              bankName: 'Not Available',
-              accountNumber: 'Not Available',
-              ifscCode: 'Not Available',
-              branch: 'Not Available',
-              accountName: 'School Account'
-            }
-          });
+          console.error('Error fetching school details:', error);
+          setSchoolDetails({});
         }
-      } else {
-        console.log('No schoolId found in user object:', user);
       }
     };
 
@@ -1360,10 +1396,10 @@ const FeePaymentsTab: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
-  };
+};
 
-  return (
-    <div className="space-y-6">
+return (
+<div className="space-y-6">
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Fee Payments Management</h2>
@@ -1380,7 +1416,7 @@ const FeePaymentsTab: React.FC = () => {
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-gray-400" />
-            </div>
+</div>
             <input
               type="text"
               value={searchTerm}
@@ -1427,18 +1463,18 @@ const FeePaymentsTab: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+</div>
 
       {/* Students Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Student Fee Records</h3>
-        </div>
+</div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
+<div className="overflow-x-auto">
+<table className="min-w-full divide-y divide-gray-200">
+<thead className="bg-gray-50">
+<tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Student
                 </th>
@@ -1457,21 +1493,24 @@ const FeePaymentsTab: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Chalan
+                </th>
+</tr>
+</thead>
+<tbody className="bg-white divide-y divide-gray-200">
               {students.map((student) => (
                 <tr key={student.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <button
+<button
                         type="button"
                         onClick={() => openHistoryModal(student)}
                         className="text-left text-sm font-medium text-blue-600 hover:underline flex items-center gap-1"
                       >
                         <Receipt size={14} />
                         {student.name}
-                      </button>
+</button>
                       {(student.class || student.section || student.rollNumber) && (
                         <div className="text-sm text-gray-500">
                           {[
@@ -1480,7 +1519,7 @@ const FeePaymentsTab: React.FC = () => {
                               : (student.class || student.section || ''),
                             student.rollNumber ? `(${student.rollNumber})` : ''
                           ].filter(Boolean).join(' ')}
-                        </div>
+</div>
                       )}
                       {/* History Modal */}
                       {isHistoryOpen && (
@@ -1518,7 +1557,7 @@ const FeePaymentsTab: React.FC = () => {
                                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
                                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Receipt</th>
-                                        </tr>
+</tr>
                                       </thead>
                                       <tbody className="bg-white divide-y divide-gray-200">
                                         {(historyRecord.payments || [])
@@ -1527,26 +1566,26 @@ const FeePaymentsTab: React.FC = () => {
                                             const d = p.paymentDate ? new Date(p.paymentDate) : null;
                                             const dateStr = d ? d.toLocaleDateString() : '-';
                                             const dayStr = d ? d.toLocaleDateString('en-IN', { weekday: 'long' }) : '-';
-                                            return (
-                                              <tr key={String(p.paymentId)} className="hover:bg-gray-50">
-                                                <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(p.amount || 0)}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">{p.paymentMethod}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">{p.paymentReference || '-'}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">{dateStr}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">{dayStr}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">
-                                                  {p.receiptNumber ? (
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => handleDownloadReceipt(p.receiptNumber)}
-                                                      className="text-blue-600 hover:underline"
-                                                    >
-                                                      {p.receiptNumber}
-                                                    </button>
-                                                  ) : (
-                                                    '-'
-                                                  )}
-                                                </td>
+      return (
+        <tr key={String(p.paymentId)} className="hover:bg-gray-50">
+          <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(p.amount || 0)}</td>
+          <td className="px-3 py-2 text-sm text-gray-900">{p.paymentMethod}</td>
+          <td className="px-3 py-2 text-sm text-gray-900">{p.paymentReference || '-'}</td>
+          <td className="px-3 py-2 text-sm text-gray-900">{dateStr}</td>
+          <td className="px-3 py-2 text-sm text-gray-900">{dayStr}</td>
+          <td className="px-3 py-2 text-sm text-gray-900">
+            {p.receiptNumber ? (
+              <button
+                type="button"
+                onClick={() => handleDownloadReceipt(p.receiptNumber)}
+                className="text-blue-600 hover:underline"
+              >
+                {p.receiptNumber}
+              </button>
+            ) : (
+              '-'
+            )}
+          </td>
                                               </tr>
                                             );
                                           })}
@@ -1589,17 +1628,19 @@ const FeePaymentsTab: React.FC = () => {
                         <Plus className="h-4 w-4 mr-1" />
                         Record Payment
                       </button>
-                      {/* Always show View Chalan button if there are installments */}
-                      {student.installments?.length > 0 && (
-                        <button
-                          onClick={() => {
-                            console.log('=== DEBUG: Student Object ===', student);
-                            console.log('=== DEBUG: Student ID Fields ===', {
-                              'student.userId': student.userId,
-                              'student.studentId': student.studentId,
-                              'student.admissionNumber': student.admissionNumber,
-                              'student._id': student._id,
-                              'student.sequenceId': student.sequenceId,
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    {student.installments?.length > 0 && (
+                      <button
+                        onClick={() => {
+                          console.log('=== DEBUG: Student Object ===', student);
+                          console.log('=== DEBUG: Student ID Fields ===', {
+                            'student.userId': student.userId,
+                            'student.studentId': student.studentId,
+                            'student.admissionNumber': student.admissionNumber,
+                            'student._id': student._id,
+                            'student.sequenceId': student.sequenceId,
                               'student.rollNumber': student.rollNumber,
                               'All available fields': Object.keys(student)
                             });
@@ -1648,32 +1689,63 @@ const FeePaymentsTab: React.FC = () => {
                                 ...chalanInstallment,
                                 // Student Information
                                 studentName: student.name,
-                                // Use the userId (KVS-S-XXXX) for display
-                                // Only show if it's in the correct format
-                                studentId: student.userId?.startsWith('KVS-') ? student.userId : 'N/A',
+                                // Use the available ID in this order: userId, studentId, or any other ID field
+                                studentId: student.userId || 
+                                          student.studentId || 
+                                          student.admissionNumber || 
+                                          student.rollNumber || 
+                                          student.id ||
+                                          student._id ||
+                                          'N/A',
+                                // Also include userId separately for reference
+                                userId: student.userId,
                                 className: student.class || 'N/A',
                                 section: student.section || 'N/A',
                                 academicYear: student.academicYear || '2024-25',
                                 
                                 // School Information - dynamic from school details
-                                schoolName: schoolData.schoolName,
+                                schoolName: schoolDetails.schoolName,
                                 schoolAddress: [
-                                  schoolData.address?.addressLine1,
-                                  schoolData.address?.city,
-                                  schoolData.address?.state,
-                                  schoolData.address?.pincode
+                                  schoolDetails.address?.addressLine1,
+                                  schoolDetails.address?.city,
+                                  schoolDetails.address?.state,
+                                  schoolDetails.address?.pincode
                                 ].filter(Boolean).join(', '),
-                                schoolPhone: schoolData.contact?.phone,
-                                schoolEmail: schoolData.contact?.email,
-                                // Bank Details - ensure we're using the correct property names
-                                bankAccountName: schoolData.bankDetails?.accountName || 'School Bank Account',
-                                bankAccountNumber: schoolData.bankDetails?.accountNumber || '1234567890', // Default for testing
-                                bankName: schoolData.bankDetails?.bankName || 'School Bank',
-                                bankIfsc: schoolData.bankDetails?.ifscCode || 'BANK0001234',
-                                bankBranch: schoolData.bankDetails?.branch || 'Main Branch',
+                                schoolPhone: schoolDetails.contact?.phone,
+                                schoolEmail: schoolDetails.contact?.email,
+                                // Bank Details - using the structure expected by ViewChalan
+                                bankDetails: schoolDetails.bankDetails ? {
+                                  bankName: schoolDetails.bankDetails.bankName || 'Bank not specified',
+                                  accountNumber: schoolDetails.bankDetails.accountNumber || 'Not specified',
+                                  ifscCode: schoolDetails.bankDetails.ifscCode || 'Not specified',
+                                  branch: schoolDetails.bankDetails.branch || 'Not specified',
+                                  accountHolderName: schoolDetails.bankDetails.accountHolderName || 
+                                                    schoolDetails.bankDetails.accountName || 
+                                                    schoolDetails.schoolName || 
+                                                    'School Account'
+                                } : {
+                                  bankName: 'Bank not specified',
+                                  accountNumber: 'Not specified',
+                                  ifscCode: 'Not specified',
+                                  branch: 'Not specified',
+                                  accountHolderName: schoolDetails.schoolName || 'School Account'
+                                },
+                                // Also pass schoolData with bank details for backward compatibility
+                                schoolData: {
+                                  bankDetails: schoolDetails.bankDetails ? {
+                                    bankName: schoolDetails.bankDetails.bankName,
+                                    accountNumber: schoolDetails.bankDetails.accountNumber,
+                                    ifscCode: schoolDetails.bankDetails.ifscCode,
+                                    branch: schoolDetails.bankDetails.branch,
+                                    accountHolderName: schoolDetails.bankDetails.accountHolderName || 
+                                                     schoolDetails.bankDetails.accountName
+                                  } : null
+                                },
                                 
-                                // Chalan Details
-                                chalanNumber: chalanInstallment.chalanNumber || 'CH-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
+                                // Chalan Details - Format: SCHOOLCODE-YYYYMM-####
+                                // Let the backend handle the chalan number generation
+                                // We'll pass null and let the server generate it
+                                chalanNumber: chalanInstallment.chalanNumber || null,
                                 chalanDate: chalanInstallment.chalanDate || chalanInstallment.dueDate || new Date().toISOString().split('T')[0],
                                 chalanBank: chalanInstallment.chalanBank || 'School Bank',
                                 chalanStatus: chalanInstallment.chalanStatus || 'generated',
@@ -1685,28 +1757,66 @@ const FeePaymentsTab: React.FC = () => {
                               };
                               
                               console.log('Setting chalan data:', chalanData);
-                              setViewChalan(chalanData);
+                              setViewingChalan(chalanData);
                               console.log('Opening chalan modal');
                               setIsChalanModalOpen(true);
                             }
                           }}
                           className="bg-green-100 hover:bg-green-200 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded flex items-center border border-green-200"
-                          title="View Chalan"
-                        >
+                  title="View Chalan"
+                >
                           <Eye className="h-3 w-3 mr-1" />
-                          View Chalan
-                        </button>
-                      )}
-                    </div>
+                          <div
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleContextMenu(e, student);
+                            }}
+                            onClick={() => {
+                              // Existing click handler
+                              const chalanInstallment = student.installments?.find(i => i.chalanNumber);
+                              if (chalanInstallment) {
+                                // ... existing chalan view logic ...
+                              }
+                            }}
+                            className="w-full h-full flex items-center justify-center"
+                          >
+                            Chalan
+                          </div>
+                </button>
+              )}
                   </td>
-                </tr>
+        </tr>
               ))}
-            </tbody>
+</tbody>
           </table>
         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Chalan Context Menu */}
+      {isContextMenuOpen && selectedStudent && (
+        <ChalanContextMenu
+          isOpen={isContextMenuOpen}
+          position={contextMenuPosition}
+          onClose={closeContextMenu}
+          onGenerateChalan={handleGenerateChalan}
+          student={{
+            id: selectedStudent.id || selectedStudent._id,
+            name: selectedStudent.name,
+            className: selectedStudent.class || selectedStudent.className || '',
+            section: selectedStudent.section || '',
+            admissionNumber: selectedStudent.admissionNumber || selectedStudent.rollNumber || ''
+          }}
+          installment={{
+            name: 'Fee Payment',
+            amount: selectedStudent.installments?.[0]?.amount || 0,
+            dueDate: selectedStudent.installments?.[0]?.dueDate || new Date().toISOString().split('T')[0],
+            description: selectedStudent.installments?.[0]?.description || 'Fee payment chalan',
+            status: 'generated'
+          }}
+          isCentered={true}
+        />
+      )} {/* Payment Modal */}
       {isModalOpen && activeStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4">
@@ -1745,12 +1855,12 @@ const FeePaymentsTab: React.FC = () => {
                             <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(inst.paidAmount || 0)}</td>
                             <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(pending)}</td>
                             <td className="px-3 py-2 text-right">
-                              <button
+          <button
                                 onClick={() => onSelectInstallment(inst)}
                                 className="text-blue-600 hover:text-blue-800 text-sm"
                               >
                                 Select
-                              </button>
+          </button>
                             </td>
                           </tr>
                         );
@@ -1758,15 +1868,15 @@ const FeePaymentsTab: React.FC = () => {
                     )}
                   </tbody>
                 </table>
-              </div>
-              <div>
+        </div>
+            <div>
                 <div className="space-y-3">
                   <div className="text-sm text-gray-600">
                     {selectedInstallmentName
                       ? `Selected installment: ${selectedInstallmentName}`
                       : 'Select an installment from the table to proceed.'}
-                  </div>
-                  <div>
+            </div>
+            <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Amount to collect</label>
                     <input
                       type="number"
@@ -1776,8 +1886,8 @@ const FeePaymentsTab: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Select an installment first"
                     />
-                  </div>
-                  <div>
+            </div>
+            <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
                     <select
                       value={payMethod}
@@ -1791,8 +1901,8 @@ const FeePaymentsTab: React.FC = () => {
                       <option value="online">Online</option>
                       <option value="other">Other</option>
                     </select>
-                  </div>
-                  <div>
+            </div>
+            <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
                     <input
                       type="date"
@@ -1801,8 +1911,8 @@ const FeePaymentsTab: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                       required
                     />
-                  </div>
-                  <div>
+            </div>
+            <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {['cheque', 'bank_transfer', 'online', 'chalan'].includes(payMethod) ? 'Reference / Remarks (required)' : 'Reference / Remarks (optional)'}
                     </label>
@@ -1814,7 +1924,7 @@ const FeePaymentsTab: React.FC = () => {
                       placeholder={payMethod === 'chalan' ? 'Chalan number' : 'txn id, cheque no, note, etc.'}
                       required={['cheque', 'bank_transfer', 'online', 'chalan'].includes(payMethod)}
                     />
-                  </div>
+            </div>
                   <div className="flex justify-end space-x-2 pt-2">
                     <button
                       onClick={closePaymentModal}
@@ -1830,12 +1940,12 @@ const FeePaymentsTab: React.FC = () => {
                     >
                       {submitting ? 'Recording...' : 'Record Payment'}
                     </button>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
-        </div>
+              </div>
+              </div>
+              </div>
+            </div>
       )}
       {loading && (
         <div className="text-sm text-gray-500">Loading records...</div>
@@ -1848,13 +1958,15 @@ const FeePaymentsTab: React.FC = () => {
       {isChalanModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto">
-            {viewChalan && (
-              <ViewChalan
-                isOpen={!!viewChalan}
-                onClose={() => setViewChalan(null)}
-                chalan={getChalanWithSchoolData(viewChalan)}
-              />
-            )}
+            <ViewChalan
+              isOpen={isChalanModalOpen}
+              onClose={() => {
+                console.log('Closing chalan modal');
+                setIsChalanModalOpen(false);
+                setViewingChalan(null);
+              }}
+              chalan={viewingChalan}
+            />
           </div>
         </div>
       )}
@@ -1867,13 +1979,13 @@ const FeePaymentsTab: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900">
                 Payment Receipt - {receiptData.studentData.name}
               </h3>
-              <button 
+            <button
                 onClick={() => setIsReceiptOpen(false)} 
                 className="text-gray-500 hover:text-gray-700"
-              >
+            >
                 <X className="h-5 w-5" />
-              </button>
-            </div>
+            </button>
+          </div>
             <div className="p-4">
               <DualCopyReceipt
                 schoolData={receiptData.schoolData}
@@ -1884,10 +1996,10 @@ const FeePaymentsTab: React.FC = () => {
                 totalPaid={receiptData.totalPaid}
                 totalRemaining={receiptData.totalRemaining}
               />
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

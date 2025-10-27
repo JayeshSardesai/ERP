@@ -1,14 +1,17 @@
 export interface Chalan {
   _id: string;
   chalanNumber: string;
-  studentId: string;
+  studentId: string | { _id: string; name?: string; admissionNo?: string };
   studentUserId: string;
+  studentName?: string;
+  admissionNumber?: string;
   class: string;
   section: string;
+  amount: number;
   totalAmount: number;
   installmentName?: string;
   dueDate: string;
-  status: 'unpaid' | 'paid';
+  status: 'unpaid' | 'paid' | 'cancelled';
   paymentId?: string;
   generatedBy: string;
   schoolId: string;
@@ -26,5 +29,6 @@ export interface GenerateChalanData {
   section: string;
   installmentName?: string;
   dueDate: string;
+  amount: number;
   studentIds: string[];
 }

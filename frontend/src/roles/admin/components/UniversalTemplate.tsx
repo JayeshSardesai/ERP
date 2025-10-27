@@ -234,6 +234,14 @@ const UniversalTemplate: React.FC = () => {
             } else {
               logoUrl = rawLogoUrl;
             }
+            console.log('Logo URL from API:', {
+              rawLogoUrl,
+              finalLogoUrl: logoUrl,
+              apiBase: import.meta.env.VITE_API_BASE_URL,
+              schoolData: data
+            });
+          } else {
+            console.warn('No logo URL found in school data. Using empty string.');
           }
 
           // Format address from object to string

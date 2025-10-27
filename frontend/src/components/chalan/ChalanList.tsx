@@ -3,6 +3,34 @@ import { chalanAPI } from '../../services/chalanAPI';
 import { Chalan } from '../../types/chalan';
 import { toast } from 'react-toastify';
 
+// Helper function to format chalan number
+const formatChalanNumber = (chalan: Chalan): string => {
+  try {
+    if (!chalan.chalanNumber) {
+      console.warn('Missing chalanNumber for chalan:', chalan._id);
+      return 'N/A';
+    }
+    
+    const chalanNumber = chalan.chalanNumber.trim();
+    
+    // If it's already in the correct format, return as is
+    if (/^[A-Z0-9]+-\d{6}-\d{4}$/i.test(chalanNumber)) {
+      return chalanNumber.toUpperCase();
+    }
+    
+    // If it has a CH- prefix, remove it
+    if (chalanNumber.toUpperCase().startsWith('CH-')) {
+      return chalanNumber.substring(3);
+    }
+    
+    console.log('Chalan number format not recognized, returning as is:', chalanNumber);
+    return chalanNumber;
+  } catch (error) {
+    console.error('Error formatting chalan number:', error, 'for chalan:', chalan);
+    return 'ERR-' + (chalan._id || 'unknown').substring(0, 4);
+  }
+};
+
 interface ChalanListProps {
   onViewChalan?: (chalan: Chalan) => void;
   onPrintChalan?: (chalan: Chalan) => void;
@@ -22,8 +50,19 @@ const ChalanList: React.FC<ChalanListProps> = ({ onViewChalan, onPrintChalan }) 
   const fetchChalans = React.useCallback(async () => {
     try {
       setLoading(true);
+      console.log('Fetching chalans with filters:', filters);
       const response = await chalanAPI.getChalans(filters);
-      setChalans(response.data);
+      console.log('Received chalans:', response.data);
+      
+      // Ensure each chalan has a unique ID and valid chalanNumber
+      const processedChalans = response.data.map((chalan: Chalan, index: number) => ({
+        ...chalan,
+        _id: chalan._id || `temp-${Date.now()}-${index}`,
+        chalanNumber: chalan.chalanNumber || `TEMP-${Date.now()}-${index}`
+      }));
+      
+      console.log('Processed chalans:', processedChalans);
+      setChalans(processedChalans);
     } catch (error) {
       console.error('Error fetching chalans:', error);
       toast.error('Failed to load chalans');
@@ -129,12 +168,14 @@ const ChalanList: React.FC<ChalanListProps> = ({ onViewChalan, onPrintChalan }) 
               {chalans.length > 0 ? (
                 chalans.map((chalan) => (
                   <tr key={chalan._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {chalan.chalanNumber}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 font-mono">
+                      {formatChalanNumber(chalan)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {/* Student name would go here */}
-                      Student Name
+                      {chalan.studentName || chalan.studentId?.name || 'N/A'}
+                      {chalan.admissionNumber && (
+                        <span className="text-xs text-gray-400 block">Adm: {chalan.admissionNumber}</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {chalan.class} - {chalan.section}

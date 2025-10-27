@@ -15,6 +15,7 @@ import MessagesPage from './pages/MessagesPage'
 import FeesPage from './pages/FeesPage'
 import ReportsPage from './pages/ReportsPage'
 import ErrorBoundary from '../../components/ErrorBoundary'
+import LogoTestPage from '../../pages/test/LogoTestPage'
 
 export function AdminApp() {
   return (
@@ -46,6 +47,7 @@ export function AdminApp() {
         <Route path="fees/structure" element={<FeesPage />} />
         <Route path="fees/payments" element={<FeesPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="test-logo" element={<LogoTestPage />} />
         <Route path="*" element={<Navigate to="/admin" />} />
       </Routes>
     </AdminLayout>
