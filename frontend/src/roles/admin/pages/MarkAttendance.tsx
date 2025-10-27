@@ -11,8 +11,8 @@ interface Student {
   name: string;
   class: string;
   section: string;
-  morningStatus: 'present' | 'absent' | 'half-day' | null;
-  afternoonStatus: 'present' | 'absent' | 'half-day' | null;
+  morningStatus: 'present' | 'absent' | null;
+  afternoonStatus: 'present' | 'absent' | null;
 }
 
 const MarkAttendance: React.FC = () => {
@@ -69,18 +69,28 @@ const MarkAttendance: React.FC = () => {
     }
   }, [selectedClass, classesData]);
 
+  // Fetch students when class and section are selected
   useEffect(() => {
-    if (selectedClass && selectedSection) {
+    if (selectedClass && selectedSection && token && user?.schoolCode) {
       fetchStudents();
+    } else {
+      setStudents([]);
     }
-  }, [selectedClass, selectedSection]);
+  }, [selectedClass, selectedSection, token, user?.schoolCode]);
 
+  // Check session status when date or session changes
   useEffect(() => {
     if (selectedClass && selectedSection && selectedDate) {
-      loadExistingAttendance();
       checkSessionStatus();
     }
   }, [selectedClass, selectedSection, selectedDate, session]);
+
+  // Load existing attendance when students are loaded and filters are set
+  useEffect(() => {
+    if (students.length > 0 && selectedDate) {
+      loadExistingAttendance();
+    }
+  }, [students.length, selectedDate, session]);
 
   useEffect(() => {
     filterStudents();
@@ -147,42 +157,69 @@ const MarkAttendance: React.FC = () => {
       setLoading(true);
       setError('');
 
-      // Make direct API call with proper headers
-      const response = await fetch('http://localhost:5050/api/users/role/student', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'x-school-code': user.schoolCode
-        }
+      console.log('🔍 Fetching students for:', { 
+        class: selectedClass, 
+        section: selectedSection, 
+        schoolCode: user.schoolCode 
       });
+
+      // Make API call with query parameters for filtering
+      const response = await fetch(
+        `http://localhost:5050/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'x-school-code': user.schoolCode
+          }
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to fetch students');
       }
 
       const data = await response.json();
+      console.log('📊 API Response:', data);
+      
       const users = data.data || data || [];
+      console.log(`👥 Total users received: ${users.length}`);
 
-      const filtered = users.filter((u: any) =>
-        u.role === 'student' &&
-        u.academicInfo?.class === selectedClass &&
-        u.academicInfo?.section === selectedSection
-      );
+      // Filter students - check multiple possible field structures including currentClass/currentSection
+      const filtered = users.filter((u: any) => {
+        const isStudent = u.role === 'student';
+        const matchesClass = u.academicInfo?.class === selectedClass || 
+                            u.studentDetails?.class === selectedClass ||
+                            u.studentDetails?.currentClass === selectedClass ||
+                            u.class === selectedClass;
+        const matchesSection = u.academicInfo?.section === selectedSection || 
+                              u.studentDetails?.section === selectedSection ||
+                              u.studentDetails?.currentSection === selectedSection ||
+                              u.section === selectedSection;
+        
+        return isStudent && matchesClass && matchesSection;
+      });
+
+      console.log(`✅ Filtered students: ${filtered.length}`);
 
       const studentsWithAttendance = filtered.map((u: any) => ({
         _id: u._id,
         userId: u.userId,
         name: u.name?.displayName || u.name || 'Unknown',
-        class: u.academicInfo?.class,
-        section: u.academicInfo?.section,
+        class: u.academicInfo?.class || u.studentDetails?.class || u.studentDetails?.currentClass || u.class || selectedClass,
+        section: u.academicInfo?.section || u.studentDetails?.section || u.studentDetails?.currentSection || u.section || selectedSection,
         morningStatus: null,
         afternoonStatus: null
       }));
 
       setStudents(studentsWithAttendance);
+      
+      if (studentsWithAttendance.length === 0) {
+        setError(`No students found for Class ${selectedClass} Section ${selectedSection}`);
+      }
     } catch (err) {
       setError('Failed to fetch students');
-      console.error('Error fetching students:', err);
+      console.error('❌ Error fetching students:', err);
     } finally {
       setLoading(false);
     }
@@ -260,7 +297,7 @@ const MarkAttendance: React.FC = () => {
     return `Class ${cls}`;
   };
 
-  const updateStudentStatus = (studentId: string, status: 'present' | 'absent' | 'half-day') => {
+  const updateStudentStatus = (studentId: string, status: 'present' | 'absent') => {
     setStudents(prev => prev.map(student =>
       student._id === studentId
         ? {
@@ -295,10 +332,9 @@ const MarkAttendance: React.FC = () => {
     const statusField = session === 'morning' ? 'morningStatus' : 'afternoonStatus';
     const present = filteredStudents.filter(s => s[statusField] === 'present').length;
     const absent = filteredStudents.filter(s => s[statusField] === 'absent').length;
-    const halfDay = filteredStudents.filter(s => s[statusField] === 'half-day').length;
     const unmarked = filteredStudents.filter(s => s[statusField] === null).length;
 
-    return { present, absent, halfDay, unmarked, total: filteredStudents.length };
+    return { present, absent, unmarked, total: filteredStudents.length };
   };
 
   const summary = getAttendanceSummary();
@@ -345,9 +381,19 @@ const MarkAttendance: React.FC = () => {
 
       if (response.success) {
         setSuccessMessage(
-          `${session.charAt(0).toUpperCase() + session.slice(1)} attendance saved successfully! ` +
-          `${response.data.successCount} students processed.`
+          `✅ ${session.charAt(0).toUpperCase() + session.slice(1)} attendance saved successfully! ` +
+          `${response.data.successCount} students marked.`
         );
+
+        // Clear all attendance entries (reset to null)
+        const statusField = session === 'morning' ? 'morningStatus' : 'afternoonStatus';
+        setStudents(prev => prev.map(student => ({
+          ...student,
+          [statusField]: null
+        })));
+
+        // Refresh session status to show it's now frozen
+        await checkSessionStatus();
 
         // Clear success message after 5 seconds
         setTimeout(() => setSuccessMessage(''), 5000);
@@ -551,7 +597,7 @@ const MarkAttendance: React.FC = () => {
 
       {/* Summary Cards */}
       {selectedClass && selectedSection && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="bg-white p-4 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
@@ -568,15 +614,6 @@ const MarkAttendance: React.FC = () => {
                 <div className="text-2xl font-bold text-red-600">{summary.absent}</div>
               </div>
               <XCircle className="h-8 w-8 text-red-600" />
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-600">Half Day</div>
-                <div className="text-2xl font-bold text-yellow-600">{summary.halfDay}</div>
-              </div>
-              <AlertCircle className="h-8 w-8 text-yellow-600" />
             </div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow-sm border">
@@ -600,7 +637,7 @@ const MarkAttendance: React.FC = () => {
                 {session.charAt(0).toUpperCase() + session.slice(1)} Attendance - {getClassDisplayName(selectedClass)} Section {selectedSection}
               </h3>
               <div className="text-sm text-gray-600">
-                Progress: {summary.present + summary.absent + summary.halfDay}/{summary.total} marked
+                Progress: {summary.present + summary.absent}/{summary.total} marked
               </div>
             </div>
 
@@ -633,7 +670,7 @@ const MarkAttendance: React.FC = () => {
                       <button
                         onClick={() => updateStudentStatus(student._id, 'present')}
                         disabled={sessionStatus[session].isFrozen}
-                        className={`px-3 py-1 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${getCurrentStatus(student) === 'present'
+                        className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${getCurrentStatus(student) === 'present'
                           ? 'bg-green-100 text-green-800 border-green-200'
                           : 'bg-white text-gray-700 border-gray-300 hover:bg-green-50'
                           } ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -645,7 +682,7 @@ const MarkAttendance: React.FC = () => {
                       <button
                         onClick={() => updateStudentStatus(student._id, 'absent')}
                         disabled={sessionStatus[session].isFrozen}
-                        className={`px-3 py-1 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${getCurrentStatus(student) === 'absent'
+                        className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${getCurrentStatus(student) === 'absent'
                           ? 'bg-red-100 text-red-800 border-red-200'
                           : 'bg-white text-gray-700 border-gray-300 hover:bg-red-50'
                           } ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -653,18 +690,6 @@ const MarkAttendance: React.FC = () => {
                       >
                         <XCircle className="h-4 w-4" />
                         <span>Absent</span>
-                      </button>
-                      <button
-                        onClick={() => updateStudentStatus(student._id, 'half-day')}
-                        disabled={sessionStatus[session].isFrozen}
-                        className={`px-3 py-1 rounded-lg border text-sm font-medium transition-colors flex items-center space-x-1 ${getCurrentStatus(student) === 'half-day'
-                          ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-yellow-50'
-                          } ${sessionStatus[session].isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        title={sessionStatus[session].isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
-                      >
-                        <AlertCircle className="h-4 w-4" />
-                        <span>Half Day</span>
                       </button>
                     </div>
                   </div>

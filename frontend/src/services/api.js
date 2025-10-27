@@ -108,7 +108,7 @@ export const schoolAPI = {
   },
   updateSchool: (schoolId, updateData) => api.put(`/schools/${schoolId}`, updateData),
   deleteSchool: (schoolId) => api.delete(`/schools/${schoolId}`),
-  updateAccessMatrix: (schoolId, accessMatrix) => api.put(`/schools/${schoolId}`, { accessMatrix }),
+  updateAccessMatrix: (schoolId, accessMatrix) => api.patch(`/schools/${schoolId}/access-matrix`, { accessMatrix }),
   updateBankDetails: (schoolId, bankDetails) => api.patch(`/schools/${schoolId}/bank-details`, { bankDetails }),
   updateUserRole: (schoolId, userId, newRole) => api.put(`/schools/${schoolId}/users/${userId}`, { role: newRole }),
   updateSchoolSettings: (schoolId, settings) => api.put(`/schools/${schoolId}`, { settings }),
@@ -209,8 +209,11 @@ export const resultsAPI = {
   // Get existing results for a test
   getResults: (params) => api.get('/results', { params }),
 
-  // Update a specific result
+  // Update a specific result (use PUT as primary)
   updateResult: (resultId, updateData) => api.put(`/results/${resultId}`, updateData),
+
+  // Freeze results for a class/section/subject/test
+  freezeResults: (freezeData) => api.post('/results/freeze', freezeData),
 
   // Delete a result
   deleteResult: (resultId) => api.delete(`/results/${resultId}`),

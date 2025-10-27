@@ -148,16 +148,16 @@ export function AddSchoolForm() {
         setValidationErrors(prev => ({ ...prev, logo: 'Only image files (JPEG, PNG, GIF, WebP) are allowed' }));
         return;
       }
-      
+
       // Validate file size (max 10MB before compression)
       if (file.size > 10 * 1024 * 1024) {
         setValidationErrors(prev => ({ ...prev, logo: 'File size must be less than 10MB' }));
         return;
       }
-      
+
       setLogoFile(file);
       setValidationErrors(prev => ({ ...prev, logo: '' }));
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -171,7 +171,7 @@ export function AddSchoolForm() {
     e.preventDefault();
     setSuccess(null);
     setError(null);
-    
+
     // Validate form before submission
     if (!validateForm()) {
       setError('Please fix the validation errors below');
@@ -374,7 +374,7 @@ export function AddSchoolForm() {
                   type="text"
                   required
                   value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.name ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter school name"
                 />
@@ -386,7 +386,7 @@ export function AddSchoolForm() {
                   type="text"
                   required
                   value={formData.code}
-                  onChange={(e) => setFormData({...formData, code: e.target.value.toUpperCase()})}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                   className={`w-full px-3 py-2 border ${validationErrors.code ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter school code (e.g., NPS, DAV, KVS)"
                   maxLength={10}
@@ -436,7 +436,7 @@ export function AddSchoolForm() {
                   type="text"
                   required
                   value={formData.street}
-                  onChange={(e) => setFormData({...formData, street: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, street: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.street ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter street address"
                 />
@@ -448,7 +448,7 @@ export function AddSchoolForm() {
                   type="text"
                   required
                   value={formData.area}
-                  onChange={(e) => setFormData({...formData, area: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, area: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.area ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter area/locality"
                 />
@@ -460,14 +460,14 @@ export function AddSchoolForm() {
                   type="text"
                   required
                   value={formData.city}
-                  onChange={(e) => setFormData({...formData, city: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.city ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter city"
                 />
                 {renderFieldError('city')}
               </div>
             </div>
-            
+
             {/* Location Selector */}
             <div className="mt-6">
               <h3 className="text-md font-medium text-gray-900 mb-4">Location Details</h3>
@@ -486,7 +486,7 @@ export function AddSchoolForm() {
                 className="grid grid-cols-1 md:grid-cols-3 gap-4"
               />
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Pin Code</label>
@@ -497,7 +497,7 @@ export function AddSchoolForm() {
                   value={formData.pinCode}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, ''); // Only allow digits
-                    setFormData({...formData, pinCode: value});
+                    setFormData({ ...formData, pinCode: value });
                   }}
                   className={`w-full px-3 py-2 border ${validationErrors.pinCode ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter 6-digit pin code"
@@ -513,7 +513,7 @@ export function AddSchoolForm() {
                   value={formData.mobile}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, ''); // Only allow digits
-                    setFormData({...formData, mobile: value});
+                    setFormData({ ...formData, mobile: value });
                   }}
                   className={`w-full px-3 py-2 border ${validationErrors.mobile ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter 10-digit mobile number"
@@ -526,7 +526,7 @@ export function AddSchoolForm() {
                   type="text"
                   required
                   value={formData.principalName}
-                  onChange={(e) => setFormData({...formData, principalName: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, principalName: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.principalName ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter principal name"
                 />
@@ -538,7 +538,7 @@ export function AddSchoolForm() {
                   type="email"
                   required
                   value={formData.principalEmail}
-                  onChange={(e) => setFormData({...formData, principalEmail: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, principalEmail: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.principalEmail ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter principal email"
                 />
@@ -549,7 +549,7 @@ export function AddSchoolForm() {
                 <input
                   type="url"
                   value={formData.website}
-                  onChange={(e) => setFormData({...formData, website: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.website ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter website URL (optional)"
                 />
@@ -635,7 +635,7 @@ export function AddSchoolForm() {
                   type="text"
                   required
                   value={formData.bankName}
-                  onChange={(e) => setFormData({...formData, bankName: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.bankName ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter bank name"
                 />
@@ -650,7 +650,7 @@ export function AddSchoolForm() {
                   value={formData.accountNumber}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, ''); // Only allow digits
-                    setFormData({...formData, accountNumber: value});
+                    setFormData({ ...formData, accountNumber: value });
                   }}
                   className={`w-full px-3 py-2 border ${validationErrors.accountNumber ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter 16-digit account number"
@@ -664,7 +664,7 @@ export function AddSchoolForm() {
                   required
                   maxLength={11}
                   value={formData.ifscCode}
-                  onChange={(e) => setFormData({...formData, ifscCode: e.target.value.toUpperCase()})}
+                  onChange={(e) => setFormData({ ...formData, ifscCode: e.target.value.toUpperCase() })}
                   className={`w-full px-3 py-2 border ${validationErrors.ifscCode ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter 11-character IFSC code (e.g., SBIN0123456)"
                 />
@@ -676,7 +676,7 @@ export function AddSchoolForm() {
                   type="text"
                   required
                   value={formData.branch}
-                  onChange={(e) => setFormData({...formData, branch: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.branch ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter branch name"
                 />
@@ -688,7 +688,7 @@ export function AddSchoolForm() {
                   type="text"
                   required
                   value={formData.accountHolderName}
-                  onChange={(e) => setFormData({...formData, accountHolderName: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, accountHolderName: e.target.value })}
                   className={`w-full px-3 py-2 border ${validationErrors.accountHolderName ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   placeholder="Enter account holder name"
                 />

@@ -8,7 +8,6 @@ import {
   InvoiceTemplate,
   CertificateTemplate,
   AdmitCardTemplate,
-  IDCardTemplate,
   TemplateSettings
 } from '../../../components/templates';
 
@@ -28,7 +27,7 @@ const UniversalTemplate: React.FC = () => {
   });
 
   const [previewMode, setPreviewMode] = useState(false);
-  const [templateType, setTemplateType] = useState<'invoice' | 'admit_card' | 'certificate' | 'custom'>('invoice');
+  const [templateType, setTemplateType] = useState<'invoice' | 'admit_card' | 'certificate' | 'id_card_landscape_front' | 'id_card_landscape_back' | 'id_card_portrait_front' | 'id_card_portrait_back' | 'custom'>('invoice');
   const [loading, setLoading] = useState(false);
 
   // Generate sample data for different template types
@@ -77,6 +76,26 @@ const UniversalTemplate: React.FC = () => {
           certificateNumber: 'CERT-2024-001',
           signatory: 'Principal Name',
           signatoryTitle: 'Principal'
+        };
+      case 'id_card_landscape_front':
+      case 'id_card_landscape_back':
+      case 'id_card_portrait_front':
+      case 'id_card_portrait_back':
+        return {
+          student: {
+            id: '1',
+            name: 'John Doe',
+            rollNumber: 'R001',
+            sequenceId: 'STU001',
+            className: '10',
+            section: 'A',
+            profileImage: '',
+            dateOfBirth: '15/01/2008',
+            bloodGroup: 'O+',
+            fatherName: 'Mr. Robert Doe',
+            address: '123 Student Street, City, State 12345',
+            phone: '+91-9876543210'
+          }
         };
       default:
         return {};
@@ -143,6 +162,46 @@ const UniversalTemplate: React.FC = () => {
               mode: 'print'
             })
           );
+          break;
+        case 'id_card_landscape_front':
+          componentHTML = `
+            <div style="text-align: center; padding: 20px;">
+              <h2>ID Card Template - Landscape Front</h2>
+              <img src="${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/landscape-front.png" 
+                   alt="Landscape Front Template" 
+                   style="max-width: 100%; height: auto;" />
+            </div>
+          `;
+          break;
+        case 'id_card_landscape_back':
+          componentHTML = `
+            <div style="text-align: center; padding: 20px;">
+              <h2>ID Card Template - Landscape Back</h2>
+              <img src="${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/landscape-back.png" 
+                   alt="Landscape Back Template" 
+                   style="max-width: 100%; height: auto;" />
+            </div>
+          `;
+          break;
+        case 'id_card_portrait_front':
+          componentHTML = `
+            <div style="text-align: center; padding: 20px;">
+              <h2>ID Card Template - Portrait Front</h2>
+              <img src="${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/portrait-front.png" 
+                   alt="Portrait Front Template" 
+                   style="max-width: 100%; height: auto;" />
+            </div>
+          `;
+          break;
+        case 'id_card_portrait_back':
+          componentHTML = `
+            <div style="text-align: center; padding: 20px;">
+              <h2>ID Card Template - Portrait Back</h2>
+              <img src="${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/portrait-back.png" 
+                   alt="Portrait Back Template" 
+                   style="max-width: 100%; height: auto;" />
+            </div>
+          `;
           break;
         default:
           componentHTML = `
@@ -333,6 +392,78 @@ const UniversalTemplate: React.FC = () => {
             />
           </div>
         );
+      case 'id_card_landscape_front':
+        return (
+          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Landscape Front</h3>
+            <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
+              <img
+                src={`${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/landscape-front.png`}
+                alt="Landscape Front Template"
+                className="max-w-full h-auto"
+                style={{ maxHeight: '500px', objectFit: 'contain' }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5UZW1wbGF0ZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+';
+                }}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-3">Template file: <code className="bg-gray-100 px-2 py-1 rounded">landscape-front.png</code></p>
+          </div>
+        );
+      case 'id_card_landscape_back':
+        return (
+          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Landscape Back</h3>
+            <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
+              <img
+                src={`${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/landscape-back.png`}
+                alt="Landscape Back Template"
+                className="max-w-full h-auto"
+                style={{ maxHeight: '500px', objectFit: 'contain' }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5UZW1wbGF0ZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+';
+                }}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-3">Template file: <code className="bg-gray-100 px-2 py-1 rounded">landscape-back.png</code></p>
+          </div>
+        );
+      case 'id_card_portrait_front':
+        return (
+          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Portrait Front</h3>
+            <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
+              <img
+                src={`${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/portrait-front.png`}
+                alt="Portrait Front Template"
+                className="max-w-full h-auto"
+                style={{ maxHeight: '500px', objectFit: 'contain' }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5UZW1wbGF0ZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+';
+                }}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-3">Template file: <code className="bg-gray-100 px-2 py-1 rounded">portrait-front.png</code></p>
+          </div>
+        );
+      case 'id_card_portrait_back':
+        return (
+          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Portrait Back</h3>
+            <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
+              <img
+                src={`${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/portrait-back.png`}
+                alt="Portrait Back Template"
+                className="max-w-full h-auto"
+                style={{ maxHeight: '500px', objectFit: 'contain' }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5UZW1wbGF0ZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+';
+                }}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-3">Template file: <code className="bg-gray-100 px-2 py-1 rounded">portrait-back.png</code></p>
+          </div>
+        );
       default:
         return (
           <div className="transform scale-75 origin-top-left">
@@ -390,6 +521,10 @@ const UniversalTemplate: React.FC = () => {
               <option value="invoice">Invoice</option>
               <option value="admit_card">Admit Card</option>
               <option value="certificate">Certificate</option>
+              <option value="id_card_landscape_front">ID Card - Landscape Front</option>
+              <option value="id_card_landscape_back">ID Card - Landscape Back</option>
+              <option value="id_card_portrait_front">ID Card - Portrait Front</option>
+              <option value="id_card_portrait_back">ID Card - Portrait Back</option>
               <option value="custom">Custom Document</option>
             </select>
             <button
