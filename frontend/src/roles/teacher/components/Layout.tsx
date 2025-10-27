@@ -15,6 +15,8 @@ import {
   UserCheck
 } from 'lucide-react';
 import { currentUser } from '../utils/mockData';
+import { usePermissions, PermissionKey } from '../../../hooks/usePermissions';
+import { PermissionDeniedModal } from '../../../components/PermissionDeniedModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -25,16 +27,30 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { hasPermission, showPermissionDenied, setShowPermissionDenied, deniedPermissionName, checkAndNavigate } = usePermissions();
 
+  // Define menu items with permission requirements
   const menuItems = [
-    { name: 'Dashboard', icon: Home, page: 'dashboard' },
-    { name: 'Mark Attendance', icon: UserCheck, page: 'mark-attendance' },
-    { name: 'View Attendance', icon: Users, page: 'view-attendance' },
-    { name: 'Add Assignments', icon: FileText, page: 'add-assignments' },
-    { name: 'View Results', icon: BarChart3, page: 'view-results' },
-    { name: 'Messages', icon: MessageSquare, page: 'messages' },
-    { name: 'Settings', icon: Settings, page: 'settings' }
+    { name: 'Dashboard', icon: Home, page: 'dashboard', permission: null },
+    { name: 'Mark Attendance', icon: UserCheck, page: 'mark-attendance', permission: 'viewAttendance' as PermissionKey },
+    { name: 'View Attendance', icon: Users, page: 'view-attendance', permission: 'viewAttendance' as PermissionKey },
+    { name: 'Add Assignments', icon: FileText, page: 'add-assignments', permission: 'viewAssignments' as PermissionKey },
+    { name: 'View Results', icon: BarChart3, page: 'view-results', permission: 'viewResults' as PermissionKey },
+    { name: 'Messages', icon: MessageSquare, page: 'messages', permission: 'messageStudentsParents' as PermissionKey },
+    { name: 'Settings', icon: Settings, page: 'settings', permission: null }
   ];
+
+  const handleMenuClick = (item: typeof menuItems[0]) => {
+    if (item.permission && !hasPermission(item.permission)) {
+      checkAndNavigate(item.permission, item.name, () => {
+        onNavigate(item.page);
+        setSidebarOpen(false);
+      });
+    } else {
+      onNavigate(item.page);
+      setSidebarOpen(false);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -72,10 +88,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
               return (
                 <button
                   key={item.name}
-                  onClick={() => {
-                    onNavigate(item.page);
-                    setSidebarOpen(false);
-                  }}
+                  onClick={() => handleMenuClick(item)}
                   className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
                     currentPage === item.page
                       ? 'bg-blue-100 text-blue-700'
@@ -111,6 +124,13 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
           </div>
         </div>
       </div>
+
+      {/* Permission Denied Modal */}
+      <PermissionDeniedModal
+        isOpen={showPermissionDenied}
+        onClose={() => setShowPermissionDenied(false)}
+        permissionName={deniedPermissionName}
+      />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">

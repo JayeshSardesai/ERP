@@ -18,6 +18,8 @@ import MessagesPage from './pages/MessagesPage'
 import FeesPage from './pages/FeesPage'
 import ReportsPage from './pages/ReportsPage'
 import ErrorBoundary from '../../components/ErrorBoundary'
+import { PermissionGuard } from '../../components/PermissionGuard'
+import { PermissionProvider } from '../../hooks/usePermissions'
 
 export function AdminApp() {
   return (
