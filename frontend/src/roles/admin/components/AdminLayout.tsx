@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Menu,
   X,
@@ -18,35 +18,49 @@ import {
   CreditCard,
   FileText
 } from 'lucide-react';
+import { usePermissions, PermissionKey } from '../../../hooks/usePermissions';
+import { PermissionDeniedModal } from '../../../components/PermissionDeniedModal';
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { hasPermission, showPermissionDenied, setShowPermissionDenied, deniedPermissionName, checkAndNavigate } = usePermissions();
 
+  // Define navigation with permission requirements
   const navigation = [
-    { name: 'Dashboard', href: '/admin/', icon: Home },
-    { name: 'Manage Users', href: '/admin/users', icon: Users },
-    { name: 'School Settings', href: '/admin/settings', icon: Settings },
-    { name: 'Academic Details', href: '/admin/academic-details', icon: GraduationCap },
+    { name: 'Dashboard', href: '/admin/', icon: Home, permission: null },
+    { name: 'Manage Users', href: '/admin/users', icon: Users, permission: 'manageUsers' as PermissionKey },
+    { name: 'School Settings', href: '/admin/settings', icon: Settings, permission: 'manageSchoolSettings' as PermissionKey },
+    { name: 'Academic Details', href: '/admin/academic-details', icon: GraduationCap, permission: 'viewAcademicDetails' as PermissionKey },
     {
       name: 'Attendance',
       icon: UserCheck,
+      permission: 'viewAttendance' as PermissionKey,
       children: [
-        { name: 'Mark Attendance', href: '/admin/attendance/mark' }
+        { name: 'Mark Attendance', href: '/admin/attendance/mark', permission: 'viewAttendance' as PermissionKey }
       ]
     },
-    { name: 'Assignments', href: '/admin/assignments', icon: BookOpen },
+    { name: 'Assignments', href: '/admin/assignments', icon: BookOpen, permission: 'viewAssignments' as PermissionKey },
     {
       name: 'Results',
       icon: BarChart3,
+      permission: 'viewResults' as PermissionKey,
       children: [
-        { name: 'View Results', href: '/admin/results' }
+        { name: 'View Results', href: '/admin/results', permission: 'viewResults' as PermissionKey }
       ]
     },
-    { name: 'Messages', href: '/admin/messages', icon: MessageSquare },
-    { name: 'Fees', href: '/admin/fees/structure', icon: CreditCard },
-    { name: 'Reports', href: '/admin/reports', icon: FileText },
+    { name: 'Messages', href: '/admin/messages', icon: MessageSquare, permission: 'messageStudentsParents' as PermissionKey },
+    { name: 'Fees', href: '/admin/fees/structure', icon: CreditCard, permission: 'viewFees' as PermissionKey },
+    { name: 'Reports', href: '/admin/reports', icon: FileText, permission: 'viewReports' as PermissionKey },
   ];
+
+  const handleNavClick = (e: React.MouseEvent, href: string, permission: PermissionKey | null, name: string) => {
+    if (permission && !hasPermission(permission)) {
+      e.preventDefault();
+      checkAndNavigate(permission, name, () => navigate(href));
+    }
+  };
 
   const isActive = (href: string) => location.pathname === href;
 
@@ -71,6 +85,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       <Link
                         key={child.href}
                         to={child.href}
+                        onClick={(e) => handleNavClick(e, child.href, child.permission, child.name)}
                         className={`block px-4 py-2 text-sm rounded-lg transition-colors ${
                           isActive(child.href)
                             ? 'bg-blue-100 text-blue-700'
@@ -85,6 +100,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               ) : (
                 <Link
                   to={item.href}
+                  onClick={(e) => handleNavClick(e, item.href, item.permission, item.name)}
                   className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                     isActive(item.href)
                       ? 'bg-blue-100 text-blue-700'
@@ -132,6 +148,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       <Link
                         key={child.href}
                         to={child.href}
+                        onClick={(e) => handleNavClick(e, child.href, child.permission, child.name)}
                         className={`block px-4 py-2 text-sm rounded-lg transition-colors ${
                           isActive(child.href)
                             ? 'bg-blue-100 text-blue-700'
@@ -146,6 +163,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               ) : (
                 <Link
                   to={item.href}
+                  onClick={(e) => handleNavClick(e, item.href, item.permission, item.name)}
                   className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                     isActive(item.href)
                       ? 'bg-blue-100 text-blue-700'
@@ -160,6 +178,13 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ))}
         </nav>
       </div>
+
+      {/* Permission Denied Modal */}
+      <PermissionDeniedModal
+        isOpen={showPermissionDenied}
+        onClose={() => setShowPermissionDenied(false)}
+        permissionName={deniedPermissionName}
+      />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col">
