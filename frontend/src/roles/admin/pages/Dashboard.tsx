@@ -548,6 +548,18 @@ const Dashboard: React.FC = () => {
     }
   }, [users]);
 
+  // Helper function to get full logo URL
+  const getLogoUrl = (logoPath: string | undefined): string => {
+    if (!logoPath) return '';
+    if (logoPath.startsWith('http')) return logoPath;
+    if (logoPath.startsWith('/uploads')) {
+      const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+      const baseUrl = envBase.replace(/\/api\/?$/, '');
+      return `${baseUrl}${logoPath}`;
+    }
+    return logoPath;
+  };
+
   // Calculate stats from actual user data
   const totalStudents = users.filter(user => user.role === 'student').length;
   const totalTeachers = users.filter(user => user.role === 'teacher').length;
@@ -668,7 +680,7 @@ const Dashboard: React.FC = () => {
                 {school?.logoUrl && (
                   <div className="w-24 h-24 border border-gray-200 rounded-lg p-2 flex-shrink-0">
                     <img
-                      src={school.logoUrl}
+                      src={getLogoUrl(school.logoUrl)}
                       alt={`${school.name} logo`}
                       className="w-full h-full object-contain"
                     />
