@@ -7,20 +7,19 @@ const checkPermission = require('../middleware/permissionCheck');
 // Apply authentication middleware to all routes
 router.use(auth);
 
-// Attendance management routes - require markAttendance permission
-router.post('/mark', authorize(['admin', 'teacher']), checkPermission('markAttendance'), attendanceController.markAttendance);
-router.post('/mark-session', authorize(['admin', 'teacher']), checkPermission('markAttendance'), attendanceController.markSessionAttendance);
-router.post('/mark-bulk', authorize(['admin', 'teacher']), checkPermission('markAttendance'), attendanceController.markBulkAttendance);
+// Attendance routes - all require viewAttendance permission (simplified)
+// If user can view attendance, they can also mark it (for admin/teacher roles)
+router.post('/mark', authorize(['admin', 'teacher']), checkPermission('viewAttendance'), attendanceController.markAttendance);
+router.post('/mark-session', authorize(['admin', 'teacher']), checkPermission('viewAttendance'), attendanceController.markSessionAttendance);
+router.post('/mark-bulk', authorize(['admin', 'teacher']), checkPermission('viewAttendance'), attendanceController.markBulkAttendance);
+router.patch('/:attendanceId/lock', authorize(['admin', 'teacher']), checkPermission('viewAttendance'), attendanceController.lockAttendance);
 
-// View attendance routes - require viewAttendance permission
+// View attendance routes
 router.get('/', checkPermission('viewAttendance'), attendanceController.getAttendance);
 router.get('/session-status', checkPermission('viewAttendance'), attendanceController.checkSessionStatus);
 router.get('/class', checkPermission('viewAttendance'), attendanceController.getClassAttendance);
 router.get('/stats', checkPermission('viewAttendance'), attendanceController.getAttendanceStats);
 router.get('/daily-stats', checkPermission('viewAttendance'), attendanceController.getDailyAttendanceStats);
 router.get('/student-report', checkPermission('viewAttendance'), attendanceController.getStudentAttendanceReport);
-
-// Attendance-specific routes
-router.patch('/:attendanceId/lock', authorize(['admin', 'teacher']), checkPermission('markAttendance'), attendanceController.lockAttendance);
 
 module.exports = router;
