@@ -442,18 +442,33 @@ class UserGenerator {
         });
         
         if (user) {
+          // Determine role from collection name
+          const roleMap = {
+            'admins': 'admin',
+            'teachers': 'teacher',
+            'students': 'student',
+            'parents': 'parent'
+          };
+          const role = roleMap[collectionName] || user.role;
+          
           // Optionally remove password from return object
           if (includePassword) {
-            return {
+            const result = {
               ...user,
               collection: collectionName
             };
+            // Explicitly set role AFTER spreading to ensure it's not overridden
+            result.role = role;
+            return result;
           } else {
             const { password, ...userWithoutPassword } = user;
-            return {
+            const result = {
               ...userWithoutPassword,
               collection: collectionName
             };
+            // Explicitly set role AFTER spreading to ensure it's not overridden
+            result.role = role;
+            return result;
           }
         }
       }

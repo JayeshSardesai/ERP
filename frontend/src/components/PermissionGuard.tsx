@@ -12,14 +12,26 @@ interface PermissionGuardProps {
 export const PermissionGuard: React.FC<PermissionGuardProps> = ({ permission, permissionName, children }) => {
   const { hasPermission, showPermissionDenied, setShowPermissionDenied, deniedPermissionName, setDeniedPermissionName, loading, permissions } = usePermissions();
   const navigate = useNavigate();
+  const [hasCheckedPermission, setHasCheckedPermission] = React.useState(false);
 
-  // Set up modal when permission is denied - run this always (hooks must be top-level)
+  // Set up modal when permission is denied - only check once when permissions are loaded
   React.useEffect(() => {
-    if (!hasPermission(permission) && permission && !showPermissionDenied) {
-      setShowPermissionDenied(true);
-      setDeniedPermissionName(permissionName);
+    // Only check permission once loading is complete and we haven't checked yet
+    if (!loading && !hasCheckedPermission && permission) {
+      setHasCheckedPermission(true);
+      
+      // Only show modal if permission is denied
+      if (!hasPermission(permission)) {
+        setShowPermissionDenied(true);
+        setDeniedPermissionName(permissionName);
+      }
     }
-  }, [permission, permissionName, hasPermission, showPermissionDenied, setShowPermissionDenied, setDeniedPermissionName]);
+  }, [loading, hasCheckedPermission, permission, permissionName, hasPermission, setShowPermissionDenied, setDeniedPermissionName]);
+
+  // Reset check when permission changes (navigating to different page)
+  React.useEffect(() => {
+    setHasCheckedPermission(false);
+  }, [permission]);
 
   // Handle modal close - redirect to dashboard
   const handleModalClose = () => {
