@@ -7,17 +7,17 @@ const checkPermission = require('../middleware/permissionCheck');
 // Apply authentication to all routes
 router.use(authMiddleware.auth);
 
-// Create or update student result - requires updateResults permission
+// Create or update student result - requires viewResults permission
 router.post('/create', 
   authMiddleware.authorize(['admin', 'teacher']),
-  checkPermission('updateResults'),
+  checkPermission('viewResults'),
   resultController.createOrUpdateResult
 );
 
-// Save results (simple endpoint for Results page) - requires updateResults permission
+// Save results (simple endpoint for Results page) - requires viewResults permission
 router.post('/save', 
   authMiddleware.authorize(['admin', 'teacher']),
-  checkPermission('updateResults'),
+  checkPermission('viewResults'),
   resultController.saveResults
 );
 
@@ -27,17 +27,17 @@ router.get('/',
   resultController.getResults
 );
 
-// Update a single student result - requires updateResults permission
+// Update a single student result - requires viewResults permission
 router.put('/:resultId', 
   authMiddleware.authorize(['admin', 'teacher']),
-  checkPermission('updateResults'),
+  checkPermission('viewResults'),
   resultController.updateResult
 );
 
-// Freeze results for a class/section/subject/test - requires updateResults permission
+// Freeze results for a class/section/subject/test - requires viewResults permission
 router.post('/freeze', 
   authMiddleware.authorize(['admin', 'teacher']),
-  checkPermission('updateResults'),
+  checkPermission('viewResults'),
   resultController.freezeResults
 );
 

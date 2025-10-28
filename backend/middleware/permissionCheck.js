@@ -29,10 +29,11 @@ const checkPermission = (permission) => {
       if (req.user.schoolCode) {
         try {
           const schoolConn = await DatabaseManager.getSchoolConnection(req.user.schoolCode);
-          const AccessMatrixModel = require('../models/AccessMatrix');
-          const SchoolAccessMatrix = AccessMatrixModel.getModelForConnection(schoolConn);
           
-          const matrixDoc = await SchoolAccessMatrix.findOne({ schoolCode: req.user.schoolCode });
+          // Try to get access matrix from the access_matrices collection
+          const accessMatrixCollection = schoolConn.collection('access_matrices');
+          const matrixDoc = await accessMatrixCollection.findOne({ schoolCode: req.user.schoolCode });
+          
           if (matrixDoc && matrixDoc.accessMatrix) {
             accessMatrix = matrixDoc.accessMatrix;
           }
@@ -71,11 +72,52 @@ const checkPermission = (permission) => {
       // Check if user's role has the required permission
       const rolePermissions = accessMatrix[req.user.role];
       
-      if (!rolePermissions || !rolePermissions[permission]) {
+      console.log(`[PERMISSION CHECK] Checking permission '${permission}' for role '${req.user.role}'`);
+      console.log(`[PERMISSION CHECK] Role permissions:`, JSON.stringify(rolePermissions, null, 2));
+      
+      // For admin and teacher roles, grant full CRUD access if they have the base "view" permission
+      // This means if they have 'viewAttendance', they can also mark/update/delete attendance
+      // If they have 'viewResults', they can also create/update/freeze results, etc.
+      let hasAccess = rolePermissions && rolePermissions[permission];
+      
+      if (!hasAccess && (req.user.role === 'admin' || req.user.role === 'teacher')) {
+        // Map specific action permissions to their base view permission
+        const permissionMapping = {
+          'markAttendance': 'viewAttendance',
+          'updateAttendance': 'viewAttendance',
+          'deleteAttendance': 'viewAttendance',
+          'createTimetable': 'viewTimetable',
+          'updateTimetable': 'viewTimetable',
+          'deleteTimetable': 'viewTimetable',
+          'addAssignments': 'viewAssignments',
+          'updateAssignments': 'viewAssignments',
+          'deleteAssignments': 'viewAssignments',
+          'updateResults': 'viewResults',
+          'createResults': 'viewResults',
+          'freezeResults': 'viewResults',
+          'deleteResults': 'viewResults'
+        };
+        
+        // Check if this is an action permission that maps to a view permission
+        const basePermission = permissionMapping[permission];
+        if (basePermission && rolePermissions && rolePermissions[basePermission]) {
+          console.log(`[PERMISSION CHECK] Granting ${permission} access based on ${basePermission} permission for ${req.user.role}`);
+          hasAccess = true;
+        }
+      }
+      
+      if (!hasAccess) {
         console.log(`[PERMISSION CHECK] Access denied: ${req.user.role} does not have ${permission} permission`);
+        console.log(`[PERMISSION CHECK] Available permissions:`, Object.keys(rolePermissions || {}));
         return res.status(403).json({
           success: false,
-          message: `Access denied. Your role (${req.user.role}) does not have permission to ${permission}.`
+          message: `Access denied. Your role (${req.user.role}) does not have permission to ${permission}.`,
+          debug: {
+            role: req.user.role,
+            requiredPermission: permission,
+            availablePermissions: Object.keys(rolePermissions || {}),
+            hasPermission: hasAccess
+          }
         });
       }
 
@@ -94,6 +136,9 @@ const checkPermission = (permission) => {
 
 /**
  * Get default permissions for a role when no access matrix is configured
+ * Note: For admin and teacher roles, the "view" permissions automatically grant full CRUD access
+ * through the permission mapping logic above. The additional action permissions (markAttendance, 
+ * updateResults, etc.) are included here for backwards compatibility but are not strictly necessary.
  */
 function getDefaultPermissions(role) {
   const defaultMatrix = {

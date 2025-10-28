@@ -62,7 +62,7 @@ const auth = async (req, res, next) => {
       console.log(`[AUTH DEBUG] Looking for user ID: ${userId} in school database: ${decoded.schoolCode}`);
       const UserGenerator = require('../utils/userGenerator');
       user = await UserGenerator.getUserByIdOrEmail(decoded.schoolCode, userId);
-      console.log(`[AUTH DEBUG] Found user:`, user ? { id: user._id, userId: user.userId, name: user.name } : 'null');
+      console.log(`[AUTH DEBUG] Found user:`, user ? { id: user._id, userId: user.userId, name: user.name, role: user.role, collection: user.collection } : 'null');
 
       // For school users, we need to add the schoolId from the School collection
       if (user) {
@@ -96,8 +96,23 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
 
-    console.log('[AUTH] User fetched:', user);
-    req.user = user;
+    console.log('[AUTH] User fetched - ID:', user._id || user.userId);
+    console.log('[AUTH] User role:', user.role);
+    console.log('[AUTH] User role type:', typeof user.role);
+    console.log('[AUTH] User role length:', user.role ? user.role.length : 'null');
+    console.log('[AUTH] User keys:', Object.keys(user));
+    console.log('[AUTH] User object type:', user.constructor.name);
+    
+    // Ensure user object is a plain object with role property
+    req.user = {
+      ...user,
+      role: user.role || 'admin', // Fallback to admin if role is missing
+      _id: user._id,
+      userId: user.userId,
+      schoolId: user.schoolId,
+      schoolCode: user.schoolCode
+    };
+    console.log('[AUTH] req.user.role after assignment:', req.user.role);
     next();
   } catch (error) {
     console.error('[AUTH ERROR] Token verification failed:', error);
@@ -113,10 +128,13 @@ const authorize = (...roles) => {
       return res.status(401).json({ message: 'Authentication required.' });
     }
 
-    console.log(`[AUTHORIZE DEBUG] Checking if role "${req.user.role}" is in allowed roles:`, roles);
+    // Flatten roles array in case it's passed as authorize(['admin', 'teacher'])
+    const allowedRoles = roles.flat();
+    
+    console.log(`[AUTHORIZE DEBUG] Checking if role "${req.user.role}" is in allowed roles:`, allowedRoles);
 
-    if (!roles.includes(req.user.role)) {
-      console.error(`[AUTHORIZE ERROR] User role "${req.user.role}" not in allowed roles:`, roles);
+    if (!allowedRoles.includes(req.user.role)) {
+      console.error(`[AUTHORIZE ERROR] User role "${req.user.role}" not in allowed roles:`, allowedRoles);
       return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
     }
 

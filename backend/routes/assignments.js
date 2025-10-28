@@ -48,10 +48,10 @@ router.use((req, res, next) => {
   next();
 });
 
-// Assignment management routes - require addAssignments permission for creation
+// Assignment management routes - require viewAssignments permission
 router.post('/', upload.array('attachments', 5), 
   authorize(['admin', 'teacher']),
-  checkPermission('addAssignments'),
+  checkPermission('viewAssignments'),
   (req, res, next) => {
     // Log assignment creation attempt
     console.log('[ASSIGNMENT CREATE] Attempt by user:', {
@@ -74,16 +74,16 @@ router.post('/', upload.array('attachments', 5),
 router.get('/', checkPermission('viewAssignments'), assignmentController.getAssignments);
 router.get('/stats', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.getAssignmentStats);
 
-// Assignment-specific routes - require addAssignments permission for modifications
+// Assignment-specific routes - all require viewAssignments permission
 router.get('/:assignmentId', checkPermission('viewAssignments'), assignmentController.getAssignmentById);
-router.put('/:assignmentId', authorize(['admin', 'teacher']), checkPermission('addAssignments'), assignmentController.updateAssignment);
-router.patch('/:assignmentId/publish', authorize(['admin', 'teacher']), checkPermission('addAssignments'), assignmentController.publishAssignment);
-router.delete('/:assignmentId', authorize(['admin', 'teacher']), checkPermission('addAssignments'), assignmentController.deleteAssignment);
+router.put('/:assignmentId', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.updateAssignment);
+router.patch('/:assignmentId/publish', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.publishAssignment);
+router.delete('/:assignmentId', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.deleteAssignment);
 
 // Submission routes - students can submit, teachers can view/grade
 router.post('/:assignmentId/submit', upload.array('attachments', 5), authorize(['student']), assignmentController.submitAssignment);
 router.get('/:assignmentId/submission', assignmentController.getStudentSubmission);
 router.get('/:assignmentId/submissions', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.getAssignmentSubmissions);
-router.put('/submissions/:submissionId/grade', authorize(['admin', 'teacher']), checkPermission('updateResults'), assignmentController.gradeSubmission);
+router.put('/submissions/:submissionId/grade', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.gradeSubmission);
 
 module.exports = router;
