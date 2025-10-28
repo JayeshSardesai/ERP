@@ -17,8 +17,10 @@ router.patch('/:attendanceId/lock', authorize(['admin', 'teacher']), checkPermis
 // View attendance routes
 router.get('/', checkPermission('viewAttendance'), attendanceController.getAttendance);
 router.get('/session-status', checkPermission('viewAttendance'), attendanceController.checkSessionStatus);
+router.get('/session-data', checkPermission('viewAttendance'), attendanceController.getSessionAttendanceData);
 router.get('/class', checkPermission('viewAttendance'), attendanceController.getClassAttendance);
 router.get('/stats', checkPermission('viewAttendance'), attendanceController.getAttendanceStats);
+router.get('/overall-rate', checkPermission('viewAttendance'), attendanceController.getOverallAttendanceRate);
 router.get('/daily-stats', checkPermission('viewAttendance'), attendanceController.getDailyAttendanceStats);
 router.get('/student-report', checkPermission('viewAttendance'), attendanceController.getStudentAttendanceReport);
 

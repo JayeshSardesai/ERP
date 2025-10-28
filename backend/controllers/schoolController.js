@@ -1701,6 +1701,75 @@ exports.getSchoolInfo = async (req, res) => {
   }
 };
 
+// Get school info from school_info collection in school's database
+exports.getSchoolInfoFromDatabase = async (req, res) => {
+  try {
+    const schoolCode = req.user?.schoolCode || req.params.schoolCode;
+    
+    if (!schoolCode) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'School code is required' 
+      });
+    }
+
+    console.log(`[getSchoolInfoFromDatabase] Fetching school_info for: ${schoolCode}`);
+
+    // Get connection to the school's dedicated database
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const schoolInfoCollection = schoolConnection.collection('school_info');
+    
+    // Fetch school info document
+    const schoolInfo = await schoolInfoCollection.findOne({});
+    
+    if (!schoolInfo) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'School information not found in school database' 
+      });
+    }
+
+    console.log(`[getSchoolInfoFromDatabase] Found school: ${schoolInfo.name} (${schoolInfo.code})`);
+    
+    // Return school info from school's database
+    res.json({
+      success: true,
+      data: {
+        _id: schoolInfo._id,
+        name: schoolInfo.name,
+        code: schoolInfo.code,
+        address: schoolInfo.address,
+        contact: schoolInfo.contact,
+        principalName: schoolInfo.principalName,
+        principalEmail: schoolInfo.principalEmail,
+        mobile: schoolInfo.mobile,
+        bankDetails: schoolInfo.bankDetails,
+        settings: schoolInfo.settings,
+        features: schoolInfo.features,
+        stats: schoolInfo.stats,
+        schoolType: schoolInfo.schoolType,
+        establishedYear: schoolInfo.establishedYear,
+        affiliationBoard: schoolInfo.affiliationBoard,
+        website: schoolInfo.website,
+        secondaryContact: schoolInfo.secondaryContact,
+        logoUrl: schoolInfo.logoUrl,
+        isActive: schoolInfo.isActive,
+        createdAt: schoolInfo.createdAt,
+        updatedAt: schoolInfo.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching school info from database:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching school info from database', 
+      error: error.message 
+    });
+  }
+};
+
 // Update school
 exports.updateSchool = async (req, res) => {
   try {

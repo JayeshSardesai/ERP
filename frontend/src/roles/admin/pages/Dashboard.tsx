@@ -108,6 +108,8 @@ const Dashboard: React.FC = () => {
   const [gradeDistribution, setGradeDistribution] = useState<Array<{name: string, students: number}>>([]);
   const [dailyAttendance, setDailyAttendance] = useState<Array<{name: string, attendance: number}>>([]);
   const [todayAttendance, setTodayAttendance] = useState<{present: number, absent: number}>({present: 0, absent: 0});
+  const [morningAttendance, setMorningAttendance] = useState<{present: number, absent: number}>({present: 0, absent: 0});
+  const [afternoonAttendance, setAfternoonAttendance] = useState<{present: number, absent: number}>({present: 0, absent: 0});
 
   // Get auth token - improved to use AuthContext first
   const getAuthToken = () => {
@@ -160,15 +162,33 @@ const Dashboard: React.FC = () => {
           }
 
           try {
-            // Fetch school details using the /info endpoint which bypasses school database connection issues
-            console.log('📡 Fetching school details for identifier:', schoolIdentifier);
-            const schoolResponse = await api.get(`/schools/${schoolIdentifier}/info`);
-            console.log('✅ School response:', schoolResponse);
-            setSchool(schoolResponse.data);
+            // Try to fetch school details from school_info collection in school's database
+            console.log('📡 Fetching school details from school_info collection');
+            try {
+              const schoolResponse = await api.get('/schools/database/school-info');
+              console.log('✅ School response from school_info:', schoolResponse);
+              
+              // Extract data from nested response structure
+              const schoolData = schoolResponse.data?.data || schoolResponse.data;
+              console.log('📊 Extracted school data:', schoolData);
+              setSchool(schoolData);
 
-            debug.schoolFetch = { success: true, schoolName: schoolResponse.data?.name };
+              debug.schoolFetch = { success: true, source: 'school_info', schoolName: schoolData?.name };
+            } catch (schoolInfoErr: any) {
+              // Fallback to main database if school_info collection fails
+              console.warn('⚠️ Failed to fetch from school_info, trying main database:', schoolInfoErr.message);
+              const fallbackResponse = await api.get(`/schools/${schoolIdentifier}/info`);
+              console.log('✅ School response from main database:', fallbackResponse);
+              
+              const schoolData = fallbackResponse.data?.data || fallbackResponse.data;
+              console.log('📊 Extracted school data (fallback):', schoolData);
+              setSchool(schoolData);
+
+              debug.schoolFetch = { success: true, source: 'main_database', schoolName: schoolData?.name };
+            }
           } catch (schoolErr: any) {
             console.error('❌ Error fetching school:', schoolErr);
+            console.error('❌ Error details:', schoolErr.response?.data);
             debug.schoolFetch = {
               success: false,
               error: schoolErr.message,
@@ -271,7 +291,7 @@ const Dashboard: React.FC = () => {
   }, [user]);
   console.log(user);
 
-  // Fetch attendance statistics
+  // Fetch overall attendance rate (all sessions, days, sections)
   useEffect(() => {
     const fetchAttendanceStats = async () => {
       try {
@@ -279,7 +299,7 @@ const Dashboard: React.FC = () => {
         if (!token || !user?.schoolCode) return;
 
         const response = await fetch(
-          `http://localhost:5050/api/attendance/stats`,
+          `http://localhost:5050/api/attendance/overall-rate`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -290,14 +310,16 @@ const Dashboard: React.FC = () => {
 
         if (response.ok) {
           const data = await response.json();
-          if (data.success && data.attendanceRate) {
-            setAttendanceRate(data.attendanceRate);
-          } else if (data.averageAttendance !== undefined) {
-            setAttendanceRate(`${data.averageAttendance}%`);
+          console.log('📊 Overall attendance rate data:', data);
+          
+          if (data.success && data.attendanceRateFormatted) {
+            setAttendanceRate(data.attendanceRateFormatted);
+          } else if (data.overallAttendanceRate !== undefined) {
+            setAttendanceRate(`${data.overallAttendanceRate}%`);
           }
         }
       } catch (err) {
-        console.error('Error fetching attendance stats:', err);
+        console.error('Error fetching overall attendance rate:', err);
         // Keep default value on error
       }
     };
@@ -305,7 +327,7 @@ const Dashboard: React.FC = () => {
     fetchAttendanceStats();
   }, [user]);
 
-  // Fetch today's attendance for pie chart
+  // Fetch today's attendance for pie chart (both sessions)
   useEffect(() => {
     const fetchTodayAttendance = async () => {
       try {
@@ -315,6 +337,7 @@ const Dashboard: React.FC = () => {
         const today = new Date().toISOString().split('T')[0];
         console.log('📊 Fetching today\'s attendance for:', today);
 
+        // Fetch overall today's attendance
         const response = await fetch(
           `http://localhost:5050/api/attendance/stats?date=${today}`,
           {
@@ -333,6 +356,52 @@ const Dashboard: React.FC = () => {
             setTodayAttendance({
               present: data.presentCount || 0,
               absent: data.absentCount || 0
+            });
+          }
+        }
+
+        // Fetch morning session data
+        const morningResponse = await fetch(
+          `http://localhost:5050/api/attendance/session-data?date=${today}&session=morning`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (morningResponse.ok) {
+          const morningData = await morningResponse.json();
+          console.log('🌅 Morning attendance data:', morningData);
+          
+          if (morningData.success) {
+            setMorningAttendance({
+              present: morningData.presentCount || 0,
+              absent: morningData.absentCount || 0
+            });
+          }
+        }
+
+        // Fetch afternoon session data
+        const afternoonResponse = await fetch(
+          `http://localhost:5050/api/attendance/session-data?date=${today}&session=afternoon`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (afternoonResponse.ok) {
+          const afternoonData = await afternoonResponse.json();
+          console.log('🌆 Afternoon attendance data:', afternoonData);
+          
+          if (afternoonData.success) {
+            setAfternoonAttendance({
+              present: afternoonData.presentCount || 0,
+              absent: afternoonData.absentCount || 0
             });
           }
         }
@@ -501,10 +570,16 @@ const Dashboard: React.FC = () => {
     { name: 'Sun', attendance: 0 },
   ];
 
-  // Dynamic pie data based on today's attendance
-  const pieData = [
-    { name: 'Present', value: todayAttendance.present, color: '#10B981' },
-    { name: 'Absent', value: todayAttendance.absent, color: '#EF4444' },
+  // Dynamic pie data for morning session
+  const morningPieData = [
+    { name: 'Present', value: morningAttendance.present, color: '#10B981' },
+    { name: 'Absent', value: morningAttendance.absent, color: '#EF4444' },
+  ];
+
+  // Dynamic pie data for afternoon session
+  const afternoonPieData = [
+    { name: 'Present', value: afternoonAttendance.present, color: '#10B981' },
+    { name: 'Absent', value: afternoonAttendance.absent, color: '#EF4444' },
   ];
 
   return (
@@ -585,181 +660,93 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* School Info Card */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <div className="flex flex-col md:flex-row items-start md:items-center">
-              {school?.logoUrl && (
-                <div className="w-24 h-24 mr-6 mb-4 md:mb-0 rounded-lg overflow-hidden flex-shrink-0">
-                  <img
-                    src={school.logoUrl}
-                    alt={`${school.name} logo`}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              )}
-              <div className="flex-grow">
-                <h2 className="text-2xl font-bold text-gray-900">{school?.name || user?.schoolName || 'Your School'}</h2>
-                <p className="text-gray-500 mb-2">School Code: {school?.code || 'N/A'}</p>
-
-                {/* Principal Information */}
-                {school?.principalName && (
-                  <p className="text-gray-600 mb-2">
-                    <strong>Principal:</strong> {school.principalName}
-                    {school?.principalEmail && (
-                      <span className="text-gray-500 ml-2">({school.principalEmail})</span>
+          {/* School Info Header */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-6">
+              <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+                {/* School Logo */}
+                {school?.logoUrl && (
+                  <div className="w-24 h-24 border border-gray-200 rounded-lg p-2 flex-shrink-0">
+                    <img
+                      src={school.logoUrl}
+                      alt={`${school.name} logo`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                )}
+                
+                {/* School Info */}
+                <div className="flex-grow text-center md:text-left">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">{school?.name || user?.schoolName || 'Your School'}</h2>
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-3">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                      </svg>
+                      {school?.code || 'N/A'}
+                    </span>
+                    {school?.schoolType && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300">
+                        {school.schoolType} School
+                      </span>
                     )}
-                  </p>
-                )}
-
-                {/* Academic Information */}
-                {(school?.settings?.academicYear?.currentYear || school?.settings?.classes?.length || school?.settings?.subjects?.length) && (
-                  <div className="bg-gray-50 p-3 rounded-lg mb-4">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Academic Information</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                      {school?.settings?.academicYear?.currentYear && (
-                        <div>
-                          <span className="text-gray-600 font-medium">Academic Year:</span>
-                          <span className="text-gray-800 ml-1">{school.settings.academicYear.currentYear}</span>
-                        </div>
-                      )}
-                      {school?.settings?.classes?.length && (
-                        <div>
-                          <span className="text-gray-600 font-medium">Classes:</span>
-                          <span className="text-gray-800 ml-1">{school.settings.classes.length} classes</span>
-                        </div>
-                      )}
-                      {school?.settings?.subjects?.length && (
-                        <div>
-                          <span className="text-gray-600 font-medium">Subjects:</span>
-                          <span className="text-gray-800 ml-1">{school.settings.subjects.length} subjects</span>
-                        </div>
-                      )}
-                    </div>
+                    {school?.affiliationBoard && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300">
+                        {school.affiliationBoard}
+                      </span>
+                    )}
                   </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                  {/* Complete Address */}
-                  <div className="flex items-start">
-                    <Building className="h-5 w-5 text-gray-400 mr-2 mt-0.5" />
-                    <div>
-                      <span className="text-gray-600 block">
-                        {school?.address?.street && school?.address?.area && school?.address?.city ?
-                          `${school.address.street}, ${school.address.area}, ${school.address.city}` :
-                          school?.address?.street && school?.address?.city ?
-                            `${school.address.street}, ${school.address.city}` :
-                            school?.address?.street || school?.address?.city || 'Address not available'}
+                  
+                  {/* Address */}
+                  {school?.address && (
+                    <div className="flex items-start justify-center md:justify-start text-gray-600 mb-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 mt-0.5 flex-shrink-0">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      <span className="text-sm">
+                        {school.address.street && school.address.city
+                          ? `${school.address.street}, ${school.address.city}`
+                          : school.address.street || school.address.city || 'Address not available'}
+                        {school.address.state && `, ${school.address.state}`}
+                        {school.address.pinCode && ` - ${school.address.pinCode}`}
                       </span>
-                      {school?.address?.district && (
-                        <span className="text-gray-500 text-sm">{school.address.district}</span>
-                      )}
-                      {school?.address?.state && (
-                        <span className="text-gray-500 text-sm block">{school.address.state}</span>
-                      )}
-                      {school?.address?.pinCode && (
-                        <span className="text-gray-500 text-sm">PIN: {school.address.pinCode}</span>
-                      )}
                     </div>
+                  )}
+
+                  {/* Contact Info */}
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-gray-600 text-sm">
+                    {(school?.contact?.phone || school?.mobile) && (
+                      <div className="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
+                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                        {school.contact?.phone || school.mobile}
+                      </div>
+                    )}
+                    {(school?.contact?.email || school?.principalEmail) && (
+                      <div className="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
+                          <rect width="20" height="16" x="2" y="4" rx="2"></rect>
+                          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                        </svg>
+                        {school.contact?.email || school.principalEmail}
+                      </div>
+                    )}
+                    {(school?.contact?.website || school?.website) && (
+                      <div className="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="2" x2="22" y1="12" y2="12"></line>
+                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                        <a href={(school.contact?.website || school.website)?.startsWith('http') ? (school.contact?.website || school.website) : `https://${school.contact?.website || school.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                          {school.contact?.website || school.website}
+                        </a>
+                      </div>
+                    )}
                   </div>
-
-                  {/* Primary Phone */}
-                  {(school?.contact?.phone || school?.mobile) && (
-                    <div className="flex items-center">
-                      <Phone className="h-5 w-5 text-gray-400 mr-2" />
-                      <div>
-                        <span className="text-gray-600">{school.contact?.phone || school.mobile}</span>
-                        {school?.secondaryContact && (
-                          <span className="text-gray-500 text-sm block">Alt: {school.secondaryContact}</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Email */}
-                  {(school?.contact?.email || school?.principalEmail) && (
-                    <div className="flex items-center">
-                      <Mail className="h-5 w-5 text-gray-400 mr-2" />
-                      <span className="text-gray-600">{school.contact?.email || school.principalEmail}</span>
-                    </div>
-                  )}
-
-                  {/* Website */}
-                  {(school?.contact?.website || school?.website) && (
-                    <div className="flex items-center">
-                      <MapPin className="h-5 w-5 text-gray-400 mr-2" />
-                      <a
-                        href={(school.contact?.website || school.website)?.startsWith('http') ?
-                          (school.contact?.website || school.website) :
-                          `https://${school.contact?.website || school.website}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        {school.contact?.website || school.website}
-                      </a>
-                    </div>
-                  )}
-
-                  {/* School Type & Established Year */}
-                  {(school?.schoolType || school?.establishedYear) && (
-                    <div className="flex items-center">
-                      <Building className="h-5 w-5 text-gray-400 mr-2" />
-                      <div>
-                        {school?.schoolType && (
-                          <span className="text-gray-600 block">{school.schoolType} School</span>
-                        )}
-                        {school?.establishedYear && (
-                          <span className="text-gray-500 text-sm">Est. {school.establishedYear}</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Affiliation Board */}
-                  {school?.affiliationBoard && (
-                    <div className="flex items-center">
-                      <TrendingUp className="h-5 w-5 text-gray-400 mr-2" />
-                      <span className="text-gray-600">{school.affiliationBoard} Affiliated</span>
-                    </div>
-                  )}
-
-                  {/* Working Hours */}
-                  {school?.settings?.workingHours && (
-                    <div className="flex items-center">
-                      <Clock className="h-5 w-5 text-gray-400 mr-2" />
-                      <span className="text-gray-600">
-                        {school.settings.workingHours.start} - {school.settings.workingHours.end}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Working Days */}
-                  {school?.settings?.workingDays && school.settings.workingDays.length > 0 && (
-                    <div className="flex items-center">
-                      <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-                      <span className="text-gray-600">
-                        {school.settings.workingDays.join(', ')}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* School Features */}
-                  {school?.features && (
-                    <div className="flex items-start">
-                      <TrendingUp className="h-5 w-5 text-gray-400 mr-2 mt-0.5" />
-                      <div>
-                        <span className="text-gray-600 text-sm">
-                          {[
-                            school.features.hasTransport && 'Transport',
-                            school.features.hasCanteen && 'Canteen',
-                            school.features.hasLibrary && 'Library',
-                            school.features.hasSports && 'Sports',
-                            school.features.hasComputerLab && 'Computer Lab'
-                          ].filter(Boolean).join(', ') || 'Basic facilities'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -887,23 +874,39 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Today's Attendance - Centered and Bigger */}
-          <div className="flex justify-center">
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 w-full max-w-2xl">
-              <h3 className="text-xl font-semibold text-gray-900 mb-6 text-center">Today's Attendance Overview</h3>
-              <ResponsiveContainer width="100%" height={350}>
+          {/* Today's Attendance - Morning and Afternoon Sessions */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Morning Session */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center justify-center mb-4">
+                <div className="bg-yellow-100 p-2 rounded-full mr-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-600">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Morning Session</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
-                    data={pieData}
+                    data={morningPieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={80}
-                    outerRadius={120}
+                    innerRadius={50}
+                    outerRadius={80}
                     dataKey="value"
                     label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(1)}%)`}
                     labelLine={true}
                   >
-                    {pieData.map((entry, index) => (
+                    {morningPieData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -913,21 +916,70 @@ const Dashboard: React.FC = () => {
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex justify-center space-x-8 mt-6">
-                {pieData.map((item) => (
+              <div className="flex justify-center space-x-6 mt-4">
+                {morningPieData.map((item) => (
                   <div key={item.name} className="flex items-center">
-                    <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: item.color }}></div>
+                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.color }}></div>
                     <div>
-                      <span className="text-lg font-semibold text-gray-900">{item.name}</span>
-                      <span className="text-2xl font-bold text-gray-900 ml-3">{item.value}</span>
-                      <span className="text-sm text-gray-500 ml-1">students</span>
+                      <span className="text-sm font-medium text-gray-700">{item.name}</span>
+                      <span className="text-xl font-bold text-gray-900 ml-2">{item.value}</span>
                     </div>
                   </div>
                 ))}
               </div>
-              {(todayAttendance.present + todayAttendance.absent) > 0 && (
-                <div className="text-center mt-4 text-sm text-gray-500">
-                  Total: {todayAttendance.present + todayAttendance.absent} students marked
+              {(morningAttendance.present + morningAttendance.absent) > 0 && (
+                <div className="text-center mt-3 text-xs text-gray-500">
+                  Total: {morningAttendance.present + morningAttendance.absent} students
+                </div>
+              )}
+            </div>
+
+            {/* Afternoon Session */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center justify-center mb-4">
+                <div className="bg-orange-100 p-2 rounded-full mr-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-600">
+                    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Afternoon Session</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={afternoonPieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(1)}%)`}
+                    labelLine={true}
+                  >
+                    {afternoonPieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => [`${value} students`, 'Count']}
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex justify-center space-x-6 mt-4">
+                {afternoonPieData.map((item) => (
+                  <div key={item.name} className="flex items-center">
+                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.color }}></div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{item.name}</span>
+                      <span className="text-xl font-bold text-gray-900 ml-2">{item.value}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {(afternoonAttendance.present + afternoonAttendance.absent) > 0 && (
+                <div className="text-center mt-3 text-xs text-gray-500">
+                  Total: {afternoonAttendance.present + afternoonAttendance.absent} students
                 </div>
               )}
             </div>

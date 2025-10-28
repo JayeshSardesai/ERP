@@ -780,7 +780,7 @@ exports.getDailyAttendanceStats = async (req, res) => {
 
     console.log(`[DAILY STATS] Found ${sessions.length} sessions`);
 
-    // Group by date and calculate daily attendance rate
+    // Group by date and calculate daily attendance rate from students array
     const dailyMap = {};
 
     sessions.forEach(session => {
@@ -790,23 +790,40 @@ exports.getDailyAttendanceStats = async (req, res) => {
         dailyMap[dateStr] = {
           date: dateStr,
           totalPresent: 0,
-          totalAbsent: 0
+          totalAbsent: 0,
+          totalHalfDay: 0
         };
       }
 
-      dailyMap[dateStr].totalPresent += (session.successCount || 0);
-      dailyMap[dateStr].totalAbsent += (session.failCount || 0);
+      // Count from students array if available
+      if (session.students && Array.isArray(session.students)) {
+        session.students.forEach(student => {
+          const status = student.status?.toLowerCase();
+          if (status === 'present') {
+            dailyMap[dateStr].totalPresent++;
+          } else if (status === 'absent') {
+            dailyMap[dateStr].totalAbsent++;
+          } else if (status === 'half-day' || status === 'halfday') {
+            dailyMap[dateStr].totalHalfDay++;
+          }
+        });
+      } else {
+        // Fallback to successCount/failCount
+        dailyMap[dateStr].totalPresent += (session.successCount || 0);
+        dailyMap[dateStr].totalAbsent += (session.failCount || 0);
+      }
     });
 
     // Calculate attendance rate for each day
     const dailyStats = Object.values(dailyMap).map(day => {
-      const total = day.totalPresent + day.totalAbsent;
+      const total = day.totalPresent + day.totalAbsent + day.totalHalfDay;
       const attendanceRate = total > 0 ? Math.round((day.totalPresent / total) * 100 * 10) / 10 : 0;
       
       return {
         date: day.date,
         totalPresent: day.totalPresent,
         totalAbsent: day.totalAbsent,
+        totalHalfDay: day.totalHalfDay,
         totalRecords: total,
         attendanceRate
       };
@@ -890,27 +907,43 @@ exports.getAttendanceStats = async (req, res) => {
       });
     }
 
-    // Calculate statistics from session documents using successCount and failCount
+    // Calculate statistics from students array in each session document
     let totalPresent = 0;
     let totalAbsent = 0;
+    let totalHalfDay = 0;
     let totalSessions = sessionDocs.length;
 
     sessionDocs.forEach(doc => {
-      // successCount represents students present
-      // failCount represents students absent
-      const present = doc.successCount || 0;
-      const absent = doc.failCount || 0;
-      
-      totalPresent += present;
-      totalAbsent += absent;
-      
-      console.log(`[SESSION] ${doc.session || 'unknown'} on ${doc.dateString || doc.date}: Present=${present}, Absent=${absent}`);
+      // Count students by status from the students array
+      if (doc.students && Array.isArray(doc.students)) {
+        doc.students.forEach(student => {
+          const status = student.status?.toLowerCase();
+          if (status === 'present') {
+            totalPresent++;
+          } else if (status === 'absent') {
+            totalAbsent++;
+          } else if (status === 'half-day' || status === 'halfday') {
+            totalHalfDay++;
+          }
+        });
+        
+        console.log(`[SESSION] ${doc.session || 'unknown'} on ${doc.dateString || doc.date}: ${doc.students.length} students - Present=${doc.students.filter(s => s.status?.toLowerCase() === 'present').length}, Absent=${doc.students.filter(s => s.status?.toLowerCase() === 'absent').length}`);
+      } else {
+        // Fallback to successCount/failCount if students array doesn't exist
+        const present = doc.successCount || 0;
+        const absent = doc.failCount || 0;
+        
+        totalPresent += present;
+        totalAbsent += absent;
+        
+        console.log(`[SESSION FALLBACK] ${doc.session || 'unknown'} on ${doc.dateString || doc.date}: Present=${present}, Absent=${absent}`);
+      }
     });
 
-    const totalRecords = totalPresent + totalAbsent;
+    const totalRecords = totalPresent + totalAbsent + totalHalfDay;
     const averageAttendance = totalRecords > 0 ? Math.round((totalPresent / totalRecords) * 100 * 10) / 10 : 0;
 
-    console.log(`[ATTENDANCE STATS] Total: ${totalRecords}, Present: ${totalPresent}, Absent: ${totalAbsent}, Rate: ${averageAttendance}%`);
+    console.log(`[ATTENDANCE STATS] Total: ${totalRecords}, Present: ${totalPresent}, Absent: ${totalAbsent}, Half-Day: ${totalHalfDay}, Rate: ${averageAttendance}%`);
 
     res.json({
       success: true,
@@ -929,6 +962,195 @@ exports.getAttendanceStats = async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: 'Error fetching attendance stats', 
+      error: error.message 
+    });
+  }
+};
+
+// Get session-specific attendance data (morning or afternoon)
+exports.getSessionAttendanceData = async (req, res) => {
+  try {
+    const { date, session } = req.query;
+
+    // Check if user has access
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    if (!date || !session) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Date and session parameters are required' 
+      });
+    }
+
+    if (!['morning', 'afternoon'].includes(session.toLowerCase())) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Session must be either "morning" or "afternoon"' 
+      });
+    }
+
+    const schoolCode = req.user.schoolCode;
+    
+    // Use school-specific database for attendance
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const attendanceCollection = schoolConnection.collection('attendances');
+
+    // Build query for specific date and session
+    const targetDate = new Date(date);
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const query = {
+      date: {
+        $gte: targetDate,
+        $lt: nextDay
+      },
+      session: session.toLowerCase()
+    };
+
+    // Fetch session documents
+    const sessionDocs = await attendanceCollection.find(query).toArray();
+
+    console.log(`[SESSION DATA] Found ${sessionDocs.length} ${session} session documents for ${date}`);
+
+    if (sessionDocs.length === 0) {
+      return res.json({
+        success: true,
+        session: session.toLowerCase(),
+        date,
+        presentCount: 0,
+        absentCount: 0,
+        halfDayCount: 0,
+        totalRecords: 0,
+        attendanceRate: 0
+      });
+    }
+
+    // Calculate statistics from students array
+    let totalPresent = 0;
+    let totalAbsent = 0;
+    let totalHalfDay = 0;
+
+    sessionDocs.forEach(doc => {
+      if (doc.students && Array.isArray(doc.students)) {
+        doc.students.forEach(student => {
+          const status = student.status?.toLowerCase();
+          if (status === 'present') {
+            totalPresent++;
+          } else if (status === 'absent') {
+            totalAbsent++;
+          } else if (status === 'half-day' || status === 'halfday') {
+            totalHalfDay++;
+          }
+        });
+      }
+    });
+
+    const totalRecords = totalPresent + totalAbsent + totalHalfDay;
+    const attendanceRate = totalRecords > 0 ? Math.round((totalPresent / totalRecords) * 100 * 10) / 10 : 0;
+
+    console.log(`[SESSION DATA] ${session} - Present: ${totalPresent}, Absent: ${totalAbsent}, Half-Day: ${totalHalfDay}, Rate: ${attendanceRate}%`);
+
+    res.json({
+      success: true,
+      session: session.toLowerCase(),
+      date,
+      presentCount: totalPresent,
+      absentCount: totalAbsent,
+      halfDayCount: totalHalfDay,
+      totalRecords,
+      attendanceRate,
+      attendanceRateFormatted: `${attendanceRate}%`
+    });
+
+  } catch (error) {
+    console.error('Error fetching session attendance data:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching session attendance data', 
+      error: error.message 
+    });
+  }
+};
+
+// Get overall attendance rate for all sessions, days, and sections
+exports.getOverallAttendanceRate = async (req, res) => {
+  try {
+    // Check if user has access
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const schoolCode = req.user.schoolCode;
+    
+    // Use school-specific database for attendance
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const attendanceCollection = schoolConnection.collection('attendances');
+
+    // Fetch ALL attendance session documents (no filters)
+    const allSessionDocs = await attendanceCollection.find({}).toArray();
+
+    console.log(`[OVERALL ATTENDANCE] Found ${allSessionDocs.length} total session documents for school: ${schoolCode}`);
+
+    if (allSessionDocs.length === 0) {
+      return res.json({
+        success: true,
+        totalSessions: 0,
+        totalPresent: 0,
+        totalAbsent: 0,
+        totalHalfDay: 0,
+        totalRecords: 0,
+        overallAttendanceRate: 0,
+        attendanceRateFormatted: '0.0%'
+      });
+    }
+
+    // Calculate statistics from students array in ALL session documents
+    let totalPresent = 0;
+    let totalAbsent = 0;
+    let totalHalfDay = 0;
+
+    allSessionDocs.forEach(doc => {
+      // Count students by status from the students array
+      if (doc.students && Array.isArray(doc.students)) {
+        doc.students.forEach(student => {
+          const status = student.status?.toLowerCase();
+          if (status === 'present') {
+            totalPresent++;
+          } else if (status === 'absent') {
+            totalAbsent++;
+          } else if (status === 'half-day' || status === 'halfday') {
+            totalHalfDay++;
+          }
+        });
+      }
+    });
+
+    const totalRecords = totalPresent + totalAbsent + totalHalfDay;
+    const overallAttendanceRate = totalRecords > 0 ? Math.round((totalPresent / totalRecords) * 100 * 10) / 10 : 0;
+
+    console.log(`[OVERALL ATTENDANCE] Total Sessions: ${allSessionDocs.length}, Total Records: ${totalRecords}, Present: ${totalPresent}, Absent: ${totalAbsent}, Half-Day: ${totalHalfDay}, Overall Rate: ${overallAttendanceRate}%`);
+
+    res.json({
+      success: true,
+      totalSessions: allSessionDocs.length,
+      totalPresent,
+      totalAbsent,
+      totalHalfDay,
+      totalRecords,
+      overallAttendanceRate,
+      attendanceRateFormatted: `${overallAttendanceRate}%`
+    });
+
+  } catch (error) {
+    console.error('Error fetching overall attendance rate:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching overall attendance rate', 
       error: error.message 
     });
   }
