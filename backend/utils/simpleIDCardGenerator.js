@@ -14,6 +14,45 @@ class SimpleIDCardGenerator {
   }
 
   /**
+   * Calculate optimal font size and chars per line to prevent overflow
+   */
+  calculateOptimalTextSize(text, options = {}) {
+    const {
+      fontSize = 24,
+      maxWidth = 400,
+      maxCharsPerLine = 40,
+      minFontSize = 12,
+      maxLines = 2
+    } = options;
+
+    let currentFontSize = fontSize;
+    let currentCharsPerLine = maxCharsPerLine;
+    const textLength = String(text).length;
+
+    // If text is short enough, use original settings
+    if (textLength <= maxCharsPerLine) {
+      return { fontSize: currentFontSize, maxCharsPerLine: currentCharsPerLine };
+    }
+
+    // Calculate how many lines we'd need with current settings
+    let lines = this.wrapText(text, currentCharsPerLine);
+
+    // If text exceeds maxLines, reduce font size and increase chars per line
+    while (lines.length > maxLines && currentFontSize > minFontSize) {
+      // Reduce font size by 10%
+      currentFontSize = Math.max(minFontSize, Math.floor(currentFontSize * 0.9));
+
+      // Increase chars per line proportionally (15% increase for better fitting)
+      currentCharsPerLine = Math.floor(currentCharsPerLine * 1.15);
+
+      // Recalculate lines
+      lines = this.wrapText(text, currentCharsPerLine);
+    }
+
+    return { fontSize: currentFontSize, maxCharsPerLine: currentCharsPerLine };
+  }
+
+  /**
    * Wrap text into multiple lines based on maxWidth
    */
   wrapText(text, maxCharsPerLine = 40) {
@@ -24,15 +63,32 @@ class SimpleIDCardGenerator {
     let currentLine = '';
 
     for (const word of words) {
-      const testLine = currentLine ? `${currentLine} ${word}` : word;
-
-      if (testLine.length <= maxCharsPerLine) {
-        currentLine = testLine;
-      } else {
+      // If the word itself is longer than maxCharsPerLine, break it
+      if (word.length > maxCharsPerLine) {
+        // Push current line if it exists
         if (currentLine) {
           lines.push(currentLine);
+          currentLine = '';
         }
-        currentLine = word;
+        
+        // Break the long word into chunks
+        let remainingWord = word;
+        while (remainingWord.length > maxCharsPerLine) {
+          lines.push(remainingWord.substring(0, maxCharsPerLine));
+          remainingWord = remainingWord.substring(maxCharsPerLine);
+        }
+        currentLine = remainingWord;
+      } else {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+
+        if (testLine.length <= maxCharsPerLine) {
+          currentLine = testLine;
+        } else {
+          if (currentLine) {
+            lines.push(currentLine);
+          }
+          currentLine = word;
+        }
       }
     }
 
@@ -54,7 +110,8 @@ class SimpleIDCardGenerator {
       fontWeight = 'bold',
       maxWidth = 400,
       lineHeight = 1.2,
-      maxCharsPerLine = 40
+      maxCharsPerLine = 40,
+      textAlign = 'left'
     } = options;
 
     // Wrap text into multiple lines
@@ -74,8 +131,16 @@ class SimpleIDCardGenerator {
 
       const y = fontSize + (index * fontSize * lineHeight);
 
+      // Calculate x position based on alignment
+      let x = 0;
+      if (textAlign === 'center') {
+        // Approximate text width (rough estimation: 0.6 * fontSize per character)
+        const estimatedWidth = line.length * fontSize * 0.6;
+        x = (maxWidth - estimatedWidth) / 2;
+      }
+
       return `<text 
-        x="0" 
+        x="${x}" 
         y="${y}" 
         font-family="${fontFamily}" 
         font-size="${fontSize}px" 
@@ -136,10 +201,10 @@ class SimpleIDCardGenerator {
     if (orientation === 'landscape' && side === 'front') {
       return {
         schoolLogo: { x: 170, y: 60, width: 80, height: 80 },
-        schoolName: { x: 265, y: 58, fontSize: 34, fontWeight: 'bold', maxWidth: 700, multiLine: true, maxCharsPerLine: 70, lineHeight: 1.2 },
-        schoolAddress: { x: 265, y: 105, fontSize: 20, fontWeight: 'normal', maxWidth: 700, multiLine: true, maxCharsPerLine: 80, lineHeight: 1.0 },
+        schoolName: { x: 265, y: 58, fontSize: 34, fontWeight: 'bold', maxWidth: 700, multiLine: true, maxCharsPerLine: 70, lineHeight: 1.1, minFontSize: 20, maxLines: 2, autoSize: true },
+        schoolAddress: { x: 265, y: 105, fontSize: 20, fontWeight: 'normal', maxWidth: 700, multiLine: true, maxCharsPerLine: 80, lineHeight: 1.0, minFontSize: 14, maxLines: 2, autoSize: true },
         photo: { x: 60, y: 180, width: 235, height: 300 },
-        name: { x: 580, y: 203, fontSize: 26 },
+        name: { x: 580, y: 203, fontSize: 26, fontWeight: 'bold', maxWidth: 400, multiLine: true, maxCharsPerLine: 25, lineHeight: 1.1, minFontSize: 18, maxLines: 2, autoSize: true },
         idNumber: { x: 580, y: 253, fontSize: 26 },
         classSection: { x: 580, y: 302, fontSize: 26 },
         dob: { x: 580, y: 348, fontSize: 26 },
@@ -147,20 +212,20 @@ class SimpleIDCardGenerator {
       };
     } else if (orientation === 'landscape' && side === 'back') {
       return {
-        address: { x: 400, y: 116, fontSize: 23, fontWeight: 'bold', maxWidth: 500, multiLine: true, maxCharsPerLine: 45, lineHeight: 1.3 },
+        address: { x: 400, y: 116, fontSize: 23, fontWeight: 'bold', maxWidth: 500, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.3, minFontSize: 16, maxLines: 3, autoSize: true },
         mobile: { x: 520, y: 183, fontSize: 23, fontWeight: 'bold', maxWidth: 200 },
-        returnSchoolName: { x: 270, y: 415, fontSize: 23, fontWeight: 'bold', maxWidth: 750, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2 },
-        returnAddress: { x: 270, y: 450, fontSize: 23, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2 },
+        returnSchoolName: { x: 270, y: 415, fontSize: 23, fontWeight: 'bold', maxWidth: 750, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
+        returnAddress: { x: 270, y: 450, fontSize: 23, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
         schoolPhone: { x: 270, y: 510, fontSize: 20, fontWeight: 'bold', maxWidth: 650 },
         schoolEmail: { x: 470, y: 510, fontSize: 20, fontWeight: 'bold', maxWidth: 650 }
       };
     } else if (orientation === 'portrait' && side === 'front') {
       return {
         schoolLogo: { x: 70, y: 50, width: 80, height: 80 },
-        schoolName: { x: 185, y: 55, fontSize: 30, fontWeight: 'bold', maxWidth: 400, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2 },
-        schoolAddress: { x: 185, y: 95, fontSize: 14, fontWeight: 'normal', maxWidth: 500, multiLine: true, maxCharsPerLine: 60, lineHeight: 1.2 },
+        schoolName: { x: 185, y: 55, fontSize: 30, fontWeight: 'bold', maxWidth: 400, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.1, minFontSize: 18, maxLines: 2, autoSize: true },
+        schoolAddress: { x: 185, y: 95, fontSize: 14, fontWeight: 'normal', maxWidth: 500, multiLine: true, maxCharsPerLine: 60, lineHeight: 1.2, minFontSize: 10, maxLines: 2, autoSize: true },
         photo: { x: 175, y: 195, width: 240, height: 300 },
-        name: { x: 340, y: 557, fontSize: 24, fontWeight: 'bold' },
+        name: { x: 340, y: 557, fontSize: 24, fontWeight: 'bold', maxWidth: 200, multiLine: true, maxCharsPerLine: 11, lineHeight: 1.1, minFontSize: 12, maxLines: 2, autoSize: true },
         idNumber: { x: 340, y: 605, fontSize: 24, fontWeight: 'bold' },
         classSection: { x: 340, y: 655, fontSize: 24, fontWeight: 'bold' },
         dob: { x: 340, y: 700, fontSize: 24, fontWeight: 'bold' },
@@ -168,10 +233,10 @@ class SimpleIDCardGenerator {
       };
     } else if (orientation === 'portrait' && side === 'back') {
       return {
-        address: { x: 75, y: 100, fontSize: 24, fontWeight: 'bold', maxWidth: 450, multiLine: true, maxCharsPerLine: 38, lineHeight: 1.3 },
+        address: { x: 75, y: 100, fontSize: 24, fontWeight: 'bold', maxWidth: 450, multiLine: true, maxCharsPerLine: 30, lineHeight: 1.3, minFontSize: 16, maxLines: 4, autoSize: true, textAlign: 'center' },
         mobile: { x: 295, y: 202, fontSize: 24, fontWeight: 'bold' },
-        returnSchoolName: { x: 70, y: 540, fontSize: 24, fontWeight: 'bold', maxWidth: 450, multiLine: true, maxCharsPerLine: 38, lineHeight: 1.2 },
-        returnAddress: { x: 70, y: 575, fontSize: 24, fontWeight: 'bold', maxWidth: 450, multiLine: true, maxCharsPerLine: 38, lineHeight: 1.2 },
+        returnSchoolName: { x: 70, y: 540, fontSize: 24, fontWeight: 'bold', maxWidth: 450, multiLine: true, maxCharsPerLine: 38, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
+        returnAddress: { x: 70, y: 575, fontSize: 24, fontWeight: 'bold', maxWidth: 450, multiLine: true, maxCharsPerLine: 38, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
         schoolPhone: { x: 70, y: 650, fontSize: 24, fontWeight: 'bold', maxWidth: 420 },
         schoolEmail: { x: 70, y: 680, fontSize: 24, fontWeight: 'bold', maxWidth: 420 }
       };
@@ -249,31 +314,85 @@ class SimpleIDCardGenerator {
 
       // Add school name (FRONT SIDE ONLY)
       if (side === 'front' && positions.schoolName && schoolInfo.schoolName) {
-        const textMethod = positions.schoolName.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
+        let fontSize = positions.schoolName.fontSize;
+        let maxCharsPerLine = positions.schoolName.maxCharsPerLine || 40;
+        let yPosition = positions.schoolName.y;
+        let allowMultiLine = false;
+
+        // Auto-size if enabled
+        if (positions.schoolName.autoSize) {
+          // Step 1: Try to fit in 1 line first
+          let optimal = this.calculateOptimalTextSize(schoolInfo.schoolName, {
+            fontSize: positions.schoolName.fontSize,
+            maxWidth: positions.schoolName.maxWidth,
+            maxCharsPerLine: positions.schoolName.maxCharsPerLine,
+            minFontSize: positions.schoolName.minFontSize || 12,
+            maxLines: 1
+          });
+
+          // Check if text still doesn't fit in 1 line even after reduction
+          const lines = this.wrapText(schoolInfo.schoolName, optimal.maxCharsPerLine);
+
+          if (lines.length > 1) {
+            // Step 2: Text needs 2 lines, recalculate with maxLines: 2
+            optimal = this.calculateOptimalTextSize(schoolInfo.schoolName, {
+              fontSize: optimal.fontSize, // Start from already reduced size
+              maxWidth: positions.schoolName.maxWidth,
+              maxCharsPerLine: optimal.maxCharsPerLine,
+              minFontSize: positions.schoolName.minFontSize || 12,
+              maxLines: 2
+            });
+
+            // Move text up to accommodate second line
+            yPosition = Math.max(positions.schoolName.y - 10, 45);
+            allowMultiLine = true;
+          }
+
+          fontSize = optimal.fontSize;
+          maxCharsPerLine = optimal.maxCharsPerLine;
+        }
+
+        const textMethod = (allowMultiLine || positions.schoolName.multiLine) ? 'createMultiLineTextSVG' : 'createTextSVG';
         compositeImages.push({
           input: this[textMethod](schoolInfo.schoolName, {
-            fontSize: positions.schoolName.fontSize,
+            fontSize: fontSize,
             color: '#000000',
             fontWeight: positions.schoolName.fontWeight || 'bold',
             maxWidth: positions.schoolName.maxWidth || 400,
-            maxCharsPerLine: positions.schoolName.maxCharsPerLine || 40,
+            maxCharsPerLine: maxCharsPerLine,
             lineHeight: positions.schoolName.lineHeight || 1.2
           }),
-          top: positions.schoolName.y,
+          top: yPosition,
           left: positions.schoolName.x
         });
       }
 
       // Add school address (FRONT SIDE ONLY)
       if (side === 'front' && positions.schoolAddress && schoolInfo.address) {
+        let fontSize = positions.schoolAddress.fontSize;
+        let maxCharsPerLine = positions.schoolAddress.maxCharsPerLine || 35;
+
+        // Auto-size if enabled
+        if (positions.schoolAddress.autoSize) {
+          const optimal = this.calculateOptimalTextSize(schoolInfo.address, {
+            fontSize: positions.schoolAddress.fontSize,
+            maxWidth: positions.schoolAddress.maxWidth,
+            maxCharsPerLine: positions.schoolAddress.maxCharsPerLine,
+            minFontSize: positions.schoolAddress.minFontSize || 12,
+            maxLines: positions.schoolAddress.maxLines || 2
+          });
+          fontSize = optimal.fontSize;
+          maxCharsPerLine = optimal.maxCharsPerLine;
+        }
+
         const textMethod = positions.schoolAddress.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
         compositeImages.push({
           input: this[textMethod](schoolInfo.address, {
-            fontSize: positions.schoolAddress.fontSize,
+            fontSize: fontSize,
             color: '#333333',
             fontWeight: positions.schoolAddress.fontWeight || 'normal',
             maxWidth: positions.schoolAddress.maxWidth || 400,
-            maxCharsPerLine: positions.schoolAddress.maxCharsPerLine || 35,
+            maxCharsPerLine: maxCharsPerLine,
             lineHeight: positions.schoolAddress.lineHeight || 1.2
           }),
           top: positions.schoolAddress.y,
@@ -316,13 +435,57 @@ class SimpleIDCardGenerator {
       if (side === 'front') {
         // Front side fields - NO LABELS, just values (labels already on template)
         if (positions.name) {
-          compositeImages.push({
-            input: this.createTextSVG(student.name, {
+          let fontSize = positions.name.fontSize;
+          let maxCharsPerLine = positions.name.maxCharsPerLine || 11;
+          let yPosition = positions.name.y;
+          let allowMultiLine = false;
+          const configuredMaxWidth = positions.name.maxWidth || 400;
+
+          // Auto-size student name if enabled
+          if (positions.name.autoSize && positions.name.multiLine) {
+            // Step 1: Try to fit in 1 line first
+            let optimal = this.calculateOptimalTextSize(student.name, {
               fontSize: positions.name.fontSize,
+              maxWidth: configuredMaxWidth,
+              maxCharsPerLine: positions.name.maxCharsPerLine || 11,
+              minFontSize: positions.name.minFontSize || 12,
+              maxLines: 1
+            });
+
+            // Check if text still doesn't fit in 1 line even after reduction
+            const lines = this.wrapText(student.name, optimal.maxCharsPerLine);
+
+            if (lines.length > 1) {
+              // Step 2: Text needs 2 lines, recalculate with maxLines: 2
+              optimal = this.calculateOptimalTextSize(student.name, {
+                fontSize: optimal.fontSize, // Start from already reduced size
+                maxWidth: configuredMaxWidth,
+                maxCharsPerLine: optimal.maxCharsPerLine,
+                minFontSize: positions.name.minFontSize || 12,
+                maxLines: 2
+              });
+
+              // Move text up to accommodate second line
+              yPosition = Math.max(positions.name.y - 8, positions.name.y - 12);
+              allowMultiLine = true;
+            }
+
+            fontSize = optimal.fontSize;
+            maxCharsPerLine = optimal.maxCharsPerLine;
+          }
+
+          const textMethod = allowMultiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
+
+          compositeImages.push({
+            input: this[textMethod](student.name, {
+              fontSize: fontSize,
               color: '#000000',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              maxWidth: configuredMaxWidth,
+              maxCharsPerLine: maxCharsPerLine,
+              lineHeight: positions.name.lineHeight || 1.1
             }),
-            top: positions.name.y,
+            top: yPosition,
             left: positions.name.x
           });
         }
@@ -389,17 +552,55 @@ class SimpleIDCardGenerator {
 
         // Local Address label (already on template, just add value after colon)
         if (positions.address && student.address) {
-          const textMethod = positions.address.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
+          let fontSize = positions.address.fontSize;
+          let maxCharsPerLine = positions.address.maxCharsPerLine || 50;
+          let yPosition = positions.address.y;
+          let allowMultiLine = false;
+
+          // Auto-size if enabled
+          if (positions.address.autoSize) {
+            // Step 1: Try to fit in 1 line first
+            let optimal = this.calculateOptimalTextSize(student.address, {
+              fontSize: positions.address.fontSize,
+              maxWidth: positions.address.maxWidth,
+              maxCharsPerLine: positions.address.maxCharsPerLine,
+              minFontSize: positions.address.minFontSize || 14,
+              maxLines: 1
+            });
+
+            // Check if text still doesn't fit in 1 line even after reduction
+            const lines = this.wrapText(student.address, optimal.maxCharsPerLine);
+
+            if (lines.length > 1) {
+              // Step 2: Text needs multiple lines, recalculate with maxLines: 3 or 4
+              const maxLinesAllowed = positions.address.maxLines || 3;
+              optimal = this.calculateOptimalTextSize(student.address, {
+                fontSize: optimal.fontSize, // Start from already reduced size
+                maxWidth: positions.address.maxWidth,
+                maxCharsPerLine: optimal.maxCharsPerLine,
+                minFontSize: positions.address.minFontSize || 14,
+                maxLines: maxLinesAllowed
+              });
+
+              allowMultiLine = true;
+            }
+
+            fontSize = optimal.fontSize;
+            maxCharsPerLine = optimal.maxCharsPerLine;
+          }
+
+          const textMethod = (allowMultiLine || positions.address.multiLine) ? 'createMultiLineTextSVG' : 'createTextSVG';
           compositeImages.push({
             input: this[textMethod](student.address, {
-              fontSize: positions.address.fontSize,
+              fontSize: fontSize,
               color: '#000000',
               fontWeight: positions.address.fontWeight || 'normal',
               maxWidth: positions.address.maxWidth || 600,
-              maxCharsPerLine: positions.address.maxCharsPerLine || 40,
-              lineHeight: positions.address.lineHeight || 1.2
+              maxCharsPerLine: maxCharsPerLine,
+              lineHeight: positions.address.lineHeight || 1.2,
+              textAlign: positions.address.textAlign || 'left'
             }),
-            top: positions.address.y,
+            top: yPosition,
             left: positions.address.x
           });
         }
@@ -419,14 +620,30 @@ class SimpleIDCardGenerator {
 
         // "If found return to" section - Add school name and address
         if (positions.returnSchoolName && schoolInfo.schoolName) {
+          let fontSize = positions.returnSchoolName.fontSize;
+          let maxCharsPerLine = positions.returnSchoolName.maxCharsPerLine || 40;
+
+          // Auto-size if enabled
+          if (positions.returnSchoolName.autoSize) {
+            const optimal = this.calculateOptimalTextSize(schoolInfo.schoolName, {
+              fontSize: positions.returnSchoolName.fontSize,
+              maxWidth: positions.returnSchoolName.maxWidth,
+              maxCharsPerLine: positions.returnSchoolName.maxCharsPerLine,
+              minFontSize: positions.returnSchoolName.minFontSize || 14,
+              maxLines: positions.returnSchoolName.maxLines || 2
+            });
+            fontSize = optimal.fontSize;
+            maxCharsPerLine = optimal.maxCharsPerLine;
+          }
+
           const textMethod = positions.returnSchoolName.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
           compositeImages.push({
             input: this[textMethod](schoolInfo.schoolName, {
-              fontSize: positions.returnSchoolName.fontSize,
+              fontSize: fontSize,
               color: '#000000',
               fontWeight: positions.returnSchoolName.fontWeight || 'bold',
               maxWidth: positions.returnSchoolName.maxWidth || 600,
-              maxCharsPerLine: positions.returnSchoolName.maxCharsPerLine || 40,
+              maxCharsPerLine: maxCharsPerLine,
               lineHeight: positions.returnSchoolName.lineHeight || 1.2
             }),
             top: positions.returnSchoolName.y,
@@ -435,14 +652,30 @@ class SimpleIDCardGenerator {
         }
 
         if (positions.returnAddress && schoolInfo.address) {
+          let fontSize = positions.returnAddress.fontSize;
+          let maxCharsPerLine = positions.returnAddress.maxCharsPerLine || 40;
+
+          // Auto-size if enabled
+          if (positions.returnAddress.autoSize) {
+            const optimal = this.calculateOptimalTextSize(schoolInfo.address, {
+              fontSize: positions.returnAddress.fontSize,
+              maxWidth: positions.returnAddress.maxWidth,
+              maxCharsPerLine: positions.returnAddress.maxCharsPerLine,
+              minFontSize: positions.returnAddress.minFontSize || 14,
+              maxLines: positions.returnAddress.maxLines || 2
+            });
+            fontSize = optimal.fontSize;
+            maxCharsPerLine = optimal.maxCharsPerLine;
+          }
+
           const textMethod = positions.returnAddress.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
           compositeImages.push({
             input: this[textMethod](schoolInfo.address, {
-              fontSize: positions.returnAddress.fontSize,
+              fontSize: fontSize,
               color: '#000000',
               fontWeight: positions.returnAddress.fontWeight || 'normal',
               maxWidth: positions.returnAddress.maxWidth || 600,
-              maxCharsPerLine: positions.returnAddress.maxCharsPerLine || 40,
+              maxCharsPerLine: maxCharsPerLine,
               lineHeight: positions.returnAddress.lineHeight || 1.2
             }),
             top: positions.returnAddress.y,
