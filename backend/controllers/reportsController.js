@@ -8,12 +8,14 @@ exports.getSchoolSummary = async (req, res) => {
   try {
     console.log('📊 Generating comprehensive school summary');
     
-    const { from, to, class: targetClass, section: targetSection } = req.query;
+    const { from, to, targetClass, targetSection } = req.query;
+    
+    console.log('📡 Received query params:', { from, to, targetClass, targetSection });
     
     const summary = await reportService.getSchoolSummary(
       req.user.schoolId,
       req.user.schoolCode,
-      { from, to, class: targetClass, section: targetSection }
+      { from, to, targetClass, targetSection }
     );
     
     res.json({
