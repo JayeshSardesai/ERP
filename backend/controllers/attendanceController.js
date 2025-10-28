@@ -836,7 +836,7 @@ exports.getDailyAttendanceStats = async (req, res) => {
 // Get attendance statistics
 exports.getAttendanceStats = async (req, res) => {
   try {
-    const { class: className, section, startDate, endDate } = req.query;
+    const { class: className, section, startDate, endDate, date } = req.query;
 
     // Check if user has access (more flexible role checking)
     if (!req.user) {
@@ -850,7 +850,16 @@ exports.getAttendanceStats = async (req, res) => {
     if (className && className !== 'all') matchQuery.class = className;
     if (section) matchQuery.section = section;
     
-    if (startDate && endDate) {
+    // Support single date query (for today's attendance)
+    if (date) {
+      const targetDate = new Date(date);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      matchQuery.date = {
+        $gte: targetDate,
+        $lt: nextDay
+      };
+    } else if (startDate && endDate) {
       matchQuery.date = {
         $gte: new Date(startDate),
         $lte: new Date(endDate)
@@ -873,6 +882,8 @@ exports.getAttendanceStats = async (req, res) => {
         totalSessions: 0,
         totalPresent: 0,
         totalAbsent: 0,
+        presentCount: 0,
+        absentCount: 0,
         totalRecords: 0,
         averageAttendance: 0,
         attendanceRate: '0.0%'
@@ -906,6 +917,8 @@ exports.getAttendanceStats = async (req, res) => {
       totalSessions,
       totalPresent,
       totalAbsent,
+      presentCount: totalPresent,
+      absentCount: totalAbsent,
       totalRecords,
       averageAttendance,
       attendanceRate: `${averageAttendance}%`

@@ -107,6 +107,7 @@ const Dashboard: React.FC = () => {
   const [attendanceRate, setAttendanceRate] = useState<string>('0.0%');
   const [gradeDistribution, setGradeDistribution] = useState<Array<{name: string, students: number}>>([]);
   const [dailyAttendance, setDailyAttendance] = useState<Array<{name: string, attendance: number}>>([]);
+  const [todayAttendance, setTodayAttendance] = useState<{present: number, absent: number}>({present: 0, absent: 0});
 
   // Get auth token - improved to use AuthContext first
   const getAuthToken = () => {
@@ -304,6 +305,45 @@ const Dashboard: React.FC = () => {
     fetchAttendanceStats();
   }, [user]);
 
+  // Fetch today's attendance for pie chart
+  useEffect(() => {
+    const fetchTodayAttendance = async () => {
+      try {
+        const token = getAuthToken();
+        if (!token || !user?.schoolCode) return;
+
+        const today = new Date().toISOString().split('T')[0];
+        console.log('📊 Fetching today\'s attendance for:', today);
+
+        const response = await fetch(
+          `http://localhost:5050/api/attendance/stats?date=${today}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📊 Today\'s attendance data:', data);
+          
+          if (data.success) {
+            setTodayAttendance({
+              present: data.presentCount || 0,
+              absent: data.absentCount || 0
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching today\'s attendance:', err);
+      }
+    };
+
+    fetchTodayAttendance();
+  }, [user]);
+
   // Fetch daily attendance data for the weekly graph
   useEffect(() => {
     const fetchDailyAttendance = async () => {
@@ -461,16 +501,10 @@ const Dashboard: React.FC = () => {
     { name: 'Sun', attendance: 0 },
   ];
 
+  // Dynamic pie data based on today's attendance
   const pieData = [
-    { name: 'Present', value: 1175, color: '#10B981' },
-    { name: 'Absent', value: 72, color: '#EF4444' },
-  ];
-
-  const recentActivities = [
-    { action: 'New student enrollment', time: '2 minutes ago', type: 'info' },
-    { action: 'Assignment deadline approaching', time: '15 minutes ago', type: 'warning' },
-    { action: 'New student admission completed', time: '1 hour ago', type: 'success' },
-    { action: 'Parent message received', time: '2 hours ago', type: 'info' },
+    { name: 'Present', value: todayAttendance.present, color: '#10B981' },
+    { name: 'Absent', value: todayAttendance.absent, color: '#EF4444' },
   ];
 
   return (
@@ -853,54 +887,49 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Attendance Overview */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Today's Attendance</h3>
-              <ResponsiveContainer width="100%" height={200}>
+          {/* Today's Attendance - Centered and Bigger */}
+          <div className="flex justify-center">
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 w-full max-w-2xl">
+              <h3 className="text-xl font-semibold text-gray-900 mb-6 text-center">Today's Attendance Overview</h3>
+              <ResponsiveContainer width="100%" height={350}>
                 <PieChart>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
+                    innerRadius={80}
+                    outerRadius={120}
                     dataKey="value"
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(1)}%)`}
+                    labelLine={true}
                   >
                     {pieData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip 
+                    formatter={(value: number) => [`${value} students`, 'Count']}
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex justify-center space-x-4 mt-2">
+              <div className="flex justify-center space-x-8 mt-6">
                 {pieData.map((item) => (
                   <div key={item.name} className="flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.color }}></div>
-                    <span className="text-sm text-gray-600">{item.name}: {item.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Recent Activities */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activities</h3>
-              <div className="space-y-4">
-                {recentActivities.map((activity, index) => (
-                  <div key={index} className="flex items-center p-3 rounded-lg bg-gray-50">
-                    <div className={`w-3 h-3 rounded-full mr-3 ${activity.type === 'success' ? 'bg-green-500' :
-                      activity.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-                      }`}></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                      <p className="text-xs text-gray-500">{activity.time}</p>
+                    <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: item.color }}></div>
+                    <div>
+                      <span className="text-lg font-semibold text-gray-900">{item.name}</span>
+                      <span className="text-2xl font-bold text-gray-900 ml-3">{item.value}</span>
+                      <span className="text-sm text-gray-500 ml-1">students</span>
                     </div>
                   </div>
                 ))}
               </div>
+              {(todayAttendance.present + todayAttendance.absent) > 0 && (
+                <div className="text-center mt-4 text-sm text-gray-500">
+                  Total: {todayAttendance.present + todayAttendance.absent} students marked
+                </div>
+              )}
             </div>
           </div>
 
