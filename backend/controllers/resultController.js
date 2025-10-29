@@ -1047,6 +1047,137 @@ exports.freezeResults = async (req, res) => {
     });
   }
 };
+// Get class performance statistics for dashboard
+exports.getClassPerformanceStats = async (req, res) => {
+  try {
+    const schoolCode = req.user?.schoolCode;
+    
+    if (!schoolCode) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'School code is required' 
+      });
+    }
+
+    console.log(`[CLASS PERFORMANCE] Fetching stats for school: ${schoolCode}`);
+
+    // Get connection to the school's dedicated database
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const resultsCollection = schoolConnection.collection('results');
+    
+    // Fetch all results
+    const results = await resultsCollection.find({}).toArray();
+    
+    console.log(`[CLASS PERFORMANCE] Found ${results.length} result documents`);
+
+    if (results.length === 0) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    // Group by class and section, calculate average percentage
+    const performanceMap = {};
+
+    results.forEach(result => {
+      const classKey = `${result.className || 'Unknown'}-${result.section || 'A'}`;
+      
+      if (!performanceMap[classKey]) {
+        performanceMap[classKey] = {
+          class: result.className || 'Unknown',
+          section: result.section || 'A',
+          totalPercentage: 0,
+          subjectCount: 0,
+          studentCount: 0
+        };
+      }
+
+      // Calculate percentage from subjects array
+      if (result.subjects && Array.isArray(result.subjects)) {
+        result.subjects.forEach(subject => {
+          if (subject.percentage !== undefined && subject.percentage !== null) {
+            performanceMap[classKey].totalPercentage += parseFloat(subject.percentage);
+            performanceMap[classKey].subjectCount++;
+          }
+        });
+        performanceMap[classKey].studentCount++;
+      }
+    });
+
+    // Convert to array and calculate averages
+    let performanceData = Object.values(performanceMap)
+      .map(item => {
+        const avgPercentage = item.subjectCount > 0 
+          ? (item.totalPercentage / item.subjectCount).toFixed(1)
+          : 0;
+        
+        return {
+          name: `${item.class}-${item.section}`,
+          class: item.class,
+          section: item.section,
+          percentage: parseFloat(avgPercentage),
+          studentCount: item.studentCount
+        };
+      });
+
+    // Ensure all classes 1-10 with section A are included
+    const allClasses = [];
+    for (let i = 1; i <= 10; i++) {
+      const classKey = `${i}-A`;
+      const existingClass = performanceData.find(item => item.name === classKey);
+      
+      if (existingClass) {
+        allClasses.push(existingClass);
+      } else {
+        // Add placeholder for missing class
+        allClasses.push({
+          name: classKey,
+          class: i.toString(),
+          section: 'A',
+          percentage: 0,
+          studentCount: 0
+        });
+      }
+    }
+
+    // Add any other sections (B, C, etc.) that exist in the data
+    performanceData.forEach(item => {
+      if (item.section !== 'A') {
+        allClasses.push(item);
+      }
+    });
+
+    // Sort by class then section
+    performanceData = allClasses.sort((a, b) => {
+      if (a.class !== b.class) {
+        const aNum = parseInt(a.class);
+        const bNum = parseInt(b.class);
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return aNum - bNum;
+        }
+        return a.class.localeCompare(b.class);
+      }
+      return a.section.localeCompare(b.section);
+    });
+
+    console.log(`[CLASS PERFORMANCE] Calculated performance for ${performanceData.length} class-sections (including all 1-10)`);
+
+    res.json({
+      success: true,
+      data: performanceData
+    });
+
+  } catch (error) {
+    console.error('Error fetching class performance stats:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching class performance stats', 
+      error: error.message 
+    });
+  }
+};
 
 module.exports = {
   createOrUpdateResult: exports.createOrUpdateResult,
@@ -1055,5 +1186,6 @@ module.exports = {
   saveResults: exports.saveResults,
   getResults: exports.getResults,
   updateResult: exports.updateResult,
-  freezeResults: exports.freezeResults
+  freezeResults: exports.freezeResults,
+  getClassPerformanceStats: exports.getClassPerformanceStats
 };
