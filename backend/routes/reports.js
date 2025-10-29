@@ -15,6 +15,7 @@ router.use(roleCheck(['admin', 'superadmin']));
 router.use(checkPermission('viewReports'));
 
 // Reports routes
+router.get('/overview', reportsController.getSchoolOverview);
 router.get('/summary', reportsController.getSchoolSummary);
 router.get('/class-summary', reportsController.getClassSummary);
 router.get('/class/:className/detail', reportsController.getClassDetail);

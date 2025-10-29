@@ -1,926 +1,331 @@
 const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+const ReportCalculations = require('./reportCalculations');
+const { ObjectId } = require('mongodb');
+const Result = require('../models/Result');
 
 class ReportService {
-  // Get comprehensive school summary with KPIs
   async getSchoolSummary(schoolId, schoolCode, filters = {}) {
     try {
-      console.log('🔍 [getSchoolSummary] Filters received:', JSON.stringify(filters, null, 2));
+      console.log('🔍 [getSchoolSummary] Starting summary for school:', schoolCode, 'with filters:', JSON.stringify(filters, null, 2));
       
+      const { targetClass, targetSection, from, to } = filters;
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const academicYear = `${currentYear}-${currentYear + 1}`;
+      
+      // Set default date range to current month if not provided
+      const startDate = from || new Date(currentYear, currentDate.getMonth(), 1);
+      const endDate = to || new Date(currentYear, currentDate.getMonth() + 1, 0);
+      
+      // Convert schoolId to ObjectId
+      const schoolObjectId = new ObjectId(schoolId);
+      
+      // Get database connection
       const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
       const db = connection.db;
-      const studentsCollection = db.collection('students');
-
-      const { from, to, targetClass, targetSection } = filters;
       
-      // Log the database being queried
-      console.log('📂 Using database:', db.databaseName);
-
-      // First, get the class document to find its students
-      let classStudents = [];
-      let totalStudents = 0;
-      
-      if (targetClass && targetClass !== 'ALL') {
-        try {
-          // Find the class document
-          const classQuery = { className: targetClass };
-          if (targetSection && targetSection !== 'ALL') {
-            classQuery['sections.name'] = targetSection;
-          }
-          
-          console.log('🔍 Looking for class with query:', JSON.stringify(classQuery, null, 2));
-          
-          const classDoc = await db.collection('classes').findOne(classQuery);
-          
-          if (classDoc) {
-            console.log('🏫 Found class document:', {
-              _id: classDoc._id,
-              className: classDoc.className,
-              sections: classDoc.sections,
-              hasStudents: !!classDoc.students,
-              studentsCount: classDoc.students ? classDoc.students.length : 0
-            });
-            
-            if (classDoc.students) {
-              classStudents = classDoc.students.filter(s => s.isActive !== false);
-              totalStudents = classStudents.length;
-              console.log(`📊 Found ${totalStudents} active students in class ${targetClass}${targetSection ? ' ' + targetSection : ''}`);
-              
-              // If no students in class document, try to find them in students collection
-              if (totalStudents === 0) {
-                console.log('🔍 No students in class document, checking students collection...');
-                const studentsInClass = await db.collection('students').find({
-                  'studentDetails.academic.currentClass': targetClass,
-                  'studentDetails.academic.currentSection': targetSection || { $exists: true },
-                  isActive: true
-                }).toArray();
-                
-                console.log(`🔍 Found ${studentsInClass.length} students in students collection`);
-                if (studentsInClass.length > 0) {
-                  // Update the class document with these students
-                  const studentUpdates = studentsInClass.map(student => ({
-                    studentId: student._id,
-                    studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.name || 'Unknown',
-                    rollNumber: student.rollNumber || `STU-${student._id.toString().substring(0, 6)}`,
-                    isActive: true
-                  }));
-                  
-                  await db.collection('classes').updateOne(
-                    { _id: classDoc._id },
-                    { $set: { students: studentUpdates, updatedAt: new Date() } }
-                  );
-                  
-                  totalStudents = studentUpdates.length;
-                  console.log(`✅ Updated class document with ${totalStudents} students`);
-                }
-              }
-            } else {
-              console.log('⚠️ Class document has no students array');
-            }
-          } else {
-            console.log(`⚠️ No class found matching: ${targetClass}${targetSection ? ' ' + targetSection : ''}`);
-          }
-        } catch (error) {
-          console.error('❌ Error finding class or students:', error);
-          throw error;
-        }
-      } else {
-        // If no specific class is selected, count all active students
-        totalStudents = await db.collection('students').countDocuments({ 
-          role: 'student',
-          isActive: true,
-          _placeholder: { $ne: true }
-        });
-      }
-
-      // Log the student count
-      console.log(`📊 Total active students: ${totalStudents}`);
-
-      // Get dues information
-      console.log('💰 Fetching dues information...');
-      const duesCollection = db.collection('studentfeerecords');
-      
-      // First, log the structure of the first few records
-      const sampleRecords = await duesCollection.find({}).limit(3).toArray();
-      console.log('🔍 Sample student fee records:', JSON.stringify(sampleRecords, null, 2));
-      
-      // Log all unique class and section combinations
-      const allClassSections = await duesCollection.aggregate([
-        { $group: {
-            _id: {
-              class: '$studentClass',
-              section: '$studentSection'
-            },
-            count: { $sum: 1 }
-        }}
-      ]).toArray();
-      console.log('📋 All class-section combinations in studentfeerecords:', JSON.stringify(allClassSections, null, 2));
-      
-      // Import ObjectId
-      const { ObjectId } = require('mongodb');
-      
-      // Build the initial query with schoolId as ObjectId
-      const duesQuery = { 
-        schoolId: typeof schoolId === 'string' ? new ObjectId(schoolId) : schoolId 
+      // Build match query for results
+      const matchQuery = {
+        schoolId: schoolObjectId,
+        academicYear,
+        status: 'published', // Only consider published results
+        'date': { $gte: startDate, $lte: endDate } // Filter by date range
       };
       
-      // Log the incoming filters
-      console.log('🔍 Received filters:', { 
-        targetClass: { value: targetClass, type: typeof targetClass },
-        targetSection: { value: targetSection, type: typeof targetSection }
-      });
-      
-      // Add class filter if specified
+      // Add class filter if provided
       if (targetClass && targetClass !== 'ALL') {
-        console.log(`🔍 Looking for class matching: '${targetClass}'`);
-        
-        // First, try to find the exact class name as stored in the database
-        const allClasses = await duesCollection.distinct('studentClass', { schoolId });
-        console.log('📋 All available classes in database:', allClasses);
-        
-        // Normalize the target class name for comparison (handle spaces, case, etc.)
-        const normalize = (str) => String(str || '').trim().replace(/\s+/g, ' ').toLowerCase();
-        const targetClassNormalized = normalize(targetClass);
-        
-        console.log(`🔍 Normalized target class: '${targetClassNormalized}'`);
-        
-        // Find the first class that matches when normalized
-        const exactClass = allClasses.find(c => {
-          const classNormalized = normalize(c);
-          console.log(`🔍 Comparing: '${classNormalized}' with '${targetClassNormalized}'`);
-          return classNormalized === targetClassNormalized;
-        });
-        
-        if (exactClass) {
-          console.log(`✅ Found matching class: '${exactClass}'`);
-          // Use the exact case from the database
-          duesQuery.studentClass = exactClass;
-          
-          // Add section filter if specified
-          if (targetSection && targetSection !== 'ALL') {
-            console.log(`🔍 Looking for section matching: '${targetSection}' in class '${exactClass}'`);
-            
-            // Find sections for the selected class using the exact class name
-            const sectionsForClass = await duesCollection.distinct('studentSection', { 
-              schoolId, 
-              studentClass: exactClass 
-            });
-            
-            console.log(`📋 Available sections for class '${exactClass}':`, sectionsForClass);
-            
-            // Normalize section names for comparison
-            const targetSectionNormalized = normalize(targetSection);
-            const exactSection = sectionsForClass.find(s => 
-              normalize(s) === targetSectionNormalized
-            );
-            
-            if (exactSection) {
-              console.log(`✅ Found matching section: '${exactSection}'`);
-              // Use the exact case from the database
-              duesQuery.studentSection = exactSection;
-            } else {
-              console.log(`⚠️ No section found matching: '${targetSection}'. Available sections:`, sectionsForClass);
-              // Don't add section filter if no match found
-            }
-          }
-        } else {
-          console.log(`⚠️ No class found matching: '${targetClass}'. Available classes:`, allClasses);
-          // Don't add class filter if no match found
-          delete duesQuery.studentClass;
-        }
+        matchQuery.class = targetClass.toString();
       }
       
-      // Log the final query with proper ObjectId handling
-      console.log('🔍 Final MongoDB query:', JSON.stringify({
-        ...duesQuery,
-        schoolId: 'ObjectId("' + duesQuery.schoolId.toString() + '")'
-      }, null, 2));
-      
-      // Get a sample document that matches the query
-      const sampleDoc = await duesCollection.findOne(duesQuery);
-      console.log('🔍 Sample matching document:', sampleDoc ? {
-        ...sampleDoc,
-        _id: sampleDoc._id.toString(),
-        schoolId: sampleDoc.schoolId.toString()
-      } : 'No matching document found');
-      
-      // Get all documents that match the query for debugging
-      const matchingDocs = await duesCollection.find(duesQuery).toArray();
-      console.log(`📊 Found ${matchingDocs.length} matching documents`);
-      
-      if (matchingDocs.length > 0) {
-        console.log('📝 First matching document class/section:', {
-          studentClass: matchingDocs[0].studentClass,
-          studentSection: matchingDocs[0].studentSection,
-          totalAmount: matchingDocs[0].totalAmount,
-          totalPaid: matchingDocs[0].totalPaid,
-          totalPending: matchingDocs[0].totalPending
-        });
+      // Add section filter if provided
+      if (targetSection && targetSection !== 'ALL') {
+        matchQuery.section = targetSection.toString();
       }
       
-      // Log a sample of the data that should match this query
-      const sampleMatch = await duesCollection.findOne(duesQuery);
-      console.log('🔍 Sample matching document:', sampleMatch);
-
-      // Get total dues summary
-      const duesSummary = await duesCollection.aggregate([
-        { $match: duesQuery },
-        {
-          $group: {
-            _id: null,
-            totalAmount: { $sum: '$totalAmount' },
-            totalPaid: { $sum: '$totalPaid' },
-            totalPending: { $sum: '$totalPending' },
-            count: { $sum: 1 },
-            overdueCount: {
-              $sum: {
-                $cond: [{ $gt: ['$overdueDays', 0] }, 1, 0]
-              }
-            }
-          }
-        }
-      ]).toArray();
-
-      // Get all students with dues, sorted by highest pending amount
-      const topDuesStudents = await duesCollection.aggregate([
-        { $match: { ...duesQuery, totalPending: { $gt: 0 } } },
-        { $sort: { totalPending: -1 } },
-        {
-          $project: {
-            _id: 0,
-            studentName: 1,
-            studentClass: 1,
-            studentSection: 1,
-            totalPending: 1,
-            overdueDays: 1,
-            paymentPercentage: {
-              $cond: [
-                { $gt: ['$totalAmount', 0] },
-                { $multiply: [{ $divide: ['$totalPaid', '$totalAmount'] }, 100] },
-                0
-              ]
-            }
-          }
-        }
-      ]).toArray();
-
-      // Get class-wise dues distribution with the same filtering as duesQuery
-      console.log('📊 Getting class-wise dues with query:', JSON.stringify(duesQuery, null, 2));
+      console.log('🔍 [getSchoolSummary] Final match query:', JSON.stringify(matchQuery, null, 2));
       
-      // First, get all matching documents to verify
-      const allMatchingDues = await duesCollection.find(duesQuery).toArray();
-      console.log(`📋 Found ${allMatchingDues.length} matching fee records`);
+      // Debug: First, check if we have any documents at all
+      const totalDocs = await Result.countDocuments({});
+      console.log(`📊 [getSchoolSummary] Total documents in results collection: ${totalDocs}`);
       
-      if (allMatchingDues.length > 0) {
-        console.log('📝 Sample matching record:', {
-          studentClass: allMatchingDues[0].studentClass,
-          studentSection: allMatchingDues[0].studentSection,
-          totalAmount: allMatchingDues[0].totalAmount,
-          totalPaid: allMatchingDues[0].totalPaid,
-          totalPending: allMatchingDues[0].totalPending
-        });
-      }
-
-      const classWiseDues = await duesCollection.aggregate([
-        { $match: duesQuery },  // Use the same query as before
-        {
-          $group: {
-            _id: {
-              class: '$studentClass',
-              section: '$studentSection'
-            },
-            totalAmount: { $sum: '$totalAmount' },
-            totalPaid: { $sum: '$totalPaid' },
-            totalPending: { $sum: '$totalPending' },
-            studentCount: { $sum: 1 }
-          }
-        },
-        {
-          $project: {
-            _id: 0,
-            class: '$_id.class',
-            section: '$_id.section',
-            totalAmount: 1,
-            totalPending: 1,
-            studentCount: 1,
-            collectionRate: {
-              $cond: [
-                { $eq: ['$totalAmount', 0] },
-                0,
-                {
-                  $multiply: [
-                    {
-                      $divide: [
-                        { $subtract: ['$totalAmount', '$totalPending'] },
-                        '$totalAmount'
-                      ]
-                    },
-                    100
-                  ]
-                }
-              ]
-            }
-          }
-        },
-        { $sort: { class: 1, section: 1 } }
-      ]).toArray();
-
-      console.log('📊 Class-wise dues distribution:', JSON.stringify(classWiseDues, null, 2));
-      
-      // Log the aggregation pipeline for debugging
-      console.log('🔍 Aggregation pipeline used:', [
-        { $match: duesQuery },
-        {
-          $group: {
-            _id: {
-              class: '$studentClass',
-              section: '$studentSection'
-            },
-            totalAmount: { $sum: '$totalAmount' },
-            totalPending: { $sum: '$totalPending' },
-            studentCount: { $sum: 1 }
-          }
-        }
-      ]);
-
-      // Get classes count
-      const classesCollection = db.collection('classes');
-      const classesQuery = { isActive: true };
-      if (targetClass && targetClass !== 'ALL') {
-        classesQuery.className = targetClass;
-      }
-      const classesCount = await classesCollection.countDocuments(classesQuery);
-
-      // Calculate average attendance
-      const attendanceCollection = db.collection('attendance');
-      
-      // Build attendance query
-      const attendanceQuery = { studentId: { $exists: true } };
-      
-      // Add date filters if provided
-      if (from) attendanceQuery.date = { $gte: new Date(from) };
-      if (to) attendanceQuery.date = { ...attendanceQuery.date, $lte: new Date(to) };
-      
-      // Define student query
-      const studentQuery = {
-        role: 'student',
-        isActive: true,
-        _placeholder: { $ne: true }
-      };
-      
-      // Add class filter if specified
-      if (targetClass && targetClass !== 'ALL') {
-        studentQuery['studentDetails.academic.currentClass'] = targetClass;
-        if (targetSection && targetSection !== 'ALL') {
-          studentQuery['studentDetails.academic.currentSection'] = targetSection;
-        }
-      }
-      
-      // Get student IDs for the selected class/section
-      const studentIds = await studentsCollection.find(studentQuery, { _id: 1 }).toArray();
-      const studentIdList = studentIds.map(s => s._id.toString());
-      
-      if (studentIdList.length > 0) {
-        attendanceQuery.studentId = { $in: studentIdList };
-      } else {
-        // If no students match the class/section, set attendance to 0
+      if (totalDocs === 0) {
+        console.log('⚠️ [getSchoolSummary] The results collection is empty');
         return {
           totalStudents: 0,
-          classesCount: 0,
+          totalMarks: 0,
+          totalResults: 0,
+          avgMarks: 0,
           avgAttendance: 0,
-          totalFeesCollected: 0,
-          outstanding: 0,
-          collectionPercentage: 0
+          classResults: [],
+          attendanceData: []
         };
       }
-
-      const attendanceStats = await attendanceCollection.aggregate([
-        { $match: attendanceQuery },
-        {
-          $group: {
-            _id: '$studentId',
-            totalDays: { $sum: 1 },
-            presentDays: {
-              $sum: {
-                $cond: [{ $eq: ['$status', 'present'] }, 1, 0]
-              }
-            }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            avgAttendance: {
-              $avg: {
-                $cond: [
-                  { $gt: ['$totalDays', 0] },
-                  { $multiply: [{ $divide: ['$presentDays', '$totalDays'] }, 100] },
-                  0
-                ]
-              }
-            }
-          }
-        }
-      ]).toArray();
-
-      let avgAttendance = 0;
       
-      if (attendanceStats && attendanceStats.length > 0 && attendanceStats[0].avgAttendance) {
-        // Round to 2 decimal places
-        avgAttendance = Math.round(attendanceStats[0].avgAttendance * 100) / 100;
-      }
-      
-      console.log('📊 Attendance stats:', {
-        studentCount: studentIdList.length,
-        attendanceStats,
-        avgAttendance
-      });
-
-      // Get fee statistics
-      const FeeStructure = require('../models/FeeStructure');
-      const StudentFeeRecordSchema = require('../models/StudentFeeRecord').schema;
-      
-      // Get or create StudentFeeRecord model for the school database
-      let StudentFeeRecord;
-      try {
-        StudentFeeRecord = connection.model('StudentFeeRecord');
-      } catch (error) {
-        // If model doesn't exist, create it
-        StudentFeeRecord = connection.model('StudentFeeRecord', StudentFeeRecordSchema);
-      }
-      
-      const feeQuery = { schoolId };
-      if (targetClass && targetClass !== 'ALL') {
-        feeQuery.class = targetClass;
-      }
-      if (targetSection && targetSection !== 'ALL') {
-        feeQuery.section = targetSection;
-      }
-      
-      const feeStats = await StudentFeeRecord.aggregate([
-        { $match: feeQuery },
-        {
-          $group: {
-            _id: null,
-            totalFeesAssigned: { $sum: '$totalAmount' },
-            totalFeesCollected: { $sum: '$totalPaid' },
-            outstanding: { $sum: '$totalPending' }
-          }
+      // Debug: Get sample documents to see what fields exist
+      const sampleDocs = await Result.aggregate([
+        { $sample: { size: 3 } },
+        { 
+          $project: { 
+            status: 1, 
+            class: 1, 
+            section: 1, 
+            academicYear: 1, 
+            student: 1,
+            percentage: 1,
+            createdAt: 1,
+            updatedAt: 1
+          } 
         }
       ]);
+      
+      console.log('� [getSchoolSummary] Sample documents from collection:', JSON.stringify(sampleDocs, null, 2));
+      
+      // Try to find any document with a status field
+      const anyDoc = await Result.findOne({});
+      console.log('🔍 [getSchoolSummary] Any document from collection:', JSON.stringify(anyDoc, null, 2));
+      
+      // Check with a more lenient query
+      const resultCount = await Result.countDocuments({
+        ...matchQuery,
+        $or: [
+          { status: { $exists: false } },  // Documents without status field
+          { status: 'published' },          // OR with status published
+          { status: { $in: [null, ''] } }   // OR with empty/undefined status
+        ]
+      });
+      
+      console.log(`� [getSchoolSummary] Found ${resultCount} results with lenient criteria`);
 
-      const feeResult = feeStats[0] || {
-        totalFeesAssigned: 0,
-        totalFeesCollected: 0,
-        outstanding: 0
-      };
-
-      // Get average marks (if results exist)
-      const resultsCollection = db.collection('results');
-      const resultsQuery = {};
-      if (from) resultsQuery.createdAt = { $gte: new Date(from) };
-      if (to) resultsQuery.createdAt = { ...resultsQuery.createdAt, $lte: new Date(to) };
-
-      const marksStats = await resultsCollection.aggregate([
-        { $match: resultsQuery },
-        {
-          $group: {
-            _id: null,
-            avgMarks: { $avg: '$percentage' },
-            totalResults: { $sum: 1 }
-          }
-        }
-      ]).toArray();
-
-      const avgMarks = marksStats[0]?.avgMarks || 0;
-
-      // Prepare dues summary
-      const duesSummaryData = duesSummary[0] || {
-        totalAmount: 0,
-        totalPaid: 0,
-        totalPending: 0,
-        count: 0,
-        overdueCount: 0
-      };
-
-      return {
-        // Existing metrics
-        totalStudents,
-        classesCount,
-        avgAttendance: Math.round(avgAttendance * 100) / 100,
-        totalFeesAssigned: feeResult.totalFeesAssigned,
-        totalFeesCollected: feeResult.totalFeesCollected,
-        outstanding: feeResult.outstanding,
-        collectionPercentage: feeResult.totalFeesAssigned > 0 
-          ? Math.round((feeResult.totalFeesCollected / feeResult.totalFeesAssigned) * 100)
-          : 0,
-        avgMarks: Math.round(avgMarks * 100) / 100,
-        
-        // New dues information
-        duesSummary: {
-          totalAmount: duesSummaryData.totalAmount || 0,
-          totalPaid: duesSummaryData.totalPaid || 0,
-          totalPending: duesSummaryData.totalPending || 0,
-          totalStudents: duesSummaryData.count || 0,
-          overdueStudents: duesSummaryData.overdueCount || 0,
-          collectionRate: duesSummaryData.totalAmount > 0 
-            ? Math.round(((duesSummaryData.totalPaid || 0) / duesSummaryData.totalAmount) * 100)
-            : 0
-        },
-        topDuesStudents: topDuesStudents || [],
-        classWiseDues: classWiseDues || []
-      };
-    } catch (error) {
-      console.error('Error generating school summary:', error);
-      throw error;
-    }
-  }
-
-  // Get class-wise summary
-  async getClassSummary(schoolId, schoolCode, filters = {}) {
-    try {
-      const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-      const db = connection.db;
-
-      const { from, to } = filters;
-
-      // Get all classes
-      const classesCollection = db.collection('classes');
-      const classes = await classesCollection.find({ isActive: true }).toArray();
-
-      const classSummaries = [];
-
-      for (const cls of classes) {
-        const studentQuery = { 
-          role: 'student',
-          class: cls.className,
-          _placeholder: { $ne: true }
-        };
-
-        // Student count
-        const studentsCollection = db.collection('students');
-        const studentCount = await studentsCollection.countDocuments(studentQuery);
-
-        // Average attendance for this class
-        const attendanceCollection = db.collection('attendance');
-        const attendanceQuery = { 
-          studentId: { $exists: true },
-          class: cls.className
-        };
-        if (from) attendanceQuery.date = { $gte: new Date(from) };
-        if (to) attendanceQuery.date = { ...attendanceQuery.date, $lte: new Date(to) };
-
-        const classAttendanceStats = await attendanceCollection.aggregate([
-          { $match: attendanceQuery },
+      // Get class-wise results using Mongoose aggregate
+      const [classResults, attendanceData] = await Promise.all([
+        // Get academic results
+        Result.aggregate([
+          { 
+            $match: { 
+              ...matchQuery,
+              status: 'published',
+              percentage: { $exists: true, $gt: 0 },
+              $or: [
+                { publishedAt: { $exists: false } },
+                { publishedAt: { $lte: new Date() } }
+              ]
+            } 
+          },
           {
             $group: {
-              _id: '$studentId',
-              totalDays: { $sum: 1 },
-              presentDays: {
-                $sum: {
-                  $cond: [{ $eq: ['$status', 'present'] }, 1, 0]
-                }
-              }
+              _id: {
+                class: '$class',
+                section: '$section'
+              },
+              totalStudents: { $addToSet: '$student' },
+              avgPercentage: { $avg: '$percentage' },
+              totalResults: { $sum: 1 }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              class: '$_id.class',
+              section: '$_id.section',
+              totalStudents: { $size: '$totalStudents' },
+              avgMarks: { $round: ['$avgPercentage', 2] },
+              totalResults: 1
+            }
+          },
+          { $sort: { class: 1, section: 1 } }
+        ]).allowDiskUse(true),
+        
+        // Get attendance data
+        db.collection('attendances').aggregate([
+          {
+            $match: {
+              schoolId: schoolObjectId,
+              date: { $gte: startDate, $lte: endDate },
+              status: { $in: ['present', 'absent', 'half_day'] }
             }
           },
           {
             $group: {
-              _id: null,
-              avgAttendance: {
-                $avg: {
+              _id: {
+                class: '$class',
+                section: '$section'
+              },
+              presentDays: {
+                $sum: {
                   $cond: [
-                    { $gt: ['$totalDays', 0] },
-                    { $multiply: [{ $divide: ['$presentDays', '$totalDays'] }, 100] },
+                    { $in: ['$status', ['present', 'half_day']] },
+                    1,
                     0
                   ]
                 }
+              },
+              totalDays: { $sum: 1 }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              class: '$_id.class',
+              section: '$_id.section',
+              attendancePercentage: {
+                $cond: [
+                  { $eq: ['$totalDays', 0] },
+                  0,
+                  { $multiply: [{ $divide: ['$presentDays', '$totalDays'] }, 100] }
+                ]
               }
             }
           }
-        ]).toArray();
+        ]).toArray()
+      ]);
 
-        const avgAttendance = classAttendanceStats[0]?.avgAttendance || 0;
-
-        // Average marks for this class
-        const resultsCollection = db.collection('results');
-        const resultsQuery = { class: cls.className };
-        if (from) resultsQuery.createdAt = { $gte: new Date(from) };
-        if (to) resultsQuery.createdAt = { ...resultsQuery.createdAt, $lte: new Date(to) };
-
-        const classMarksStats = await resultsCollection.aggregate([
-          { $match: resultsQuery },
-          {
-            $group: {
-              _id: null,
-              avgMarks: { $avg: '$percentage' },
-              totalResults: { $sum: 1 }
-            }
-          }
-        ]).toArray();
-
-        const avgMarks = classMarksStats[0]?.avgMarks || 0;
-
-        // Fee statistics for this class
-        const StudentFeeRecord = require('../models/StudentFeeRecord');
-        const classFeeStats = await StudentFeeRecord.aggregate([
-          { $match: { schoolId, studentClass: cls.className } },
-          {
-            $group: {
-              _id: null,
-              totalFeesAssigned: { $sum: '$totalAmount' },
-              totalFeesCollected: { $sum: '$totalPaid' },
-              outstanding: { $sum: '$totalPending' }
-            }
-          }
-        ]).toArray();
-
-        const feeResult = classFeeStats[0] || {
-          totalFeesAssigned: 0,
-          totalFeesCollected: 0,
-          outstanding: 0
-        };
-
-        const collectionPercentage = feeResult.totalFeesAssigned > 0 
-          ? Math.round((feeResult.totalFeesCollected / feeResult.totalFeesAssigned) * 100)
-          : 0;
-      }
-
-      return classSummaries;
-    } catch (error) {
-      console.error('Error generating class summary:', error);
-      throw error;
-    }
-  }
-
-  // Get detailed student data for a class
-  async getClassDetail(schoolId, schoolCode, className, section, filters = {}) {
-    try {
-      const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-      const db = connection.db;
-
-      const { from, to, page = 1, limit = 50, search } = filters;
-      const skip = (page - 1) * limit;
-
-      // Build student query
-      const studentQuery = { 
-        role: 'student',
-        class: className,
-        _placeholder: { $ne: true }
-      };
-
-      if (section && section !== 'ALL') {
-        studentQuery.section = section;
-      }
-
-      if (search) {
-        studentQuery.$or = [
-          { 'name.firstName': { $regex: search, $options: 'i' } },
-          { 'name.lastName': { $regex: search, $options: 'i' } },
-          { 'name.displayName': { $regex: search, $options: 'i' } },
-          { rollNumber: { $regex: search, $options: 'i' } }
-        ];
-      }
-
-      // Get students with pagination
-      const studentsCollection = db.collection('students');
-      const students = await studentsCollection
-        .find(studentQuery)
-        .skip(skip)
-        .limit(limit)
-        .toArray();
-
-      const totalStudents = await studentsCollection.countDocuments(studentQuery);
-
-      // Get additional data for each student
-      const studentsWithDetails = await Promise.all(
-        students.map(async (student) => {
-          // Get attendance percentage
-          const attendanceCollection = db.collection('attendance');
-          const attendanceQuery = { studentId: student._id };
-          if (from) attendanceQuery.date = { $gte: new Date(from) };
-          if (to) attendanceQuery.date = { ...attendanceQuery.date, $lte: new Date(to) };
-
-          const attendanceStats = await attendanceCollection.aggregate([
-            { $match: attendanceQuery },
-            {
-              $group: {
-                _id: null,
-                totalDays: { $sum: 1 },
-                presentDays: {
-                  $sum: {
-                    $cond: [{ $eq: ['$status', 'present'] }, 1, 0]
-                  }
-                }
-              }
-            }
-          ]).toArray();
-
-          const attendancePercentage = attendanceStats[0] 
-            ? Math.round((attendanceStats[0].presentDays / attendanceStats[0].totalDays) * 100)
-            : 0;
-
-          // Get latest results
-          const resultsCollection = db.collection('results');
-          const latestResult = await resultsCollection
-            .findOne(
-              { studentId: student._id },
-              { sort: { createdAt: -1 } }
-            );
-
-          // Get fee status
-          const StudentFeeRecord = require('../models/StudentFeeRecord');
-          const feeRecord = await StudentFeeRecord.findOne({
-            schoolId,
-            studentId: student._id
-          });
-
-          // Get unread messages count
-          const Message = require('../models/Message');
-          const unreadMessagesCount = await Message.countDocuments({
-            schoolId,
-            sentTo: student._id,
-            [`readBy.${student._id}`]: { $exists: false }
-          });
-
-          return {
-            ...student,
-            attendancePercentage,
-            latestResult: latestResult ? {
-              percentage: latestResult.percentage,
-              grade: latestResult.grade,
-              term: latestResult.term,
-              createdAt: latestResult.createdAt
-            } : null,
-            feeStatus: feeRecord ? {
-              totalAmount: feeRecord.totalAmount,
-              totalPaid: feeRecord.totalPaid,
-              balance: feeRecord.totalPending,
-              status: feeRecord.status
-            } : null,
-            unreadMessagesCount
-          };
-        })
-      );
-
-      return {
-        students: studentsWithDetails,
-        pagination: {
-          page,
-          limit,
-          total: totalStudents,
-          pages: Math.ceil(totalStudents / limit)
-        }
-      };
-    } catch (error) {
-      console.error('Error getting class detail:', error);
-      throw error;
-    }
-  }
-
-  // Get full student profile
-  async getStudentProfile(schoolId, schoolCode, studentId) {
-    try {
-      const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-      const db = connection.db;
-
-      // Get student basic info
-      const studentsCollection = db.collection('students');
-      const student = await studentsCollection.findOne({ _id: studentId });
-
-      if (!student) {
-        throw new Error('Student not found');
-      }
-
-      // Get attendance timeline
-      const attendanceCollection = db.collection('attendance');
-      const attendanceTimeline = await attendanceCollection
-        .find({ studentId })
-        .sort({ date: -1 })
-        .limit(30)
-        .toArray();
-
-      // Get results history
-      const resultsCollection = db.collection('results');
-      const resultsHistory = await resultsCollection
-        .find({ studentId })
-        .sort({ createdAt: -1 })
-        .toArray();
-
-      // Get payment history
-      const StudentFeeRecord = require('../models/StudentFeeRecord');
-      const feeRecord = await StudentFeeRecord.findOne({
-        schoolId,
-        studentId
+      // Debug: Log raw data before calculations
+      console.log('📊 [getSchoolSummary] Raw classResults:', JSON.stringify(classResults, null, 2));
+      console.log('📊 [getSchoolSummary] Raw attendanceData:', JSON.stringify(attendanceData, null, 2));
+      
+      // Calculate overall summary
+      const totalStudents = classResults.reduce((sum, item) => sum + (item.totalStudents || 0), 0);
+      const totalMarks = classResults.reduce((sum, item) => sum + (item.avgMarks * item.totalResults), 0);
+      const totalResults = classResults.reduce((sum, item) => sum + (item.totalResults || 0), 0);
+      const avgMarks = totalResults > 0 ? totalMarks / totalResults : 0;
+      
+      // Calculate average attendance
+      const totalAttendance = attendanceData.reduce((sum, item) => sum + (item.attendancePercentage || 0), 0);
+      const avgAttendance = attendanceData.length > 0 ? totalAttendance / attendanceData.length : 0;
+      
+      // Debug: Log calculated values
+      console.log('📊 [getSchoolSummary] Calculated values:', {
+        totalStudents,
+        totalMarks,
+        totalResults,
+        avgMarks: Math.round(avgMarks * 10) / 10,
+        avgAttendance: Math.round(avgAttendance * 10) / 10,
+        classResultsCount: classResults.length,
+        attendanceDataCount: attendanceData.length
       });
 
-      // Get messages
-      const Message = require('../models/Message');
-      const messages = await Message.find({
-        schoolId,
-        sentTo: studentId
-      }).sort({ createdAt: -1 }).limit(20);
-
       return {
-        student,
-        attendanceTimeline,
-        resultsHistory,
-        paymentHistory: feeRecord?.payments || [],
-        messages: messages.map(msg => ({
-          id: msg._id,
-          title: msg.subject,
-          content: msg.content,
-          sentAt: msg.sentAt,
-          readAt: msg.readBy?.get(studentId.toString())
-        }))
+        classWiseResults: classResults,
+        summary: {
+          totalClasses: new Set(classResults.map(r => r.class)).size,
+          totalStudents,
+          avgMarks: Math.round(avgMarks * 10) / 10,
+          avgAttendance: Math.round(avgAttendance * 10) / 10
+        }
       };
+      
     } catch (error) {
-      console.error('Error getting student profile:', error);
-      throw error;
+      console.error('❌ [getSchoolSummary] Error:', {
+        message: error.message,
+        stack: error.stack,
+        schoolId,
+        filters
+      });
+      
+      // Return a more detailed error response
+      const errorResponse = {
+        success: false,
+        error: 'Failed to generate school summary',
+        details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+        classWiseResults: [],
+        summary: {
+          totalClasses: 0,
+          totalStudents: 0,
+          avgMarks: 0
+        }
+      };
+      
+      return errorResponse;
     }
   }
 
-  // Export data to CSV
+  // Add the exportToCSV method
   async exportToCSV(schoolId, schoolCode, exportType, filters = {}) {
     try {
       const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
       const db = connection.db;
 
       const { class: targetClass, section: targetSection, from, to } = filters;
-
       let data = [];
       let headers = [];
 
       switch (exportType) {
-        case 'students':
-          const studentQuery = { 
-            role: 'student',
-            _placeholder: { $ne: true }
+        case 'dues':
+          const duesQuery = { 
+            schoolId: new ObjectId(schoolId),
+            totalPending: { $gt: 0 }
           };
-          if (targetClass && targetClass !== 'ALL') studentQuery.class = targetClass;
-          if (targetSection && targetSection !== 'ALL') studentQuery.section = targetSection;
-
-          const students = await db.collection('students').find(studentQuery).toArray();
           
-          headers = ['Name', 'Class', 'Section', 'Roll Number', 'Email', 'Phone'];
-          data = students.map(student => [
-            student.name?.displayName || `${student.name?.firstName} ${student.name?.lastName}`,
-            student.class,
-            student.section,
-            student.rollNumber || '',
-            student.email || '',
-            student.contact?.primaryPhone || ''
-          ]);
-          break;
-
-        case 'attendance':
-          const attendanceQuery = { studentId: { $exists: true } };
-          if (from) attendanceQuery.date = { $gte: new Date(from) };
-          if (to) attendanceQuery.date = { ...attendanceQuery.date, $lte: new Date(to) };
-          if (targetClass && targetClass !== 'ALL') attendanceQuery.class = targetClass;
-          if (targetSection && targetSection !== 'ALL') attendanceQuery.section = targetSection;
-
-          const attendanceRecords = await db.collection('attendance').find(attendanceQuery).toArray();
-          
-          headers = ['Student Name', 'Class', 'Section', 'Date', 'Status'];
-          data = await Promise.all(attendanceRecords.map(async (record) => {
-            const student = await db.collection('students').findOne({ _id: record.studentId });
-            return [
-              student?.name?.displayName || 'Unknown',
-              record.class,
-              record.section,
-              record.date,
-              record.status
+          if (targetClass && targetClass !== 'ALL') duesQuery.studentClass = targetClass;
+          if (targetSection && targetSection !== 'ALL') duesQuery.studentSection = targetSection;
+          if (filters.status && filters.status !== 'ALL') {
+            duesQuery.status = filters.status.toUpperCase();
+          }
+          if (filters.search) {
+            const searchRegex = new RegExp(filters.search, 'i');
+            duesQuery.$or = [
+              { studentName: searchRegex },
+              { rollNumber: searchRegex }
             ];
-          }));
+          }
+
+          const dues = await db.collection('studentfeerecords').aggregate([
+            { $match: duesQuery },
+            { $unwind: '$installments' },
+            {
+              $project: {
+                _id: 0,
+                'Student Name': '$studentName',
+                'Class': '$studentClass',
+                'Section': '$studentSection',
+                'Fee Structure': '$feeStructureName',
+                'Installment': '$installments.name',
+                'Amount': '$installments.amount',
+                'Paid Amount': '$installments.paidAmount',
+                'Balance': { $subtract: ['$installments.amount', '$installments.paidAmount'] },
+                'Status': {
+                  $let: {
+                    vars: {
+                      isPaid: { $eq: ['$installments.status', 'PAID'] },
+                      hasPartial: { $gt: ['$installments.paidAmount', 0] },
+                      isOverdue: { $lt: ['$installments.dueDate', new Date()] }
+                    },
+                    in: {
+                      $switch: {
+                        branches: [
+                          { case: '$$isPaid', then: 'Paid' },
+                          { case: '$$hasPartial', then: 'Partial' },
+                          { case: '$$isOverdue', then: 'Overdue' }
+                        ],
+                        default: 'Pending'
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            { $sort: { 'Class': 1, 'Section': 1, 'Student Name': 1 } }
+          ]).toArray();
+
+          if (dues.length > 0) {
+            headers = Object.keys(dues[0]);
+            data = dues.map(record => Object.values(record));
+          } else {
+            headers = ['Message'];
+            data = [['No dues records found matching the criteria']];
+          }
           break;
 
-        case 'results':
-          const resultsQuery = {};
-          if (from) resultsQuery.createdAt = { $gte: new Date(from) };
-          if (to) resultsQuery.createdAt = { ...resultsQuery.createdAt, $lte: new Date(to) };
-          if (targetClass && targetClass !== 'ALL') resultsQuery.class = targetClass;
-          if (targetSection && targetSection !== 'ALL') resultsQuery.section = targetSection;
-
-          const results = await db.collection('results').find(resultsQuery).toArray();
-          
-          headers = ['Student Name', 'Class', 'Section', 'Term', 'Percentage', 'Grade'];
-          data = await Promise.all(results.map(async (result) => {
-            const student = await db.collection('students').findOne({ _id: result.studentId });
-            return [
-              student?.name?.displayName || 'Unknown',
-              result.class,
-              result.section,
-              result.term,
-              result.percentage,
-              result.grade
-            ];
-          }));
-          break;
+        // Add other export types (students, attendance, results) as needed
+        default:
+          headers = ['Message'];
+          data = [['Export type not supported']];
       }
 
       // Convert to CSV format
       const csvContent = [
         headers.join(','),
-        ...data.map(row => row.map(cell => `"${cell}"`).join(','))
+        ...data.map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(','))
       ].join('\n');
 
       return csvContent;

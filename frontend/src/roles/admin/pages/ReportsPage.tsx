@@ -2,7 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Download, TrendingUp, DollarSign, Users, AlertCircle, CheckCircle, Search } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
 import ClassSectionSelect from '../components/ClassSectionSelect';
-import { getStudentFeeRecords, StudentFeeRecord } from '../../../api/reports';
+import api from '../../../api/axios';
+import { 
+  getSchoolSummary,
+  getStudentFeeRecords, 
+  StudentFeeRecord, 
+  exportFeeRecordsToCSV 
+} from '../../../api/reports';
 
 // Helper function to format currency
 const formatCurrency = (amount: number) => {
@@ -44,30 +50,23 @@ const ReportsPage: React.FC = () => {
   const [dateTo, setDateTo] = useState('');
 
   // Data state
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Real data will be fetched from API
   const [summary, setSummary] = useState({
     totalStudents: 0,
-    classesCount: 0,
     avgAttendance: 0,
     avgMarks: 0,
-    collectionPercentage: 0,
-    totalFeesCollected: 0,
-    outstanding: 0,
-    duesSummary: {
-      totalAmount: 0,
-      totalPaid: 0,
-      totalPending: 0,
-      totalStudents: 0,
-      overdueStudents: 0,
-      collectionRate: 0
-    },
-    topDuesStudents: [],
     classWiseDues: []
   });
+  
+  const [classWiseCounts, setClassWiseCounts] = useState<Array<{
+    className: string;
+    sections: Array<{name: string, count: number}>;
+    total: number;
+  }>>([]);
 
   // State for dues list
   const [duesList, setDuesList] = useState<StudentFeeRecord[]>([]);
@@ -80,6 +79,39 @@ const ReportsPage: React.FC = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+
+  // Handle export to CSV
+  const handleExportToCSV = async () => {
+    try {
+      const params = {
+        class: selectedClass !== 'ALL' ? selectedClass : undefined,
+        section: selectedSection !== 'ALL' ? selectedSection : undefined,
+        search: searchTerm || undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+      };
+
+      const csvBlob = await exportFeeRecordsToCSV(params);
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(csvBlob);
+      const link = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      link.href = url;
+      link.setAttribute('download', `fee-due-report-${timestamp}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      if (link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+      window.URL.revokeObjectURL(url);
+      
+    } catch (err) {
+      console.error('Error exporting to CSV:', err);
+      setError('Failed to export data. Please try again.');
+    }
+  };
 
   // Fetch due fees data
   const fetchDuesList = useCallback(async () => {
@@ -116,12 +148,183 @@ const ReportsPage: React.FC = () => {
     }
   }, [selectedClass, selectedSection, pagination.page, pagination.limit, searchTerm, statusFilter]);
 
+  // Fetch class and section wise student counts - simplified version
+  const fetchClassWiseCounts = useCallback(async () => {
+    console.log('🔍 [fetchClassWiseCounts] Starting fetch...');
+    
+    try {
+      // First, try the class-summary endpoint
+      console.log('Trying /reports/class-summary endpoint...');
+      const response = await api.get('/reports/class-summary');
+      console.log('API Response:', {
+        status: response.status,
+        data: response.data
+      });
+
+      // If we got here, the request was successful
+      if (response.data?.success && response.data.data) {
+        console.log('Using class-summary data');
+        const classData = response.data.data;
+        
+        // If it's an array, format it
+        if (Array.isArray(classData)) {
+          const formatted = classData.map((item: any) => ({
+            className: item.className || item.name || item._id || 'Unknown',
+            sections: Array.isArray(item.sections) 
+              ? item.sections.map((s: any) => ({
+                  name: s.name || s.section || 'All',
+                  count: s.count || s.totalStudents || 0
+                }))
+              : [{ name: 'All', count: item.totalStudents || 0 }],
+            total: item.totalStudents || 0
+          }));
+          
+          setClassWiseCounts(formatted);
+          setError(null);
+          return;
+        }
+        
+        // If it's an object with class data
+        if (typeof classData === 'object' && classData !== null) {
+          const formatted = Object.entries(classData).map(([key, value]) => ({
+            className: key,
+            sections: [{ name: 'All', count: Number(value) || 0 }],
+            total: Number(value) || 0
+          }));
+          
+          setClassWiseCounts(formatted);
+          setError(null);
+          return;
+        }
+      }
+      
+      // If we get here, try an alternative approach - get all students and count by class
+      console.log('Trying alternative approach - fetching all students...');
+      const studentsResponse = await api.get('/students', {
+        params: { limit: 1000 } // Adjust limit as needed
+      });
+      
+      if (studentsResponse.data?.success && Array.isArray(studentsResponse.data.data?.students)) {
+        const students = studentsResponse.data.data.students;
+        
+        // Group students by class and section
+        const classMap = new Map();
+        
+        students.forEach((student: any) => {
+          const className = student.targetClass || 'Unknown';
+          const section = student.targetSection || 'All';
+          
+          if (!classMap.has(className)) {
+            classMap.set(className, {
+              className,
+              sections: new Map(),
+              total: 0
+            });
+          }
+          
+          const classData = classMap.get(className);
+          classData.total++;
+          
+          if (!classData.sections.has(section)) {
+            classData.sections.set(section, 0);
+          }
+          classData.sections.set(section, classData.sections.get(section) + 1);
+        });
+        
+        // Convert to the expected format
+        const formattedData = Array.from(classMap.values()).map(classData => ({
+          className: classData.className,
+          sections: Array.from(classData.sections.entries()).map(([name, count]) => ({
+            name,
+            count
+          })),
+          total: classData.total
+        }));
+        
+        setClassWiseCounts(formattedData);
+        setError(null);
+        return;
+      }
+      
+      // If we get here, no data was found
+      console.warn('No class data found in any format');
+      setClassWiseCounts([]);
+      setError('No class data available');
+      
+    } catch (error) {
+      console.error('❌ Error fetching class data:', {
+        message: error.message,
+        response: error.response?.data,
+        stack: error.stack
+      });
+      
+      // Set a more helpful error message
+      let errorMessage = 'Failed to load class distribution data';
+      
+      if (error.response) {
+        // Server responded with an error status
+        if (error.response.status === 404) {
+          errorMessage = 'Class summary endpoint not found';
+        } else if (error.response.status >= 500) {
+          errorMessage = 'Server error occurred while fetching class data';
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.request) {
+        // Request was made but no response
+        errorMessage = 'No response from server. Please check your connection.';
+      }
+      
+      setError(errorMessage);
+      setClassWiseCounts([]);
+    }
+  }, []);
+
+  // Fetch school summary data
+  const fetchSchoolSummary = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const params = {
+        from: dateFrom || undefined,
+        to: dateTo || undefined,
+        targetClass: selectedClass !== 'ALL' ? selectedClass : undefined,
+        targetSection: selectedSection !== 'ALL' ? selectedSection : undefined
+      };
+      
+      // Fetch both summary and class-wise counts in parallel
+      const [summaryResponse] = await Promise.all([
+        getSchoolSummary(params),
+        fetchClassWiseCounts()
+      ]);
+      
+      if (summaryResponse.success) {
+        setSummary(prev => ({
+          ...prev,
+          totalStudents: summaryResponse.data.totalStudents || 0,
+          avgAttendance: summaryResponse.data.avgAttendance || 0,
+          avgMarks: summaryResponse.data.avgMarks || 0
+        }));
+      } else {
+        throw new Error(summaryResponse.message || 'Failed to fetch school summary');
+      }
+    } catch (err) {
+      console.error('Error fetching school summary:', err);
+      setError('Failed to load school summary data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFrom, dateTo, selectedClass, selectedSection]);
+
   // Load data when component mounts or filters change
   useEffect(() => {
     if (activeTab === 'dues') {
       fetchDuesList();
+    } else if (activeTab === 'overview') {
+      fetchSchoolSummary();
     }
-  }, [activeTab, fetchDuesList]);
+  }, [activeTab, fetchDuesList, fetchSchoolSummary]);
   
   // Reset to first page when filters change
   useEffect(() => {
@@ -193,108 +396,140 @@ const ReportsPage: React.FC = () => {
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* KPI Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Total Students Card */}
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center">
                     <div className="p-2 bg-blue-100 rounded-lg">
                       <Users className="h-6 w-6 text-blue-600" />
                     </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Students</p>
-                    <p className="text-2xl font-semibold text-gray-900">{summary.totalStudents || 0}</p>
-                  </div>
+                    <div className="ml-4 flex-1">
+                      <p className="text-sm font-medium text-gray-600">Total Students</p>
+                      {loading ? (
+                        <div className="h-8 bg-gray-200 rounded animate-pulse mt-1 w-3/4"></div>
+                      ) : (
+                        <p className="text-2xl font-semibold text-gray-900">
+                          {summary.totalStudents.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
+                {/* Avg Attendance Card */}
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center">
                     <div className="p-2 bg-green-100 rounded-lg">
                       <CheckCircle className="h-6 w-6 text-green-600" />
                     </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Avg Attendance</p>
-                    <p className="text-2xl font-semibold text-gray-900">{summary.avgAttendance || 0}%</p>
-                  </div>
+                    <div className="ml-4 flex-1">
+                      <p className="text-sm font-medium text-gray-600">Avg Attendance</p>
+                      {loading ? (
+                        <div className="h-8 bg-gray-200 rounded animate-pulse mt-1 w-3/4"></div>
+                      ) : (
+                        <div className="flex items-baseline">
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {summary.avgAttendance.toFixed(1)}%
+                          </p>
+                          <span className="ml-2 text-sm text-gray-500">
+                            this month
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
+                {/* Avg Marks Card */}
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <TrendingUp className="h-6 w-6 text-purple-600" />
+                    <div className="p-2 bg-yellow-100 rounded-lg">
+                      <TrendingUp className="h-6 w-6 text-yellow-600" />
                     </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Avg Marks</p>
-                    <p className="text-2xl font-semibold text-gray-900">{summary.avgMarks || 0}%</p>
-                  </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-orange-100 rounded-lg">
-                      <DollarSign className="h-6 w-6 text-orange-600" />
+                    <div className="ml-4 flex-1">
+                      <p className="text-sm font-medium text-gray-600">Avg Marks</p>
+                      {loading ? (
+                        <div className="h-8 bg-gray-200 rounded animate-pulse mt-1 w-3/4"></div>
+                      ) : (
+                        <div className="flex items-baseline">
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {summary.avgMarks.toFixed(1)}%
+                          </p>
+                          <span className="ml-2 text-sm text-gray-500">
+                            current term
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Collection Rate</p>
-                    <p className="text-2xl font-semibold text-gray-900">{summary.collectionPercentage || 0}%</p>
-                  </div>
                   </div>
                 </div>
               </div>
 
-              {/* Class Summary */}
-              <div className="bg-white rounded-lg shadow">
+              {/* Class & Section Wise Students */}
+              <div className="bg-white rounded-lg shadow mt-6">
                 <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900">Class Summary</h3>
+                  <h3 className="text-lg font-medium text-gray-900">Students by Class & Section</h3>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Class
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Students
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Avg Attendance
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Avg Marks
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Fee Collection
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {summary.classWiseDues.map((cls) => (
-                        <tr key={cls.classId} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">Class {cls.className}</div>
-                            <div className="text-sm text-gray-500">
-                              {cls.sections.length > 0 ? cls.sections.join(', ') : 'No sections'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {cls.studentCount}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {cls.avgAttendance}%
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {cls.avgMarks}%
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div>{formatCurrency(cls.totalFeesCollected)}</div>
-                            <div className="text-xs text-gray-500">{cls.collectionPercentage}% collected</div>
-                          </td>
-                        </tr>
+                  {loading ? (
+                    <div className="p-6 space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-16 bg-gray-100 rounded animate-pulse"></div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  ) : classWiseCounts.length > 0 ? (
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Class
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Section
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Students
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {classWiseCounts.map((classItem) => (
+                          <React.Fragment key={classItem.className}>
+                            {classItem.sections.map((section, idx) => (
+                              <tr key={`${classItem.className}-${section.name}`} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  {idx === 0 && (
+                                    <div className="text-sm font-medium text-gray-900">
+                                      Class {classItem.className}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {section.name || 'All Sections'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {section.count.toLocaleString()}
+                                    </span>
+                                    {idx === 0 && classItem.sections.length > 1 && (
+                                      <span className="ml-2 text-xs text-gray-500">
+                                        (Total: {classItem.total})
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="p-6 text-center text-gray-500">
+                      No class/section data available
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -306,11 +541,12 @@ const ReportsPage: React.FC = () => {
               <div className="flex justify-end">
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => alert('Export functionality will be implemented')}
-                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                    onClick={handleExportToCSV}
+                    disabled={loadingDues}
+                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Export to CSV
+                    {loadingDues ? 'Exporting...' : 'Export to CSV'}
                   </button>
                   <button
                     onClick={fetchDuesList}
@@ -388,9 +624,7 @@ const ReportsPage: React.FC = () => {
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Next Due
-                        </th>
+                        {/* Next Due column removed as requested */}
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -409,7 +643,9 @@ const ReportsPage: React.FC = () => {
                               <div className="flex items-center">
                                 <div>
                                   <div className="text-sm font-medium text-gray-900">{record.studentName}</div>
-                                  <div className="text-sm text-gray-500">{record.rollNumber}</div>
+                                  {record.rollNumber && (
+                                    <div className="text-sm text-gray-500">{record.rollNumber}</div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -429,9 +665,7 @@ const ReportsPage: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <StatusBadge status={record.status.toLowerCase()} />
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {record.nextDueDate ? new Date(record.nextDueDate).toLocaleDateString() : 'N/A'}
-                            </td>
+                            {/* Next Due data cell removed as requested */}
                           </tr>
                         ))
                       ) : (

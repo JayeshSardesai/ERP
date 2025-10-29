@@ -36,7 +36,8 @@ const accessMatrix = {
     submitAssignments: false,
     viewResults: true,
     updateResults: false,
-    message: true
+    message: true,
+    viewFees: true
   },
   teacher: {
     manageUsers: false,
