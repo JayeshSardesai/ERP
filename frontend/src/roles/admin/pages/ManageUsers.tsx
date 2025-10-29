@@ -3759,50 +3759,86 @@ const ManageUsers: React.FC = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const userId = ((user as any).userId || user._id || '').toLowerCase();
+    const userName = (user.name || '').toLowerCase();
+    const userEmail = (user.email || '').toLowerCase();
+    const searchLower = searchTerm.toLowerCase();
+    
+    const matchesSearch = userName.includes(searchLower) ||
+      userEmail.includes(searchLower) ||
+      userId.includes(searchLower);
     const matchesRole = user.role === activeTab;
     const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || user.studentDetails?.class === selectedGrade;
     const matchesSection = activeTab !== 'student' || selectedSection === 'all' || user.studentDetails?.section === selectedSection;
     return matchesSearch && matchesRole && matchesGrade && matchesSection;
   }).sort((a, b) => {
-    // Sort students by rollNumber (Student ID)
+    // Sort students by userId (Student ID) in ascending order
     if (a.role === 'student' && b.role === 'student') {
-      const rollA = a.studentDetails?.rollNumber || '';
-      const rollB = b.studentDetails?.rollNumber || '';
-      // Try numeric comparison first, fall back to string comparison
-      const numA = parseInt(rollA);
-      const numB = parseInt(rollB);
-      if (!isNaN(numA) && !isNaN(numB)) {
+      const studentIdA = (a as any).userId || a._id || '';
+      const studentIdB = (b as any).userId || b._id || '';
+      
+      // Extract numeric part from student ID (e.g., "BG-S-0003" -> 3)
+      const extractNumber = (id: string) => {
+        const match = id.match(/\d+$/);
+        return match ? parseInt(match[0]) : 0;
+      };
+      
+      const numA = extractNumber(studentIdA);
+      const numB = extractNumber(studentIdB);
+      
+      // If both have numeric parts, compare numerically
+      if (numA !== 0 || numB !== 0) {
         return numA - numB;
       }
-      return rollA.localeCompare(rollB);
+      
+      // Fallback to string comparison
+      return studentIdA.localeCompare(studentIdB);
     }
 
-    // Sort teachers by employeeId (Employee ID)
+    // Sort teachers by userId (Teacher ID) in ascending order
     if (a.role === 'teacher' && b.role === 'teacher') {
-      const empA = a.teacherDetails?.employeeId || '';
-      const empB = b.teacherDetails?.employeeId || '';
-      // Try numeric comparison first, fall back to string comparison
-      const numA = parseInt(empA);
-      const numB = parseInt(empB);
-      if (!isNaN(numA) && !isNaN(numB)) {
+      const teacherIdA = (a as any).userId || a._id || '';
+      const teacherIdB = (b as any).userId || b._id || '';
+      
+      // Extract numeric part from teacher ID (e.g., "BG-T-0003" -> 3)
+      const extractNumber = (id: string) => {
+        const match = id.match(/\d+$/);
+        return match ? parseInt(match[0]) : 0;
+      };
+      
+      const numA = extractNumber(teacherIdA);
+      const numB = extractNumber(teacherIdB);
+      
+      // If both have numeric parts, compare numerically
+      if (numA !== 0 || numB !== 0) {
         return numA - numB;
       }
-      return empA.localeCompare(empB);
+      
+      // Fallback to string comparison
+      return teacherIdA.localeCompare(teacherIdB);
     }
 
-    // Sort admins by employeeId (Employee ID)
+    // Sort admins by userId (Admin ID) in ascending order
     if (a.role === 'admin' && b.role === 'admin') {
-      const empA = a.adminDetails?.employeeId || '';
-      const empB = b.adminDetails?.employeeId || '';
-      // Try numeric comparison first, fall back to string comparison
-      const numA = parseInt(empA);
-      const numB = parseInt(empB);
-      if (!isNaN(numA) && !isNaN(numB)) {
+      const adminIdA = (a as any).userId || a._id || '';
+      const adminIdB = (b as any).userId || b._id || '';
+      
+      // Extract numeric part from admin ID (e.g., "BG-A-0003" -> 3)
+      const extractNumber = (id: string) => {
+        const match = id.match(/\d+$/);
+        return match ? parseInt(match[0]) : 0;
+      };
+      
+      const numA = extractNumber(adminIdA);
+      const numB = extractNumber(adminIdB);
+      
+      // If both have numeric parts, compare numerically
+      if (numA !== 0 || numB !== 0) {
         return numA - numB;
       }
-      return empA.localeCompare(empB);
+      
+      // Fallback to string comparison
+      return adminIdA.localeCompare(adminIdB);
     }
 
     // Default: maintain existing order
@@ -5852,7 +5888,28 @@ const ManageUsers: React.FC = () => {
       // Sort sections within each class
       const sortedSections: { [key: string]: User[] } = {};
       Object.keys(organized[className]).sort().forEach(section => {
-        sortedSections[section] = organized[className][section].sort((a, b) => a.name.localeCompare(b.name));
+        // Sort students by userId (Student ID) in ascending order
+        sortedSections[section] = organized[className][section].sort((a, b) => {
+          const studentIdA = (a as any).userId || a._id || '';
+          const studentIdB = (b as any).userId || b._id || '';
+          
+          // Extract numeric part from student ID (e.g., "BG-S-0003" -> 3)
+          const extractNumber = (id: string) => {
+            const match = id.match(/\d+$/);
+            return match ? parseInt(match[0]) : 0;
+          };
+          
+          const numA = extractNumber(studentIdA);
+          const numB = extractNumber(studentIdB);
+          
+          // If both have numeric parts, compare numerically
+          if (numA !== 0 || numB !== 0) {
+            return numA - numB;
+          }
+          
+          // Fallback to string comparison
+          return studentIdA.localeCompare(studentIdB);
+        });
       });
       result[className] = sortedSections;
     });
@@ -5874,6 +5931,8 @@ const ManageUsers: React.FC = () => {
   const handleGradeChange = (grade: string) => {
     setSelectedGrade(grade);
     setSelectedSection('all'); // Reset section when grade changes
+    // Update available sections based on selected class
+    handleClassSelection(grade);
   };
   const userData = user as DisplayUser;
 
@@ -5987,7 +6046,7 @@ const ManageUsers: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <input
                   type="text"
-                  placeholder="Search users..."
+                  placeholder="Search by name, email, or ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -6001,22 +6060,14 @@ const ManageUsers: React.FC = () => {
                       value={selectedGrade}
                       onChange={(e) => handleGradeChange(e.target.value)}
                       className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={classesLoading}
                     >
                       <option value="all">All Classes</option>
-                      <option value="LKG">LKG</option>
-                      <option value="UKG">UKG</option>
-                      <option value="1">Class 1</option>
-                      <option value="2">Class 2</option>
-                      <option value="3">Class 3</option>
-                      <option value="4">Class 4</option>
-                      <option value="5">Class 5</option>
-                      <option value="6">Class 6</option>
-                      <option value="7">Class 7</option>
-                      <option value="8">Class 8</option>
-                      <option value="9">Class 9</option>
-                      <option value="10">Class 10</option>
-                      <option value="11">Class 11</option>
-                      <option value="12">Class 12</option>
+                      {classesData?.classes?.map((classItem) => (
+                        <option key={classItem._id} value={classItem.className}>
+                          Class {classItem.className}
+                        </option>
+                      ))}
                     </select>
 
                     {/* Section Dropdown - only show when a specific class is selected */}
@@ -6025,14 +6076,14 @@ const ManageUsers: React.FC = () => {
                         value={selectedSection}
                         onChange={(e) => setSelectedSection(e.target.value)}
                         className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        disabled={classesLoading}
                       >
                         <option value="all">All Sections</option>
-                        <option value="A">Section A</option>
-                        <option value="B">Section B</option>
-                        <option value="C">Section C</option>
-                        <option value="D">Section D</option>
-                        <option value="E">Section E</option>
-                        <option value="F">Section F</option>
+                        {availableSections.map((sectionOption) => (
+                          <option key={sectionOption.value} value={sectionOption.section}>
+                            Section {sectionOption.section}
+                          </option>
+                        ))}
                       </select>
                     )}
                   </div>
@@ -6192,7 +6243,7 @@ const ManageUsers: React.FC = () => {
                               <div className="divide-y divide-gray-100">
                                 {students.map((student) => (
                                   <div key={student._id} className="px-6 py-3 hover:bg-gray-50 flex items-center justify-between">
-                                    <div className="flex items-center space-x-4">
+                                    <div className="flex items-center space-x-4 flex-1 min-w-0">
                                       <div className="flex-shrink-0">
                                         <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                                           <span className="text-sm font-medium text-blue-600">
@@ -6200,11 +6251,11 @@ const ManageUsers: React.FC = () => {
                                           </span>
                                         </div>
                                       </div>
-                                      <div>
-                                        <div className="text-sm font-medium text-gray-900">{student.name}</div>
-                                        <div className="text-sm text-gray-500">{student.email}</div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium text-gray-900 break-words">{student.name}</div>
+                                        <div className="text-sm text-gray-500 break-words">{student.email}</div>
                                         {student.studentDetails?.studentId && (
-                                          <div className="text-xs text-gray-400">ID: {student.studentDetails.studentId}</div>
+                                          <div className="text-xs text-gray-400 truncate">ID: {student.studentDetails.studentId}</div>
                                         )}
                                       </div>
                                     </div>
@@ -6337,20 +6388,20 @@ const ManageUsers: React.FC = () => {
                             </div>
                           </td>
                           {/* User Column */}
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
+                          <td className="px-6 py-4">
+                            <div className="max-w-xs">
+                              <div className="text-sm font-medium text-gray-900 break-words">
                                 {(user as any).name?.displayName ||
                                   ((user as any).name?.firstName && (user as any).name?.lastName
                                     ? `${(user as any).name.firstName} ${(user as any).name.lastName}`
                                     : (user as any).name?.firstName || user.name || 'No name')}
                               </div>
-                              <div className="text-sm text-gray-500">{(user as any).userId || user._id}</div>
+                              <div className="text-sm text-gray-500 truncate">{(user as any).userId || user._id}</div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div>
-                              <div>{user.email}</div>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            <div className="max-w-xs">
+                              <div className="break-words">{user.email}</div>
                               <div className="text-xs text-gray-400">{(user as any).contact?.primaryPhone || user.phone || 'No phone'}</div>
                             </div>
                           </td>
