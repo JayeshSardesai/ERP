@@ -282,40 +282,59 @@ const ReportsPage: React.FC = () => {
 
   // Fetch school summary data
   const fetchSchoolSummary = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  try {
+    setLoading(true);
+    setError(null);
+    
+    console.log('Fetching school summary with params:', {
+      class: selectedClass,
+      section: selectedSection
+    });
+    
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    const response = await getSchoolSummary({
+      academicYear: `${now.getFullYear()}-${now.getFullYear() + 1}`,
+      class: selectedClass === 'ALL' ? undefined : selectedClass,
+      section: selectedSection === 'ALL' ? undefined : selectedSection,
+      from: firstDay.toISOString().split('T')[0],
+      to: lastDay.toISOString().split('T')[0]
+    });
+    
+    console.log('School summary response:', response);
+    
+    if (response.success) {
+      setSummary({
+        totalStudents: response.data.totalStudents || 0,
+        avgAttendance: response.data.avgAttendance || 0,
+        avgMarks: response.data.avgMarks || 0,
+        classWiseDues: response.data.classWiseDues || []
+      });
       
-      const params = {
-        from: dateFrom || undefined,
-        to: dateTo || undefined,
-        targetClass: selectedClass !== 'ALL' ? selectedClass : undefined,
-        targetSection: selectedSection !== 'ALL' ? selectedSection : undefined
-      };
-      
-      // Fetch both summary and class-wise counts in parallel
-      const [summaryResponse] = await Promise.all([
-        getSchoolSummary(params),
-        fetchClassWiseCounts()
-      ]);
-      
-      if (summaryResponse.success) {
-        setSummary(prev => ({
-          ...prev,
-          totalStudents: summaryResponse.data.totalStudents || 0,
-          avgAttendance: summaryResponse.data.avgAttendance || 0,
-          avgMarks: summaryResponse.data.avgMarks || 0
+      // Update class-wise counts
+      if (response.data.classes) {
+        const counts = response.data.classes.map(cls => ({
+          className: cls.name,
+          sections: response.data.sections
+            .filter(sec => sec.className === cls.name)
+            .map(sec => ({
+              name: sec.name,
+              count: sec.studentCount || 0
+            })),
+          total: cls.studentCount || 0
         }));
-      } else {
-        throw new Error(summaryResponse.message || 'Failed to fetch school summary');
+        setClassWiseCounts(counts);
       }
-    } catch (err) {
-      console.error('Error fetching school summary:', err);
-      setError('Failed to load school summary data. Please try again.');
-    } finally {
-      setLoading(false);
     }
-  }, [dateFrom, dateTo, selectedClass, selectedSection]);
+  } catch (err) {
+    console.error('Error in fetchSchoolSummary:', err);
+    setError('Failed to load school summary data. Please check the console for details.');
+  } finally {
+    setLoading(false);
+  }
+}, [selectedClass, selectedSection]);
 
   // Load data when component mounts or filters change
   useEffect(() => {

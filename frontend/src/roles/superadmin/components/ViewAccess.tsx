@@ -8,9 +8,9 @@ const allPermissions = [
   { key: 'manageUsers', label: 'Manage Users', description: 'Access to add, edit, and delete users' },
   { key: 'manageSchoolSettings', label: 'Manage School Settings', description: 'Access to configure school settings' },
   { key: 'viewAcademicDetails', label: 'Academic Details', description: 'Access to manage academic year and classes' },
-  { key: 'viewAttendance', label: 'View Attendance', description: 'Access to view and mark attendance' },
-  { key: 'viewAssignments', label: 'View Assignments', description: 'Access to manage assignments' },
-  { key: 'viewResults', label: 'View Results', description: 'Access to view student results' },
+  { key: 'viewAttendance', label: 'Attendance', description: 'Access to view and mark attendance' },
+  { key: 'viewAssignments', label: 'Assignments', description: 'Access to manage assignments' },
+  { key: 'viewResults', label: 'Results', description: 'Access to view student results' },
   { key: 'messageStudentsParents', label: 'Message Students/Parents', description: 'Access to send messages to students and parents' },
   { key: 'viewFees', label: 'Manage Fees', description: 'Access to manage fee structure and payments' },
   { key: 'viewReports', label: 'View Reports', description: 'Access to generate and view reports' },
@@ -18,9 +18,9 @@ const allPermissions = [
 
 // Permissions specific to teacher role
 const teacherPermissions = [
-  { key: 'viewAttendance', label: 'View Attendance', description: 'Access to view and mark attendance' },
-  { key: 'viewAssignments', label: 'View Assignments', description: 'Access to view assignments' },
-  { key: 'viewResults', label: 'View Results', description: 'Access to view student results' },
+  { key: 'viewAttendance', label: 'Attendance', description: 'Access to view and mark attendance' },
+  { key: 'viewAssignments', label: 'Assignments', description: 'Access to view assignments' },
+  { key: 'viewResults', label: 'Results', description: 'Access to view student results' },
   { key: 'messageStudentsParents', label: 'Message Students/Parents', description: 'Access to send messages to students and parents' }
 ];
 
@@ -65,15 +65,15 @@ export function ViewAccess() {
     if (accessMatrix && selectedSchoolId) {
       try {
         await updateSchoolAccess(selectedSchoolId, accessMatrix);
-        
+
         toast.success('Access permissions updated successfully!');
-        
+
         // Wait a moment for the backend to complete the update
         await new Promise(resolve => setTimeout(resolve, 500));
-        
+
         // Trigger permission refresh event for logged-in users
         window.dispatchEvent(new Event('permission-refresh'));
-        
+
         setCurrentView('dashboard');
       } catch (error) {
         toast.error('Failed to update access permissions');

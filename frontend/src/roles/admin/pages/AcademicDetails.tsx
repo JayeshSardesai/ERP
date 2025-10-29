@@ -723,11 +723,14 @@ const AcademicDetails: React.FC = () => {
               }));
 
               setStudents(studentsWithSeqId);
-              toast.success(`Loaded ${studentsWithSeqId.length} real students for Class ${hallTicketClass} Section ${hallTicketSection}`);
+              toast.success(`Loaded ${studentsWithSeqId.length} students for Class ${hallTicketClass} Section ${hallTicketSection}`);
               console.log('✅ Real students loaded:', studentsWithSeqId);
               return;
             } else {
               console.log(`⚠️ No students found for Class ${hallTicketClass} Section ${hallTicketSection} in ${data.data.length} total students`);
+              setStudents([]);
+              toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}`);
+              return;
             }
           }
         }
@@ -793,8 +796,13 @@ const AcademicDetails: React.FC = () => {
               }));
 
               setStudents(studentsWithSeqId);
-              toast.success(`Loaded ${studentsWithSeqId.length} real students for Class ${hallTicketClass} Section ${hallTicketSection}`);
+              toast.success(`Loaded ${studentsWithSeqId.length} students for Class ${hallTicketClass} Section ${hallTicketSection}`);
               console.log('✅ Real students loaded from school-users endpoint:', studentsWithSeqId);
+              return;
+            } else {
+              console.log(`⚠️ No students found in school-users endpoint for Class ${hallTicketClass} Section ${hallTicketSection}`);
+              setStudents([]);
+              toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}`);
               return;
             }
           }
@@ -803,34 +811,10 @@ const AcademicDetails: React.FC = () => {
         console.log('❌ School-users API also failed:', altApiError);
       }
 
-      // Fallback to mock data if all APIs fail or return no students
-      console.log('🔄 Using mock data for students...');
-      toast.success(`No students API available. Using sample data for Class ${hallTicketClass} Section ${hallTicketSection}.`);
-      // Generate more realistic mock students for the class
-      const studentNames = [
-        'Aarav Sharma', 'Vivaan Patel', 'Aditya Kumar', 'Vihaan Singh', 'Arjun Gupta',
-        'Sai Reddy', 'Reyansh Joshi', 'Ayaan Khan', 'Krishna Yadav', 'Ishaan Verma',
-        'Ananya Agarwal', 'Diya Mehta', 'Aadhya Nair', 'Kavya Iyer', 'Arya Desai',
-        'Myra Shah', 'Anika Malhotra', 'Navya Kapoor', 'Kiara Jain', 'Saanvi Bansal'
-      ];
-
-      const mockStudents: Student[] = studentNames.slice(0, 15).map((name, index) => ({
-        id: String(index + 1),
-        name: name,
-        rollNumber: `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-        sequenceId: `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-        className: hallTicketClass,
-        section: hallTicketSection,
-        // Add sample profile images for testing - use placeholder services for demo
-        profileImage: index % 3 === 0 ? `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=150&background=random&color=FFFFFF&format=png` :
-          index % 3 === 1 ? `https://via.placeholder.com/150x200/4F46E5/FFFFFF?text=${encodeURIComponent(name.split(' ')[0])}` :
-            undefined
-      }));
-
-      setStudents(mockStudents);
-      toast.success(`Loaded ${mockStudents.length} sample students for Class ${hallTicketClass} Section ${hallTicketSection}`);
-      console.log('✅ Mock students loaded:', mockStudents);
-      console.log('📸 Students with photos:', mockStudents.filter(s => s.profileImage).map(s => ({ name: s.name, photo: s.profileImage })));
+      // No students found - show error message
+      console.log('⚠️ No students found for the selected class and section');
+      setStudents([]);
+      toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}. Please add students to this class first.`);
     } catch (error: any) {
       console.error('Error in fetchStudentsForClass:', error);
       setStudents([]);
@@ -895,6 +879,11 @@ const AcademicDetails: React.FC = () => {
               toast.success(`Loaded ${studentsWithData.length} students for ID card generation`);
               console.log('✅ ID Card students loaded:', studentsWithData);
               return;
+            } else {
+              console.log(`⚠️ No students found for Class ${idCardClass} Section ${idCardSection}`);
+              setIdCardStudents([]);
+              toast.error(`No students found for Class ${idCardClass} Section ${idCardSection}`);
+              return;
             }
           }
         }
@@ -902,29 +891,10 @@ const AcademicDetails: React.FC = () => {
         console.log('❌ ID Card Students API failed:', apiError);
       }
 
-      // Fallback to mock data
-      console.log('🔄 Using mock data for ID card students...');
-      const mockStudents: Student[] = [
-        'Aarav Sharma', 'Vivaan Patel', 'Aditya Kumar', 'Vihaan Singh', 'Arjun Gupta'
-      ].map((name, index) => ({
-        _id: String(index + 1),
-        id: String(index + 1),
-        name: name,
-        rollNumber: `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
-        sequenceId: `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
-        className: idCardClass,
-        section: idCardSection,
-        profileImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=150&background=4F46E5&color=FFFFFF&format=png`,
-        fatherName: `Father of ${name.split(' ')[0]}`,
-        motherName: `Mother of ${name.split(' ')[0]}`,
-        dateOfBirth: '01/01/2010',
-        bloodGroup: ['A+', 'B+', 'O+', 'AB+'][index % 4],
-        address: `Address ${index + 1}, City, State`,
-        phone: `+91 98765${String(index + 1).padStart(5, '0')}`
-      }));
-
-      setIdCardStudents(mockStudents);
-      toast.success(`Loaded ${mockStudents.length} sample students for ID card generation`);
+      // No students found - show error message
+      console.log('⚠️ No students found for the selected class and section');
+      setIdCardStudents([]);
+      toast.error(`No students found for Class ${idCardClass} Section ${idCardSection}. Please add students to this class first.`);
     } catch (error: any) {
       console.error('Error in fetchStudentsForIdCards:', error);
       setIdCardStudents([]);

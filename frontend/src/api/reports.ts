@@ -63,10 +63,78 @@ export async function getSchoolOverview(params?: {
   return res.data;
 }
 
-export async function getSchoolSummary(params: any) {
-  const res = await api.get('/reports/summary', { params });
-  return res.data;
+export interface SchoolSummary {
+  totalStudents: number;
+  avgAttendance: number;
+  avgMarks: number;
+  classWiseDues: Array<{
+    className: string;
+    totalDues: number;
+    paidAmount: number;
+    pendingAmount: number;
+  }>;
+  classes: Array<{
+    _id: string;
+    name: string;
+    sectionCount: number;
+    studentCount: number;
+  }>;
+  sections: Array<{
+    _id: string;
+    name: string;
+    studentCount: number;
+    className: string;
+  }>;
 }
+
+// In frontend/src/api/reports.ts
+export interface SchoolSummary {
+  totalStudents: number;
+  avgAttendance: number;
+  avgMarks: number;
+  classWiseDues: Array<{
+    className: string;
+    totalDues: number;
+    paidAmount: number;
+    pendingAmount: number;
+  }>;
+  classes: Array<{
+    _id: string;
+    name: string;
+    sectionCount: number;
+    studentCount: number;
+  }>;
+  sections: Array<{
+    _id: string;
+    name: string;
+    studentCount: number;
+    className: string;
+  }>;
+}
+
+export const getSchoolSummary = async (params: {
+  academicYear?: string;
+  class?: string;
+  section?: string;
+  from?: string;
+  to?: string;
+} = {}): Promise<{ success: boolean; data: SchoolSummary }> => {
+  try {
+    const response = await api.get('/reports/summary', { 
+      params: {
+        academicYear: params.academicYear,
+        targetClass: params.class,  // Changed from class to targetClass
+        targetSection: params.section,  // Changed from section to targetSection
+        from: params.from,
+        to: params.to
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching school summary:', error);
+    throw error;
+  }
+};
 
 export async function getClassSummary(params: any) {
   const res = await api.get('/reports/class-summary', { params });
