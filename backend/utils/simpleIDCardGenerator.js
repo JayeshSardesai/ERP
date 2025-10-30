@@ -54,38 +54,61 @@ class SimpleIDCardGenerator {
 
   /**
    * Wrap text into multiple lines based on maxWidth
+   * Supports different char limits for first line vs subsequent lines
    */
-  wrapText(text, maxCharsPerLine = 40) {
+  wrapText(text, maxCharsPerLine = 40, subsequentMaxCharsPerLine = null) {
     if (!text) return [];
 
-    const words = String(text).split(' ');
+    // Ensure text is a string and handle undefined/null
+    const safeText = String(text || '').trim();
+    if (!safeText) return [];
+
+    const words = safeText.split(' ');
     const lines = [];
     let currentLine = '';
+    let currentMaxChars = maxCharsPerLine;
 
     for (const word of words) {
-      // If the word itself is longer than maxCharsPerLine, break it
-      if (word.length > maxCharsPerLine) {
+      // Update max chars for subsequent lines
+      if (lines.length > 0 && subsequentMaxCharsPerLine) {
+        currentMaxChars = subsequentMaxCharsPerLine;
+      }
+
+      // If the word itself is longer than currentMaxChars, break it
+      if (word.length > currentMaxChars) {
         // Push current line if it exists
         if (currentLine) {
-          lines.push(currentLine);
+          lines.push(currentLine.trim());
           currentLine = '';
+          // Update max chars after pushing first line
+          if (lines.length > 0 && subsequentMaxCharsPerLine) {
+            currentMaxChars = subsequentMaxCharsPerLine;
+          }
         }
-        
+
         // Break the long word into chunks
         let remainingWord = word;
-        while (remainingWord.length > maxCharsPerLine) {
-          lines.push(remainingWord.substring(0, maxCharsPerLine));
-          remainingWord = remainingWord.substring(maxCharsPerLine);
+        while (remainingWord.length > currentMaxChars) {
+          lines.push(remainingWord.substring(0, currentMaxChars));
+          remainingWord = remainingWord.substring(currentMaxChars);
+          // Update max chars for next iteration
+          if (subsequentMaxCharsPerLine) {
+            currentMaxChars = subsequentMaxCharsPerLine;
+          }
         }
         currentLine = remainingWord;
       } else {
         const testLine = currentLine ? `${currentLine} ${word}` : word;
 
-        if (testLine.length <= maxCharsPerLine) {
+        if (testLine.length <= currentMaxChars) {
           currentLine = testLine;
         } else {
           if (currentLine) {
-            lines.push(currentLine);
+            lines.push(currentLine.trim());
+            // Update max chars after pushing first line
+            if (lines.length > 0 && subsequentMaxCharsPerLine) {
+              currentMaxChars = subsequentMaxCharsPerLine;
+            }
           }
           currentLine = word;
         }
@@ -93,7 +116,7 @@ class SimpleIDCardGenerator {
     }
 
     if (currentLine) {
-      lines.push(currentLine);
+      lines.push(currentLine.trim());
     }
 
     return lines;
@@ -101,6 +124,7 @@ class SimpleIDCardGenerator {
 
   /**
    * Create multi-line text as SVG buffer for sharp composite
+   * Returns either a single buffer or an array of {buffer, top, left} objects for special positioning
    */
   createMultiLineTextSVG(text, options = {}) {
     const {
@@ -111,14 +135,37 @@ class SimpleIDCardGenerator {
       maxWidth = 400,
       lineHeight = 1.2,
       maxCharsPerLine = 40,
-      textAlign = 'left'
+      textAlign = 'left',
+      firstLineX = null,
+      subsequentLinesX = null,
+      subsequentMaxCharsPerLine = null
     } = options;
 
-    // Wrap text into multiple lines
-    const lines = this.wrapText(text, maxCharsPerLine);
+    // Wrap text into multiple lines (with different char limits for first vs subsequent lines)
+    const lines = this.wrapText(text, maxCharsPerLine, subsequentMaxCharsPerLine);
 
     // Calculate total height needed
     const totalHeight = lines.length * fontSize * lineHeight + 10;
+
+    // Special case: landscape address with different X positions for first vs subsequent lines
+    // Return metadata instead of a single buffer
+    if (firstLineX !== null && subsequentLinesX !== null && lines.length > 1) {
+      return {
+        isMultiPosition: true,
+        lines: lines,
+        fontSize: fontSize,
+        fontFamily: fontFamily,
+        color: color,
+        fontWeight: fontWeight,
+        lineHeight: lineHeight,
+        firstLineX: firstLineX,
+        subsequentLinesX: subsequentLinesX,
+        maxWidth: maxWidth
+      };
+    }
+
+    // Standard multi-line text (all lines at same X position)
+    const svgWidth = maxWidth;
 
     // Create SVG with multiple text elements
     const textElements = lines.map((line, index) => {
@@ -150,7 +197,7 @@ class SimpleIDCardGenerator {
     }).join('\n');
 
     const svg = `
-      <svg width="${maxWidth}" height="${totalHeight}">
+      <svg width="${svgWidth}" height="${totalHeight}">
         ${textElements}
       </svg>
     `;
@@ -200,45 +247,53 @@ class SimpleIDCardGenerator {
   getFieldPositions(orientation, side) {
     if (orientation === 'landscape' && side === 'front') {
       return {
-        schoolLogo: { x: 170, y: 60, width: 80, height: 80 },
-        schoolName: { x: 265, y: 58, fontSize: 34, fontWeight: 'bold', maxWidth: 700, multiLine: true, maxCharsPerLine: 70, lineHeight: 1.1, minFontSize: 20, maxLines: 2, autoSize: true },
-        schoolAddress: { x: 265, y: 105, fontSize: 20, fontWeight: 'normal', maxWidth: 700, multiLine: true, maxCharsPerLine: 80, lineHeight: 1.0, minFontSize: 14, maxLines: 2, autoSize: true },
-        photo: { x: 60, y: 180, width: 235, height: 300 },
-        name: { x: 580, y: 203, fontSize: 26, fontWeight: 'bold', maxWidth: 400, multiLine: true, maxCharsPerLine: 25, lineHeight: 1.1, minFontSize: 18, maxLines: 2, autoSize: true },
-        idNumber: { x: 580, y: 253, fontSize: 26 },
-        classSection: { x: 580, y: 302, fontSize: 26 },
-        dob: { x: 580, y: 348, fontSize: 26 },
-        bloodGroup: { x: 585, y: 397, fontSize: 26 }
+        schoolLogo: { x: 130, y: 80, width: 80, height: 80 },
+        schoolName: { x: 230, y: 80, fontSize: 30, fontWeight: 'bold', maxWidth: 700, multiLine: true, maxCharsPerLine: 70, lineHeight: 1.1, minFontSize: 18, maxLines: 2, autoSize: true, dynamicHeight: true },
+        schoolAddress: { x: 230, y: 130, fontSize: 16, fontWeight: 'normal', maxWidth: 700, multiLine: true, maxCharsPerLine: 90, lineHeight: 1.0, minFontSize: 12, maxLines: 2, autoSize: true, dynamicY: true, baseY: 105, dependsOn: 'schoolName' },
+        photo: { x: 75, y: 185, width: 235, height: 300 },
+        nameLabel: { x: 330, y: 203, fontSize: 24, fontWeight: 'bold', dynamicX: true },
+        name: { x: 530, y: 203, fontSize: 24, fontWeight: 'bold', maxWidth: 550, multiLine: true, maxCharsPerLine: 30, lineHeight: 1.2, maxLines: 3, dynamicX: true },
+        idNumberLabel: { x: 330, y: 253, fontSize: 24, fontWeight: 'bold', dynamicX: true },
+        idNumber: { x: 530, y: 253, fontSize: 24, dynamicX: true },
+        classSectionLabel: { x: 330, y: 302, fontSize: 24, fontWeight: 'bold', dynamicX: true },
+        classSection: { x: 530, y: 302, fontSize: 24, dynamicX: true },
+        dobLabel: { x: 330, y: 348, fontSize: 24, fontWeight: 'bold', dynamicX: true },
+        dob: { x: 530, y: 348, fontSize: 24, dynamicX: true },
+        bloodGroup: { x: 413, y: 480, fontSize: 20, fontWeight: 'bold', color: '#000000' }
       };
     } else if (orientation === 'landscape' && side === 'back') {
       return {
-        address: { x: 400, y: 116, fontSize: 23, fontWeight: 'bold', maxWidth: 500, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.3, minFontSize: 16, maxLines: 3, autoSize: true },
+        address: { x: 400, y: 116, fontSize: 20, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 52, lineHeight: 1.3, minFontSize: 16, maxLines: 4, autoSize: false },
         mobile: { x: 520, y: 183, fontSize: 23, fontWeight: 'bold', maxWidth: 200 },
         returnSchoolName: { x: 270, y: 415, fontSize: 23, fontWeight: 'bold', maxWidth: 750, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
-        returnAddress: { x: 270, y: 450, fontSize: 23, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
+        returnAddress: { x: 170, y: 450, fontSize: 23, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true, textAlign: 'center' },
         schoolPhone: { x: 270, y: 510, fontSize: 20, fontWeight: 'bold', maxWidth: 650 },
         schoolEmail: { x: 470, y: 510, fontSize: 20, fontWeight: 'bold', maxWidth: 650 }
       };
     } else if (orientation === 'portrait' && side === 'front') {
       return {
-        schoolLogo: { x: 70, y: 50, width: 80, height: 80 },
-        schoolName: { x: 185, y: 55, fontSize: 30, fontWeight: 'bold', maxWidth: 400, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.1, minFontSize: 18, maxLines: 2, autoSize: true },
-        schoolAddress: { x: 185, y: 95, fontSize: 14, fontWeight: 'normal', maxWidth: 500, multiLine: true, maxCharsPerLine: 60, lineHeight: 1.2, minFontSize: 10, maxLines: 2, autoSize: true },
+        schoolLogo: { x: 30, y: 60, width: 80, height: 80 },
+        schoolName: { x: 125, y: 55, fontSize: 24, fontWeight: 'bold', maxWidth: 400, multiLine: true, maxCharsPerLine: 25, lineHeight: 1.2, minFontSize: 24, maxLines: 3, autoSize: false, dynamicHeight: true },
+        schoolAddress: { x: 125, y: 95, fontSize: 12, fontWeight: 'normal', maxWidth: 500, multiLine: true, maxCharsPerLine: 65, lineHeight: 1.2, minFontSize: 12, maxLines: 3, autoSize: false, dynamicY: true, baseY: 95, dependsOn: 'schoolName' },
         photo: { x: 175, y: 195, width: 240, height: 300 },
-        name: { x: 340, y: 557, fontSize: 24, fontWeight: 'bold', maxWidth: 200, multiLine: true, maxCharsPerLine: 11, lineHeight: 1.1, minFontSize: 12, maxLines: 2, autoSize: true },
-        idNumber: { x: 340, y: 605, fontSize: 24, fontWeight: 'bold' },
-        classSection: { x: 340, y: 655, fontSize: 24, fontWeight: 'bold' },
-        dob: { x: 340, y: 700, fontSize: 24, fontWeight: 'bold' },
-        bloodGroup: { x: 340, y: 750, fontSize: 24, fontWeight: 'bold' }
+        nameLabel: { x: 50, y: 557, fontSize: 22, fontWeight: 'bold', baseValueX: 140 },
+        name: { x: 170, y: 557, fontSize: 22, fontWeight: 'bold', maxWidth: 500, multiLine: true, maxCharsPerLine: 35, lineHeight: 1.2, maxLines: 3, dynamicX: true },
+        idNumberLabel: { x: 50, y: 605, fontSize: 22, fontWeight: 'bold', baseValueX: 140 },
+        idNumber: { x: 170, y: 605, fontSize: 22, fontWeight: 'bold', dynamicX: true },
+        classSectionLabel: { x: 50, y: 655, fontSize: 22, fontWeight: 'bold', baseValueX: 140 },
+        classSection: { x: 170, y: 655, fontSize: 22, fontWeight: 'bold', dynamicX: true },
+        dobLabel: { x: 50, y: 700, fontSize: 22, fontWeight: 'bold', baseValueX: 140 },
+        dob: { x: 170, y: 700, fontSize: 22, fontWeight: 'bold', dynamicX: true },
+        bloodGroup: { x: 80, y: 345, fontSize: 22, fontWeight: 'bold', color: '#000000' }
       };
     } else if (orientation === 'portrait' && side === 'back') {
       return {
-        address: { x: 75, y: 100, fontSize: 24, fontWeight: 'bold', maxWidth: 450, multiLine: true, maxCharsPerLine: 30, lineHeight: 1.3, minFontSize: 16, maxLines: 4, autoSize: true, textAlign: 'center' },
-        mobile: { x: 295, y: 202, fontSize: 24, fontWeight: 'bold' },
-        returnSchoolName: { x: 70, y: 540, fontSize: 24, fontWeight: 'bold', maxWidth: 450, multiLine: true, maxCharsPerLine: 38, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
-        returnAddress: { x: 70, y: 575, fontSize: 24, fontWeight: 'bold', maxWidth: 450, multiLine: true, maxCharsPerLine: 38, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
-        schoolPhone: { x: 70, y: 650, fontSize: 24, fontWeight: 'bold', maxWidth: 420 },
-        schoolEmail: { x: 70, y: 680, fontSize: 24, fontWeight: 'bold', maxWidth: 420 }
+        address: { x: 50, y: 106, fontSize: 22, fontWeight: 'bold', maxWidth: 550, multiLine: true, maxCharsPerLine: 40, lineHeight: 1.3, minFontSize: 22, maxLines: 5, autoSize: false, textAlign: 'center', dynamicHeight: true },
+        mobile: { x: 295, y: 202, fontSize: 22, fontWeight: 'bold' },
+        returnSchoolName: { x: 50, y: 540, fontSize: 20, fontWeight: 'bold', maxWidth: 500, multiLine: true, maxCharsPerLine: 35, lineHeight: 1.15, minFontSize: 20, maxLines: 3, autoSize: false, dynamicHeight: true, dynamicY: true, baseY: 540, textAlign: 'center' },
+        returnAddress: { x: 50, y: 600, fontSize: 20, fontWeight: 'bold', maxWidth: 500, multiLine: true, maxCharsPerLine: 35, lineHeight: 1.15, minFontSize: 20, maxLines: 3, autoSize: false, dynamicHeight: true, dynamicY: true, baseY: 600, dependsOn: 'returnSchoolName', textAlign: 'center' },
+        schoolPhone: { x: 50, y: 650, fontSize: 20, fontWeight: 'bold', maxWidth: 500, multiLine: true, maxCharsPerLine: 35, lineHeight: 1.15, dynamicY: true, baseY: 650, dependsOn: 'returnAddress', textAlign: 'center' },
+        schoolEmail: { x: 50, y: 690, fontSize: 20, fontWeight: 'bold', maxWidth: 500, multiLine: true, maxCharsPerLine: 35, lineHeight: 1.15, dynamicY: true, baseY: 690, dependsOn: 'schoolPhone', textAlign: 'center' }
       };
     }
     return {};
@@ -277,6 +332,9 @@ class SimpleIDCardGenerator {
 
       // Get field positions
       const positions = this.getFieldPositions(orientation, side);
+
+      // Track field heights for dynamic positioning (portrait cards)
+      const fieldHeights = {};
 
       // Prepare composite layers
       const compositeImages = [];
@@ -343,8 +401,9 @@ class SimpleIDCardGenerator {
               maxLines: 2
             });
 
-            // Move text up to accommodate second line
-            yPosition = Math.max(positions.schoolName.y - 10, 45);
+            // Move text up proportionally to accommodate second line
+            const lift = Math.round((optimal.fontSize || positions.schoolName.fontSize) * 0.45);
+            yPosition = Math.max(positions.schoolName.y - lift, 45);
             allowMultiLine = true;
           }
 
@@ -353,6 +412,11 @@ class SimpleIDCardGenerator {
         }
 
         const textMethod = (allowMultiLine || positions.schoolName.multiLine) ? 'createMultiLineTextSVG' : 'createTextSVG';
+
+        // Calculate number of lines for height tracking
+        const schoolNameLines = this.wrapText(schoolInfo.schoolName, maxCharsPerLine);
+        const schoolNameHeight = schoolNameLines.length * fontSize * (positions.schoolName.lineHeight || 1.2);
+
         compositeImages.push({
           input: this[textMethod](schoolInfo.schoolName, {
             fontSize: fontSize,
@@ -362,15 +426,29 @@ class SimpleIDCardGenerator {
             maxCharsPerLine: maxCharsPerLine,
             lineHeight: positions.schoolName.lineHeight || 1.2
           }),
-          top: yPosition,
+          top: Math.round(yPosition),
           left: positions.schoolName.x
         });
+
+        // Store height for dynamic positioning
+        fieldHeights['schoolName'] = {
+          y: yPosition,
+          height: schoolNameHeight,
+          bottomY: yPosition + schoolNameHeight
+        };
       }
 
       // Add school address (FRONT SIDE ONLY)
       if (side === 'front' && positions.schoolAddress && schoolInfo.address) {
         let fontSize = positions.schoolAddress.fontSize;
         let maxCharsPerLine = positions.schoolAddress.maxCharsPerLine || 35;
+
+        // Calculate dynamic Y position if dependsOn is set
+        let yPosition = positions.schoolAddress.y;
+        if (positions.schoolAddress.dynamicY && positions.schoolAddress.dependsOn && fieldHeights[positions.schoolAddress.dependsOn]) {
+          const dependentField = fieldHeights[positions.schoolAddress.dependsOn];
+          yPosition = dependentField.bottomY + 5; // 5px gap
+        }
 
         // Auto-size if enabled
         if (positions.schoolAddress.autoSize) {
@@ -395,7 +473,7 @@ class SimpleIDCardGenerator {
             maxCharsPerLine: maxCharsPerLine,
             lineHeight: positions.schoolAddress.lineHeight || 1.2
           }),
-          top: positions.schoolAddress.y,
+          top: Math.round(yPosition),
           left: positions.schoolAddress.x
         });
       }
@@ -433,124 +511,258 @@ class SimpleIDCardGenerator {
 
       // Add text fields based on side
       if (side === 'front') {
-        // Front side fields - NO LABELS, just values (labels already on template)
-        if (positions.name) {
-          let fontSize = positions.name.fontSize;
-          let maxCharsPerLine = positions.name.maxCharsPerLine || 11;
-          let yPosition = positions.name.y;
-          let allowMultiLine = false;
-          const configuredMaxWidth = positions.name.maxWidth || 400;
+        // Front side fields - Add labels and values
 
-          // Auto-size student name if enabled
-          if (positions.name.autoSize && positions.name.multiLine) {
-            // Step 1: Try to fit in 1 line first
-            let optimal = this.calculateOptimalTextSize(student.name, {
-              fontSize: positions.name.fontSize,
-              maxWidth: configuredMaxWidth,
-              maxCharsPerLine: positions.name.maxCharsPerLine || 11,
-              minFontSize: positions.name.minFontSize || 12,
-              maxLines: 1
-            });
+        // Calculate name lines to determine if we need to adjust other field positions
+        let nameLines = 1;
+        let nameYPosition = positions.name.y;
+        let nameExtraHeight = 0;
+        const isPortrait = orientation === 'portrait';
+        const isLandscape = orientation === 'landscape';
+        let portraitShortName = false;
+        let portraitScale = 1.0;
+        let belowNameExtraSpacing = 0;
+        let landscapeShortName = false;
+        let landscapeLabelShift = 0;
+        let landscapeValueShift = 0;
+        let portraitValueXShift = 0;
+        let portraitLongName = false;
+        let portraitLabelLeftShift = 0;
 
-            // Check if text still doesn't fit in 1 line even after reduction
-            const lines = this.wrapText(student.name, optimal.maxCharsPerLine);
+        if (positions.name && student.name) {
+          const lines = this.wrapText(student.name, positions.name.maxCharsPerLine);
+          nameLines = Math.min(lines.length, positions.name.maxLines || 3);
 
-            if (lines.length > 1) {
-              // Step 2: Text needs 2 lines, recalculate with maxLines: 2
-              optimal = this.calculateOptimalTextSize(student.name, {
-                fontSize: optimal.fontSize, // Start from already reduced size
-                maxWidth: configuredMaxWidth,
-                maxCharsPerLine: optimal.maxCharsPerLine,
-                minFontSize: positions.name.minFontSize || 12,
-                maxLines: 2
-              });
-
-              // Move text up to accommodate second line
-              yPosition = Math.max(positions.name.y - 8, positions.name.y - 12);
-              allowMultiLine = true;
-            }
-
-            fontSize = optimal.fontSize;
-            maxCharsPerLine = optimal.maxCharsPerLine;
+          // If name takes more than 1 line, calculate extra height needed
+          if (nameLines > 1) {
+            // Round to integer to avoid Sharp library errors
+            nameExtraHeight = Math.round((nameLines - 1) * positions.name.fontSize * (positions.name.lineHeight || 1.2));
           }
 
-          const textMethod = allowMultiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
+          // Portrait enhancement: if name is a single short line, enlarge labels/values
+          if (isPortrait && nameLines === 1 && String(student.name).length <= 14) {
+            portraitShortName = true;
+            portraitScale = 1.3; // 30% larger for better balance
+            // No extra vertical spacing needed - keep fields at normal positions
+            belowNameExtraSpacing = 0;
+            // Increase gap between label and value to prevent overlap with larger fonts
+            portraitValueXShift = Math.round(positions.nameLabel.fontSize * (portraitScale - 1) * 7.5); // Extra 36px shift for 30% scale (22 * 0.3 * 5.5 = 36.3px)
+          }
+
+          // Portrait enhancement: if name is long (multi-line or >25 chars), shift labels and values left to give more room
+          if (isPortrait && (nameLines > 1 || String(student.name).length > 25)) {
+            portraitLongName = true;
+            portraitLabelLeftShift = -15; // Shift labels 15px to the left for long names
+            portraitValueXShift = -15; // Shift values 15px to the left as well for long names
+          }
+
+          // Landscape enhancement: if name is short, shift labels and values to the right
+          if (isLandscape && nameLines === 1 && String(student.name).length <= 18) {
+            landscapeShortName = true;
+            landscapeLabelShift = 50; // Shift labels 50px to the right
+            landscapeValueShift = 50; // Shift values 50px to the right
+          }
+        }
+
+        // Add "Name:" label
+        if (positions.nameLabel) {
+          let labelX = positions.nameLabel.x;
+          if (landscapeShortName && positions.nameLabel.dynamicX) {
+            labelX += landscapeLabelShift;
+          } else if (portraitLongName) {
+            labelX += portraitLabelLeftShift; // Shift left for long names
+          }
+          compositeImages.push({
+            input: this.createTextSVG('Name:', {
+              fontSize: portraitShortName ? Math.round(positions.nameLabel.fontSize * portraitScale) : positions.nameLabel.fontSize,
+              color: '#000000',
+              fontWeight: positions.nameLabel.fontWeight || 'bold'
+            }),
+            top: positions.nameLabel.y,
+            left: labelX
+          });
+        }
+
+        // Add student name (multi-line support without font size reduction)
+        if (positions.name && student.name) {
+          const textMethod = positions.name.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
+          let nameX = positions.name.x;
+          if (landscapeShortName && positions.name.dynamicX) {
+            nameX += landscapeValueShift;
+          } else if (portraitShortName && positions.name.dynamicX) {
+            nameX += portraitValueXShift;
+          } else if (portraitLongName && positions.name.dynamicX) {
+            nameX += portraitValueXShift; // Shift left for long names
+          }
 
           compositeImages.push({
             input: this[textMethod](student.name, {
-              fontSize: fontSize,
+              fontSize: portraitShortName ? Math.round(positions.name.fontSize * portraitScale) : positions.name.fontSize,
               color: '#000000',
               fontWeight: 'bold',
-              maxWidth: configuredMaxWidth,
-              maxCharsPerLine: maxCharsPerLine,
-              lineHeight: positions.name.lineHeight || 1.1
+              maxWidth: positions.name.maxWidth,
+              maxCharsPerLine: positions.name.maxCharsPerLine,
+              lineHeight: positions.name.lineHeight || 1.2
             }),
-            top: yPosition,
-            left: positions.name.x
+            top: nameYPosition,
+            left: nameX
           });
         }
 
+        // Add "Seq. No:" label (adjust position if name is multi-line)
+        if (positions.idNumberLabel) {
+          let labelX = positions.idNumberLabel.x;
+          if (landscapeShortName && positions.idNumberLabel.dynamicX) {
+            labelX += landscapeLabelShift;
+          } else if (portraitLongName) {
+            labelX += portraitLabelLeftShift; // Shift left for long names
+          }
+          compositeImages.push({
+            input: this.createTextSVG('Seq. No:', {
+              fontSize: portraitShortName ? Math.round(positions.idNumberLabel.fontSize * portraitScale) : positions.idNumberLabel.fontSize,
+              color: '#000000',
+              fontWeight: positions.idNumberLabel.fontWeight || 'bold'
+            }),
+            top: positions.idNumberLabel.y + nameExtraHeight + belowNameExtraSpacing,
+            left: labelX
+          });
+        }
+
+        // Add student ID value (adjust position if name is multi-line)
         if (positions.idNumber) {
+          let valueX = positions.idNumber.x;
+          if (landscapeShortName && positions.idNumber.dynamicX) {
+            valueX += landscapeValueShift;
+          } else if (portraitShortName && positions.idNumber.dynamicX) {
+            valueX += portraitValueXShift;
+          } else if (portraitLongName && positions.idNumber.dynamicX) {
+            valueX += portraitValueXShift; // Shift left for long names
+          }
           compositeImages.push({
             input: this.createTextSVG(student.sequenceId || student.rollNumber || student._id, {
-              fontSize: positions.idNumber.fontSize,
+              fontSize: portraitShortName ? Math.round(positions.idNumber.fontSize * portraitScale) : positions.idNumber.fontSize,
               color: '#000000',
               fontWeight: 'bold'
             }),
-            top: positions.idNumber.y,
-            left: positions.idNumber.x
+            top: positions.idNumber.y + nameExtraHeight + belowNameExtraSpacing,
+            left: valueX
           });
         }
 
+        // Add "Class/Section:" label (adjust position if name is multi-line)
+        if (positions.classSectionLabel) {
+          let labelX = positions.classSectionLabel.x;
+          if (landscapeShortName && positions.classSectionLabel.dynamicX) {
+            labelX += landscapeLabelShift;
+          } else if (portraitLongName) {
+            labelX += portraitLabelLeftShift; // Shift left for long names
+          }
+          compositeImages.push({
+            input: this.createTextSVG('Class:', {
+              fontSize: portraitShortName ? Math.round(positions.classSectionLabel.fontSize * portraitScale) : positions.classSectionLabel.fontSize,
+              color: '#000000',
+              fontWeight: positions.classSectionLabel.fontWeight || 'bold'
+            }),
+            top: positions.classSectionLabel.y + nameExtraHeight + belowNameExtraSpacing,
+            left: labelX
+          });
+        }
+
+        // Class/Section field (adjust position if name is multi-line)
         if (positions.classSection && student.className && student.section) {
+          let valueX = positions.classSection.x;
+          if (landscapeShortName && positions.classSection.dynamicX) {
+            valueX += landscapeValueShift;
+          } else if (portraitShortName && positions.classSection.dynamicX) {
+            valueX += portraitValueXShift;
+          } else if (portraitLongName && positions.classSection.dynamicX) {
+            valueX += portraitValueXShift; // Shift left for long names
+          }
           compositeImages.push({
             input: this.createTextSVG(`${student.className} - ${student.section}`, {
-              fontSize: positions.classSection.fontSize,
+              fontSize: portraitShortName ? Math.round(positions.classSection.fontSize * portraitScale) : positions.classSection.fontSize,
               color: '#000000',
               fontWeight: 'bold'
             }),
-            top: positions.classSection.y,
-            left: positions.classSection.x
+            top: positions.classSection.y + nameExtraHeight + belowNameExtraSpacing,
+            left: valueX
           });
         } else if (positions.classSection && student.className) {
+          let valueX = positions.classSection.x;
+          if (landscapeShortName && positions.classSection.dynamicX) {
+            valueX += landscapeValueShift;
+          } else if (portraitShortName && positions.classSection.dynamicX) {
+            valueX += portraitValueXShift;
+          } else if (portraitLongName && positions.classSection.dynamicX) {
+            valueX += portraitValueXShift; // Shift left for long names
+          }
           compositeImages.push({
             input: this.createTextSVG(student.className, {
-              fontSize: positions.classSection.fontSize,
+              fontSize: portraitShortName ? Math.round(positions.classSection.fontSize * portraitScale) : positions.classSection.fontSize,
               color: '#000000',
               fontWeight: 'bold'
             }),
-            top: positions.classSection.y,
-            left: positions.classSection.x
+            top: positions.classSection.y + nameExtraHeight + belowNameExtraSpacing,
+            left: valueX
           });
         }
 
+        // Add "DOB:" label (adjust position if name is multi-line)
+        if (positions.dobLabel) {
+          let labelX = positions.dobLabel.x;
+          if (landscapeShortName && positions.dobLabel.dynamicX) {
+            labelX += landscapeLabelShift;
+          } else if (portraitLongName) {
+            labelX += portraitLabelLeftShift; // Shift left for long names
+          }
+          compositeImages.push({
+            input: this.createTextSVG('DOB:', {
+              fontSize: portraitShortName ? Math.round(positions.dobLabel.fontSize * portraitScale) : positions.dobLabel.fontSize,
+              color: '#000000',
+              fontWeight: positions.dobLabel.fontWeight || 'bold'
+            }),
+            top: positions.dobLabel.y + nameExtraHeight + belowNameExtraSpacing,
+            left: labelX
+          });
+        }
+
+        // Add DOB value (adjust position if name is multi-line)
         if (positions.dob && student.dateOfBirth) {
+          let valueX = positions.dob.x;
+          if (landscapeShortName && positions.dob.dynamicX) {
+            valueX += landscapeValueShift;
+          } else if (portraitShortName && positions.dob.dynamicX) {
+            valueX += portraitValueXShift;
+          } else if (portraitLongName && positions.dob.dynamicX) {
+            valueX += portraitValueXShift; // Shift left for long names
+          }
           compositeImages.push({
             input: this.createTextSVG(student.dateOfBirth, {
-              fontSize: positions.dob.fontSize,
+              fontSize: portraitShortName ? Math.round(positions.dob.fontSize * portraitScale) : positions.dob.fontSize,
               color: '#000000',
               fontWeight: 'bold'
             }),
-            top: positions.dob.y,
-            left: positions.dob.x
+            top: positions.dob.y + nameExtraHeight + belowNameExtraSpacing,
+            left: valueX
           });
         }
 
+        // Add blood group inside the blood drop icon
         if (positions.bloodGroup && student.bloodGroup) {
           compositeImages.push({
             input: this.createTextSVG(student.bloodGroup, {
               fontSize: positions.bloodGroup.fontSize,
-              color: '#000000',
-              fontWeight: 'bold'
+              color: positions.bloodGroup.color || '#000000',
+              fontWeight: positions.bloodGroup.fontWeight || 'bold'
             }),
             top: positions.bloodGroup.y,
             left: positions.bloodGroup.x
           });
         }
       } else {
-        // Back side fields with labels
+        // Back side fields (labels already on template)
 
-        // Local Address label (already on template, just add value after colon)
+        // Student Address value (starts from leftmost position, directly under the template label)
         if (positions.address && student.address) {
           let fontSize = positions.address.fontSize;
           let maxCharsPerLine = positions.address.maxCharsPerLine || 50;
@@ -589,31 +801,88 @@ class SimpleIDCardGenerator {
             maxCharsPerLine = optimal.maxCharsPerLine;
           }
 
-          const textMethod = (allowMultiLine || positions.address.multiLine) ? 'createMultiLineTextSVG' : 'createTextSVG';
-          compositeImages.push({
-            input: this[textMethod](student.address, {
-              fontSize: fontSize,
-              color: '#000000',
-              fontWeight: positions.address.fontWeight || 'normal',
-              maxWidth: positions.address.maxWidth || 600,
-              maxCharsPerLine: maxCharsPerLine,
-              lineHeight: positions.address.lineHeight || 1.2,
-              textAlign: positions.address.textAlign || 'left'
-            }),
-            top: yPosition,
-            left: positions.address.x
-          });
+          // Always use multiLine for address fields
+          const textMethod = positions.address.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
+
+          // Prepare options for address rendering
+          const addressOptions = {
+            fontSize: fontSize,
+            color: '#000000',
+            fontWeight: positions.address.fontWeight || 'normal',
+            maxWidth: positions.address.maxWidth || 600,
+            maxCharsPerLine: maxCharsPerLine,
+            lineHeight: positions.address.lineHeight || 1.2,
+            textAlign: positions.address.textAlign || 'left'
+          };
+
+          // For landscape back: first line after colon, subsequent lines from leftmost
+          if (orientation === 'landscape' && side === 'back' && positions.address.firstLineX && positions.address.subsequentLinesX) {
+            addressOptions.firstLineX = positions.address.firstLineX;
+            addressOptions.subsequentLinesX = positions.address.subsequentLinesX;
+            // ALWAYS use different char limits for first line vs subsequent lines
+            addressOptions.subsequentMaxCharsPerLine = positions.address.subsequentMaxCharsPerLine || maxCharsPerLine;
+          }
+
+          const addressResult = this[textMethod](student.address, addressOptions);
+
+          // Calculate address height for dynamic positioning
+          const addressLines = this.wrapText(student.address, maxCharsPerLine);
+          const addressHeight = addressLines.length * fontSize * (positions.address.lineHeight || 1.3);
+
+          // Check if result is multi-position metadata (special case for landscape back)
+          if (addressResult.isMultiPosition) {
+            // Create separate composite entries for each line with different X positions
+            addressResult.lines.forEach((line, index) => {
+              const lineX = index === 0 ? addressResult.firstLineX : addressResult.subsequentLinesX;
+              const lineY = yPosition + (index * addressResult.fontSize * addressResult.lineHeight);
+
+              compositeImages.push({
+                input: this.createTextSVG(line, {
+                  fontSize: addressResult.fontSize,
+                  fontFamily: addressResult.fontFamily,
+                  color: addressResult.color,
+                  fontWeight: addressResult.fontWeight,
+                  maxWidth: addressResult.maxWidth
+                }),
+                top: Math.round(lineY),
+                left: lineX
+              });
+            });
+          } else {
+            // Standard single buffer result
+            compositeImages.push({
+              input: addressResult,
+              top: Math.round(yPosition),
+              left: positions.address.x
+            });
+          }
+
+          // Store height for dynamic positioning (portrait back side)
+          if (orientation === 'portrait' && side === 'back') {
+            fieldHeights['address'] = {
+              y: yPosition,
+              height: addressHeight,
+              bottomY: yPosition + addressHeight
+            };
+          }
         }
 
         // Mobile label (already on template, just add value after colon)
         if (positions.mobile && (student.phone || student.contactNumber)) {
+          // Calculate dynamic Y position if dependsOn is set
+          let mobileY = positions.mobile.y;
+          if (positions.mobile.dynamicY && positions.mobile.dependsOn && fieldHeights[positions.mobile.dependsOn]) {
+            const dependentField = fieldHeights[positions.mobile.dependsOn];
+            mobileY = dependentField.bottomY + 10; // 10px gap
+          }
+
           compositeImages.push({
             input: this.createTextSVG(student.phone || student.contactNumber, {
               fontSize: positions.mobile.fontSize,
               color: '#000000',
               fontWeight: 'normal'
             }),
-            top: positions.mobile.y,
+            top: Math.round(mobileY),
             left: positions.mobile.x
           });
         }
@@ -637,6 +906,17 @@ class SimpleIDCardGenerator {
           }
 
           const textMethod = positions.returnSchoolName.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
+
+          // Calculate dynamic Y position if dependsOn is set
+          let returnSchoolNameY = positions.returnSchoolName.y;
+          if (positions.returnSchoolName.dynamicY && positions.returnSchoolName.baseY) {
+            returnSchoolNameY = positions.returnSchoolName.baseY;
+          }
+
+          // Calculate height for tracking
+          const returnSchoolNameLines = this.wrapText(schoolInfo.schoolName, maxCharsPerLine);
+          const returnSchoolNameHeight = returnSchoolNameLines.length * fontSize * (positions.returnSchoolName.lineHeight || 1.15);
+
           compositeImages.push({
             input: this[textMethod](schoolInfo.schoolName, {
               fontSize: fontSize,
@@ -644,11 +924,21 @@ class SimpleIDCardGenerator {
               fontWeight: positions.returnSchoolName.fontWeight || 'bold',
               maxWidth: positions.returnSchoolName.maxWidth || 600,
               maxCharsPerLine: maxCharsPerLine,
-              lineHeight: positions.returnSchoolName.lineHeight || 1.2
+              lineHeight: positions.returnSchoolName.lineHeight || 1.15,
+              textAlign: positions.returnSchoolName.textAlign || 'left'
             }),
-            top: positions.returnSchoolName.y,
+            top: Math.round(returnSchoolNameY),
             left: positions.returnSchoolName.x
           });
+
+          // Store height for dynamic positioning
+          if (orientation === 'portrait' && side === 'back') {
+            fieldHeights['returnSchoolName'] = {
+              y: returnSchoolNameY,
+              height: returnSchoolNameHeight,
+              bottomY: returnSchoolNameY + returnSchoolNameHeight
+            };
+          }
         }
 
         if (positions.returnAddress && schoolInfo.address) {
@@ -669,6 +959,18 @@ class SimpleIDCardGenerator {
           }
 
           const textMethod = positions.returnAddress.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
+
+          // Calculate dynamic Y position if dependsOn is set
+          let returnAddressY = positions.returnAddress.y;
+          if (positions.returnAddress.dynamicY && positions.returnAddress.dependsOn && fieldHeights[positions.returnAddress.dependsOn]) {
+            const dependentField = fieldHeights[positions.returnAddress.dependsOn];
+            returnAddressY = dependentField.bottomY + 5; // 5px gap
+          }
+
+          // Calculate height for tracking
+          const returnAddressLines = this.wrapText(schoolInfo.address, maxCharsPerLine);
+          const returnAddressHeight = returnAddressLines.length * fontSize * (positions.returnAddress.lineHeight || 1.15);
+
           compositeImages.push({
             input: this[textMethod](schoolInfo.address, {
               fontSize: fontSize,
@@ -676,37 +978,84 @@ class SimpleIDCardGenerator {
               fontWeight: positions.returnAddress.fontWeight || 'normal',
               maxWidth: positions.returnAddress.maxWidth || 600,
               maxCharsPerLine: maxCharsPerLine,
-              lineHeight: positions.returnAddress.lineHeight || 1.2
+              lineHeight: positions.returnAddress.lineHeight || 1.15,
+              textAlign: positions.returnAddress.textAlign || 'left'
             }),
-            top: positions.returnAddress.y,
+            top: Math.round(returnAddressY),
             left: positions.returnAddress.x
           });
+
+          // Store height for dynamic positioning
+          if (orientation === 'portrait' && side === 'back') {
+            fieldHeights['returnAddress'] = {
+              y: returnAddressY,
+              height: returnAddressHeight,
+              bottomY: returnAddressY + returnAddressHeight
+            };
+          }
         }
 
         // Add school phone (BACK SIDE ONLY)
         if (positions.schoolPhone && schoolInfo.phone) {
+          // Calculate dynamic Y position if dependsOn is set
+          let schoolPhoneY = positions.schoolPhone.y;
+          if (positions.schoolPhone.dynamicY && positions.schoolPhone.dependsOn && fieldHeights[positions.schoolPhone.dependsOn]) {
+            const dependentField = fieldHeights[positions.schoolPhone.dependsOn];
+            schoolPhoneY = dependentField.bottomY + 5; // 5px gap
+          }
+
+          // Calculate height for tracking
+          const phoneText = `Phone: ${schoolInfo.phone}`;
+          const phoneLines = positions.schoolPhone.multiLine ? this.wrapText(phoneText, positions.schoolPhone.maxCharsPerLine || 35) : [phoneText];
+          const phoneHeight = phoneLines.length * positions.schoolPhone.fontSize * (positions.schoolPhone.lineHeight || 1.15);
+
+          const textMethod = positions.schoolPhone.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
           compositeImages.push({
-            input: this.createTextSVG(`Phone: ${schoolInfo.phone}`, {
+            input: this[textMethod](phoneText, {
               fontSize: positions.schoolPhone.fontSize,
               color: '#000000',
               fontWeight: positions.schoolPhone.fontWeight || 'normal',
-              maxWidth: positions.schoolPhone.maxWidth || 600
+              maxWidth: positions.schoolPhone.maxWidth || 600,
+              maxCharsPerLine: positions.schoolPhone.maxCharsPerLine || 35,
+              lineHeight: positions.schoolPhone.lineHeight || 1.15,
+              textAlign: positions.schoolPhone.textAlign || 'left'
             }),
-            top: positions.schoolPhone.y,
+            top: Math.round(schoolPhoneY),
             left: positions.schoolPhone.x
           });
+
+          // Store height for dynamic positioning
+          if (orientation === 'portrait' && side === 'back') {
+            fieldHeights['schoolPhone'] = {
+              y: schoolPhoneY,
+              height: phoneHeight,
+              bottomY: schoolPhoneY + phoneHeight
+            };
+          }
         }
 
         // Add school email (BACK SIDE ONLY)
         if (positions.schoolEmail && schoolInfo.email) {
+          // Calculate dynamic Y position if dependsOn is set
+          let schoolEmailY = positions.schoolEmail.y;
+          if (positions.schoolEmail.dynamicY && positions.schoolEmail.dependsOn && fieldHeights[positions.schoolEmail.dependsOn]) {
+            const dependentField = fieldHeights[positions.schoolEmail.dependsOn];
+            schoolEmailY = dependentField.bottomY + 5; // 5px gap
+          }
+
+          const emailText = `Email: ${schoolInfo.email}`;
+          const textMethod = positions.schoolEmail.multiLine ? 'createMultiLineTextSVG' : 'createTextSVG';
           compositeImages.push({
-            input: this.createTextSVG(`Email: ${schoolInfo.email}`, {
+            input: this[textMethod](emailText, {
               fontSize: positions.schoolEmail.fontSize,
               color: '#000000',
               fontWeight: positions.schoolEmail.fontWeight || 'normal',
-              maxWidth: positions.schoolEmail.maxWidth || 600
+              maxWidth: positions.schoolEmail.maxWidth || 600,
+              maxCharsPerLine: positions.schoolEmail.maxCharsPerLine || 35,
+              lineHeight: positions.schoolEmail.lineHeight || 1.15,
+              textAlign: positions.schoolEmail.textAlign || 'left'
             }),
-            top: positions.schoolEmail.y,
+            top: Math.round(schoolEmailY),
             left: positions.schoolEmail.x
           });
         }
@@ -772,6 +1121,17 @@ class SimpleIDCardGenerator {
 
     for (const student of students) {
       try {
+        // Validate student has required data
+        if (!student || !student.name) {
+          console.warn(`⚠️ Skipping student with missing name:`, student);
+          results.failed.push({
+            studentId: student?._id || 'unknown',
+            studentName: 'Unknown',
+            error: 'Student name is missing'
+          });
+          continue;
+        }
+
         console.log(`\n🔄 Processing student: ${student.name} with orientation: ${orientation}`);
 
         // Generate front
@@ -793,12 +1153,16 @@ class SimpleIDCardGenerator {
           backCard: backResult ? backResult.relativePath : null
         });
       } catch (error) {
-        console.error(`Failed to generate ID card for ${student.name}:`, error);
+        console.error(`❌ Failed to generate ID card for ${student.name}:`, error);
+        console.error('Error details:', error.stack);
         results.failed.push({
           studentId: student._id,
           studentName: student.name,
-          error: error.message
+          error: error.message,
+          errorStack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
+        // Continue processing other students
+        continue;
       }
     }
 
