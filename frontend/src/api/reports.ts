@@ -37,6 +37,35 @@ export interface FeeRecordsResponse {
   };
 }
 
+export interface SchoolOverview {
+  totalStudents: number;
+  avgAttendance: number;
+}
+
+export interface SchoolSummary {
+  totalStudents: number;
+  avgAttendance: number;
+  avgMarks: number;
+  classWiseDues: Array<{
+    className: string;
+    totalDues: number;
+    paidAmount: number;
+    pendingAmount: number;
+  }>;
+  classes: Array<{
+    _id: string;
+    name: string;
+    sectionCount: number;
+    studentCount: number;
+  }>;
+  sections: Array<{
+    _id: string;
+    name: string;
+    studentCount: number;
+    className: string;
+  }>;
+}
+
 export const getStudentFeeRecords = async (params: {
   class?: string;
   section?: string;
@@ -49,11 +78,6 @@ export const getStudentFeeRecords = async (params: {
   return response.data;
 };
 
-export interface SchoolOverview {
-  totalStudents: number;
-  avgAttendance: number;
-}
-
 export async function getSchoolOverview(params?: {
   academicYear?: string;
   class?: string;
@@ -61,55 +85,6 @@ export async function getSchoolOverview(params?: {
 }): Promise<{ success: boolean; data: SchoolOverview }> {
   const res = await api.get('/reports/overview', { params });
   return res.data;
-}
-
-export interface SchoolSummary {
-  totalStudents: number;
-  avgAttendance: number;
-  avgMarks: number;
-  classWiseDues: Array<{
-    className: string;
-    totalDues: number;
-    paidAmount: number;
-    pendingAmount: number;
-  }>;
-  classes: Array<{
-    _id: string;
-    name: string;
-    sectionCount: number;
-    studentCount: number;
-  }>;
-  sections: Array<{
-    _id: string;
-    name: string;
-    studentCount: number;
-    className: string;
-  }>;
-}
-
-// In frontend/src/api/reports.ts
-export interface SchoolSummary {
-  totalStudents: number;
-  avgAttendance: number;
-  avgMarks: number;
-  classWiseDues: Array<{
-    className: string;
-    totalDues: number;
-    paidAmount: number;
-    pendingAmount: number;
-  }>;
-  classes: Array<{
-    _id: string;
-    name: string;
-    sectionCount: number;
-    studentCount: number;
-  }>;
-  sections: Array<{
-    _id: string;
-    name: string;
-    studentCount: number;
-    className: string;
-  }>;
 }
 
 export const getSchoolSummary = async (params: {
@@ -123,8 +98,8 @@ export const getSchoolSummary = async (params: {
     const response = await api.get('/reports/summary', { 
       params: {
         academicYear: params.academicYear,
-        targetClass: params.class,  // Changed from class to targetClass
-        targetSection: params.section,  // Changed from section to targetSection
+        targetClass: params.class,
+        targetSection: params.section,
         from: params.from,
         to: params.to
       }
@@ -167,15 +142,13 @@ export async function exportFeeRecordsToCSV(params: {
   search?: string;
   status?: string;
 }): Promise<Blob> {
-  // Prepare parameters for the reports export
   const apiParams: any = {
     type: 'dues',
     class: params.class,
     section: params.section,
-    status: params.status // The reports controller will handle the case conversion
+    status: params.status
   };
 
-  // Only include search if it has a value
   if (params.search) {
     apiParams.search = params.search;
   }
@@ -188,17 +161,29 @@ export async function exportFeeRecordsToCSV(params: {
     },
   });
   
-  // Check if the response is a blob (CSV file)
   if (response.data instanceof Blob) {
     return response.data;
   }
   
-  // If we get a JSON response with an error, throw it
   if (response.data && typeof response.data === 'object' && !(response.data instanceof Blob)) {
     const errorData = response.data as { message?: string };
     throw new Error(errorData.message || 'Failed to export data');
   }
   
-  // If we get here, the response is not in the expected format
   throw new Error('Unexpected response format from server');
 }
+
+export interface StudentDetail {
+  studentId: string;
+  studentName: string;
+  avgMarks: number;
+  avgAttendance: number;
+}
+
+export const getStudentsByClassSection = async (params: {
+  className: string;
+  section?: string;
+}): Promise<{ success: boolean; students: StudentDetail[] }> => {
+  const response = await api.get('/reports/students-by-class', { params });
+  return response.data;
+};

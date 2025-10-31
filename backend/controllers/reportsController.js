@@ -246,7 +246,8 @@ exports.getDuesList = async (req, res) => {
     }
     
     if (status && status !== 'ALL') {
-      query.status = status.toUpperCase();
+      // Status is already in lowercase from frontend, matching the database enum
+      query.status = status.toLowerCase();
     }
 
     // Add search functionality
@@ -584,6 +585,39 @@ exports.getPaymentTrends = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to generate payment trends',
+      error: error.message
+    });
+  }
+};
+
+// Get students by class and section
+exports.getStudentsByClassSection = async (req, res) => {
+  try {
+    console.log('📊 Fetching students by class and section');
+    
+    const { className, section } = req.query;
+    
+    if (!className) {
+      return res.status(400).json({
+        success: false,
+        message: 'Class name is required'
+      });
+    }
+    
+    const result = await reportService.getStudentsByClassSection(
+      req.user.schoolId,
+      req.user.schoolCode,
+      className,
+      section
+    );
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ Error fetching students by class/section:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch students',
       error: error.message
     });
   }

@@ -95,33 +95,44 @@ class ReportCalculations {
       
       const matchStage = { 
         academicYear,
-        percentage: { $exists: true, $ne: null }
+        'subjects.percentage': { $exists: true, $ne: null }
       };
       
       if (targetClass && targetClass !== 'ALL') {
-        matchStage.class = targetClass;
+        matchStage['class'] = targetClass;
         if (targetSection && targetSection !== 'ALL') {
-          matchStage.section = targetSection;
+          matchStage['section'] = targetSection;
         }
       }
 
-      const marksResult = await db.collection('results').aggregate([
-        { $match: matchStage },
-        {
-          $group: {
-            _id: "$student",
-            avgPercentage: { $avg: "$percentage" }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            classAverage: { $avg: "$avgPercentage" }
-          }
-        }
-      ]).toArray();
+      // First, get all matching results
+      const results = await db.collection('results')
+        .find(matchStage)
+        .toArray();
 
-      return marksResult[0]?.classAverage || 0;
+      // If no results found, return 0
+      if (!results || results.length === 0) {
+        return 0;
+      }
+
+      // Calculate average percentage across all subjects for each student
+      const studentAverages = results.map(result => {
+        if (!result.subjects || result.subjects.length === 0) return null;
+        
+        const totalPercentage = result.subjects.reduce((sum, subject) => {
+          return sum + (subject.percentage || 0);
+        }, 0);
+        
+        return totalPercentage / result.subjects.length;
+      }).filter(avg => avg !== null);
+
+      // Calculate overall average
+      if (studentAverages.length === 0) return 0;
+      
+      const overallAverage = studentAverages.reduce((sum, avg) => sum + avg, 0) / studentAverages.length;
+      
+      // Round to 2 decimal places
+      return parseFloat(overallAverage.toFixed(2));
     } catch (error) {
       console.error('❌ Error in getAverageMarks:', error);
       return 0;

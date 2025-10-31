@@ -24,5 +24,6 @@ router.get('/export', reportsController.exportData);
 router.get('/dues', reportsController.getDuesList);
 router.get('/class-wise', reportsController.getClassWiseAnalysis);
 router.get('/payment-trends', reportsController.getPaymentTrends);
+router.get('/students-by-class', reportsController.getStudentsByClassSection);
 
 module.exports = router;

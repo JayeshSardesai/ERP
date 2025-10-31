@@ -351,10 +351,53 @@ export const messagesAPI = {
   getMessageStats: (params) => api.get('/messages/stats', { params }),
 };
 
-// Classes API
+// Classes API - Uses different endpoints based on user role
 export const classesAPI = {
-  getSchoolClasses: (schoolCode) => api.get(`/admin/classes/${schoolCode}/classes-sections`),
-  getSectionsForClass: (schoolCode, className) => api.get(`/admin/classes/${schoolCode}/classes/${className}/sections`),
+  getSchoolClasses: (schoolCode) => {
+    // Get the token from localStorage to check user role
+    const authData = localStorage.getItem('erp.auth');
+    let isSuperAdmin = false;
+    
+    try {
+      if (authData) {
+        const parsed = JSON.parse(authData);
+        isSuperAdmin = parsed.role === 'superadmin' || parsed.userType === 'superadmin';
+      }
+    } catch (err) {
+      console.error('Error parsing auth data:', err);
+    }
+    
+    // Use superadmin endpoint for superadmins, regular endpoint for others
+    const endpoint = isSuperAdmin 
+      ? `/superadmin/classes/schools/${schoolCode}/classes`
+      : `/schools/${schoolCode}/classes`;
+      
+    console.log(`🔍 [classesAPI] Using endpoint: ${endpoint}`);
+    return api.get(endpoint);
+  },
+  
+  getSectionsForClass: (schoolCode, classId) => {
+    // Get the token from localStorage to check user role
+    const authData = localStorage.getItem('erp.auth');
+    let isSuperAdmin = false;
+    
+    try {
+      if (authData) {
+        const parsed = JSON.parse(authData);
+        isSuperAdmin = parsed.role === 'superadmin' || parsed.userType === 'superadmin';
+      }
+    } catch (err) {
+      console.error('Error parsing auth data:', err);
+    }
+    
+    // Use superadmin endpoint for superadmins, regular endpoint for others
+    const endpoint = isSuperAdmin
+      ? `/superadmin/classes/schools/${schoolCode}/classes/${classId}/sections`
+      : `/schools/${schoolCode}/classes/${classId}/sections`;
+      
+    console.log(`🔍 [classesAPI] Using endpoint: ${endpoint}`);
+    return api.get(endpoint);
+  },
 };
 
 // Fees API

@@ -41,6 +41,7 @@ import ErrorBoundary from '../../components/ErrorBoundary'
 import { PermissionGuard } from '../../components/PermissionGuard'
 
 import { PermissionProvider } from '../../hooks/usePermissions'
+import StudentAttendanceStats from './pages/StudentAttendanceStats';
 
 export function AdminApp() {
 
@@ -57,12 +58,15 @@ export function AdminApp() {
             </PermissionGuard>
 
           } />
+          
           <Route path="manage-users" element={
             <PermissionGuard permission="manageUsers" permissionName="User Management">
               <ManageUsers />
             </PermissionGuard>
 
           } />
+
+          
 
           {/* School Settings - Requires manageSchoolSettings permission */}
           <Route path="settings" element={
