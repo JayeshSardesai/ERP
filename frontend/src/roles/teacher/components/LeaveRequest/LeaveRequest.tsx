@@ -17,6 +17,8 @@ const LeaveRequest: React.FC = () => {
 
   console.log('🔍 LeaveRequest - User data:', user);
   console.log('🔍 LeaveRequest - userId:', user?.userId);
+  console.log('🔍 LeaveRequest - User keys:', user ? Object.keys(user) : 'No user');
+  console.log('🔍 LeaveRequest - User.id:', user?.id);
 
   const [leaveRequest, setLeaveRequest] = useState<LeaveRequestForm>({
     teacherName: '',
@@ -30,11 +32,18 @@ const LeaveRequest: React.FC = () => {
   // Update form when user data becomes available
   useEffect(() => {
     if (user) {
-      console.log('🔄 Updating form with user data:', { name: user.name, userId: user.userId });
+      // Try multiple possible ID fields as fallback
+      const teacherId = user.userId || user.id || '';
+      console.log('🔄 Updating form with user data:', { 
+        name: user.name, 
+        userId: user.userId, 
+        id: user.id, 
+        finalTeacherId: teacherId 
+      });
       setLeaveRequest(prev => ({
         ...prev,
         teacherName: user.name || '',
-        teacherId: user.userId || ''
+        teacherId: teacherId
       }));
     }
   }, [user]);

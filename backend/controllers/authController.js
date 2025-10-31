@@ -140,11 +140,20 @@ exports.schoolLogin = async (req, res) => {
     // Find user in school database
     const user = await UserGenerator.getUserByIdOrEmail(schoolCode, identifier);
     
+    console.log(`[SCHOOL LOGIN DEBUG] Found user object:`, user ? {
+      _id: user._id,
+      userId: user.userId,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      hasUserId: !!user.userId
+    } : 'null');
+    
     if (!user) {
       console.log(`[SCHOOL LOGIN FAIL] User not found: ${identifier} in school: ${schoolCode}`);
-      return res.status(400).json({ 
+      return res.status(401).json({
         success: false,
-        message: 'Invalid credentials' 
+        message: 'Invalid credentials'
       });
     }
 
@@ -209,23 +218,36 @@ exports.schoolLogin = async (req, res) => {
     );
 
     console.log(`[SCHOOL LOGIN SUCCESS] User: ${user.userId} (${user.role}) from school: ${schoolCode}`);
+    console.log(`[SCHOOL LOGIN DEBUG] User object keys:`, Object.keys(user));
+    console.log(`[SCHOOL LOGIN DEBUG] User.userId:`, user.userId);
+    console.log(`[SCHOOL LOGIN DEBUG] User._id:`, user._id);
 
-    res.json({
+    const responseUser = {
+      _id: user._id,
+      userId: user.userId,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      schoolCode: schoolCode,
+      isActive: user.isActive,
+      lastLogin: new Date(),
+      permissions: accessMatrix?.matrix[user.role] || {}
+    };
+
+    console.log(`[SCHOOL LOGIN DEBUG] Response user object:`, responseUser);
+    console.log(`[SCHOOL LOGIN DEBUG] Response user.userId specifically:`, responseUser.userId);
+    console.log(`[SCHOOL LOGIN DEBUG] Response user.userId type:`, typeof responseUser.userId);
+
+    const finalResponse = {
       success: true,
       message: 'Login successful',
       token,
-      user: {
-        _id: user._id,
-        userId: user.userId,
-        email: user.email,
-        role: user.role,
-        name: user.name,
-        schoolCode: schoolCode,
-        isActive: user.isActive,
-        lastLogin: new Date(),
-        permissions: accessMatrix?.matrix[user.role] || {}
-      }
-    });
+      user: responseUser
+    };
+
+    console.log(`[SCHOOL LOGIN DEBUG] Final JSON response:`, JSON.stringify(finalResponse, null, 2));
+
+    res.json(finalResponse);
 
   } catch (error) {
     console.error('[SCHOOL LOGIN ERROR]', error);

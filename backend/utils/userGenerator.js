@@ -444,6 +444,17 @@ class UserGenerator {
         const user = await collection.findOne(orQueries.length ? { $or: orQueries } : {});
         
         if (user) {
+          // Debug: Log the raw user object from database
+          console.log(`[USER GENERATOR DEBUG] Raw user from ${collectionName}:`, {
+            _id: user._id,
+            userId: user.userId,
+            email: user.email,
+            role: user.role,
+            name: user.name,
+            hasUserId: !!user.userId,
+            userIdType: typeof user.userId
+          });
+          
           // Determine role from collection name
           const roleMap = {
             'admins': 'admin',
@@ -461,6 +472,25 @@ class UserGenerator {
             };
             // Explicitly set role AFTER spreading to ensure it's not overridden
             result.role = role;
+            
+            // Debug: Ensure userId is preserved
+            console.log(`[USER GENERATOR DEBUG] Original user.userId (with password):`, user.userId);
+            console.log(`[USER GENERATOR DEBUG] Result userId after spread (with password):`, result.userId);
+            
+            // Explicitly preserve userId if it exists
+            if (user.userId) {
+              result.userId = user.userId;
+            }
+            
+            console.log(`[USER GENERATOR DEBUG] Final result object (with password):`, {
+              _id: result._id,
+              userId: result.userId,
+              email: result.email,
+              role: result.role,
+              name: result.name,
+              collection: result.collection
+            });
+            
             return result;
           } else {
             const { password, ...userWithoutPassword } = user;
@@ -470,6 +500,25 @@ class UserGenerator {
             };
             // Explicitly set role AFTER spreading to ensure it's not overridden
             result.role = role;
+            
+            // Debug: Ensure userId is preserved
+            console.log(`[USER GENERATOR DEBUG] Original user.userId:`, user.userId);
+            console.log(`[USER GENERATOR DEBUG] Result userId after spread:`, result.userId);
+            
+            // Explicitly preserve userId if it exists
+            if (user.userId) {
+              result.userId = user.userId;
+            }
+            
+            console.log(`[USER GENERATOR DEBUG] Final result object (without password):`, {
+              _id: result._id,
+              userId: result.userId,
+              email: result.email,
+              role: result.role,
+              name: result.name,
+              collection: result.collection
+            });
+            
             return result;
           }
         }

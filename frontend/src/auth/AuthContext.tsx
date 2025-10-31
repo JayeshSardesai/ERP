@@ -30,13 +30,31 @@ function normalizeState(raw: AuthState | undefined | null): AuthState {
     // Ensure name is a string
     const nameVal: any = (next.user as any).name;
     const displayName = typeof nameVal === 'string' ? nameVal : (next.user.email || 'User');
+    
+    // Extract userId from JWT token if missing from user object
+    let userId = (next.user as any).userId;
+    if (!userId && next.token) {
+      try {
+        // Decode JWT token to extract userId
+        const tokenPayload = JSON.parse(atob(next.token.split('.')[1]));
+        if (tokenPayload.userId) {
+          userId = tokenPayload.userId;
+          console.log('[AUTH] Extracted userId from JWT token:', userId);
+        }
+      } catch (error) {
+        console.warn('[AUTH] Failed to decode JWT token:', error);
+      }
+    }
+    
     // Preserve all user fields including userId
     next.user = { 
       ...next.user, 
       role: norm, 
       name: displayName,
-      userId: (next.user as any).userId // Explicitly preserve userId
+      userId: userId // Use extracted or existing userId
     } as AuthUser;
+    
+    console.log('[AUTH] Normalized user with userId:', next.user.userId);
   }
   next.loading = false;
   return next;
