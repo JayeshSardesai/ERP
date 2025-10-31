@@ -14,7 +14,7 @@ import {
   Home,
   UserCheck
 } from 'lucide-react';
-import { currentUser } from '../utils/mockData';
+import { useAuth } from '../../../auth/AuthContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,15 +24,28 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout }) => {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Get initials from teacher name
+  const getInitials = () => {
+    if (!user?.name) return 'T';
+    const nameParts = user.name.split(' ');
+    if (nameParts.length >= 2) {
+      // First letter of first name + first letter of last name
+      return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
+    }
+    // If only one name, return first two letters
+    return user.name.substring(0, 2).toUpperCase();
+  };
 
   const menuItems = [
     { name: 'Dashboard', icon: Home, page: 'dashboard' },
-    { name: 'Mark Attendance', icon: UserCheck, page: 'mark-attendance' },
-    { name: 'View Attendance', icon: Users, page: 'view-attendance' },
-    { name: 'Add Assignments', icon: FileText, page: 'add-assignments' },
-    { name: 'View Results', icon: BarChart3, page: 'view-results' },
+    { name: 'Attendance', icon: UserCheck, page: 'attendance' },
+    { name: 'Assignments', icon: FileText, page: 'assignments' },
+    { name: 'Results', icon: BarChart3, page: 'view-results' },
     { name: 'Messages', icon: MessageSquare, page: 'messages' },
+    { name: 'Leave Request', icon: Calendar, page: 'leave-request' },
     { name: 'Settings', icon: Settings, page: 'settings' }
   ];
 
@@ -91,14 +104,14 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
 
           <div className="px-4 py-6 border-t border-gray-200">
             <div className="flex items-center mb-4">
-              <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
-                className="w-10 h-10 rounded-full mr-3"
-              />
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mr-3">
+                <span className="text-white font-bold text-sm">
+                  {getInitials()}
+                </span>
+              </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">{currentUser.name}</p>
-                <p className="text-xs text-gray-500">{currentUser.employeeId}</p>
+                <p className="text-sm font-medium text-gray-900">{user?.name || 'Teacher'}</p>
+                <p className="text-xs text-gray-500">{user?.userId || user?.email}</p>
               </div>
             </div>
             <button

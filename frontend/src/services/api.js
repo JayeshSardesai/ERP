@@ -206,8 +206,11 @@ export const resultsAPI = {
   // Get existing results for a test
   getResults: (params) => api.get('/results', { params }),
 
-  // Update a specific result
+  // Update a specific result (use PUT as primary)
   updateResult: (resultId, updateData) => api.put(`/results/${resultId}`, updateData),
+
+  // Freeze results for a class/section/subject/test
+  freezeResults: (freezeData) => api.post('/results/freeze', freezeData),
 
   // Delete a result
   deleteResult: (resultId) => api.delete(`/results/${resultId}`),

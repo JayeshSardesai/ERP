@@ -2055,10 +2055,20 @@ exports.getUsersByRole = async (req, res) => {
 
     // Filter by class and section if provided (for students)
     if (role === 'student' && (className || section)) {
+      console.log(`🔍 Filtering students by class: ${className}, section: ${section}`);
+      
       users = users.filter(user => {
-        const academicInfo = user.academicInfo || {};
-        const userClass = academicInfo.class;
-        const userSection = academicInfo.section;
+        // Check multiple possible field structures for class and section
+        const userClass = user.academicInfo?.class || 
+                         user.studentDetails?.class || 
+                         user.studentDetails?.currentClass ||  // Added currentClass
+                         user.class;
+        const userSection = user.academicInfo?.section || 
+                           user.studentDetails?.section || 
+                           user.studentDetails?.currentSection ||  // Added currentSection
+                           user.section;
+
+        console.log(`👤 Student ${user.userId}: class=${userClass}, section=${userSection}`);
 
         const classMatch = !className || userClass === className;
         const sectionMatch = !section || userSection === section;

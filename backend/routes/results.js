@@ -21,6 +21,18 @@ router.get('/',
   resultController.getResults
 );
 
+// Update a single student result
+router.put('/:resultId', 
+  authMiddleware.auth, 
+  resultController.updateResult
+);
+
+// Freeze results for a class/section/subject/test
+router.post('/freeze', 
+  authMiddleware.auth, 
+  resultController.freezeResults
+);
+
 // Get student result history
 router.get('/student/:studentId/history', 
   authMiddleware.auth, 
@@ -31,6 +43,12 @@ router.get('/student/:studentId/history',
 router.get('/class/:grade/:section/report', 
   authMiddleware.auth, 
   resultController.generateClassPerformanceReport
+);
+
+// Teacher-specific endpoint to view results
+router.get('/teacher/view', 
+  authMiddleware.auth, 
+  resultController.getResultsForTeacher
 );
 
 module.exports = router;

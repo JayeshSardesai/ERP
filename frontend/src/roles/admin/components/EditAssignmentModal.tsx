@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Calendar, FileText, Users } from 'lucide-react';
+import { X, Upload, Calendar, FileText, Trash2 } from 'lucide-react';
 import * as assignmentAPI from '../../../api/assignment';
 import { useAuth } from '../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 
-interface CreateAssignmentModalProps {
+interface EditAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  assignmentId: string;
 }
 
 interface FormData {
@@ -19,16 +20,17 @@ interface FormData {
   dueDate: string;
   instructions: string;
   attachments: File[];
+  existingAttachments: any[];
 }
 
-const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
+const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  assignmentId
 }) => {
   const { token } = useAuth();
   const {
-    classesData,
     getClassOptions,
     getSectionsByClass
   } = useSchoolClasses();
@@ -41,97 +43,108 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
     startDate: '',
     dueDate: '',
     instructions: '',
-    attachments: []
+    attachments: [],
+    existingAttachments: []
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
 
+  // Fetch assignment data when modal opens
+  useEffect(() => {
+    if (isOpen && assignmentId) {
+      fetchAssignmentData();
+    }
+  }, [isOpen, assignmentId]);
+
+  // Fetch subjects when class changes
   useEffect(() => {
     if (isOpen && formData.class) {
       fetchSubjectsForClass(formData.class);
     }
   }, [isOpen, formData.class]);
 
+  const fetchAssignmentData = async () => {
+    setLoadingData(true);
+    setErrors({});
+    try {
+      console.log('📥 Fetching assignment data for:', assignmentId);
+      const assignment = await assignmentAPI.getAssignmentById(assignmentId);
+      
+      console.log('✅ Assignment data loaded:', assignment);
+      
+      // Format dates for input fields (YYYY-MM-DD)
+      const formatDate = (dateString: string) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return date.toISOString().split('T')[0];
+      };
+
+      setFormData({
+        title: assignment.title || '',
+        subject: assignment.subject || '',
+        class: assignment.class || '',
+        section: assignment.section || '',
+        startDate: formatDate(assignment.startDate),
+        dueDate: formatDate(assignment.dueDate),
+        instructions: assignment.instructions || assignment.description || '',
+        attachments: [],
+        existingAttachments: assignment.attachments || []
+      });
+
+      // Fetch subjects for the class
+      if (assignment.class) {
+        await fetchSubjectsForClass(assignment.class);
+      }
+    } catch (err: any) {
+      console.error('❌ Error fetching assignment:', err);
+      console.error('Error details:', err.response?.data || err.message);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to load assignment data';
+      setErrors({ submit: errorMessage });
+      alert(`Error loading assignment: ${errorMessage}`);
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
   const fetchSubjectsForClass = async (className: string) => {
     try {
       console.log(`🔍 Fetching subjects for class: ${className}`);
       
-      // Add more detailed logging
-      console.log(`🔗 Request URL: /api/class-subjects/class/${encodeURIComponent(className)}`);
-      console.log(`🔑 Auth token available: ${!!token}`);
+      const schoolCode = localStorage.getItem('erp.schoolCode') || '';
+      const authData = localStorage.getItem('erp.auth');
+      let token = '';
       
-      // Try the regular endpoint first
-      let response = await fetch(`/api/class-subjects/class/${encodeURIComponent(className)}`, {
-        method: 'GET',
+      if (authData) {
+        const parsedAuth = JSON.parse(authData);
+        token = parsedAuth.token || '';
+      }
+      
+      const response = await fetch(`/api/class-subjects/class/${encodeURIComponent(className)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'x-school-code': schoolCode.toUpperCase(),
+          'Content-Type': 'application/json'
         }
       });
-
-      console.log(`📡 Response status: ${response.status} ${response.statusText}`);
-      
-      // If the regular endpoint fails, try the direct endpoint
-      if (!response.ok) {
-        console.log(`⚠️ Regular endpoint failed, trying direct endpoint...`);
-        
-        // Get the user's school code from the auth context
-        let userSchoolCode = '';
-        try {
-          const authData = localStorage.getItem('erp.auth');
-          if (authData) {
-            const parsedAuth = JSON.parse(authData);
-            userSchoolCode = parsedAuth.user?.schoolCode || '';
-            console.log(`🏫 Using school code from auth: "${userSchoolCode}"`);
-          }
-        } catch (err) {
-          console.error('Error parsing auth data:', err);
-        }
-        
-        // Try direct endpoint with the user's school code
-        response = await fetch(`/api/direct-test/class-subjects/${encodeURIComponent(className)}?schoolCode=${userSchoolCode}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-School-Code': userSchoolCode
-          }
-        });
-        
-        console.log(`📡 Direct endpoint response: ${response.status} ${response.statusText}`);
-      }
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Class subjects response:', data);
-        
-        // Extract subjects from the response
-        const subjects = data.data?.subjects || [];
-        const subjectNames = subjects
-          .filter((subject: any) => subject.isActive)
-          .map((subject: any) => subject.name);
-        
-        console.log('📚 Available subjects:', subjectNames);
+        const subjectNames = (data?.data?.subjects || [])
+          .filter((s: any) => s.isActive !== false)
+          .map((s: any) => s.name)
+          .filter(Boolean);
         setAvailableSubjects(subjectNames);
-        
-        // If current subject is not available for selected class, reset it
-        if (formData.subject && !subjectNames.includes(formData.subject)) {
-          setFormData(prev => ({ ...prev, subject: '' }));
-        }
+        console.log('✅ Subjects loaded:', subjectNames);
       } else {
-        const errorText = await response.text();
-        console.error('❌ Failed to fetch subjects:', response.status, response.statusText);
-        console.error('❌ Error details:', errorText);
+        console.warn('Failed to fetch subjects:', response.status);
         setAvailableSubjects([]);
       }
-    } catch (error) {
-      console.error('❌ Error fetching subjects:', error);
-      // Fallback to empty array if API fails
+    } catch (err) {
+      console.error('Error fetching subjects:', err);
       setAvailableSubjects([]);
     }
   };
@@ -139,19 +152,17 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.title.trim()) newErrors.title = 'Please enter assignment title';
-    if (!formData.subject) newErrors.subject = 'Please select a subject';
-    if (!formData.class) newErrors.class = 'Please select a class';
-    if (!formData.section) newErrors.section = 'Please select a section';
-    if (!formData.startDate) newErrors.startDate = 'Please set a start date';
-    if (!formData.dueDate) newErrors.dueDate = 'Please set a due date';
-    if (!formData.instructions.trim()) newErrors.instructions = 'Please write assignment instructions';
+    if (!formData.title.trim()) newErrors.title = 'Title is required';
+    if (!formData.subject) newErrors.subject = 'Subject is required';
+    if (!formData.class) newErrors.class = 'Class is required';
+    if (!formData.section) newErrors.section = 'Section is required';
+    if (!formData.startDate) newErrors.startDate = 'Start date is required';
+    if (!formData.dueDate) newErrors.dueDate = 'Due date is required';
 
-    // Validate due date is after start date
     if (formData.startDate && formData.dueDate) {
-      const startDate = new Date(formData.startDate);
-      const dueDate = new Date(formData.dueDate);
-      if (dueDate <= startDate) {
+      const start = new Date(formData.startDate);
+      const due = new Date(formData.dueDate);
+      if (due <= start) {
         newErrors.dueDate = 'Due date must be after start date';
       }
     }
@@ -160,14 +171,17 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setFormData({ ...formData, attachments: [...formData.attachments, ...files] });
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      setFormData({ ...formData, attachments: filesArray });
+    }
   };
 
-  const removeFile = (index: number) => {
-    const newAttachments = formData.attachments.filter((_, i) => i !== index);
-    setFormData({ ...formData, attachments: newAttachments });
+  const removeExistingAttachment = (index: number) => {
+    const updated = [...formData.existingAttachments];
+    updated.splice(index, 1);
+    setFormData({ ...formData, existingAttachments: updated });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -189,65 +203,60 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
       formDataToSend.append('dueDate', formData.dueDate);
       formDataToSend.append('instructions', formData.instructions);
 
-      // Log the data being sent
-      console.log('📤 Sending assignment data:', {
+      console.log('📤 Updating assignment:', {
+        id: assignmentId,
         title: formData.title,
         subject: formData.subject,
         class: formData.class,
-        section: formData.section,
-        startDate: formData.startDate,
-        dueDate: formData.dueDate,
-        hasInstructions: !!formData.instructions,
-        attachmentsCount: formData.attachments.length
+        section: formData.section
       });
 
-      // Add files
+      // Add new files if any
       formData.attachments.forEach(file => {
         formDataToSend.append('attachments', file);
       });
 
-      // Get school code from auth context
+      // Add existing attachments that weren't removed
+      formDataToSend.append('existingAttachments', JSON.stringify(formData.existingAttachments));
+
+      // Get school code
       let schoolCode = '';
       try {
         const authData = localStorage.getItem('erp.auth');
         if (authData) {
           const parsedAuth = JSON.parse(authData);
           schoolCode = parsedAuth.user?.schoolCode || '';
-          console.log(`🏫 Using school code for assignment: "${schoolCode}"`);
         }
       } catch (err) {
         console.error('Error parsing auth data:', err);
       }
       
-      // Add school code to form data
       if (schoolCode) {
         formDataToSend.append('schoolCode', schoolCode);
-        console.log('📤 Added schoolCode to request:', schoolCode);
-      } else {
-        console.warn('⚠️ No school code found in auth context');
       }
 
-      const response = await assignmentAPI.createAssignmentWithFiles(formDataToSend);
+      const response = await assignmentAPI.updateAssignment(assignmentId, formDataToSend);
       
-      console.log('✅ Assignment created successfully:', response);
-      setSuccessMessage(response.message || `Assignment created for ${formData.class} • Section ${formData.section}`);
+      console.log('✅ Assignment updated successfully:', response);
+      setSuccessMessage('Assignment updated successfully!');
       
       // Show success for 2 seconds then close
       setTimeout(() => {
         onSuccess();
         onClose();
         setSuccessMessage('');
-        setFormData({
-          title: '', subject: '', class: '', section: '', startDate: '',
-          dueDate: '', instructions: '', attachments: []
-        });
       }, 2000);
 
     } catch (error: any) {
-      console.error('❌ Error creating assignment:', error);
-      console.error('Error response:', error.response?.data || error.message);
+      console.error('❌ Error updating assignment:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
       
-      setErrors({ submit: error.response?.data?.message || 'Failed to create assignment' });
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to update assignment';
+      setErrors({ submit: errorMessage });
+      
+      // Show detailed error to user
+      alert(`Failed to update assignment:\n${errorMessage}\n\nPlease check the console for more details.`);
     } finally {
       setLoading(false);
     }
@@ -256,27 +265,46 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
-        <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose}></div>
-        
-        <div className="relative w-full max-w-4xl mx-auto bg-white rounded-lg shadow-xl">
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-900">Create Assignment</h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <X className="w-6 h-6" />
-            </button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Edit Assignment</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        {/* Loading State */}
+        {loadingData ? (
+          <div className="p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="mt-2 text-gray-600">Loading assignment data...</p>
           </div>
-
-          {successMessage && (
-            <div className="p-4 bg-green-50 border-l-4 border-green-400">
-              <p className="text-sm text-green-700 font-medium">✅ {successMessage}</p>
-            </div>
-          )}
-
+        ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            {/* Success Message */}
+            {successMessage && (
+              <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
+                {successMessage}
+              </div>
+            )}
+
+            {/* Error Message */}
+            {errors.submit && (
+              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                {errors.submit}
+              </div>
+            )}
+
+            {/* Assignment Title */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Assignment Title *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <FileText className="w-4 h-4 inline mr-1" />Assignment Title *
+              </label>
               <input
                 type="text"
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
@@ -284,11 +312,12 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
                 }`}
                 value={formData.title}
                 onChange={e => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Enter assignment title"
+                placeholder="e.g., Math Homework - Chapter 5"
               />
               {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
             </div>
 
+            {/* Class, Section, Subject */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
@@ -351,6 +380,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
               </div>
             </div>
 
+            {/* Start Date and Due Date */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -363,7 +393,6 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
                   }`}
                   value={formData.startDate}
                   onChange={e => setFormData({ ...formData, startDate: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
                 />
                 {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate}</p>}
               </div>
@@ -379,86 +408,84 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
                   }`}
                   value={formData.dueDate}
                   onChange={e => setFormData({ ...formData, dueDate: e.target.value })}
-                  min={formData.startDate || new Date().toISOString().split('T')[0]}
                 />
                 {errors.dueDate && <p className="text-red-500 text-xs mt-1">{errors.dueDate}</p>}
               </div>
             </div>
 
+            {/* Instructions */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <FileText className="w-4 h-4 inline mr-1" />Assignment Instructions *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Instructions</label>
               <textarea
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 rows={4}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                  errors.instructions ? 'border-red-300' : 'border-gray-300'
-                }`}
                 value={formData.instructions}
                 onChange={e => setFormData({ ...formData, instructions: e.target.value })}
-                placeholder="Write detailed instructions for the assignment..."
+                placeholder="Enter assignment instructions..."
               />
-              {errors.instructions && <p className="text-red-500 text-xs mt-1">{errors.instructions}</p>}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Upload className="w-4 h-4 inline mr-1" />Attachments (Optional)
-              </label>
-              <input
-                type="file"
-                multiple
-                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
-                onChange={handleFileSelect}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-              
-              {formData.attachments.length > 0 && (
-                <div className="mt-2 space-y-2">
-                  {formData.attachments.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <span className="text-sm text-gray-700">{file.name}</span>
+            {/* Existing Attachments */}
+            {formData.existingAttachments.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Current Attachments</label>
+                <div className="space-y-2">
+                  {formData.existingAttachments.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                      <span className="text-sm text-gray-700">{file.originalName || file.filename}</span>
                       <button
                         type="button"
-                        onClick={() => removeFile(index)}
-                        className="text-red-600 hover:text-red-700"
+                        onClick={() => removeExistingAttachment(index)}
+                        className="text-red-600 hover:text-red-800"
                       >
-                        <X className="w-4 h-4" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-
-            {errors.submit && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-700 text-sm">{errors.submit}</p>
               </div>
             )}
 
-            <div className="flex justify-end space-x-3 pt-4 border-t">
+            {/* New Attachments */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Upload className="w-4 h-4 inline mr-1" />Add New Attachments
+              </label>
+              <input
+                type="file"
+                multiple
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                onChange={handleFileChange}
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.jpg,.jpeg,.png"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Max 5 files, 10MB each. Supported: PDF, DOC, XLS, PPT, TXT, ZIP, Images
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 pt-4 border-t">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                disabled={loading}
               >
                 Cancel
               </button>
               <button
                 type="submit"
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={loading}
-                className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
-                <Users className="w-4 h-4" />
-                <span>{loading ? 'Creating...' : 'Create Assignment'}</span>
+                {loading ? 'Updating...' : 'Update Assignment'}
               </button>
             </div>
           </form>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default CreateAssignmentModal;
+export default EditAssignmentModal;

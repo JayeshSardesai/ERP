@@ -2,6 +2,7 @@ export type UserRole = 'superadmin' | 'admin' | 'teacher' | 'student' | 'parent'
 
 export interface AuthUser {
   id: string;
+  userId?: string;
   name: string;
   email: string;
   role: UserRole;

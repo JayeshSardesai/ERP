@@ -15,4 +15,5 @@ export const classesAPI = (ApiNs as any).classesAPI;
 export const feesAPI = (ApiNs as any).feesAPI;
 export const classAPI = (ApiNs as any).classAPI;
 export const testAPI = (ApiNs as any).testAPI;
+export const resultsAPI = (ApiNs as any).resultsAPI;
 export default (ApiNs as any).default;

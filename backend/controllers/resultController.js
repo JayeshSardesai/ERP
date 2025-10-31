@@ -485,6 +485,24 @@ const generateGradeDistribution = (results) => {
   return distribution;
 };
 
+// Helper function to calculate grade based on standard CBSE/ICSE grading scheme
+const calculateSimpleGrade = (obtainedMarks, totalMarks) => {
+  if (obtainedMarks === null || obtainedMarks === undefined || !totalMarks || totalMarks === 0) return null;
+  
+  const percentage = (obtainedMarks / totalMarks) * 100;
+  
+  // Standard CBSE/ICSE Grading Scheme
+  if (percentage >= 91) return 'A1';
+  if (percentage >= 81) return 'A2';
+  if (percentage >= 71) return 'B1';
+  if (percentage >= 61) return 'B2';
+  if (percentage >= 51) return 'C1';
+  if (percentage >= 41) return 'C2';
+  if (percentage >= 33) return 'D';
+  if (percentage >= 21) return 'E1';
+  return 'E2';
+};
+
 // Simple save results endpoint for the Results page
 exports.saveResults = async (req, res) => {
   try {
@@ -493,17 +511,19 @@ exports.saveResults = async (req, res) => {
       class: className,
       section,
       testType,
+      subject,
       maxMarks,
       academicYear,
       results
     } = req.body;
 
-    console.log('💾 Saving results:', { schoolCode, className, section, testType, maxMarks, resultsCount: results?.length });
+    console.log('💾 Saving results:', { schoolCode, className, section, testType, subject, maxMarks, resultsCount: results?.length });
 
-    if (!schoolCode || !className || !section || !testType || !results || !Array.isArray(results)) {
+    // Validate required fields
+    if (!schoolCode || !className || !section || !testType || !subject || !results || !Array.isArray(results)) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: schoolCode, class, section, testType, and results array'
+        message: 'Missing required fields: schoolCode, class, section, testType, subject, and results array'
       });
     }
 
@@ -512,48 +532,165 @@ exports.saveResults = async (req, res) => {
     const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
-    // Prepare results data for storage
-    const resultsToSave = results.map((result, index) => ({
-      schoolCode: schoolCode.toUpperCase(),
-      className,
-      section,
-      testType,
-      maxMarks: parseInt(maxMarks),
-      academicYear: academicYear || '2024-25',
-      studentId: result.studentId,
-      studentName: result.studentName,
-      userId: result.userId,
-      obtainedMarks: parseInt(result.obtainedMarks),
-      totalMarks: parseInt(result.totalMarks),
-      grade: result.grade,
-      percentage: result.totalMarks > 0 ? Math.round((result.obtainedMarks / result.totalMarks) * 100 * 100) / 100 : 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      createdBy: req.user?._id || null
-    }));
+    const savedResults = [];
+    const errors = [];
 
-    // Insert results into school-specific collection
-    const insertResult = await resultsCollection.insertMany(resultsToSave);
+    // Process each student result
+    for (const result of results) {
+      try {
+        const studentId = result.studentId;
+        const obtainedMarks = result.obtainedMarks !== null && result.obtainedMarks !== undefined 
+          ? parseInt(result.obtainedMarks) 
+          : null;
 
-    console.log(`✅ Saved ${insertResult.insertedCount} results to school_${schoolCode.toLowerCase()}.results`);
+        // Find existing result document for this student, class, section, and academic year
+        const existingResult = await resultsCollection.findOne({
+          schoolCode: schoolCode.toUpperCase(),
+          className,
+          section,
+          academicYear: academicYear || '2024-25',
+          studentId
+        });
+
+        const now = new Date();
+
+        if (existingResult) {
+          // Update existing document - add or update the subject entry
+          const subjectIndex = existingResult.subjects?.findIndex(
+            s => s.subjectName === subject && s.testType === testType
+          );
+
+          // Check if the subject is frozen
+          if (subjectIndex >= 0 && existingResult.subjects[subjectIndex].frozen) {
+            errors.push({
+              studentId: result.studentId,
+              studentName: result.studentName,
+              error: 'Results are frozen and cannot be modified'
+            });
+            continue; // Skip this student
+          }
+
+          let updatedSubjects = existingResult.subjects || [];
+
+          const totalMarksValue = parseInt(result.totalMarks || maxMarks);
+          const calculatedGrade = calculateSimpleGrade(obtainedMarks, totalMarksValue);
+          const calculatedPercentage = obtainedMarks !== null && totalMarksValue > 0 
+            ? Math.round((obtainedMarks / totalMarksValue) * 100 * 100) / 100 
+            : null;
+
+          if (subjectIndex >= 0) {
+            // Update existing subject entry (preserve frozen status)
+            updatedSubjects[subjectIndex] = {
+              subjectName: subject,
+              testType,
+              maxMarks: parseInt(maxMarks),
+              obtainedMarks,
+              totalMarks: totalMarksValue,
+              grade: calculatedGrade,
+              percentage: calculatedPercentage,
+              updatedAt: now
+            };
+          } else {
+            // Add new subject entry
+            updatedSubjects.push({
+              subjectName: subject,
+              testType,
+              maxMarks: parseInt(maxMarks),
+              obtainedMarks,
+              totalMarks: totalMarksValue,
+              grade: calculatedGrade,
+              percentage: calculatedPercentage,
+              createdAt: now,
+              updatedAt: now
+            });
+          }
+
+          // Update the document
+          await resultsCollection.updateOne(
+            { _id: existingResult._id },
+            {
+              $set: {
+                subjects: updatedSubjects,
+                updatedAt: now,
+                updatedBy: req.user?._id || null
+              }
+            }
+          );
+
+          savedResults.push({
+            studentId,
+            studentName: result.studentName,
+            userId: result.userId,
+            action: 'updated'
+          });
+        } else {
+          // Create new result document
+          const totalMarksValue = parseInt(result.totalMarks || maxMarks);
+          const calculatedGrade = calculateSimpleGrade(obtainedMarks, totalMarksValue);
+          const calculatedPercentage = obtainedMarks !== null && totalMarksValue > 0 
+            ? Math.round((obtainedMarks / totalMarksValue) * 100 * 100) / 100 
+            : null;
+
+          const newResult = {
+            schoolCode: schoolCode.toUpperCase(),
+            className,
+            section,
+            academicYear: academicYear || '2024-25',
+            studentId,
+            studentName: result.studentName,
+            userId: result.userId,
+            subjects: [{
+              subjectName: subject,
+              testType,
+              maxMarks: parseInt(maxMarks),
+              obtainedMarks,
+              totalMarks: totalMarksValue,
+              grade: calculatedGrade,
+              percentage: calculatedPercentage,
+              createdAt: now,
+              updatedAt: now
+            }],
+            createdAt: now,
+            updatedAt: now,
+            createdBy: req.user?._id || null
+          };
+
+          await resultsCollection.insertOne(newResult);
+
+          savedResults.push({
+            studentId,
+            studentName: result.studentName,
+            userId: result.userId,
+            action: 'created'
+          });
+        }
+      } catch (err) {
+        console.error(`Error saving result for student ${result.studentId}:`, err);
+        errors.push({
+          studentId: result.studentId,
+          studentName: result.studentName,
+          error: err.message
+        });
+      }
+    }
+
+    console.log(`✅ Saved ${savedResults.length} results to school_${schoolCode.toLowerCase()}.results`);
+    if (errors.length > 0) {
+      console.warn(`⚠️ ${errors.length} errors occurred:`, errors);
+    }
 
     res.json({
       success: true,
-      message: `Successfully saved ${insertResult.insertedCount} results`,
+      message: `Successfully saved ${savedResults.length} results${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
       data: {
         schoolCode,
         className,
         section,
         testType,
-        savedCount: insertResult.insertedCount,
-        results: resultsToSave.map(r => ({
-          studentName: r.studentName,
-          userId: r.userId,
-          obtainedMarks: r.obtainedMarks,
-          totalMarks: r.totalMarks,
-          grade: r.grade,
-          percentage: r.percentage
-        }))
+        subject,
+        savedCount: savedResults.length,
+        results: savedResults,
+        errors: errors.length > 0 ? errors : undefined
       }
     });
 
@@ -570,9 +707,9 @@ exports.saveResults = async (req, res) => {
 // Get existing results for a class and section
 exports.getResults = async (req, res) => {
   try {
-    const { schoolCode, class: className, section, testType, academicYear } = req.query;
+    const { schoolCode, class: className, section, subject, testType, academicYear } = req.query;
 
-    console.log('🔍 Fetching results:', { schoolCode, className, section, testType, academicYear });
+    console.log('🔍 Fetching results:', { schoolCode, className, section, subject, testType, academicYear });
 
     if (!schoolCode || !className || !section) {
       return res.status(400).json({
@@ -586,34 +723,451 @@ exports.getResults = async (req, res) => {
     const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
-    // Build query
+    // Build query for student documents
     const query = {
       schoolCode: schoolCode.toUpperCase(),
       className,
       section
     };
 
-    if (testType) {
-      query.testType = testType;
-    }
-
     if (academicYear) {
       query.academicYear = academicYear;
     }
 
-    // Fetch results from school-specific collection
-    const results = await resultsCollection.find(query).sort({ createdAt: -1 }).toArray();
+    // Fetch all result documents for the class/section
+    const resultDocs = await resultsCollection.find(query).sort({ createdAt: -1 }).toArray();
 
-    console.log(`✅ Found ${results.length} results for ${className}-${section}`);
+    console.log(`📚 Found ${resultDocs.length} student result documents for ${className}-${section}`);
+
+    // Extract subject-specific results
+    const filteredResults = [];
+
+    for (const doc of resultDocs) {
+      // Handle NESTED structure (new format with subjects array)
+      if (doc.subjects && Array.isArray(doc.subjects)) {
+        // Filter subjects array based on subject and testType
+        let matchingSubjects = doc.subjects;
+
+        if (subject) {
+          matchingSubjects = matchingSubjects.filter(s => s.subjectName === subject);
+        }
+
+        if (testType) {
+          matchingSubjects = matchingSubjects.filter(s => s.testType === testType);
+        }
+
+        // If we have matching subjects, create result entries
+        for (const subj of matchingSubjects) {
+          filteredResults.push({
+            _id: doc._id,
+            schoolCode: doc.schoolCode,
+            className: doc.className,
+            section: doc.section,
+            academicYear: doc.academicYear,
+            studentId: doc.studentId,
+            studentName: doc.studentName,
+            userId: doc.userId,
+            subject: subj.subjectName,
+            testType: subj.testType,
+            maxMarks: subj.maxMarks,
+            obtainedMarks: subj.obtainedMarks,
+            totalMarks: subj.totalMarks,
+            grade: subj.grade,
+            percentage: subj.percentage,
+            frozen: subj.frozen || false,
+            frozenAt: subj.frozenAt || null,
+            frozenBy: subj.frozenBy || null,
+            createdAt: subj.createdAt || doc.createdAt,
+            updatedAt: subj.updatedAt || doc.updatedAt
+          });
+        }
+      } 
+      // Handle FLAT structure (old format - backward compatibility)
+      else if (doc.testType && doc.obtainedMarks !== undefined) {
+        // Check if this document matches the filters
+        const matchesSubject = !subject || doc.subject === subject;
+        const matchesTestType = !testType || doc.testType === testType;
+
+        if (matchesSubject && matchesTestType) {
+          filteredResults.push({
+            _id: doc._id,
+            schoolCode: doc.schoolCode,
+            className: doc.className,
+            section: doc.section,
+            academicYear: doc.academicYear,
+            studentId: doc.studentId,
+            studentName: doc.studentName,
+            userId: doc.userId,
+            subject: doc.subject || 'Unknown',
+            testType: doc.testType,
+            maxMarks: doc.maxMarks,
+            obtainedMarks: doc.obtainedMarks,
+            totalMarks: doc.totalMarks,
+            grade: doc.grade,
+            percentage: doc.percentage,
+            frozen: doc.frozen || false,
+            frozenAt: doc.frozenAt || null,
+            frozenBy: doc.frozenBy || null,
+            createdAt: doc.createdAt,
+            updatedAt: doc.updatedAt
+          });
+        }
+      }
+    }
+
+    console.log(`✅ Found ${filteredResults.length} subject-specific results for ${className}-${section}${subject ? ` (${subject})` : ''}${testType ? ` (${testType})` : ''}`);
 
     res.json({
       success: true,
-      message: `Found ${results.length} results`,
-      data: results
+      message: `Found ${filteredResults.length} results`,
+      data: filteredResults
     });
 
   } catch (error) {
     console.error('Error fetching results:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching results',
+      error: error.message
+    });
+  }
+};
+
+// Update a single student result
+exports.updateResult = async (req, res) => {
+  try {
+    const { resultId } = req.params;
+    const {
+      schoolCode,
+      class: className,
+      section,
+      subject,
+      testType,
+      maxMarks,
+      obtainedMarks,
+      totalMarks,
+      studentId,
+      studentName,
+      userId
+    } = req.body;
+
+    console.log('🔄 Updating result:', { resultId, schoolCode, className, section, subject, testType });
+
+    if (!resultId || !schoolCode || !className || !section || !subject || !testType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+
+    // Get school-specific database connection
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const resultsCollection = schoolConn.collection('results');
+    const { ObjectId } = require('mongodb');
+
+    // Find the result document
+    const existingResult = await resultsCollection.findOne({
+      _id: new ObjectId(resultId)
+    });
+
+    if (!existingResult) {
+      return res.status(404).json({
+        success: false,
+        message: 'Result not found'
+      });
+    }
+
+    const now = new Date();
+    const obtainedMarksValue = obtainedMarks !== null && obtainedMarks !== undefined 
+      ? parseInt(obtainedMarks) 
+      : null;
+
+    // Find and update the specific subject entry
+    const subjectIndex = existingResult.subjects?.findIndex(
+      s => s.subjectName === subject && s.testType === testType
+    );
+
+    // Check if the subject is frozen
+    if (subjectIndex >= 0 && existingResult.subjects[subjectIndex].frozen) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot update frozen results. Results have been locked and cannot be modified.'
+      });
+    }
+
+    let updatedSubjects = existingResult.subjects || [];
+
+    if (subjectIndex >= 0) {
+      // Update existing subject entry (preserve frozen status)
+      updatedSubjects[subjectIndex] = {
+        subjectName: subject,
+        testType,
+        maxMarks: parseInt(maxMarks),
+        obtainedMarks: obtainedMarksValue,
+        totalMarks: parseInt(totalMarks || maxMarks),
+        grade: req.body.grade || null,
+        percentage: obtainedMarksValue !== null && totalMarks > 0 
+          ? Math.round((obtainedMarksValue / totalMarks) * 100 * 100) / 100 
+          : null,
+        updatedAt: now
+      };
+    } else {
+      // Add new subject entry if not found
+      updatedSubjects.push({
+        subjectName: subject,
+        testType,
+        maxMarks: parseInt(maxMarks),
+        obtainedMarks: obtainedMarksValue,
+        totalMarks: parseInt(totalMarks || maxMarks),
+        grade: req.body.grade || null,
+        percentage: obtainedMarksValue !== null && totalMarks > 0 
+          ? Math.round((obtainedMarksValue / totalMarks) * 100 * 100) / 100 
+          : null,
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+
+    // Update the document
+    const updateResult = await resultsCollection.updateOne(
+      { _id: new ObjectId(resultId) },
+      {
+        $set: {
+          subjects: updatedSubjects,
+          updatedAt: now,
+          updatedBy: req.user?._id || null
+        }
+      }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No changes made to the result'
+      });
+    }
+
+    console.log(`✅ Updated result ${resultId} for subject ${subject}, test ${testType}`);
+
+    res.json({
+      success: true,
+      message: 'Result updated successfully',
+      data: {
+        resultId,
+        subject,
+        testType,
+        obtainedMarks: obtainedMarksValue
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating result:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating result',
+      error: error.message
+    });
+  }
+};
+
+// Freeze results for a specific class, section, subject, and test type
+exports.freezeResults = async (req, res) => {
+  try {
+    const {
+      schoolCode,
+      class: className,
+      section,
+      subject,
+      testType,
+      academicYear
+    } = req.body;
+
+    console.log('🔒 Freezing results:', { schoolCode, className, section, subject, testType });
+
+    // Validate required fields
+    if (!schoolCode || !className || !section || !subject || !testType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: schoolCode, class, section, subject, and testType'
+      });
+    }
+
+    // Get school-specific database connection
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const resultsCollection = schoolConn.collection('results');
+
+    const now = new Date();
+
+    // Update all matching results to set frozen status
+    const updateResult = await resultsCollection.updateMany(
+      {
+        schoolCode: schoolCode.toUpperCase(),
+        className,
+        section,
+        academicYear: academicYear || '2024-25',
+        'subjects.subjectName': subject,
+        'subjects.testType': testType
+      },
+      {
+        $set: {
+          'subjects.$[elem].frozen': true,
+          'subjects.$[elem].frozenAt': now,
+          'subjects.$[elem].frozenBy': req.user?._id || null,
+          updatedAt: now
+        }
+      },
+      {
+        arrayFilters: [{ 'elem.subjectName': subject, 'elem.testType': testType }]
+      }
+    );
+
+    console.log(`✅ Frozen ${updateResult.modifiedCount} results for ${className}-${section}, ${subject} (${testType})`);
+
+    res.json({
+      success: true,
+      message: `Successfully frozen ${updateResult.modifiedCount} results`,
+      data: {
+        schoolCode,
+        className,
+        section,
+        subject,
+        testType,
+        frozenCount: updateResult.modifiedCount
+      }
+    });
+
+  } catch (error) {
+    console.error('Error freezing results:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error freezing results',
+      error: error.message
+    });
+  }
+};
+
+// Get results for teacher view - formatted for display
+exports.getResultsForTeacher = async (req, res) => {
+  try {
+    const { schoolCode, class: className, section, subject, testType, academicYear } = req.query;
+
+    console.log('👨‍🏫 Teacher fetching results:', { schoolCode, className, section, subject, testType, academicYear });
+
+    // Validate required fields
+    if (!schoolCode || !className || !section || !subject || !testType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: schoolCode, class, section, subject, and testType'
+      });
+    }
+
+    // Get school-specific database connection
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const resultsCollection = schoolConn.collection('results');
+
+    // Build query for student documents
+    const query = {
+      schoolCode: schoolCode.toUpperCase(),
+      className,
+      section,
+      academicYear: academicYear || '2024-25'
+    };
+
+    // Fetch all result documents for the class/section
+    const resultDocs = await resultsCollection.find(query).sort({ studentName: 1 }).toArray();
+
+    console.log(`📚 Found ${resultDocs.length} student result documents for ${className}-${section}`);
+
+    // Extract and format results for the specific subject and test type
+    const formattedResults = [];
+
+    for (const doc of resultDocs) {
+      // Handle nested structure with subjects array
+      if (doc.subjects && Array.isArray(doc.subjects)) {
+        // Find the matching subject and test type
+        const matchingSubject = doc.subjects.find(
+          s => s.subjectName === subject && s.testType === testType
+        );
+
+        if (matchingSubject) {
+          formattedResults.push({
+            id: doc._id.toString(),
+            _id: doc._id.toString(),
+            studentId: doc.studentId,
+            userId: doc.userId,
+            name: doc.studentName || 'Unknown',
+            studentName: doc.studentName || 'Unknown',
+            rollNumber: doc.rollNumber || 'N/A',
+            class: className,
+            className: className,
+            section: section,
+            subject: subject,
+            testType: testType,
+            obtainedMarks: matchingSubject.obtainedMarks !== null ? matchingSubject.obtainedMarks : 0,
+            totalMarks: matchingSubject.maxMarks || matchingSubject.totalMarks || 100,
+            maxMarks: matchingSubject.maxMarks || matchingSubject.totalMarks || 100,
+            percentage: matchingSubject.percentage !== null ? matchingSubject.percentage : 0,
+            grade: matchingSubject.grade || calculateSimpleGrade(
+              matchingSubject.obtainedMarks, 
+              matchingSubject.maxMarks || matchingSubject.totalMarks || 100
+            ),
+            frozen: matchingSubject.frozen || false, // Include frozen status
+            createdAt: doc.createdAt || doc.updatedAt || new Date(),
+            updatedAt: doc.updatedAt || doc.createdAt || new Date()
+          });
+        }
+      }
+    }
+
+    console.log(`✅ Formatted ${formattedResults.length} results for teacher view`);
+    
+    // Log frozen status for debugging
+    const frozenCount = formattedResults.filter(r => r.frozen).length;
+    if (frozenCount > 0) {
+      console.log(`🔒 ${frozenCount} results are FROZEN and cannot be edited`);
+    }
+
+    // Calculate statistics
+    const statistics = {
+      totalStudents: formattedResults.length,
+      averageMarks: formattedResults.length > 0 
+        ? Math.round(formattedResults.reduce((sum, r) => sum + r.obtainedMarks, 0) / formattedResults.length)
+        : 0,
+      averagePercentage: formattedResults.length > 0
+        ? Math.round(formattedResults.reduce((sum, r) => sum + r.percentage, 0) / formattedResults.length)
+        : 0,
+      highestScore: formattedResults.length > 0 
+        ? Math.max(...formattedResults.map(r => r.obtainedMarks))
+        : 0,
+      lowestScore: formattedResults.length > 0 
+        ? Math.min(...formattedResults.map(r => r.obtainedMarks))
+        : 0,
+      passCount: formattedResults.filter(r => r.percentage >= 40).length,
+      failCount: formattedResults.filter(r => r.percentage < 40).length
+    };
+
+    res.json({
+      success: true,
+      message: `Found ${formattedResults.length} results`,
+      data: {
+        results: formattedResults,
+        statistics,
+        filters: {
+          schoolCode,
+          className,
+          section,
+          subject,
+          testType,
+          academicYear: academicYear || '2024-25'
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching results for teacher:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching results',
@@ -627,5 +1181,8 @@ module.exports = {
   getStudentResultHistory: exports.getStudentResultHistory,
   generateClassPerformanceReport: exports.generateClassPerformanceReport,
   saveResults: exports.saveResults,
-  getResults: exports.getResults
+  getResults: exports.getResults,
+  updateResult: exports.updateResult,
+  freezeResults: exports.freezeResults,
+  getResultsForTeacher: exports.getResultsForTeacher
 };

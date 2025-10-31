@@ -6,7 +6,9 @@ import ManageUsers from './pages/ManageUsers'
 import SchoolSettings from './pages/SchoolSettings'
 import AcademicDetails from './pages/AcademicDetails'
 import AcademicDetailsSimple from './pages/AcademicDetailsSimple'
+import AttendanceHome from './pages/AttendanceHome'
 import MarkAttendance from './pages/MarkAttendance'
+import ViewAttendanceRecords from './pages/ViewAttendanceRecords'
 import Assignments from './pages/Assignments'
 import Results from './pages/Results'
 import TestComponent from './pages/TestComponent'
@@ -30,7 +32,9 @@ export function AdminApp() {
             <AcademicDetails />
           </ErrorBoundary>
         } />
-        <Route path="attendance/mark" element={<MarkAttendance />} />
+        <Route path="attendance" element={<AttendanceHome />} />
+        <Route path="attendance/mark" element={<AttendanceHome />} />
+        <Route path="attendance/view" element={<AttendanceHome />} />
         <Route path="assignments" element={
           <ErrorBoundary>
             <Assignments />

@@ -25,7 +25,12 @@ export async function getAssignmentById(id: string) {
 }
 
 export async function updateAssignment(id: string, data: any) {
-  const res = await api.put(`/assignments/${id}`, data);
+  // Check if data is FormData (for file uploads)
+  const headers = data instanceof FormData ? {
+    'Content-Type': 'multipart/form-data',
+  } : {};
+  
+  const res = await api.put(`/assignments/${id}`, data, { headers });
   return res.data;
 }
 
@@ -55,6 +60,11 @@ export async function getAssignmentSubmissions(assignmentId: string, params?: an
 
 export async function gradeSubmission(submissionId: string, data: { grade: number; feedback?: string; maxMarks?: number }) {
   const res = await api.put(`/assignments/submissions/${submissionId}/grade`, data);
+  return res.data;
+}
+
+export async function getAssignmentStats() {
+  const res = await api.get('/assignments/stats');
   return res.data;
 }
 

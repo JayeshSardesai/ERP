@@ -77,6 +77,7 @@ const reportsRoutes = require('./routes/reports');
 const promotionRoutes = require('./routes/promotion');
 const academicYearRoutes = require('./routes/academicYear');
 const migrationRoutes = require('./routes/migration');
+const leaveRoutes = require('./routes/leaveRoutes');
 
 // Serve uploads statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -180,6 +181,7 @@ app.use('/api/classes', classesRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/fees', feesRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/leave-requests', leaveRoutes);
 
 
 // --- Define Export/Import Routes Directly ---

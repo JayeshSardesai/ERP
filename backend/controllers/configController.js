@@ -22,8 +22,8 @@ exports.getSchoolConfig = async (req, res) => {
       {
         $group: {
           _id: {
-            class: '$studentDetails.class',
-            section: '$studentDetails.section'
+            class: '$studentDetails.currentClass',
+            section: '$studentDetails.currentSection'
           }
         }
       },
@@ -37,7 +37,7 @@ exports.getSchoolConfig = async (req, res) => {
     ]);
 
     // Get unique sections across all classes
-    const allSections = await User.distinct('studentDetails.section', {
+    const allSections = await User.distinct('studentDetails.currentSection', {
       schoolId,
       role: 'student'
     });

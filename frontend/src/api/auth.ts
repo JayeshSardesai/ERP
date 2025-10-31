@@ -76,7 +76,8 @@ async function regularLogin(payload: LoginPayload): Promise<LoginResponse> {
       : data.user.email;
 
   const mappedUser: AuthUser = {
-    id: data.user._id || data.user.id || data.user.userId || '',
+    id: data.user._id || data.user.id || '',
+    userId: data.user.userId,
     name: displayName,
     email: data.user.email,
     role: (roleLc as AuthUser['role']),
@@ -143,7 +144,8 @@ async function schoolLogin(payload: LoginPayload): Promise<LoginResponse> {
       : data.user.email;
 
   const mappedUser: AuthUser = {
-    id: data.user._id || data.user.id || data.user.userId || '',
+    id: data.user._id || data.user.id || '',
+    userId: data.user.userId,
     name: displayName,
     email: data.user.email,
     role: (roleLc as AuthUser['role']),

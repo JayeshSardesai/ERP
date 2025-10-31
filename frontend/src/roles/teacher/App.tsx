@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
+import Attendance from './components/Attendance/Attendance';
 import MarkAttendance from './components/Attendance/MarkAttendance';
 import ViewAttendance from './components/Attendance/ViewAttendance';
+import Assignments from './components/Assignments/Assignments';
 import AddAssignments from './components/Assignments/AddAssignments';
+import ViewAssignments from './components/Assignments/ViewAssignments';
 import ViewResults from './components/Results/ViewResults';
 import Messages from './components/Messages/Messages';
+import LeaveRequestManagement from './components/LeaveRequest/LeaveRequestManagement';
 import SchoolSettings from './components/Settings/SchoolSettings';
 
 function App() {
@@ -29,16 +33,24 @@ function App() {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard onNavigate={handleNavigate} />;
+      case 'attendance':
+        return <Attendance onNavigate={handleNavigate} />;
       case 'mark-attendance':
         return <MarkAttendance />;
       case 'view-attendance':
         return <ViewAttendance />;
+      case 'assignments':
+        return <Assignments onNavigate={handleNavigate} />;
       case 'add-assignments':
         return <AddAssignments />;
+      case 'view-assignments':
+        return <ViewAssignments />;
       case 'view-results':
         return <ViewResults />;
       case 'messages':
         return <Messages />;
+      case 'leave-request':
+        return <LeaveRequestManagement onNavigate={handleNavigate} />;
       case 'settings':
         return <SchoolSettings />;
       default:
