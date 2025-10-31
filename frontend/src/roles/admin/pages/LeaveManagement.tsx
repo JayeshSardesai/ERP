@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Check, X, Clock, User, FileText, Filter, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../../../auth/AuthContext';
 
 interface LeaveRequest {
   _id: string;
@@ -21,6 +22,7 @@ interface LeaveRequest {
 }
 
 const LeaveManagement: React.FC = () => {
+  const { user, token } = useAuth();
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,17 @@ const LeaveManagement: React.FC = () => {
   const [reviewComments, setReviewComments] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Mock data for demonstration
+  // Get auth token - improved to use AuthContext first
+  const getAuthToken = () => {
+    // First try the token from AuthContext
+    if (token) {
+      return token;
+    }
+    // Fallback to localStorage
+    return localStorage.getItem('token');
+  };
+
+  // Fetch leave requests from backend
   useEffect(() => {
     fetchLeaveRequests();
   }, []);
@@ -39,78 +51,79 @@ const LeaveManagement: React.FC = () => {
   const fetchLeaveRequests = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with actual API call
-      // const response = await api.get('/leave-requests');
-      // setLeaveRequests(response.data.data);
+      const authToken = getAuthToken();
+      console.log('🔑 Token exists:', !!authToken);
+      console.log('🔑 Token length:', authToken?.length || 0);
+      console.log('👤 User:', user?.userId, user?.role);
+      console.log('🏫 School Code:', user?.schoolCode);
       
-      // Mock data
-      const mockData: LeaveRequest[] = [
-        {
-          _id: '1',
-          teacherId: 'T001',
-          teacherName: 'John Doe',
-          teacherEmail: 'john@school.com',
-          leaveType: 'sick',
-          subject: 'Sick Leave - Viral Fever',
-          startDate: '2025-11-01',
-          endDate: '2025-11-03',
-          days: 3,
-          reason: 'Suffering from viral fever and need rest as per doctor\'s advice.',
-          status: 'pending',
-          appliedOn: '2025-10-28',
-        },
-        {
-          _id: '2',
-          teacherId: 'T002',
-          teacherName: 'Jane Smith',
-          teacherEmail: 'jane@school.com',
-          leaveType: 'casual',
-          subject: 'Casual Leave - Family Function',
-          startDate: '2025-11-05',
-          endDate: '2025-11-05',
-          days: 1,
-          reason: 'Personal work - need to attend family function.',
-          status: 'pending',
-          appliedOn: '2025-10-29',
-        },
-        {
-          _id: '3',
-          teacherId: 'T003',
-          teacherName: 'Robert Johnson',
-          teacherEmail: 'robert@school.com',
-          leaveType: 'emergency',
-          subject: 'Emergency Leave - Family Emergency',
-          startDate: '2025-10-30',
-          endDate: '2025-10-30',
-          days: 1,
-          reason: 'Family emergency - need immediate attention.',
-          status: 'approved',
-          appliedOn: '2025-10-29',
-          reviewedBy: 'Admin',
-          reviewedOn: '2025-10-29',
-          reviewComments: 'Approved due to emergency situation.',
-        },
-        {
-          _id: '4',
-          teacherId: 'T004',
-          teacherName: 'Emily Davis',
-          teacherEmail: 'emily@school.com',
-          leaveType: 'personal',
-          subject: 'Personal Leave - Travel',
-          startDate: '2025-11-10',
-          endDate: '2025-11-12',
-          days: 3,
-          reason: 'Need to travel for personal reasons.',
-          status: 'rejected',
-          appliedOn: '2025-10-27',
-          reviewedBy: 'Admin',
-          reviewedOn: '2025-10-28',
-          reviewComments: 'Cannot approve as exams are scheduled during this period.',
-        },
-      ];
+      if (!authToken) {
+        console.error('❌ No authentication token found');
+        toast.error('Authentication required. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('📋 Fetching leave requests from backend...');
+      console.log('🌐 API URL:', 'http://localhost:5050/api/leave-requests/admin/all');
+
+      const response = await fetch('http://localhost:5050/api/leave-requests/admin/all', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        console.error('❌ API Error:', errorData);
+        console.error('❌ Response status:', response.status);
+        throw new Error(errorData.message || 'Failed to fetch leave requests');
+      }
+
+      const result = await response.json();
+      console.log('✅ Leave requests API response:', result);
+      console.log('📊 Number of requests:', result.data?.leaveRequests?.length || 0);
       
-      setLeaveRequests(mockData);
-      setFilteredRequests(mockData);
+      if (result.success && result.data?.leaveRequests) {
+        // Transform backend data to match frontend interface
+        const transformedData: LeaveRequest[] = result.data.leaveRequests.map((req: any) => {
+          // Calculate number of days
+          const start = new Date(req.startDate);
+          const end = new Date(req.endDate);
+          const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+          return {
+            _id: req._id,
+            teacherId: req.teacherUserId || req.teacherId?._id || req.teacherId || 'N/A',
+            teacherName: req.teacherName || req.teacherId?.name?.displayName || 'Unknown',
+            teacherEmail: req.teacherEmail || req.teacherId?.email || 'N/A',
+            leaveType: req.leaveType || 'other',
+            subject: req.subjectLine || 'No Subject',
+            startDate: req.startDate,
+            endDate: req.endDate,
+            days: req.numberOfDays || days,
+            reason: req.description || 'No description provided',
+            status: req.status,
+            appliedOn: req.createdAt,
+            reviewedBy: req.reviewedByName || req.reviewedBy?.name?.displayName,
+            reviewedOn: req.reviewedAt,
+            reviewComments: req.adminComments
+          };
+        });
+        
+        console.log('📊 Transformed data:', transformedData);
+        setLeaveRequests(transformedData);
+        setFilteredRequests(transformedData);
+      } else {
+        // No leave requests found
+        console.log('ℹ️ No leave requests found in the database');
+        setLeaveRequests([]);
+        setFilteredRequests([]);
+      }
     } catch (error) {
       console.error('Error fetching leave requests:', error);
       toast.error('Failed to load leave requests');
@@ -143,28 +156,38 @@ const LeaveManagement: React.FC = () => {
   const handleApprove = async (requestId: string) => {
     setActionLoading(true);
     try {
-      // TODO: Replace with actual API call
-      // await api.put(`/leave-requests/${requestId}/approve`, { comments: reviewComments });
+      const authToken = getAuthToken();
+      if (!authToken) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5050/api/leave-requests/admin/${requestId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: 'approved',
+          adminComments: reviewComments || 'Approved'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to approve leave request');
+      }
+
+      const result = await response.json();
       
-      // Mock update
-      setLeaveRequests(prev =>
-        prev.map(req =>
-          req._id === requestId
-            ? {
-                ...req,
-                status: 'approved',
-                reviewedBy: 'Admin',
-                reviewedOn: new Date().toISOString().split('T')[0],
-                reviewComments: reviewComments || 'Approved',
-              }
-            : req
-        )
-      );
-      
-      toast.success('Leave request approved successfully');
-      setShowModal(false);
-      setSelectedRequest(null);
-      setReviewComments('');
+      if (result.success) {
+        toast.success('Leave request approved successfully');
+        setShowModal(false);
+        setSelectedRequest(null);
+        setReviewComments('');
+        // Refresh the list
+        await fetchLeaveRequests();
+      }
     } catch (error) {
       console.error('Error approving leave request:', error);
       toast.error('Failed to approve leave request');
@@ -176,28 +199,38 @@ const LeaveManagement: React.FC = () => {
   const handleReject = async (requestId: string) => {
     setActionLoading(true);
     try {
-      // TODO: Replace with actual API call
-      // await api.put(`/leave-requests/${requestId}/reject`, { comments: reviewComments });
+      const authToken = getAuthToken();
+      if (!authToken) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5050/api/leave-requests/admin/${requestId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: 'rejected',
+          adminComments: reviewComments || 'Rejected'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reject leave request');
+      }
+
+      const result = await response.json();
       
-      // Mock update
-      setLeaveRequests(prev =>
-        prev.map(req =>
-          req._id === requestId
-            ? {
-                ...req,
-                status: 'rejected',
-                reviewedBy: 'Admin',
-                reviewedOn: new Date().toISOString().split('T')[0],
-                reviewComments,
-              }
-            : req
-        )
-      );
-      
-      toast.success('Leave request rejected');
-      setShowModal(false);
-      setSelectedRequest(null);
-      setReviewComments('');
+      if (result.success) {
+        toast.success('Leave request rejected');
+        setShowModal(false);
+        setSelectedRequest(null);
+        setReviewComments('');
+        // Refresh the list
+        await fetchLeaveRequests();
+      }
     } catch (error) {
       console.error('Error rejecting leave request:', error);
       toast.error('Failed to reject leave request');

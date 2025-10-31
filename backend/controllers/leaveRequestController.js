@@ -153,6 +153,8 @@ exports.getSchoolLeaveRequests = async (req, res) => {
     const { status } = req.query;
     const schoolCode = req.user.schoolCode;
 
+    console.log('📋 [ADMIN] Fetching ALL leave requests for school:', schoolCode);
+
     if (!schoolCode) {
       return res.status(400).json({
         success: false,
@@ -167,26 +169,53 @@ exports.getSchoolLeaveRequests = async (req, res) => {
 
     let query = {};
     
+    // Optional status filter
     if (status && ['pending', 'approved', 'rejected'].includes(status)) {
       query.status = status;
     }
 
+    console.log('🔍 Query:', query);
+
+    // Fetch all leave requests (no teacherId filter for admin)
     const leaveRequests = await LeaveRequest.find(query)
       .sort({ createdAt: -1 })
-      .populate('teacherId', 'name email userId')
-      .populate('reviewedBy', 'name email')
-      .select('-__v');
+      .select('-__v')
+      .lean();
 
-    res.status(200).json({
-      success: true,
-      data: {
-        leaveRequests,
-        count: leaveRequests.length
-      }
-    });
+    console.log('✅ Found', leaveRequests.length, 'leave requests');
+
+    // Try to populate references if possible
+    try {
+      const populatedRequests = await LeaveRequest.find(query)
+        .sort({ createdAt: -1 })
+        .populate('teacherId', 'name email userId')
+        .populate('reviewedBy', 'name email')
+        .select('-__v')
+        .lean();
+      
+      console.log('✅ Successfully populated references');
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          leaveRequests: populatedRequests,
+          count: populatedRequests.length
+        }
+      });
+    } catch (populateError) {
+      console.log('⚠️ Could not populate references, returning raw data');
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          leaveRequests,
+          count: leaveRequests.length
+        }
+      });
+    }
 
   } catch (error) {
-    console.error('Error fetching school leave requests:', error);
+    console.error('❌ Error fetching school leave requests:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch leave requests',
