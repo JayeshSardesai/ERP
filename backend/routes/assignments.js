@@ -49,6 +49,12 @@ router.use((req, res, next) => {
 });
 
 // Assignment management routes - require viewAssignments permission
+router.get('/', 
+  authorize(['admin', 'teacher']),
+  checkPermission('viewAssignments'),
+  assignmentController.getAssignments
+);
+
 router.post('/', upload.array('attachments', 5), 
   authorize(['admin', 'teacher']),
   checkPermission('viewAssignments'),

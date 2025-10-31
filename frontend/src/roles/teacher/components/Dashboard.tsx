@@ -90,8 +90,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         console.warn('⚠️ Leave requests API failed:', leaveRes.status);
       }
 
-      // Fetch latest message
-      const messagesRes = await fetch('/api/messages?limit=1', {
+      // Fetch latest message (teacher-specific endpoint)
+      const messagesRes = await fetch('/api/messages/teacher/messages?limit=1', {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

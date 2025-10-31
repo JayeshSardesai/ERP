@@ -15,7 +15,6 @@ import {
   UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
-import { currentUser } from '../utils/mockData';
 import { usePermissions, PermissionKey } from '../../../hooks/usePermissions';
 import { PermissionDeniedModal } from '../../../components/PermissionDeniedModal';
 

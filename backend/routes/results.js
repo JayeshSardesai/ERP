@@ -27,19 +27,6 @@ router.get('/',
   resultController.getResults
 );
 
-// Update a single student result
-router.put('/:resultId', 
-  authMiddleware.auth, 
-  resultController.updateResult
-);
-
-// Freeze results for a class/section/subject/test
-router.post('/freeze', 
-  authMiddleware.auth, 
-  resultController.freezeResults
-);
-
-// Get student result history
 // Update a single student result - requires viewResults permission
 router.put('/:resultId', 
   authMiddleware.authorize(['admin', 'teacher']),
@@ -70,11 +57,6 @@ router.get('/class/:grade/:section/report',
 router.get('/teacher/view', 
   authMiddleware.auth, 
   resultController.getResultsForTeacher
-);
-// Get class performance statistics for dashboard - requires viewResults permission
-router.get('/class-performance-stats', 
-  checkPermission('viewResults'),
-  resultController.getClassPerformanceStats
 );
 
 module.exports = router;
