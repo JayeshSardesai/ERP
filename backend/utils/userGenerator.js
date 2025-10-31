@@ -430,16 +430,18 @@ class UserGenerator {
     try {
       const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
       const collections = ['admins', 'teachers', 'students', 'parents'];
+      const raw = (identifier || '').toString().trim();
+      const isObjectId = ObjectId.isValid(raw);
+      const looksLikeEmail = raw.includes('@');
+      const emailRegex = looksLikeEmail ? new RegExp(`^${raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') : null;
       
       for (const collectionName of collections) {
         const collection = connection.collection(collectionName);
-        const user = await collection.findOne({
-          $or: [
-            { _id: ObjectId.isValid(identifier) ? new ObjectId(identifier) : null },
-            { userId: identifier },
-            { email: identifier }
-          ].filter(query => query !== null && Object.values(query)[0] !== null)
-        });
+        const orQueries = [];
+        if (isObjectId) orQueries.push({ _id: new ObjectId(raw) });
+        if (raw) orQueries.push({ userId: raw });
+        if (looksLikeEmail) orQueries.push({ email: emailRegex }); // case-insensitive exact match
+        const user = await collection.findOne(orQueries.length ? { $or: orQueries } : {});
         
         if (user) {
           // Determine role from collection name

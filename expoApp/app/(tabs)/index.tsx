@@ -20,22 +20,27 @@ export default function HomeScreen() {
 
   const loadData = async () => {
     try {
-      // Get student info
-      const userData = await AsyncStorage.getItem('userData');
-      if (userData) {
-        const user = JSON.parse(userData);
-        const displayName = user.name?.displayName || user.name?.firstName || 'Student';
-        setStudentName(displayName);
+      // Ensure session exists before fetching
+      const [token, userData] = await AsyncStorage.multiGet(['authToken', 'userData']).then(entries => entries.map(e => e[1]));
+      if (!token || !userData) {
+        // Not logged in yet – send to login and stop
+        router.replace('/login');
+        return;
       }
 
-      // Fetch messages and assignments
+      // Get student info
+      const user = JSON.parse(userData);
+      const displayName = user.name?.displayName || user.name?.firstName || 'Student';
+      setStudentName(displayName);
+
+      // Fetch messages and assignments (now authenticated)
       const [messagesData, assignmentsData] = await Promise.all([
         getStudentMessages(),
         getStudentAssignments()
       ]);
 
-      setMessages(messagesData.slice(0, 3)); // Show only 3 recent messages
-      setAssignments(assignmentsData.slice(0, 3)); // Show only 3 recent assignments
+      setMessages(messagesData.slice(0, 3));
+      setAssignments(assignmentsData.slice(0, 3));
     } catch (error) {
       console.error('Error loading home data:', error);
     } finally {
@@ -71,7 +76,7 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
           <ActivityIndicator size="large" color="#60A5FA" />
-          <Text style={[styles.welcomeTitle, { marginTop: 12, fontSize: 16 }]}>Loading...</Text>
+          <Text style={[styles.welcomeText, { marginTop: 12, fontSize: 16 }]}>Loading...</Text>
         </View>
       </SafeAreaView>
     );

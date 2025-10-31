@@ -4,12 +4,22 @@
 // For mobile device testing: http://<YOUR_IP_ADDRESS>:5050/api (e.g., http://192.168.1.100:5050/api)
 // For Replit deployment: Use your Replit backend URL
 
+import { Platform } from 'react-native';
+
+// Prefer runtime override when provided
+const RUNTIME_BASE_URL = (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) || '';
+
+// Sensible defaults per platform
+const DEFAULT_BASE_URL = Platform.select({
+  web: 'http://localhost:5050/api',
+  android: 'http://10.0.2.2:5050/api',
+  ios: 'http://localhost:5050/api',
+  default: 'http://localhost:5050/api',
+});
+
 export const ENV = {
-  // Backend API URL - CHANGE THIS BASED ON YOUR ENVIRONMENT
-  // Local development: http://localhost:5050/api
-  // Mobile testing: http://<YOUR_COMPUTER_IP>:5050/api
-  // Production: https://<your-backend-url>/api
-  API_BASE_URL: 'http://10.0.2.2:5050/api', // Using 10.0.2.2 for Android emulator to access host machine
+  // Final API base URL: env override > platform default
+  API_BASE_URL: RUNTIME_BASE_URL || (DEFAULT_BASE_URL as string),
   
   // API Endpoints (used by the student service)
   ENDPOINTS: {
