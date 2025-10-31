@@ -1162,6 +1162,21 @@ exports.getClassPerformanceStats = async (req, res) => {
       return a.section.localeCompare(b.section);
     });
 
+    // Count sections per class to determine display format
+    const classSectionCount = {};
+    performanceData.forEach(item => {
+      if (!classSectionCount[item.class]) {
+        classSectionCount[item.class] = 0;
+      }
+      classSectionCount[item.class]++;
+    });
+
+    // Update display names: show only class number if single section, otherwise show class-section
+    performanceData = performanceData.map(item => ({
+      ...item,
+      name: classSectionCount[item.class] > 1 ? `${item.class}-${item.section}` : item.class
+    }));
+
     console.log(`[CLASS PERFORMANCE] Calculated performance for ${performanceData.length} class-sections (including all 1-10)`);
 
     res.json({

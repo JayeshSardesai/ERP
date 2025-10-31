@@ -8,6 +8,7 @@ interface LeaveRequest {
   teacherName: string;
   teacherEmail: string;
   leaveType: 'sick' | 'casual' | 'emergency' | 'personal' | 'other';
+  subject: string;
   startDate: string;
   endDate: string;
   days: number;
@@ -50,6 +51,7 @@ const LeaveManagement: React.FC = () => {
           teacherName: 'John Doe',
           teacherEmail: 'john@school.com',
           leaveType: 'sick',
+          subject: 'Sick Leave - Viral Fever',
           startDate: '2025-11-01',
           endDate: '2025-11-03',
           days: 3,
@@ -63,6 +65,7 @@ const LeaveManagement: React.FC = () => {
           teacherName: 'Jane Smith',
           teacherEmail: 'jane@school.com',
           leaveType: 'casual',
+          subject: 'Casual Leave - Family Function',
           startDate: '2025-11-05',
           endDate: '2025-11-05',
           days: 1,
@@ -76,6 +79,7 @@ const LeaveManagement: React.FC = () => {
           teacherName: 'Robert Johnson',
           teacherEmail: 'robert@school.com',
           leaveType: 'emergency',
+          subject: 'Emergency Leave - Family Emergency',
           startDate: '2025-10-30',
           endDate: '2025-10-30',
           days: 1,
@@ -92,6 +96,7 @@ const LeaveManagement: React.FC = () => {
           teacherName: 'Emily Davis',
           teacherEmail: 'emily@school.com',
           leaveType: 'personal',
+          subject: 'Personal Leave - Travel',
           startDate: '2025-11-10',
           endDate: '2025-11-12',
           days: 3,
@@ -169,11 +174,6 @@ const LeaveManagement: React.FC = () => {
   };
 
   const handleReject = async (requestId: string) => {
-    if (!reviewComments.trim()) {
-      toast.error('Please provide a reason for rejection');
-      return;
-    }
-
     setActionLoading(true);
     try {
       // TODO: Replace with actual API call
@@ -354,9 +354,6 @@ const LeaveManagement: React.FC = () => {
                   Teacher
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Leave Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Duration
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -373,7 +370,7 @@ const LeaveManagement: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     No leave requests found
                   </td>
                 </tr>
@@ -387,14 +384,9 @@ const LeaveManagement: React.FC = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{request.teacherName}</div>
-                          <div className="text-sm text-gray-500">{request.teacherEmail}</div>
+                          <div className="text-sm text-gray-500">{request.teacherId}</div>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getLeaveTypeColor(request.leaveType)}`}>
-                        {request.leaveType.charAt(0).toUpperCase() + request.leaveType.slice(1)}
-                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
@@ -464,11 +456,13 @@ const LeaveManagement: React.FC = () => {
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-gray-500 mb-2">Leave Details</h3>
                 <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Leave Type:</span>
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getLeaveTypeColor(selectedRequest.leaveType)}`}>
-                      {selectedRequest.leaveType.charAt(0).toUpperCase() + selectedRequest.leaveType.slice(1)}
-                    </span>
+                  <div>
+                    <span className="text-sm text-gray-600 block mb-1">Subject:</span>
+                    <span className="text-sm font-medium text-gray-900">{selectedRequest.subject}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-600 block mb-1">Description:</span>
+                    <p className="text-sm text-gray-700">{selectedRequest.reason}</p>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Start Date:</span>
@@ -479,12 +473,8 @@ const LeaveManagement: React.FC = () => {
                     <span className="text-sm font-medium text-gray-900">{formatDate(selectedRequest.endDate)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Total Days:</span>
+                    <span className="text-sm text-gray-600">Duration:</span>
                     <span className="text-sm font-medium text-gray-900">{selectedRequest.days} day{selectedRequest.days > 1 ? 's' : ''}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Applied On:</span>
-                    <span className="text-sm font-medium text-gray-900">{formatDate(selectedRequest.appliedOn)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Status:</span>
@@ -492,14 +482,6 @@ const LeaveManagement: React.FC = () => {
                       {selectedRequest.status.charAt(0).toUpperCase() + selectedRequest.status.slice(1)}
                     </span>
                   </div>
-                </div>
-              </div>
-
-              {/* Reason */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Reason for Leave</h3>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-700">{selectedRequest.reason}</p>
                 </div>
               </div>
 
@@ -523,22 +505,6 @@ const LeaveManagement: React.FC = () => {
                       </div>
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* Review Comments (for pending requests) */}
-              {selectedRequest.status === 'pending' && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Review Comments {selectedRequest.status === 'pending' && <span className="text-red-500">*</span>}
-                  </label>
-                  <textarea
-                    value={reviewComments}
-                    onChange={(e) => setReviewComments(e.target.value)}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter your comments here..."
-                  />
                 </div>
               )}
 
