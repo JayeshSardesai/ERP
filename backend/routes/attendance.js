@@ -24,4 +24,7 @@ router.get('/overall-rate', checkPermission('viewAttendance'), attendanceControl
 router.get('/daily-stats', checkPermission('viewAttendance'), attendanceController.getDailyAttendanceStats);
 router.get('/student-report', checkPermission('viewAttendance'), attendanceController.getStudentAttendanceReport);
 
+// Student-specific route to get their own attendance (filtered by class/section)
+router.get('/my-attendance', authorize(['student']), attendanceController.getMyAttendance);
+
 module.exports = router;

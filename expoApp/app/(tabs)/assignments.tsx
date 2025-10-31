@@ -1,25 +1,115 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getStudentAssignments, Assignment } from '@/src/services/student';
 
 export default function AssignmentsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const styles = getStyles(isDark);
 
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedStatus] = useState('All Status');
   const [sortBy] = useState('Due Date');
 
-  const assignments = [
-    { id: 1, subject: 'English', title: 'Essay: The Great Gatsby', due: 'Tomorrow, 11:59 PM', status: 'To Do', statusColor: '#EF4444', icon: '📄', iconBg: '#FECACA' },
-    { id: 2, subject: 'Mathematics', title: 'Problem Set5', due: 'Yesterday, 5:00 PM', status: 'Complete', statusColor: '#10B981', icon: '✓', iconBg: '#D1FAE5' },
-    { id: 3, subject: 'English', title: 'Midterm Paper', due: 'Last week', status: 'Graded', statusColor: '#8B5CF6', icon: '💬', iconBg: '#EDE9FE' },
-  ];
+  const fetchAssignments = async () => {
+    try {
+      const data = await getStudentAssignments();
+      setAssignments(data);
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAssignments();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchAssignments();
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return '#EF4444';
+      case 'submitted':
+        return '#10B981';
+      case 'graded':
+        return '#8B5CF6';
+      default:
+        return '#6B7280';
+    }
+  };
+
+  const getStatusBgColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return '#FEE2E2';
+      case 'submitted':
+        return '#D1FAE5';
+      case 'graded':
+        return '#EDE9FE';
+      default:
+        return '#F3F4F6';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'To Do';
+      case 'submitted':
+        return 'Complete';
+      case 'graded':
+        return 'Graded';
+      default:
+        return status;
+    }
+  };
+
+  const formatDueDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = date.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return 'Overdue';
+    } else if (diffDays === 0) {
+      return 'Due Today';
+    } else if (diffDays === 1) {
+      return 'Due Tomorrow';
+    } else {
+      return `Due in ${diffDays} days`;
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#60A5FA" />
+          <Text style={[styles.filterButtonText, { marginTop: 12 }]}>Loading assignments...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#60A5FA" />}
+      >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Assignments</Text>
         </View>
@@ -36,48 +126,40 @@ export default function AssignmentsScreen() {
         </View>
 
         <View style={styles.section}>
-          {assignments.map((assignment) => (
-            <View key={assignment.id} style={styles.assignmentCard}>
-              <View style={styles.assignmentLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: assignment.iconBg }]}>
-                  <Text style={styles.iconText}>{assignment.icon}</Text>
-                </View>
-                <View style={styles.assignmentInfo}>
-                  <Text style={styles.assignmentSubject}>{assignment.subject}</Text>
-                  <Text style={styles.assignmentTitle}>{assignment.title}</Text>
-                  <Text style={styles.assignmentDue}>Due: {assignment.due}</Text>
-                </View>
-              </View>
-              <View style={styles.assignmentRight}>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(assignment.status) }]}>
-                  <Text style={[styles.statusText, { color: assignment.statusColor }]}>{assignment.status}</Text>
-                </View>
-                {assignment.status === 'To Do' && <Text style={styles.urgentIndicator}>!</Text>}
-              </View>
+          {assignments.length === 0 ? (
+            <View style={styles.noDataContainer}>
+              <Text style={styles.noDataText}>No assignments found</Text>
             </View>
-          ))}
-          <View style={styles.noMoreContainer}>
-            <Text style={styles.noMoreText}>No more assignment to show.</Text>
-          </View>
+          ) : (
+            assignments.map((assignment) => (
+              <View key={assignment._id} style={styles.assignmentCard}>
+                <View style={styles.assignmentLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: getStatusBgColor(assignment.status) }]}>
+                    <Text style={styles.iconText}>📄</Text>
+                  </View>
+                  <View style={styles.assignmentInfo}>
+                    <Text style={styles.assignmentSubject}>{assignment.subject}</Text>
+                    <Text style={styles.assignmentTitle}>{assignment.title}</Text>
+                    <Text style={styles.assignmentDue}>Due: {formatDueDate(assignment.dueDate)}</Text>
+                  </View>
+                </View>
+                <View style={styles.assignmentRight}>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(assignment.status) }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(assignment.status) }]}>
+                      {getStatusLabel(assignment.status)}
+                    </Text>
+                  </View>
+                  {assignment.status === 'pending' && <Text style={styles.urgentIndicator}>!</Text>}
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-function getStatusBgColor(status: string) {
-  switch (status) {
-    case 'To Do':
-      return '#FEE2E2';
-    case 'Complete':
-      return '#D1FAE5';
-    case 'Graded':
-      return '#EDE9FE';
-    default:
-      return '#F3F4F6';
-  }
 }
 
 function getStyles(isDark: boolean) {
@@ -103,9 +185,7 @@ function getStyles(isDark: boolean) {
     statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
     statusText: { fontSize: 12, fontWeight: '600' },
     urgentIndicator: { fontSize: 20, color: '#EF4444', fontWeight: '700', marginTop: 4 },
-    noMoreContainer: { alignItems: 'center', marginTop: 20, paddingVertical: 20 },
-    noMoreText: { fontSize: 16, color: isDark ? '#93C5FD' : '#1E3A8A', fontWeight: '600' },
+    noDataContainer: { alignItems: 'center', marginTop: 40, paddingVertical: 40 },
+    noDataText: { fontSize: 16, color: isDark ? '#93C5FD' : '#1E3A8A', fontWeight: '600' },
   });
 }
-
-

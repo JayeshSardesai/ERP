@@ -28,28 +28,21 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      // Handle login based on selected role
-      let res;
-      if (selectedRole === 'Student') {
-        // For students, use email as identifier
-        res = await loginSchool({ identifier: email, password, schoolCode, role: 'student' });
-      } else if (selectedRole === 'Teacher') {
-        // For teachers
-        res = await loginSchool({ identifier: email, password, schoolCode, role: 'teacher' });
-      } else if (selectedRole === 'Admin') {
-        // For admin
-        res = await loginSchool({ identifier: email, password, schoolCode, role: 'admin' });
-      }
-      
+      console.log(`Attempting login with: ${email}, school code: ${schoolCode}`);
+      // Use identifier (email or userId) for login
+      const res = await loginSchool({ identifier: email, password, schoolCode });
+
       if (!res || !res.success) {
-        Alert.alert('Login failed', res?.message || 'Invalid credentials');
+        Alert.alert(res?.message || 'Invalid credentials. Please check your email, password, and school code.');
         setLoading(false);
         return;
       }
+      console.log('Login successful, navigating to tabs');
       router.replace('/(tabs)');
-    } catch (e) {
-      Alert.alert('Login error', 'Something went wrong');
-      console.error(e);
+    } catch (e: any) {
+      const errorMessage = e?.response?.data?.message || e?.message || 'Connection error. Please check your network and try again.';
+      Alert.alert('Login error', errorMessage);
+      console.error('Login error:', e);
     } finally {
       setLoading(false);
     }
@@ -87,12 +80,12 @@ export default function LoginScreen() {
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Email</Text>
-              <TextInput 
-                style={styles.input} 
-                placeholder="Enter your email" 
-                placeholderTextColor={isDark ? '#6B7280' : '#93C5FD'} 
-                value={email} 
-                onChangeText={setEmail} 
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email"
+                placeholderTextColor={isDark ? '#6B7280' : '#93C5FD'}
+                value={email}
+                onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
               />

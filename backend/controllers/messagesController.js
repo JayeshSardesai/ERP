@@ -323,8 +323,34 @@ exports.getMessages = async (req, res) => {
 
     // Build query for new schema
     const query = {};
-    if (filterClass && filterClass !== 'ALL') query.class = filterClass;
-    if (filterSection && filterSection !== 'ALL') query.section = filterSection;
+    
+    // If user is a student, filter by their class/section automatically
+    if (req.user.role === 'student') {
+      // Get student's class and section from multiple possible locations
+      const studentClass = req.user.studentDetails?.currentClass || 
+                          req.user.studentDetails?.academic?.currentClass || 
+                          req.user.class;
+      const studentSection = req.user.studentDetails?.currentSection || 
+                            req.user.studentDetails?.academic?.currentSection || 
+                            req.user.section;
+      
+      if (studentClass) {
+        query.class = studentClass;
+        console.log(`[GET MESSAGES] Filtering for student class: ${studentClass}`);
+      }
+      if (studentSection) {
+        query.section = studentSection;
+        console.log(`[GET MESSAGES] Filtering for student section: ${studentSection}`);
+      }
+      
+      if (!studentClass || !studentSection) {
+        console.warn(`[GET MESSAGES] Student ${req.user.userId} missing class/section data`);
+      }
+    } else {
+      // For admin/teachers, use filter parameters
+      if (filterClass && filterClass !== 'ALL') query.class = filterClass;
+      if (filterSection && filterSection !== 'ALL') query.section = filterSection;
+    }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const messagesCollection = db.collection('messages');

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getStudentAttendance, AttendanceRecord } from '@/src/services/student';
 
 export default function AttendanceScreen() {
   const colorScheme = useColorScheme();
@@ -9,45 +10,76 @@ export default function AttendanceScreen() {
   const styles = getStyles(isDark);
   const calendarStyles = getCalendarStyles(isDark);
 
-  const [selectedDate, setSelectedDate] = useState(17);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [stats, setStats] = useState({ totalDays: 0, presentDays: 0, absentDays: 0, attendanceRate: 0 });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date().getDate());
+
   const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const calendarDays = [
-    { day: 28, month: 'prev', status: null },
-    { day: 29, month: 'prev', status: null },
-    { day: 30, month: 'prev', status: null },
-    { day: 1, month: 'current', status: 'present' },
-    { day: 2, month: 'current', status: 'present' },
-    { day: 3, month: 'current', status: 'present' },
-    { day: 4, month: 'current', status: 'present' },
-    { day: 5, month: 'current', status: 'present' },
-    { day: 6, month: 'current', status: 'present' },
-    { day: 7, month: 'current', status: 'present' },
-    { day: 8, month: 'current', status: 'present' },
-    { day: 9, month: 'current', status: 'absent' },
-    { day: 10, month: 'current', status: 'present' },
-    { day: 11, month: 'current', status: 'present' },
-    { day: 12, month: 'current', status: 'present' },
-    { day: 13, month: 'current', status: 'present' },
-    { day: 14, month: 'current', status: 'present' },
-    { day: 15, month: 'current', status: 'present' },
-    { day: 16, month: 'current', status: 'present' },
-    { day: 17, month: 'current', status: 'present' },
-    { day: 18, month: 'current', status: 'present' },
-    { day: 19, month: 'current', status: 'no-class' },
-    { day: 20, month: 'current', status: 'no-class' },
-    { day: 21, month: 'current', status: 'no-class' },
-    { day: 22, month: 'current', status: 'no-class' },
-    { day: 23, month: 'current', status: 'no-class' },
-    { day: 24, month: 'current', status: 'no-class' },
-    { day: 25, month: 'current', status: 'no-class' },
-    { day: 26, month: 'current', status: 'no-class' },
-    { day: 27, month: 'current', status: 'no-class' },
-    { day: 28, month: 'current', status: 'no-class' },
-    { day: 29, month: 'current', status: 'no-class' },
-    { day: 30, month: 'current', status: 'no-class' },
-    { day: 31, month: 'current', status: 'no-class' },
-    { day: 1, month: 'next', status: null },
-  ];
+
+  const fetchAttendance = async () => {
+    try {
+      const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString();
+      const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString();
+      const { records, stats: attendanceStats } = await getStudentAttendance(startDate, endDate);
+      setAttendanceRecords(records);
+      setStats(attendanceStats);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAttendance();
+  }, [selectedMonth]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchAttendance();
+  };
+
+  const getCalendarDays = () => {
+    const year = selectedMonth.getFullYear();
+    const month = selectedMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    const days = [];
+
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+      days.push({ day: prevMonthLastDay - i, month: 'prev', status: null });
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dateStr = new Date(year, month, i).toISOString().split('T')[0];
+      const record = attendanceRecords.find(r => r.date.split('T')[0] === dateStr);
+      days.push({
+        day: i,
+        month: 'current',
+        status: record ? record.status : 'no-class'
+      });
+    }
+
+    const remainingDays = 42 - days.length;
+    for (let i = 1; i <= remainingDays; i++) {
+      days.push({ day: i, month: 'next', status: null });
+    }
+
+    return days;
+  };
+
+  const changeMonth = (direction: number) => {
+    const newMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + direction, 1);
+    setSelectedMonth(newMonth);
+  };
 
   const getDateStyle = (day: any) => {
     const composed: any = [calendarStyles.dateText];
@@ -64,22 +96,41 @@ export default function AttendanceScreen() {
     return composed;
   };
 
+  const monthYear = selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#60A5FA" />
+          <Text style={[styles.headerSubtitle, { marginTop: 12 }]}>Loading attendance...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#60A5FA" />}
+      >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Attendance</Text>
-          <Text style={styles.headerSubtitle}>17 October 2025, 10:39 PM</Text>
+          <Text style={styles.headerSubtitle}>
+            {new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </Text>
         </View>
 
         <View style={styles.section}>
           <View style={styles.calendarCard}>
             <View style={styles.calendarHeader}>
-              <TouchableOpacity style={styles.navButton}>
+              <TouchableOpacity style={styles.navButton} onPress={() => changeMonth(-1)}>
                 <Text style={styles.navButtonText}>‹</Text>
               </TouchableOpacity>
-              <Text style={styles.monthYear}>October 2025</Text>
-              <TouchableOpacity style={styles.navButton}>
+              <Text style={styles.monthYear}>{monthYear}</Text>
+              <TouchableOpacity style={styles.navButton} onPress={() => changeMonth(1)}>
                 <Text style={styles.navButtonText}>›</Text>
               </TouchableOpacity>
             </View>
@@ -93,8 +144,12 @@ export default function AttendanceScreen() {
             </View>
 
             <View style={calendarStyles.calendarGrid}>
-              {calendarDays.map((day, index) => (
-                <TouchableOpacity key={index} style={getDateContainerStyle(day)} onPress={() => day.month === 'current' && setSelectedDate(day.day)}>
+              {getCalendarDays().map((day, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={getDateContainerStyle(day)}
+                  onPress={() => day.month === 'current' && setSelectedDate(day.day)}
+                >
                   <Text style={getDateStyle(day)}>{day.day}</Text>
                   {day.status === 'present' && day.month === 'current' && (
                     <View style={calendarStyles.statusDot}>
@@ -126,7 +181,7 @@ export default function AttendanceScreen() {
             </View>
 
             <View style={styles.divider} />
-            <Text style={styles.sessionInfo}>Left Dot: Morning, Right Dot: Afternoon</Text>
+            <Text style={styles.sessionInfo}>Attendance tracking for {monthYear}</Text>
           </View>
         </View>
 
@@ -136,7 +191,9 @@ export default function AttendanceScreen() {
             <View style={styles.attendanceCircleContainer}>
               <View style={styles.attendanceCircle}>
                 <View style={styles.circleInner}>
-                  <Text style={styles.attendancePercentage}>80%</Text>
+                  <Text style={styles.attendancePercentage}>
+                    {stats.attendanceRate.toFixed(0)}%
+                  </Text>
                 </View>
               </View>
             </View>
@@ -145,7 +202,9 @@ export default function AttendanceScreen() {
                 <View style={[styles.statusDot, { backgroundColor: '#4ADE80' }]} />
                 <View>
                   <Text style={styles.attendanceStatLabel}>Attended</Text>
-                  <Text style={styles.attendanceStatValue}>160/200 days</Text>
+                  <Text style={styles.attendanceStatValue}>
+                    {stats.presentDays}/{stats.totalDays} days
+                  </Text>
                 </View>
               </View>
             </View>
@@ -208,5 +267,3 @@ function getCalendarStyles(isDark: boolean) {
     dot: { width: 4, height: 4, borderRadius: 2 },
   });
 }
-
-

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ENV from '../config/env';
 
@@ -8,16 +8,16 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use(async (config) => {
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   const token = await AsyncStorage.getItem('authToken');
   const schoolCode = await AsyncStorage.getItem('schoolCode');
   if (token) {
     config.headers = config.headers || {};
-    (config.headers as any).Authorization = `Bearer ${token}`;
+    config.headers.Authorization = `Bearer ${token}`;
   }
   if (schoolCode) {
     config.headers = config.headers || {};
-    (config.headers as any)['x-school-code'] = schoolCode;
+    config.headers['x-school-code'] = schoolCode;
   }
   return config;
 });

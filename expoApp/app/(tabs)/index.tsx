@@ -1,8 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getStudentMessages, getStudentAssignments } from '@/src/services/student';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -10,9 +12,80 @@ export default function HomeScreen() {
   const router = useRouter();
   const styles = getStyles(isDark);
 
+  const [studentName, setStudentName] = useState('Student');
+  const [messages, setMessages] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = async () => {
+    try {
+      // Get student info
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        const user = JSON.parse(userData);
+        const displayName = user.name?.displayName || user.name?.firstName || 'Student';
+        setStudentName(displayName);
+      }
+
+      // Fetch messages and assignments
+      const [messagesData, assignmentsData] = await Promise.all([
+        getStudentMessages(),
+        getStudentAssignments()
+      ]);
+
+      setMessages(messagesData.slice(0, 3)); // Show only 3 recent messages
+      setAssignments(assignmentsData.slice(0, 3)); // Show only 3 recent assignments
+    } catch (error) {
+      console.error('Error loading home data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  const getCurrentDateTime = () => {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    };
+    return now.toLocaleString('en-US', options);
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#60A5FA" />
+          <Text style={[styles.welcomeTitle, { marginTop: 12, fontSize: 16 }]}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#60A5FA" />
+        }
+      >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.logoIcon}>🎓</Text>
@@ -25,8 +98,8 @@ export default function HomeScreen() {
 
         <View style={styles.welcomeSection}>
           <View>
-            <Text style={styles.welcomeText}>Hi, Student</Text>
-            <Text style={styles.dateText}>17 October 2025, 10:39 PM</Text>
+            <Text style={styles.welcomeText}>Hi, {studentName}</Text>
+            <Text style={styles.dateText}>{getCurrentDateTime()}</Text>
           </View>
           <TouchableOpacity style={styles.sosButton}>
             <Text style={styles.sosText}>SOS</Text>
@@ -35,31 +108,35 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Announcements</Text>
-            <TouchableOpacity>
+            <Text style={styles.sectionTitle}>Recent Messages</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/activity')}>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.announcementCard}>
-            <View style={[styles.announcementIcon, { backgroundColor: '#FECACA' }]}>
-              <Text style={styles.announcementIconText}>📢</Text>
+          {messages.length === 0 ? (
+            <View style={styles.announcementCard}>
+              <View style={[styles.announcementIcon, { backgroundColor: '#E0F2FE' }]}>
+                <Text style={styles.announcementIconText}>�</Text>
+              </View>
+              <View style={styles.announcementContent}>
+                <Text style={styles.announcementTitle}>No Messages</Text>
+                <Text style={styles.announcementText}>You don't have any messages yet</Text>
+              </View>
             </View>
-            <View style={styles.announcementContent}>
-              <Text style={styles.announcementTitle}>School Reopening - Oct 24</Text>
-              <Text style={styles.announcementText}>School reopens on oct 24 after diwali vacations</Text>
-            </View>
-          </View>
-
-          <View style={styles.announcementCard}>
-            <View style={[styles.announcementIcon, { backgroundColor: '#FECACA' }]}>
-              <Text style={styles.announcementIconText}>📢</Text>
-            </View>
-            <View style={styles.announcementContent}>
-              <Text style={styles.announcementTitle}>School Reopening - Oct 24</Text>
-              <Text style={styles.announcementText}>School reopens on oct 24 after diwali vacations</Text>
-            </View>
-          </View>
+          ) : (
+            messages.map((msg, index) => (
+              <View key={msg._id || index} style={styles.announcementCard}>
+                <View style={[styles.announcementIcon, { backgroundColor: '#FECACA' }]}>
+                  <Text style={styles.announcementIconText}>📢</Text>
+                </View>
+                <View style={styles.announcementContent}>
+                  <Text style={styles.announcementTitle} numberOfLines={1}>{msg.subject || msg.title}</Text>
+                  <Text style={styles.announcementText} numberOfLines={2}>{msg.message}</Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         <View style={styles.section}>

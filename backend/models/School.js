@@ -108,17 +108,17 @@ const schoolSchema = new mongoose.Schema({
       viewReports: { type: Boolean, default: false }
     },
     student: {
-      manageUsers: { type: Boolean, default: false },
-      manageSchoolSettings: { type: Boolean, default: false },
+      manageUsers: { type: Boolean, default: true },
+      manageSchoolSettings: { type: Boolean, default: true },
       viewTimetable: { type: Boolean, default: true },
-      markAttendance: { type: Boolean, default: false },
+      markAttendance: { type: Boolean, default: true },
       viewAttendance: { type: Boolean, default: true },
       viewResults: { type: Boolean, default: true },
-      messageStudentsParents: { type: Boolean, default: false },
-      viewAcademicDetails: { type: Boolean, default: false },
-      viewAssignments: { type: Boolean, default: false },
-      viewFees: { type: Boolean, default: false },
-      viewReports: { type: Boolean, default: false }
+      messageStudentsParents: { type: Boolean, default: true },
+      viewAcademicDetails: { type: Boolean, default: true },
+      viewAssignments: { type: Boolean, default: true },
+      viewFees: { type: Boolean, default: true },
+      viewReports: { type: Boolean, default: true }
     },
     parent: {
       manageUsers: { type: Boolean, default: false },
