@@ -38,8 +38,13 @@ const accessMatrix = {
     submitAssignments: false,
     viewResults: true,
     updateResults: false,
+<<<<<<< HEAD
     viewLeaves: true,
     message: true
+=======
+    message: true,
+    viewFees: true
+>>>>>>> fees
   },
   teacher: {
     manageUsers: false,

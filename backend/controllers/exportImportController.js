@@ -187,13 +187,13 @@ exports.importUsers = async (req, res) => {
     // Admin Specific <--- NEW: Admin Fields
     'admintype': 'admintype', 'adminlevel': 'admintype', 'designation': 'designation', 'department': 'department',
     'accountholdername': 'accountholdername', 'bankbranchname': 'bankbranchname',
-    'permissionsusermanagement': 'permissions_usermanagement', 
+    'permissionsusermanagement': 'permissions_usermanagement',
     'permissionsacademicmanagement': 'permissions_academicmanagement',
-    'permissionsfeemanagement': 'permissions_feemanagement', 
+    'permissionsfeemanagement': 'permissions_feemanagement',
     'permissionsreportgeneration': 'permissions_reportgeneration',
-    'permissionssystemsettings': 'permissions_systemsettings', 
+    'permissionssystemsettings': 'permissions_systemsettings',
     'permissionsschoolsettings': 'permissions_schoolsettings',
-    'permissionsdataexport': 'permissions_dataexport', 
+    'permissionsdataexport': 'permissions_dataexport',
     'permissionsauditlogs': 'permissions_auditlogs',
   };
 
@@ -228,7 +228,7 @@ exports.importUsers = async (req, res) => {
         if (context.lines === 2) { // Line 1 is header, Line 2 is first data row
           firstRowKeys = currentRecordKeys;
           console.log('First data row keys:', Array.from(firstRowKeys));
-          
+
           // 1. Prioritize student check
           if (firstRowKeys.has('currentclass') && firstRowKeys.has('currentsection') && firstRowKeys.has('fathername')) {
             inferredRole = 'student';
@@ -236,7 +236,7 @@ exports.importUsers = async (req, res) => {
           // 2. Then check for teacher
           else if (firstRowKeys.has('joiningdate') && firstRowKeys.has('highestqualification') && firstRowKeys.has('totalexperience')) {
             inferredRole = 'teacher';
-          } 
+          }
           // 3. Then check for admin <--- NEW: Admin Inference
           else if (firstRowKeys.has('joiningdate') && (firstRowKeys.has('admintype') || firstRowKeys.has('designation'))) {
             inferredRole = 'admin';
@@ -304,12 +304,12 @@ exports.importUsers = async (req, res) => {
       let validationErrors = [];
       if (userRole === 'student') {
         validationErrors = validateStudentRowRobust(row, rowNumber);
-        
+
         // Additional validation: Check if class and section exist
         if (validationErrors.length === 0) {
           const currentClass = row['currentclass'];
           const currentSection = row['currentsection'];
-          
+
           if (currentClass && currentSection) {
             const classesCollection = db.collection('classes');
             const classExists = await classesCollection.findOne({
@@ -318,7 +318,7 @@ exports.importUsers = async (req, res) => {
               sections: currentSection,
               isActive: true
             });
-            
+
             if (!classExists) {
               validationErrors.push({
                 row: rowNumber,
@@ -372,7 +372,7 @@ exports.importUsers = async (req, res) => {
     try {
       // Generate userId ONLY now, after all validation passed
       const userId = await generateSequentialUserId(tempData._tempSchoolCode, tempData._tempUserRole);
-      
+
       // Create actual user data object
       let userData;
       if (tempData._tempUserRole === 'student') {
@@ -400,7 +400,7 @@ exports.importUsers = async (req, res) => {
           tempData._tempCreatingUserId
         );
       }
-      
+
       finalUsersToInsert.push(userData);
       results.success.push({
         row: tempData._tempRowNumber,
@@ -555,52 +555,52 @@ exports.generateTemplate = async (req, res) => {
 // --- Profile Picture Copy Helper with Compression ---
 async function copyProfilePicture(sourcePath, userId, schoolCode) {
   if (!sourcePath || String(sourcePath).trim() === '') return '';
-  
+
   try {
     // Normalize the source path
     const normalizedSourcePath = path.resolve(sourcePath.trim());
-    
+
     // Check if source file exists
     if (!fs.existsSync(normalizedSourcePath)) {
       console.warn(`Profile picture not found at: ${normalizedSourcePath}`);
       return '';
     }
-    
+
     // Get file extension
     const ext = path.extname(normalizedSourcePath);
     const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-    
+
     if (!validExtensions.includes(ext.toLowerCase())) {
       console.warn(`Invalid profile picture format: ${ext}. Allowed: ${validExtensions.join(', ')}`);
       return '';
     }
-    
+
     // Get original file size
     const originalStats = fs.statSync(normalizedSourcePath);
     console.log(`📸 Original image: ${path.basename(normalizedSourcePath)}, Size: ${(originalStats.size / 1024).toFixed(2)}KB`);
-    
+
     // Create uploads directory structure: uploads/profiles/schoolCode/
     const uploadsDir = path.join(__dirname, '..', 'uploads', 'profiles', schoolCode.toUpperCase());
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
-    
+
     // Generate unique filename with .jpg extension (Sharp will convert to JPEG)
     const timestamp = Date.now();
     const filename = `${userId}_${timestamp}.jpg`;
     const destPath = path.join(uploadsDir, filename);
-    
+
     // Compress image using Sharp to ~30KB
     console.log('🔄 Compressing image with Sharp...');
     await sharp(normalizedSourcePath)
       .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 60 })
       .toFile(destPath);
-    
+
     // Check file size and re-compress if needed
     let stats = fs.statSync(destPath);
     let quality = 60;
-    
+
     while (stats.size > 30 * 1024 && quality > 20) {
       quality -= 10;
       console.log(`🔄 Re-compressing with quality ${quality}...`);
@@ -610,10 +610,10 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
         .toFile(destPath);
       stats = fs.statSync(destPath);
     }
-    
+
     console.log(`✅ Compressed image: ${(stats.size / 1024).toFixed(2)}KB (quality: ${quality})`);
     console.log(`✅ Profile picture processed: ${normalizedSourcePath} -> ${destPath}`);
-    
+
     // Delete source file after successful compression (to avoid accumulation in temp folder)
     try {
       // Check if source is in a temp directory before deleting
@@ -624,7 +624,7 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
     } catch (deleteErr) {
       console.warn(`⚠️ Could not delete source file ${normalizedSourcePath}:`, deleteErr.message);
     }
-    
+
     // Return relative path for storage in database
     return `/uploads/profiles/${schoolCode.toUpperCase()}/${filename}`;
   } catch (error) {
@@ -770,7 +770,7 @@ async function createAdminFromRow(normalizedRow, schoolIdAsObjectId, userId, sch
 
   // Handle profile image if provided <--- IMAGE UPLOAD
   let profileImagePath = '';
-  if (normalizedRow['profileimage']) { 
+  if (normalizedRow['profileimage']) {
     profileImagePath = await copyProfilePicture(normalizedRow['profileimage'], userId, schoolCode);
     console.log(`🔍 DEBUG: Admin profile image path returned: ${profileImagePath}`);
   }
@@ -1042,9 +1042,9 @@ function generateCSV(users, role) {
       const addressP = user.address?.permanent || {};
       const addressC = user.address?.current || {};
       const rowData = {};
-      
+
       headers.forEach(header => {
-        let value = ''; 
+        let value = '';
         try {
           switch (header) {
             case 'userId': value = user.userId; break;
@@ -1278,7 +1278,7 @@ function formatUserForExport(user, role) {
     Object.assign(formatted, {
       dateOfBirth: user.adminDetails.dateOfBirth || user.dateOfBirth, // Use top-level if adminDetails lacks it
       gender: user.adminDetails.gender || user.gender,
-      joiningDate: user.adminDetails.joiningDate, 
+      joiningDate: user.adminDetails.joiningDate,
       employeeId: user.adminDetails.employeeId,
       adminType: user.adminDetails.adminType,
       designation: user.adminDetails.designation,
