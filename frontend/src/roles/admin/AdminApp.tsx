@@ -172,9 +172,9 @@ export function AdminApp() {
 
           } />
 
-          {/* Leave Management - Requires manageUsers permission */}
+          {/* Leave Management - Requires viewLeaves permission */}
           <Route path="leave-management" element={
-            <PermissionGuard permission="manageUsers" permissionName="Leave Management">
+            <PermissionGuard permission="viewLeaves" permissionName="Leave Management">
               <LeaveManagement />
             </PermissionGuard>
 

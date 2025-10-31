@@ -502,7 +502,6 @@ const SchoolSettings: React.FC = () => {
     { id: 'scoring', name: 'Scoring System', icon: GraduationCap },
     { id: 'classes', name: 'Class Structure', icon: Users },
     { id: 'templates', name: 'Templates', icon: FileText },
-    { id: 'schedule', name: 'Schedule Settings', icon: Clock },
   ];
 
   return (
@@ -824,56 +823,6 @@ const SchoolSettings: React.FC = () => {
             <UniversalTemplate />
           )}
 
-          {activeTab === 'schedule' && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Schedule Settings</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">School Start Time</label>
-                  <input
-                    type="time"
-                    defaultValue="08:00"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">School End Time</label>
-                  <input
-                    type="time"
-                    defaultValue="15:30"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Period Duration (minutes)</label>
-                  <input
-                    type="number"
-                    defaultValue="45"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Break Duration (minutes)</label>
-                  <input
-                    type="number"
-                    defaultValue="15"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Working Days</label>
-                  <div className="flex space-x-4">
-                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => (
-                      <label key={day} className="flex items-center">
-                        <input type="checkbox" defaultChecked={day !== 'Saturday'} className="rounded" />
-                        <span className="ml-2 text-sm">{day}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

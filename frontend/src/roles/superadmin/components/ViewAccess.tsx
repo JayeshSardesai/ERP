@@ -54,13 +54,33 @@ export function ViewAccess() {
   const handlePermissionChange = (role: keyof AccessMatrix, permission: keyof RolePermissions) => {
     if (!accessMatrix) return;
 
-    setAccessMatrix(prev => ({
-      ...prev!,
-      [role]: {
-        ...prev![role],
-        [permission]: !prev![role][permission]
+    setAccessMatrix(prev => {
+      const currentValue = prev![role][permission];
+      let newValue;
+
+      // Handle special cases for teacher permissions that use string values
+      if (role === 'teacher' && permission === 'viewLeaves') {
+        // Toggle between 'own' (enabled) and false (disabled)
+        newValue = (currentValue === 'own' || currentValue === true) ? false : 'own';
+      } else if (role === 'teacher' && permission === 'viewResults') {
+        // Toggle between 'own' (enabled) and false (disabled)
+        newValue = (currentValue === 'own' || currentValue === true) ? false : 'own';
+      } else if (role === 'teacher' && permission === 'manageSchoolSettings') {
+        // Toggle between 'limited' (enabled) and false (disabled)
+        newValue = (currentValue === 'limited' || currentValue === true) ? false : 'limited';
+      } else {
+        // Standard boolean toggle for other permissions
+        newValue = !currentValue;
       }
-    }));
+
+      return {
+        ...prev!,
+        [role]: {
+          ...prev![role],
+          [permission]: newValue
+        }
+      };
+    });
   };
 
   const handleSave = async () => {
@@ -88,7 +108,7 @@ export function ViewAccess() {
     const permissions = role === 'teacher' ? teacherPermissions : adminPermissions;
 
     const activePermissions = permissions.filter(p =>
-      accessMatrix[role][p.key as keyof RolePermissions]
+      !!accessMatrix[role][p.key as keyof RolePermissions]
     ).length;
 
     return (
@@ -146,7 +166,7 @@ export function ViewAccess() {
                     <label className="inline-flex items-center">
                       <input
                         type="checkbox"
-                        checked={accessMatrix[role][permission.key as keyof RolePermissions]}
+                        checked={!!accessMatrix[role][permission.key as keyof RolePermissions]}
                         onChange={() => handlePermissionChange(role, permission.key as keyof RolePermissions)}
                         className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                       />
@@ -213,7 +233,7 @@ export function ViewAccess() {
           {roles.map(role => {
             const permissions = role === 'teacher' ? teacherPermissions : adminPermissions;
             const activePermissions = permissions.filter(p =>
-              accessMatrix[role][p.key as keyof RolePermissions]
+              !!accessMatrix[role][p.key as keyof RolePermissions]
             ).length;
 
             return (
