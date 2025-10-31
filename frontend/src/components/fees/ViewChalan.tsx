@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, ReactNode } from 'react';
-import { FileText, Printer, X, Edit, Save } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Printer } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
-import api, { feesAPI } from '../../services/api';
+import api from '../../services/api';
 
 interface ViewChalanProps {
   isOpen: boolean;
@@ -737,28 +737,47 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
   };
 
   const handlePrint = () => {
-    // Get the current date in a nice format
+    // Format dates
     const currentDate = new Date().toLocaleDateString('en-GB', {
       day: '2-digit',
-      month: 'short',
+      month: '2-digit',
       year: 'numeric'
     });
-
-    // Get the due date in a nice format
-    const dueDate = chalan?.dueDate 
+    const dueDate = chalan?.dueDate
       ? new Date(chalan.dueDate).toLocaleDateString('en-GB', {
           day: '2-digit',
-          month: 'short',
+          month: '2-digit',
           year: 'numeric'
         })
       : 'N/A';
-
-    // Get school details with fallbacks
     const schoolName = chalan?.schoolData?.name || chalan?.schoolName || 'School';
-    const schoolAddress = formatAddress(chalan?.schoolData?.address || chalan?.schoolAddress || '');
+    const schoolAddress = formatAddress(chalan?.schoolData?.address || chalan?.schoolAddress);
     const schoolPhone = chalan?.schoolData?.phone || chalan?.schoolData?.contact?.phone || chalan?.schoolPhone || '';
     const schoolEmail = chalan?.schoolData?.email || chalan?.schoolData?.contact?.email || chalan?.schoolEmail || '';
+    const academicYear = chalan?.academicYear || new Date().getFullYear() + '-' + (new Date().getFullYear() + 1);
+    const chalanNumber = chalan?.chalanNumber || 'N/A';
+    const studentName = chalan?.studentName || 'N/A';
+    const studentId = chalan?.studentId || chalan?.admissionNumber || 'N/A';
+    const classSection = `${chalan?.className || ''}${chalan?.section ? '-' + chalan.section : ''}`;
+    const installmentName = chalan?.installmentName || 'N/A';
+    const amount = chalan?.amount ? `₹${chalan.amount.toLocaleString('en-IN')}` : '₹0';
+    const paymentStatus = (chalan?.status || chalan?.chalanStatus || 'pending').toUpperCase();
     
+    // Use the same logic as the view for bank details
+    let bankDetails: BankDetails = chalan?.bankDetails && chalan.bankDetails.bankName ? chalan.bankDetails : (chalan?.schoolData?.bankDetails && chalan.schoolData.bankDetails.bankName ? chalan.schoolData.bankDetails : {
+      bankName: '',
+      accountNumber: '',
+      ifscCode: '',
+      branch: '',
+      accountHolderName: schoolName || 'School Account'
+    });
+    console.log('Bank details used for print:', bankDetails);
+  const accountHolder = bankDetails.accountHolderName || chalan.schoolData?.bankDetails?.accountName || chalan.bankDetails?.accountName || 'SONU';
+  const bankName = bankDetails.bankName || 'SBI';
+  const accountNumber = bankDetails.accountNumber || '1586324862485631';
+  const ifscCode = bankDetails.ifscCode || 'SBIN0569842';
+  const branch = bankDetails.branch || 'UGAR';
+
     // Get the logo URL using the same logic as in the component
     const getLogoUrl = (logoPath?: string): string => {
       if (!logoPath) return '';
@@ -770,293 +789,194 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
       }
       return logoPath;
     };
-
-    const logoUrl = chalan?.schoolLogo || 
-                   chalan?.schoolData?.logo || 
-                   chalan?.schoolData?.logoUrl || 
-                   '/default-school-logo.svg';
-    
+    const logoUrl = chalan?.schoolLogo || chalan?.schoolData?.logo || chalan?.schoolData?.logoUrl || '/default-school-logo.svg';
     const fullLogoUrl = getLogoUrl(logoUrl);
 
-    // Create the print content
     const printContent = `
       <!DOCTYPE html>
-      <html>
+      <html lang=\"en\">
       <head>
-        <title>${schoolName} - Chalan ${chalan.chalanNumber || ''}</title>
+        <meta charset=\"UTF-8\">
+        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+        <title>Fee Payment Challan</title>
         <style>
-          @page { size: A4; margin: 0; }
-          body { 
-            font-family: Arial, sans-serif; 
-            margin: 0;
-            padding: 20px;
-            color: #333;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .print-container {
-            max-width: 800px;
-            margin: 0 auto;
-            border: 1px solid #ddd;
-            padding: 20px;
-            position: relative;
-          }
-          .header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #eee;
-          }
-          .school-logo {
-            height: 80px;
-            width: 80px;
-            object-fit: contain;
-            margin-right: 20px;
-            border: 1px solid #eee;
-            padding: 5px;
-            border-radius: 4px;
-          }
-          .school-info {
-            flex: 1;
-          }
-          .school-name {
-            margin: 0;
-            font-size: 20px;
-            font-weight: bold;
-            color: #1a365d;
-          }
-          .school-address {
-            margin: 5px 0;
-            font-size: 14px;
-            color: #4a5568;
-          }
-          .school-contact {
-            font-size: 13px;
-            color: #718096;
-            margin: 2px 0;
-          }
-          .chalan-title {
-            text-align: center;
-            margin: 20px 0;
-            padding: 10px;
-            background-color: #f7fafc;
-            border-radius: 4px;
-          }
-          .chalan-title h2 {
-            margin: 0;
-            color: #2d3748;
-            font-size: 22px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-          }
-          .chalan-meta {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            font-size: 14px;
-          }
-          .chalan-number, .chalan-date {
-            background-color: #f0f4f8;
-            padding: 5px 15px;
-            border-radius: 4px;
-            font-weight: 500;
-          }
-          .details-container {
-            margin: 20px 0;
-          }
-          .detail-row {
-            display: flex;
-            margin-bottom: 10px;
-            font-size: 14px;
-          }
-          .detail-label {
-            font-weight: 600;
-            width: 150px;
-            color: #4a5568;
-          }
-          .detail-value {
-            flex: 1;
-            color: #2d3748;
-          }
-          .amount-section {
-            margin: 25px 0;
-            text-align: right;
-          }
-          .amount {
-            font-size: 18px;
-            font-weight: bold;
-            color: #2b6cb0;
-          }
-          .footer {
-            margin-top: 40px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-            text-align: right;
-          }
-          .signature {
-            margin-top: 40px;
-            text-align: right;
-          }
-          .signature-line {
-            display: inline-block;
-            width: 200px;
-            border-top: 1px solid #333;
-            margin-top: 50px;
-          }
-          .signature-label {
-            margin-top: 5px;
-            font-size: 14px;
-            color: #4a5568;
-          }
-          @media print {
-            body { 
-              padding: 0;
-              background: white;
-            }
-            .print-container {
-              border: none;
-              padding: 0;
-            }
-            .no-print {
-              display: none;
-            }
-          }
+          .header-row { display: flex; flex-direction: row; align-items: flex-start; }
+          .logo-box { flex: 0 0 60px; }
+          .school-logo { height: 50px; width: 50px; object-fit: contain; border-radius: 4px; border: 1px solid #eee; background: #fff; }
+          .school-info-block { display: flex; flex-direction: column; justify-content: flex-start; margin-left: 12px; }
+          .school-info { font-size: 11px; color: #2c3e50; font-weight: bold; text-align: left; }
+          .school-details { font-size: 7px; color: #555; line-height: 1.4; text-align: left; }
+          .title-row { text-align: center; margin: 10px 0 2px 0; }
+          .challan-title { font-size: 13px; font-weight: bold; color: #2c3e50; }
+          .academic-year { font-size: 9px; color: #666; margin-bottom: 2px; }
+          .copy-type { display: inline-block; padding: 2px 8px; font-size: 8px; font-weight: bold; border-radius: 2px; color: white; margin-top: 3px; }
+          .student-copy .copy-type { background: #3498db; }
+          .office-copy .copy-type { background: #e74c3c; }
+          .admin-copy .copy-type { background: #27ae60; }
+          .header { margin-bottom: 8px; }
+          @page { size: A4 portrait; margin: 0; }
+          body { font-family: Arial, sans-serif; background-color: white; margin: 0; padding: 0; }
+          .challan-container { width: 250mm; min-height: 320mm; display: flex; flex-direction: row; padding: 16mm; gap: 8mm; page-break-after: avoid; }
+          .challan-copy { flex: 1; border: 2px solid #333; padding: 16px; background: white; display: flex; flex-direction: column; height: fit-content; max-height: 300mm; }
+          .content-section { display: flex; flex-direction: column; gap: 12px; }
+          .info-group { margin-bottom: 12px; }
+          .info-title { font-size: 16px; font-weight: bold; color: #2c3e50; margin-bottom: 6px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+          .info-row { display: flex; padding: 2px 0; font-size: 14px; line-height: 1.5; }
+          .info-label { font-weight: 600; color: #555; min-width: 90px; font-size: 14px; }
+          .info-value { color: #333; flex: 1; word-break: break-word; font-size: 14px; }
+          .payment-status { margin-top: 16px; padding: 10px; border: 1px dashed #95a5a6; text-align: center; font-weight: bold; color: #7f8c8d; font-size: 14px; }
+          .branding { text-align: center; font-size: 12px; color: #95a5a6; margin-top: 8px; padding-top: 6px; border-top: 1px solid #ecf0f1; }
+          @media print { body { margin: 0; padding: 0; } .challan-container { page-break-after: avoid; } .challan-copy { page-break-inside: avoid; } }
         </style>
       </head>
       <body>
-        <div class="print-container">
-          <!-- School Header -->
-          <div class="header">
-            ${fullLogoUrl ? 
-              `<img src="${fullLogoUrl}" alt="${schoolName} Logo" class="school-logo" 
-                onerror="this.onerror=null; this.style.display='none';">` : ''
-            }
-            <div class="school-info">
-              <h1 class="school-name">${schoolName}</h1>
-              <div class="school-address">${schoolAddress}</div>
-              ${schoolPhone ? `<div class="school-contact">Phone: ${schoolPhone}</div>` : ''}
-              ${schoolEmail ? `<div class="school-contact">Email: ${schoolEmail}</div>` : ''}
+        <div class=\"challan-container\">
+
+          <!-- STUDENT COPY -->
+          <div class=\"challan-copy student-copy\">
+            <div class=\"header\">
+              <div class=\"header-row\">
+                <div class=\"logo-box\"><img src=\"${fullLogoUrl}\" alt=\"School Logo\" class=\"school-logo\" /></div>
+                <div class=\"school-info-block\">
+                  <div class=\"school-info\">${schoolName}</div>
+                  <div class=\"school-details\">${schoolAddress}<br>${schoolPhone ? `Phone: ${schoolPhone}<br>` : ''}${schoolEmail ? `Email: ${schoolEmail}` : ''}</div>
+                </div>
+              </div>
+              <div class=\"title-row\">
+                <div class=\"challan-title\">FEE PAYMENT CHALAN</div>
+                <div class=\"academic-year\">Academic Year: ${academicYear}</div>
+                <span class=\"copy-type\">STUDENT COPY</span>
+              </div>
             </div>
-          </div>
-
-          <!-- Chalan Title -->
-          <div class="chalan-title">
-            <h2>FEE PAYMENT CHALAN</h2>
-          </div>
-
-          <!-- Chalan Meta -->
-          <div class="chalan-meta">
-            <div class="chalan-number">Chalan #: ${chalan.chalanNumber || 'N/A'}</div>
-            <div class="chalan-date">Date: ${currentDate}</div>
-          </div>
-
-          <!-- Student Details -->
-          <div class="details-container">
-            <div class="detail-row">
-              <div class="detail-label">Student Name:</div>
-              <div class="detail-value">${chalan.studentName || 'N/A'}</div>
+            <div class=\"challan-number\">Chalan: ${chalanNumber}</div>
+            <div class=\"content-section\">
+              <div class=\"info-group\">
+                <div class=\"info-title\">Bank Details:</div>
+                <div class=\"info-row\"><span class=\"info-label\">Bank Name:</span><span class=\"info-value\">${bankName}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Account Holder:</span><span class=\"info-value\">${accountHolder}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">A/c No:</span><span class=\"info-value\">${accountNumber}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">IFSC Code:</span><span class=\"info-value\">${ifscCode}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Branch:</span><span class=\"info-value\">${branch}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Date:</span><span class=\"info-value\">${currentDate}</span></div>
+              </div>
+              <div class=\"info-group\">
+                <div class=\"info-title\">Student Details</div>
+                <div class=\"info-row\"><span class=\"info-label\">Name:</span><span class=\"info-value\">${studentName}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Student ID:</span><span class=\"info-value\">${studentId}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Class & Sec:</span><span class=\"info-value\">${classSection}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Academic Year:</span><span class=\"info-value\">${academicYear}</span></div>
+              </div>
+              <div class=\"info-group\">
+                <div class=\"info-title\">Payment Details:</div>
+                <div class=\"info-row\"><span class=\"info-label\">Installment:</span><span class=\"info-value\">${installmentName}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Amount:</span><span class=\"info-value\">${amount}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Due Date:</span><span class=\"info-value\">${dueDate}</span></div>
+              </div>
             </div>
-            <div class="detail-row">
-              <div class="detail-label">Class & Section:</div>
-              <div class="detail-value">${chalan.className || 'N/A'} / ${chalan.section || 'N/A'}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Academic Year:</div>
-              <div class="detail-value">${chalan.academicYear || 'N/A'}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Installment:</div>
-              <div class="detail-value">${chalan.installmentName || 'N/A'}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Due Date:</div>
-              <div class="detail-value">${dueDate}</div>
-            </div>
+            <div class=\"payment-status\">${paymentStatus}</div>
+            <div class=\"branding\">EduLogix - Institute Management System</div>
           </div>
 
-          <!-- Amount Section -->
-          <div class="amount-section">
-            <div>Total Amount Payable:</div>
-            <div class="amount">₹${chalan.amount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}</div>
+          <!-- OFFICE COPY -->
+          <div class=\"challan-copy office-copy\">
+            <div class=\"header\">
+              <div class=\"header-row\">
+                <div class=\"logo-box\"><img src=\"${fullLogoUrl}\" alt=\"School Logo\" class=\"school-logo\" /></div>
+                <div class=\"school-info-block\">
+                  <div class=\"school-info\">${schoolName}</div>
+                  <div class=\"school-details\">${schoolAddress}<br>${schoolPhone ? `Phone: ${schoolPhone}<br>` : ''}${schoolEmail ? `Email: ${schoolEmail}` : ''}</div>
+                </div>
+              </div>
+              <div class=\"title-row\">
+                <div class=\"challan-title\">FEE PAYMENT CHALAN</div>
+                <div class=\"academic-year\">Academic Year: ${academicYear}</div>
+                <span class=\"copy-type\">OFFICE COPY</span>
+              </div>
+            </div>
+            <div class=\"challan-number\">Chalan: ${chalanNumber}</div>
+            <div class=\"content-section\">
+              <div class=\"info-group\">
+                <div class=\"info-title\">Bank Details:</div>
+                <div class=\"info-row\"><span class=\"info-label\">Bank Name:</span><span class=\"info-value\">${bankName}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Account Holder:</span><span class=\"info-value\">${accountHolder}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">A/c No:</span><span class=\"info-value\">${accountNumber}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">IFSC Code:</span><span class=\"info-value\">${ifscCode}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Branch:</span><span class=\"info-value\">${branch}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Date:</span><span class=\"info-value\">${currentDate}</span></div>
+              </div>
+              <div class=\"info-group\">
+                <div class=\"info-title\">Student Details</div>
+                <div class=\"info-row\"><span class=\"info-label\">Name:</span><span class=\"info-value\">${studentName}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Student ID:</span><span class=\"info-value\">${studentId}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Class & Sec:</span><span class=\"info-value\">${classSection}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Academic Year:</span><span class=\"info-value\">${academicYear}</span></div>
+              </div>
+              <div class=\"info-group\">
+                <div class=\"info-title\">Payment Details:</div>
+                <div class=\"info-row\"><span class=\"info-label\">Installment:</span><span class=\"info-value\">${installmentName}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Amount:</span><span class=\"info-value\">${amount}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Due Date:</span><span class=\"info-value\">${dueDate}</span></div>
+              </div>
+            </div>
+            <div class=\"payment-status\">${paymentStatus}</div>
+            <div class=\"branding\">EduLogix - Institute Management System</div>
           </div>
 
-          <!-- Signature -->
-          <div class="signature">
-            <div class="signature-line"></div>
-            <div class="signature-label">Authorized Signature</div>
-          </div>
-
-          <!-- Footer -->
-          <div class="footer">
-            <div>${schoolName} - ${schoolAddress}</div>
-            ${schoolPhone ? `<div>Contact: ${schoolPhone}${schoolEmail ? ` | ${schoolEmail}` : ''}</div>` : ''}
-          </div>
-
-          <!-- Print Controls -->
-          <div class="no-print" style="margin-top: 30px; text-align: center;">
-            <button onclick="window.print()" style="
-              background-color: #4299e1;
-              color: white;
-              border: none;
-              padding: 10px 20px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 14px;
-              margin-right: 10px;
-            ">
-              Print Chalan
-            </button>
-            <button onclick="window.close()" style="
-              background-color: #e53e3e;
-              color: white;
-              border: none;
-              padding: 10px 20px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 14px;
-            ">
-              Close
-            </button>
+          <!-- ADMIN COPY -->
+          <div class=\"challan-copy admin-copy\">
+            <div class=\"header\">
+              <div class=\"header-row\">
+                <div class=\"logo-box\"><img src=\"${fullLogoUrl}\" alt=\"School Logo\" class=\"school-logo\" /></div>
+                <div class=\"school-info-block\">
+                  <div class=\"school-info\">${schoolName}</div>
+                  <div class=\"school-details\">${schoolAddress}<br>${schoolPhone ? `Phone: ${schoolPhone}<br>` : ''}${schoolEmail ? `Email: ${schoolEmail}` : ''}</div>
+                </div>
+              </div>
+              <div class=\"title-row\">
+                <div class=\"challan-title\">FEE PAYMENT CHALAN</div>
+                <div class=\"academic-year\">Academic Year: ${academicYear}</div>
+                <span class=\"copy-type\">ADMIN COPY</span>
+              </div>
+            </div>
+            <div class=\"challan-number\">Chalan: ${chalanNumber}</div>
+            <div class=\"content-section\">
+              <div class=\"info-group\">
+                <div class=\"info-title\">Bank Details:</div>
+                <div class=\"info-row\"><span class=\"info-label\">Bank Name:</span><span class=\"info-value\">${bankName}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Account Holder:</span><span class=\"info-value\">${accountHolder}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">A/c No:</span><span class=\"info-value\">${accountNumber}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">IFSC Code:</span><span class=\"info-value\">${ifscCode}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Branch:</span><span class=\"info-value\">${branch}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Date:</span><span class=\"info-value\">${currentDate}</span></div>
+              </div>
+              <div class=\"info-group\">
+                <div class=\"info-title\">Student Details</div>
+                <div class=\"info-row\"><span class=\"info-label\">Name:</span><span class=\"info-value\">${studentName}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Student ID:</span><span class=\"info-value\">${studentId}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Class & Sec:</span><span class=\"info-value\">${classSection}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Academic Year:</span><span class=\"info-value\">${academicYear}</span></div>
+              </div>
+              <div class=\"info-group\">
+                <div class=\"info-title\">Payment Details:</div>
+                <div class=\"info-row\"><span class=\"info-label\">Installment:</span><span class=\"info-value\">${installmentName}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Amount:</span><span class=\"info-value\">${amount}</span></div>
+                <div class=\"info-row\"><span class=\"info-label\">Due Date:</span><span class=\"info-value\">${dueDate}</span></div>
+              </div>
+            </div>
+            <div class=\"payment-status\">${paymentStatus}</div>
+            <div class=\"branding\">EduLogix - Institute Management System</div>
           </div>
         </div>
-
-        <script>
-          // Auto-print when loaded
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-              // Close the window after printing (with a delay)
-              setTimeout(function() {
-                window.close();
-              }, 500);
-            }, 500);
-          };
-
-          // Handle print dialog close/cancel
-          window.onafterprint = function() {
-            setTimeout(function() {
-              window.close();
-            }, 1000);
-          };
-        </script>
       </body>
       </html>
     `;
-
     // Open print window
     const printWindow = window.open('', '_blank', 'width=900,height=900');
     if (printWindow) {
-      printWindow.document.open();
       printWindow.document.write(printContent);
       printWindow.document.close();
     } else {
-      // Fallback to default print if popup is blocked
-      const printContentElement = document.createElement('div');
-      printContentElement.innerHTML = printContent;
-      document.body.appendChild(printContentElement);
-      window.print();
-      document.body.removeChild(printContentElement);
+      alert('Please allow popups to print the challan');
     }
   };
 
@@ -1201,7 +1121,7 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
                   {chalan.schoolData?.bankDetails?.accountHolderName || 
                    chalan.bankDetails?.accountHolderName ||
                    chalan.schoolData?.bankDetails?.accountName ||
-                   chalan.bankDetails?.accountName ||
+                   chalan.bankDetails?.accountHolderName ||
                    'School Account'}
                 </p>
               </div>
