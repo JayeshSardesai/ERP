@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { CreditCard, DollarSign, FileText } from 'lucide-react';
+import { CreditCard, FileText } from 'lucide-react';
 import FeeStructureTab from './FeeStructureTab';
 import FeePaymentsTab from './FeePaymentsTab';
 
@@ -27,7 +27,7 @@ const FeesPage: React.FC = () => {
     {
       id: 'payments',
       name: 'Fee Payments',
-      icon: DollarSign,
+      icon: FileText,
       href: '/admin/fees/payments',
       description: 'Record and track fee payments'
     }

@@ -78,9 +78,13 @@ const promotionRoutes = require('./routes/promotion');
 const academicYearRoutes = require('./routes/academicYear');
 const migrationRoutes = require('./routes/migration');
 const leaveRoutes = require('./routes/leaveRoutes');
+const idCardTemplateRoutes = require('./routes/idCardTemplates');
 
 // Serve uploads statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Serve ID card templates statically
+app.use('/idcard-templates', express.static(path.join(__dirname, 'idcard-templates')));
 
 // Test endpoint for debugging
 app.get('/api/test-endpoint', (req, res) => {
@@ -182,6 +186,7 @@ app.use('/api/messages', messagesRoutes);
 app.use('/api/fees', feesRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/leave-requests', leaveRoutes);
+app.use('/api/id-card-templates', idCardTemplateRoutes);
 
 
 // --- Define Export/Import Routes Directly ---

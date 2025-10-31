@@ -154,7 +154,7 @@ const FeeStructureTab: React.FC = () => {
           name: i.name,
           amount: Number(i.amount || 0),
           dueDate: i.dueDate,
-          description: i.description,
+          description: i.description
         })),
         applyToStudents,
       };
@@ -241,7 +241,7 @@ const FeeStructureTab: React.FC = () => {
             </div>
 
             <ClassSectionSelect
-              schoolId={user?.schoolId}
+              schoolCode={user?.schoolCode}
               valueClass={selectedClass}
               valueSection={selectedSection}
               onClassChange={setSelectedClass}

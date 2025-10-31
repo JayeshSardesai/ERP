@@ -501,7 +501,7 @@ const SchoolSettings: React.FC = () => {
     { id: 'promotion', name: 'Promotion', icon: GraduationCap },
     { id: 'scoring', name: 'Scoring System', icon: GraduationCap },
     { id: 'classes', name: 'Class Structure', icon: Users },
-    { id: 'templates', name: 'Document Templates', icon: FileText },
+    { id: 'templates', name: 'Templates', icon: FileText },
     { id: 'schedule', name: 'Schedule Settings', icon: Clock },
     { id: 'notifications', name: 'Notifications', icon: Bell },
   ];

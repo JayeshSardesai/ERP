@@ -15,6 +15,9 @@ import {
   UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
+import { currentUser } from '../utils/mockData';
+import { usePermissions, PermissionKey } from '../../../hooks/usePermissions';
+import { PermissionDeniedModal } from '../../../components/PermissionDeniedModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -26,6 +29,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout }) => {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { hasPermission, showPermissionDenied, setShowPermissionDenied, deniedPermissionName, checkAndNavigate } = usePermissions();
 
   // Get initials from teacher name
   const getInitials = () => {
@@ -40,14 +44,27 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
   };
 
   const menuItems = [
-    { name: 'Dashboard', icon: Home, page: 'dashboard' },
-    { name: 'Attendance', icon: UserCheck, page: 'attendance' },
-    { name: 'Assignments', icon: FileText, page: 'assignments' },
-    { name: 'Results', icon: BarChart3, page: 'view-results' },
-    { name: 'Messages', icon: MessageSquare, page: 'messages' },
-    { name: 'Leave Request', icon: Calendar, page: 'leave-request' },
-    { name: 'Settings', icon: Settings, page: 'settings' }
+    { name: 'Dashboard', icon: Home, page: 'dashboard', permission: null },
+    { name: 'Attendance', icon: UserCheck, page: 'attendance', permission: 'viewAttendance' as PermissionKey },
+    { name: 'Assignments', icon: FileText, page: 'assignments', permission: 'viewAssignments' as PermissionKey },
+    { name: 'Results', icon: BarChart3, page: 'view-results', permission: 'viewResults' as PermissionKey },
+    { name: 'Messages', icon: MessageSquare, page: 'messages', permission: 'messageStudentsParents' as PermissionKey },
+    { name: 'Leave Request', icon: Calendar, page: 'leave-request', permission: 'viewLeaveRequest' as PermissionKey },
+    { name: 'Settings', icon: Settings, page: 'settings', permission: null }
   ];
+
+
+  const handleMenuClick = (item: typeof menuItems[0]) => {
+    if (item.permission && !hasPermission(item.permission)) {
+      checkAndNavigate(item.permission, item.name, () => {
+        onNavigate(item.page);
+        setSidebarOpen(false);
+      });
+    } else {
+      onNavigate(item.page);
+      setSidebarOpen(false);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -85,10 +102,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
               return (
                 <button
                   key={item.name}
-                  onClick={() => {
-                    onNavigate(item.page);
-                    setSidebarOpen(false);
-                  }}
+                  onClick={() => handleMenuClick(item)}
                   className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
                     currentPage === item.page
                       ? 'bg-blue-100 text-blue-700'
@@ -124,6 +138,13 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
           </div>
         </div>
       </div>
+
+      {/* Permission Denied Modal */}
+      <PermissionDeniedModal
+        isOpen={showPermissionDenied}
+        onClose={() => setShowPermissionDenied(false)}
+        permissionName={deniedPermissionName}
+      />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">

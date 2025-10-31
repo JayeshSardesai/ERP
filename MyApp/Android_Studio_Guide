@@ -1,0 +1,372 @@
+# 📱 Android Studio Guide - How to View and Test Changes
+
+This guide explains how to open, build, and test your React Native app in Android Studio.
+
+## 🚀 Opening Project in Android Studio
+
+### Method 1: Open Android Folder Directly
+
+1. **Launch Android Studio**
+2. Click **"Open"** or **"Open an Existing Project"**
+3. Navigate to: `d:\Android\Projects\MyApp\android`
+4. Click **"OK"**
+5. Wait for Gradle sync to complete
+
+### Method 2: From Command Line
+
+```bash
+cd d:\Android\Projects\MyApp
+cd android
+studio .
+```
+
+## 📂 Project Structure in Android Studio
+
+Once opened, you'll see:
+
+```
+android/
+├── app/
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/myapp/
+│   │   │   │   └── MainActivity.kt
+│   │   │   ├── res/
+│   │   │   │   ├── drawable/
+│   │   │   │   ├── layout/
+│   │   │   │   ├── values/
+│   │   │   │   └── mipmap/
+│   │   │   └── AndroidManifest.xml
+│   │   └── debug/
+│   ├── build.gradle
+│   └── proguard-rules.pro
+├── gradle/
+├── build.gradle
+└── settings.gradle
+```
+
+## 🔍 Where to Check Changes
+
+### 1. **React Native Code Changes**
+React Native code (TypeScript/JavaScript) is NOT in Android Studio.
+Your screens are in:
+- `d:\Android\Projects\MyApp\src\screens\`
+- `d:\Android\Projects\MyApp\src\navigation\`
+- `d:\Android\Projects\MyApp\src\services\`
+
+**To edit React Native code:**
+- Use VS Code or your preferred editor
+- Changes are in the `src/` folder at project root
+- NOT in the `android/` folder
+
+### 2. **Native Android Changes**
+Only check Android Studio for:
+- `android/app/src/main/AndroidManifest.xml` - App permissions, config
+- `android/app/src/main/java/com/myapp/MainActivity.kt` - Main activity
+- `android/app/build.gradle` - Dependencies, build config
+- `android/app/src/main/res/` - Native resources (icons, splash screens)
+
+### 3. **App Icon and Name**
+- **App Name:** `android/app/src/main/res/values/strings.xml`
+- **App Icon:** `android/app/src/main/res/mipmap-*/ic_launcher.png`
+
+## 🏃 Running the App from Android Studio
+
+### Step 1: Connect Device or Start Emulator
+
+**Option A: Physical Device**
+1. Enable Developer Options on your Android phone
+2. Enable USB Debugging
+3. Connect via USB
+4. Accept debugging prompt on phone
+
+**Option B: Emulator**
+1. Click **Tools** > **Device Manager**
+2. Click **Create Device**
+3. Select a device (e.g., Pixel 5)
+4. Select a system image (Android 11+)
+5. Click **Finish**
+6. Click **Play** button to start emulator
+
+### Step 2: Start Metro Bundler
+
+**In a terminal (NOT Android Studio terminal):**
+```bash
+cd d:\Android\Projects\MyApp
+npm start
+```
+
+Keep this terminal running!
+
+### Step 3: Build and Run
+
+**Option A: From Android Studio**
+1. Select your device/emulator from dropdown
+2. Click the **Run** button (green play icon)
+3. Wait for build to complete
+4. App will install and launch
+
+**Option B: From Command Line**
+```bash
+cd d:\Android\Projects\MyApp
+npm run android
+```
+
+## 🔧 Common Tasks in Android Studio
+
+### 1. Clean Build
+```
+Build > Clean Project
+Build > Rebuild Project
+```
+
+### 2. View Logs (Logcat)
+1. Click **Logcat** tab at bottom
+2. Filter by package name: `com.myapp`
+3. Select log level: **Debug**, **Info**, **Error**
+
+### 3. Inspect APK
+```
+Build > Build Bundle(s) / APK(s) > Build APK(s)
+```
+APK location: `android/app/build/outputs/apk/debug/app-debug.apk`
+
+### 4. Change App Name
+Edit `android/app/src/main/res/values/strings.xml`:
+```xml
+<resources>
+    <string name="app_name">EduLogix</string>
+</resources>
+```
+
+### 5. Change Package Name
+1. Right-click on `com.myapp` folder
+2. Select **Refactor** > **Rename**
+3. Update in:
+   - `android/app/build.gradle` (applicationId)
+   - `android/app/src/main/AndroidManifest.xml`
+   - `MainActivity.kt` package declaration
+
+## 📱 Testing Your New Screens
+
+### Test Login Screen
+1. Run the app
+2. You should see the login screen first
+3. Test role selection (Student/Teacher/Admin)
+4. Enter credentials:
+   - Username: `student123`
+   - Password: `password`
+   - School Code: `SCH001`
+5. Click **Login**
+
+### Test Home Screen
+After login, you'll see:
+- EduLogix logo with settings icon
+- "Hi, Student" with date/time
+- SOS button
+- Announcements section
+- Result Analytics with 80% circle
+- Subject-wise scores
+- Attendance overview
+
+### Test Menu Screen
+1. Click the **settings icon** (⚙️) in top-right
+2. You'll see menu with:
+   - My Profile
+   - My School
+   - My Fees
+   - Settings
+3. Click **Logout** to return to login
+
+### Test Navigation
+Use bottom tabs to navigate:
+- 📋 Assignments
+- 📅 Attendance
+- 🏠 Home
+- 📊 Results
+- 🔔 Activity
+
+## 🐛 Debugging in Android Studio
+
+### View React Native Logs
+**In Logcat, filter by:**
+- `ReactNativeJS` - JavaScript logs
+- `ReactNative` - Native module logs
+- `com.myapp` - Your app logs
+
+### Enable Debug Menu
+**On Emulator:**
+- Press `Ctrl+M` (Windows) or `Cmd+M` (Mac)
+
+**On Device:**
+- Shake the device
+
+**Debug Options:**
+- Reload
+- Debug
+- Enable Hot Reloading
+- Enable Live Reload
+- Show Inspector
+
+### Common Errors and Solutions
+
+#### Error: "Unable to load script"
+**Solution:**
+```bash
+npm start -- --reset-cache
+```
+
+#### Error: "Could not connect to development server"
+**Solution:**
+1. Check Metro is running
+2. Run: `adb reverse tcp:8081 tcp:8081`
+
+#### Error: "Execution failed for task ':app:mergeDebugResources'"
+**Solution:**
+```bash
+cd android
+./gradlew clean
+cd ..
+npm run android
+```
+
+## 📊 Viewing App Performance
+
+### 1. CPU Profiler
+1. Click **Profiler** tab at bottom
+2. Select your app process
+3. View CPU, Memory, Network usage
+
+### 2. Layout Inspector
+1. **Tools** > **Layout Inspector**
+2. Select your device
+3. View UI hierarchy
+
+### 3. Network Inspector
+1. **View** > **Tool Windows** > **App Inspection**
+2. Select **Network Inspector**
+3. View API calls
+
+## 🎨 Modifying UI in Android Studio
+
+**Important:** React Native UI is NOT in Android Studio!
+
+To modify screens:
+1. Open VS Code (or your editor)
+2. Edit files in `src/screens/`
+3. Save the file
+4. App will hot reload automatically (if enabled)
+
+**Android Studio is only for:**
+- Native Android configuration
+- Build settings
+- Permissions
+- Native modules
+- App icons and resources
+
+## 📦 Building Release APK
+
+### Step 1: Generate Signing Key
+```bash
+cd android/app
+keytool -genkeypair -v -storetype PKCS12 -keystore my-release-key.keystore -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
+```
+
+### Step 2: Configure Gradle
+Edit `android/app/build.gradle`:
+```gradle
+android {
+    signingConfigs {
+        release {
+            storeFile file('my-release-key.keystore')
+            storePassword 'your-password'
+            keyAlias 'my-key-alias'
+            keyPassword 'your-password'
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+}
+```
+
+### Step 3: Build Release APK
+```bash
+cd android
+./gradlew assembleRelease
+```
+
+APK location: `android/app/build/outputs/apk/release/app-release.apk`
+
+## 🔄 Syncing Changes
+
+### After Installing New npm Packages
+```bash
+cd android
+./gradlew clean
+cd ..
+npm run android
+```
+
+### After Changing Native Code
+1. In Android Studio: **Build** > **Clean Project**
+2. **Build** > **Rebuild Project**
+3. Run app again
+
+### After Changing React Native Code
+- Just save the file
+- App will hot reload (if enabled)
+- Or press `R` twice in Metro terminal
+
+## 📝 File Locations Summary
+
+| What | Where to Check |
+|------|---------------|
+| **React Native Screens** | `src/screens/` (VS Code) |
+| **Navigation** | `src/navigation/` (VS Code) |
+| **API Services** | `src/services/` (VS Code) |
+| **App Config** | `src/config/` (VS Code) |
+| **Android Manifest** | `android/app/src/main/AndroidManifest.xml` (Android Studio) |
+| **Build Config** | `android/app/build.gradle` (Android Studio) |
+| **App Name** | `android/app/src/main/res/values/strings.xml` (Android Studio) |
+| **App Icon** | `android/app/src/main/res/mipmap-*/` (Android Studio) |
+| **MainActivity** | `android/app/src/main/java/com/myapp/MainActivity.kt` (Android Studio) |
+
+## ✅ Quick Checklist
+
+- [ ] Android Studio installed
+- [ ] Android SDK installed
+- [ ] Device/Emulator ready
+- [ ] Metro bundler running (`npm start`)
+- [ ] App builds successfully
+- [ ] Can see login screen
+- [ ] Can navigate to home screen
+- [ ] Can open menu screen
+- [ ] Bottom tabs working
+- [ ] All screens loading correctly
+
+## 🎯 Summary
+
+**For React Native Development:**
+- Use **VS Code** or your preferred editor
+- Edit files in `src/` folder
+- Changes hot reload automatically
+
+**For Android Native Development:**
+- Use **Android Studio**
+- Edit files in `android/` folder
+- Need to rebuild after changes
+
+**To View Changes:**
+1. Edit code in VS Code
+2. Save file
+3. App reloads automatically
+4. Check Logcat in Android Studio for errors
+
+---
+
+**Your app is now ready to test in Android Studio!** 🎉
+
+Run `npm run android` and start testing all the new screens!

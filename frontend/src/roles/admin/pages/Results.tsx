@@ -4,6 +4,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { testDetailsAPI } from '../../../api/testDetails';
 import { resultsAPI } from '../../../services/api';
 import { toast } from 'react-hot-toast';
+import api from '../../../services/api';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 
 interface StudentResult {
@@ -35,12 +36,20 @@ const Results: React.FC = () => {
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [availableSections, setAvailableSections] = useState<any[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState('');
-  const [subjects, setSubjects] = useState<string[]>([]);
+  // const [selectedSubject, setSelectedSubject] = useState('');
+  // const [subjects, setSubjects] = useState<string[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [selectedTestType, setSelectedTestType] = useState('');
-  const [maxMarks, setMaxMarks] = useState<number | ''>('');
+
+  // const [maxMarks, setMaxMarks] = useState<number | ''>('');
   const [configuredMaxMarks, setConfiguredMaxMarks] = useState<number | null>(null);
+
+  // Subject selection replaces Max Marks input in UI
+  const [subjects, setSubjects] = useState<{ label: string; value: string }[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState('');
+  // Keep maxMarks internally for backend compatibility (default 100)
+  const [maxMarks, setMaxMarks] = useState<number | ''>(100);
+
   const [showResultsTable, setShowResultsTable] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -238,6 +247,31 @@ const Results: React.FC = () => {
       setSubjects([]);
     }
   }, [selectedClass, classesData]);
+
+  // Fetch subjects for selected class and section (aligned with superadmin-created subjects)
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      setSubjects([]);
+      setSelectedSubject('');
+      if (!selectedClass || !selectedSection) return;
+      try {
+        // Use class-subjects route to get subjects for grade/section
+        const res = await api.get(`/class-subjects/grade/${encodeURIComponent(selectedClass)}/section/${encodeURIComponent(selectedSection)}`);
+        // Expecting res.data.subjects or res.data.data; support both
+        const items = (res.data?.subjects || res.data?.data || []) as any[];
+        const mapped = items.map((s: any) => ({
+          label: s.subjectName || s.name || s.subject || s,
+          value: s.subjectCode || s.code || s.subjectName || s.name || s
+        })).filter((x: any) => x.label && x.value);
+        setSubjects(mapped);
+        if (mapped.length > 0) setSelectedSubject(mapped[0].value);
+      } catch (err) {
+        console.error('Error fetching subjects for class/section:', err);
+        toast.error('Failed to load subjects for selected class/section');
+      }
+    };
+    fetchSubjects();
+  }, [selectedClass, selectedSection]);
 
   // Fetch test types when selected class changes
   useEffect(() => {

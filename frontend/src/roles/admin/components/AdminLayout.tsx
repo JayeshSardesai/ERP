@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Menu,
   X,
@@ -18,11 +18,16 @@ import {
   CreditCard,
   FileText
 } from 'lucide-react';
+import { usePermissions, PermissionKey } from '../../../hooks/usePermissions';
+import { PermissionDeniedModal } from '../../../components/PermissionDeniedModal';
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { hasPermission, showPermissionDenied, setShowPermissionDenied, deniedPermissionName, checkAndNavigate } = usePermissions();
 
+  // Define navigation with permission requirements
   const navigation = [
     { name: 'Dashboard', href: '/admin/', icon: Home },
     { name: 'Manage Users', href: '/admin/users', icon: Users },
@@ -31,10 +36,18 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Attendance', href: '/admin/attendance', icon: UserCheck },
     { name: 'Assignments', href: '/admin/assignments', icon: BookOpen },
     { name: 'Results', href: '/admin/results', icon: BarChart3 },
+    { name: 'Leave Management', href: '/admin/leave-management', icon: Calendar },
     { name: 'Messages', href: '/admin/messages', icon: MessageSquare },
     { name: 'Fees', href: '/admin/fees/structure', icon: CreditCard },
     { name: 'Reports', href: '/admin/reports', icon: FileText },
   ];
+
+  const handleNavClick = (e: React.MouseEvent, href: string, permission: PermissionKey | null, name: string) => {
+    if (permission && !hasPermission(permission)) {
+      e.preventDefault();
+      checkAndNavigate(permission, name, () => navigate(href));
+    }
+  };
 
   const isActive = (href: string) => location.pathname === href;
 
@@ -99,6 +112,13 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ))}
         </nav>
       </div>
+
+      {/* Permission Denied Modal */}
+      <PermissionDeniedModal
+        isOpen={showPermissionDenied}
+        onClose={() => setShowPermissionDenied(false)}
+        permissionName={deniedPermissionName}
+      />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col">

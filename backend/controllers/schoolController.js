@@ -1552,92 +1552,81 @@ exports.getAllSchools = async (req, res) => {
 exports.getSchoolById = async (req, res) => {
   try {
     const { schoolId } = req.params;
+    console.log(`[getSchoolById] Request for school: ${schoolId} from user: ${req.user?._id || 'unknown'}`);
+
+    // Input validation
+    if (!schoolId) {
+      console.log('[getSchoolById] No school ID provided');
+      return res.status(400).json({
+        success: false,
+        message: 'School ID is required',
+        code: 'MISSING_SCHOOL_ID'
+      });
+    }
 
     // Check if user has access to this school
-    if (req.user.role === 'superadmin' || req.user.schoolId?.toString() === schoolId) {
-      
+    if (req.user.role !== 'superadmin' && req.user.schoolId?.toString() !== schoolId) {
+      console.log(`[getSchoolById] Access denied for user ${req.user?._id} to school ${schoolId}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: You do not have permission to access this school',
+        code: 'ACCESS_DENIED'
+      });
+    }
+    
+    try {
       let school = null;
+      const mongoose = require('mongoose');
       
-      // FIX: Check if schoolId is a valid ObjectId before attempting findById 
-      const mongoose = require('mongoose'); 
+      // Try to find by ID first if it's a valid ObjectId
       if (mongoose.Types.ObjectId.isValid(schoolId)) {
-        console.log(`[getSchoolById] Attempting find by ID: ${schoolId}`);
+        console.log(`[getSchoolById] Looking up by ID: ${schoolId}`);
         school = await School.findById(schoolId);
       }
 
-      // Fallback: Try to find by school code (case-insensitive) if not found by ID or if ID format was invalid
+      // If not found by ID, try by code (case-insensitive)
       if (!school) {
-        console.log(`[getSchoolById] Attempting find by code: ${schoolId}`);
+        console.log(`[getSchoolById] Looking up by code: ${schoolId}`);
         school = await School.findOne({ code: new RegExp(`^${schoolId}$`, 'i') });
       }
 
+      // If still not found, return 404
       if (!school) {
-        return res.status(404).json({ message: 'School not found' });
+        console.log(`[getSchoolById] School not found: ${schoolId}`);
+        return res.status(404).json({
+          success: false,
+          message: 'School not found',
+          details: `No school found with ID or code: ${schoolId}`,
+          code: 'SCHOOL_NOT_FOUND'
+        });
       }
 
-      // Skip school-specific database lookup for now and use main database
-      // This prevents 500 errors when school-specific database doesn't exist
-      console.log(`[getSchoolById] Using main database for school: ${school.name} (${school.code})`);
+      console.log(`[getSchoolById] Found school: ${school.name} (${school.code})`);
       
-      // Optionally try school-specific database but don't fail if it doesn't work
-      if (req.user.role !== 'superadmin' && req.user.schoolCode && false) { // Disabled for now
-        try {
-          const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(req.user.schoolCode);
-          const schoolInfoCollection = schoolConnection.collection('school_info');
-          const schoolInfo = await schoolInfoCollection.findOne({});
-
-          if (schoolInfo) {
-            console.log(`[getSchoolById] Found school info in school-specific database`);
-            // Return the school info from the school-specific database
-            return res.json({
-              success: true,
-              data: {
-                _id: school._id,
-                name: schoolInfo.name,
-                code: schoolInfo.code,
-                address: schoolInfo.address,
-                contact: schoolInfo.contact,
-                principalName: schoolInfo.principalName,
-                principalEmail: schoolInfo.principalEmail,
-                bankDetails: schoolInfo.bankDetails,
-                accessMatrix: schoolInfo.accessMatrix,
-                settings: schoolInfo.settings,
-                schoolType: schoolInfo.schoolType,
-                establishedYear: schoolInfo.establishedYear,
-                affiliationBoard: schoolInfo.affiliationBoard,
-                website: schoolInfo.website,
-                secondaryContact: schoolInfo.secondaryContact,
-                logoUrl: schoolInfo.logoUrl,
-                databaseName: school.databaseName,
-                databaseCreated: school.databaseCreated,
-                isActive: school.isActive,
-                createdAt: school.createdAt,
-                updatedAt: school.updatedAt
-              }
-            });
-          }
-        } catch (error) {
-          console.error('Error fetching school info from school database:', error);
-          // Fall back to main database info
-        }
-      }
-
-      // Return school info from main database (for superadmin or if school-specific fetch failed)
-      console.log(`[getSchoolById] Returning main database info for: ${school.name} (${school.code})`);
-      res.json({
+      // Return the school data from main database
+      return res.json({
         success: true,
         data: school
       });
-    } else {
-      res.status(403).json({ message: 'Access denied' });
+      
+    } catch (dbError) {
+      console.error('[getSchoolById] Database error:', dbError);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error while fetching school',
+        error: dbError.message,
+        code: 'DATABASE_ERROR'
+      });
     }
+    
   } catch (error) {
-    console.error('Error fetching school:', error);
+    console.error('[getSchoolById] Unexpected error:', error);
     console.error('Error stack:', error.stack);
-    res.status(500).json({ 
+    return res.status(500).json({
       success: false,
-      message: 'Error fetching school', 
-      error: error.message 
+      message: 'An unexpected error occurred',
+      error: error.message,
+      code: 'INTERNAL_SERVER_ERROR'
     });
   }
 };
@@ -1712,15 +1701,218 @@ exports.getSchoolInfo = async (req, res) => {
   }
 };
 
+// Get school info from school_info collection in school's database
+exports.getSchoolInfoFromDatabase = async (req, res) => {
+  try {
+    const schoolCode = req.user?.schoolCode || req.params.schoolCode;
+    
+    if (!schoolCode) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'School code is required' 
+      });
+    }
+
+    console.log(`[getSchoolInfoFromDatabase] Fetching school_info for: ${schoolCode}`);
+
+    // Get connection to the school's dedicated database
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const schoolInfoCollection = schoolConnection.collection('school_info');
+    
+    // Fetch school info document
+    const schoolInfo = await schoolInfoCollection.findOne({});
+    
+    if (!schoolInfo) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'School information not found in school database' 
+      });
+    }
+
+    console.log(`[getSchoolInfoFromDatabase] Found school: ${schoolInfo.name} (${schoolInfo.code})`);
+    
+    // Return school info from school's database
+    res.json({
+      success: true,
+      data: {
+        _id: schoolInfo._id,
+        name: schoolInfo.name,
+        code: schoolInfo.code,
+        address: schoolInfo.address,
+        contact: schoolInfo.contact,
+        principalName: schoolInfo.principalName,
+        principalEmail: schoolInfo.principalEmail,
+        mobile: schoolInfo.mobile,
+        bankDetails: schoolInfo.bankDetails,
+        settings: schoolInfo.settings,
+        features: schoolInfo.features,
+        stats: schoolInfo.stats,
+        schoolType: schoolInfo.schoolType,
+        establishedYear: schoolInfo.establishedYear,
+        affiliationBoard: schoolInfo.affiliationBoard,
+        website: schoolInfo.website,
+        secondaryContact: schoolInfo.secondaryContact,
+        logoUrl: schoolInfo.logoUrl,
+        isActive: schoolInfo.isActive,
+        createdAt: schoolInfo.createdAt,
+        updatedAt: schoolInfo.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching school info from database:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching school info from database', 
+      error: error.message 
+    });
+  }
+};
+
 // Update school
 exports.updateSchool = async (req, res) => {
   try {
     const { schoolId } = req.params;
-    const updateData = req.body;
+    let updateData = { ...req.body };
+
+    console.log('🔄 UPDATE SCHOOL REQUEST RECEIVED');
+    console.log('School ID:', schoolId);
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Request file:', req.file);
 
     // Check if user has permission to update
     if (req.user.role !== 'superadmin' && req.user.schoolId?.toString() !== schoolId) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Parse JSON fields if they come as strings (from FormData)
+    if (typeof updateData.address === 'string') {
+      try {
+        updateData.address = JSON.parse(updateData.address);
+      } catch (e) {
+        console.error('Error parsing address:', e);
+      }
+    }
+    
+    if (typeof updateData.contact === 'string') {
+      try {
+        updateData.contact = JSON.parse(updateData.contact);
+      } catch (e) {
+        console.error('Error parsing contact:', e);
+      }
+    }
+    
+    if (typeof updateData.bankDetails === 'string') {
+      try {
+        updateData.bankDetails = JSON.parse(updateData.bankDetails);
+      } catch (e) {
+        console.error('Error parsing bankDetails:', e);
+      }
+    }
+    
+    if (typeof updateData.accessMatrix === 'string') {
+      try {
+        updateData.accessMatrix = JSON.parse(updateData.accessMatrix);
+      } catch (e) {
+        console.error('Error parsing accessMatrix:', e);
+      }
+    }
+
+    // Handle logo upload with Sharp compression if file is present
+    if (req.file) {
+      try {
+        console.log(`📸 Updating logo: ${req.file.originalname}, Size: ${(req.file.size / 1024).toFixed(2)}KB`);
+        
+        // Get existing school to get code for filename
+        const existingSchool = await School.findById(schoolId);
+        if (!existingSchool) {
+          return res.status(404).json({ message: 'School not found' });
+        }
+        
+        // Create uploads directory structure: uploads/logos/
+        const logosDir = path.join(__dirname, '..', 'uploads', 'logos');
+        console.log('📁 Logos directory path:', logosDir);
+        
+        if (!fs.existsSync(logosDir)) {
+          fs.mkdirSync(logosDir, { recursive: true });
+          console.log('✅ Created logos directory');
+        }
+
+        // Delete old logo file if it exists
+        if (existingSchool.logoUrl) {
+          const oldLogoPath = path.join(__dirname, '..', existingSchool.logoUrl);
+          if (fs.existsSync(oldLogoPath)) {
+            try {
+              fs.unlinkSync(oldLogoPath);
+              console.log(`🗑️ Deleted old logo: ${existingSchool.logoUrl}`);
+            } catch (err) {
+              console.warn(`⚠️ Could not delete old logo: ${err.message}`);
+            }
+          }
+        }
+
+        // Generate unique filename with .jpg extension
+        const timestamp = Date.now();
+        const filename = `${existingSchool.code}_${timestamp}.jpg`;
+        const destPath = path.join(logosDir, filename);
+        console.log('📝 Destination path:', destPath);
+
+        // Compress logo using Sharp to ~30KB
+        console.log('🔄 Compressing logo with Sharp...');
+        const sharpInstance = sharp(req.file.path);
+        await sharpInstance
+          .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 60 })
+          .toFile(destPath);
+        
+        // Release Sharp resources
+        sharpInstance.destroy();
+        
+        // Check file size and re-compress if needed
+        let stats = fs.statSync(destPath);
+        let quality = 60;
+        
+        while (stats.size > 30 * 1024 && quality > 20) {
+          quality -= 10;
+          console.log(`🔄 Re-compressing with quality ${quality}...`);
+          const recompressInstance = sharp(req.file.path);
+          await recompressInstance
+            .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality })
+            .toFile(destPath);
+          recompressInstance.destroy();
+          stats = fs.statSync(destPath);
+        }
+        
+        console.log(`✅ Compressed logo: ${(stats.size / 1024).toFixed(2)}KB (quality: ${quality})`);
+        
+        const logoPath = `/uploads/logos/${filename}`;
+        updateData.logoUrl = logoPath;
+        console.log('✅ Logo URL set in updateData:', logoPath);
+        
+        // Delete temp file
+        const tempFilePath = req.file.path;
+        if (tempFilePath && fs.existsSync(tempFilePath)) {
+          try {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            fs.unlinkSync(tempFilePath);
+            console.log(`🗑️ Deleted temp file: ${path.basename(tempFilePath)}`);
+          } catch (err) {
+            console.warn(`⚠️ Could not delete temp file: ${err.message}`);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error handling logo upload:', error);
+        // Clean up temp file on error
+        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch (err) {
+            console.warn(`⚠️ Could not clean up temp file: ${err.message}`);
+          }
+        }
+      }
     }
 
     const school = await School.findByIdAndUpdate(
@@ -1732,6 +1924,8 @@ exports.updateSchool = async (req, res) => {
     if (!school) {
       return res.status(404).json({ message: 'School not found' });
     }
+
+    console.log('💾 School updated with logoUrl:', school.logoUrl);
 
     // Sync updated school information to its dedicated database
     if (school.databaseCreated) {
