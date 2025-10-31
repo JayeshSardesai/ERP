@@ -103,6 +103,18 @@ const auth = async (req, res, next) => {
     console.log('[AUTH] User keys:', Object.keys(user));
     console.log('[AUTH] User object type:', user.constructor.name);
     
+    // For students, log class/section info for debugging
+    if (user.role === 'student') {
+      console.log('[AUTH] Student class/section info:', {
+        class: user.class,
+        section: user.section,
+        currentClass: user.studentDetails?.currentClass,
+        currentSection: user.studentDetails?.currentSection,
+        academicClass: user.studentDetails?.academic?.currentClass,
+        academicSection: user.studentDetails?.academic?.currentSection
+      });
+    }
+    
     // Ensure user object is a plain object with role property
     req.user = {
       ...user,
@@ -110,7 +122,11 @@ const auth = async (req, res, next) => {
       _id: user._id,
       userId: user.userId,
       schoolId: user.schoolId,
-      schoolCode: user.schoolCode
+      schoolCode: user.schoolCode,
+      // Preserve student details for filtering
+      studentDetails: user.studentDetails,
+      class: user.class,
+      section: user.section
     };
     console.log('[AUTH] req.user.role after assignment:', req.user.role);
     next();

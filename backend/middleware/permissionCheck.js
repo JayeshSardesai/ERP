@@ -34,8 +34,13 @@ const checkPermission = (permission) => {
           const accessMatrixCollection = schoolConn.collection('access_matrices');
           const matrixDoc = await accessMatrixCollection.findOne({ schoolCode: req.user.schoolCode });
           
+          console.log(`[PERMISSION CHECK] School DB lookup for ${req.user.schoolCode}:`, matrixDoc ? 'Found' : 'Not found');
+          
           if (matrixDoc && matrixDoc.accessMatrix) {
             accessMatrix = matrixDoc.accessMatrix;
+          } else if (matrixDoc && matrixDoc.matrix) {
+            // Alternative structure: matrix instead of accessMatrix
+            accessMatrix = matrixDoc.matrix;
           }
         } catch (error) {
           console.log('[PERMISSION CHECK] Could not fetch from school database:', error.message);
@@ -46,6 +51,7 @@ const checkPermission = (permission) => {
       if (!accessMatrix && req.user.schoolId) {
         try {
           const school = await School.findById(req.user.schoolId);
+          console.log(`[PERMISSION CHECK] Main DB lookup for school ${req.user.schoolId}:`, school ? 'Found' : 'Not found');
           if (school && school.accessMatrix) {
             accessMatrix = school.accessMatrix;
           }
@@ -56,16 +62,25 @@ const checkPermission = (permission) => {
 
       // If no access matrix found, use default permissions based on role
       if (!accessMatrix) {
-        console.log('[PERMISSION CHECK] No access matrix found, using default permissions');
+        console.log(`[PERMISSION CHECK] No access matrix found for ${req.user.role}, using default permissions`);
         const defaultPermissions = getDefaultPermissions(req.user.role);
         
+        console.log(`[PERMISSION CHECK] Default permissions for ${req.user.role}:`, Object.keys(defaultPermissions).filter(k => defaultPermissions[k]));
+        
         if (!defaultPermissions[permission]) {
+          console.log(`[PERMISSION CHECK] Access denied: ${req.user.role} does not have ${permission} in default permissions`);
           return res.status(403).json({
             success: false,
-            message: `Access denied. You do not have permission to ${permission}.`
+            message: `Access denied. You do not have permission to ${permission}.`,
+            debug: {
+              role: req.user.role,
+              requiredPermission: permission,
+              usingDefaultPermissions: true
+            }
           });
         }
         
+        console.log(`[PERMISSION CHECK] Access granted via default permissions: ${req.user.role} has ${permission}`);
         return next();
       }
 
@@ -73,7 +88,32 @@ const checkPermission = (permission) => {
       const rolePermissions = accessMatrix[req.user.role];
       
       console.log(`[PERMISSION CHECK] Checking permission '${permission}' for role '${req.user.role}'`);
-      console.log(`[PERMISSION CHECK] Role permissions:`, JSON.stringify(rolePermissions, null, 2));
+      console.log(`[PERMISSION CHECK] Access matrix structure:`, Object.keys(accessMatrix));
+      console.log(`[PERMISSION CHECK] Role permissions:`, rolePermissions ? Object.keys(rolePermissions).filter(k => rolePermissions[k]) : 'None');
+      
+      // Special case: If student role has no permissions or all false in access matrix,
+      // fall back to default permissions (bulk import might set student permissions to false)
+      if (req.user.role === 'student' && (!rolePermissions || Object.keys(rolePermissions).length === 0 || !Object.values(rolePermissions).some(v => v === true))) {
+        console.log('[PERMISSION CHECK] Student has no/false permissions in access matrix, using default permissions');
+        const defaultPermissions = getDefaultPermissions('student');
+        
+        if (!defaultPermissions[permission]) {
+          console.log(`[PERMISSION CHECK] Access denied: student does not have ${permission} in default permissions`);
+          return res.status(403).json({
+            success: false,
+            message: `Access denied. You do not have permission to ${permission}.`,
+            debug: {
+              role: req.user.role,
+              requiredPermission: permission,
+              usingDefaultPermissions: true,
+              reason: 'Access matrix has no student permissions'
+            }
+          });
+        }
+        
+        console.log(`[PERMISSION CHECK] Access granted via default permissions: student has ${permission}`);
+        return next();
+      }
       
       // For admin and teacher roles, grant full CRUD access if they have the base "view" permission
       // This means if they have 'viewAttendance', they can also mark/update/delete attendance
@@ -212,21 +252,21 @@ function getDefaultPermissions(role) {
       updateResults: true
     },
     student: {
-      manageUsers: false,
-      manageSchoolSettings: false,
-      viewAttendance: false,
+      manageUsers: true,
+      manageSchoolSettings: true,
+      viewAttendance: true,
       viewResults: true,
       viewLeaves: false,
       messageStudentsParents: false,
       viewAcademicDetails: false,
       viewAssignments: true,
-      viewFees: false,
-      viewReports: false,
-      createTimetable: false,
+      viewFees: true,
+      viewReports: true,
+      createTimetable: true,
       viewTimetable: true,
-      markAttendance: false,
-      addAssignments: false,
-      updateResults: false
+      markAttendance: true,
+      addAssignments: true,
+      updateResults: true
     },
     parent: {
       manageUsers: false,

@@ -1200,6 +1200,212 @@ exports.lockAttendance = async (req, res) => {
 };
 
 // Get student attendance report
+// Get student's own attendance (for student role)
+exports.getMyAttendance = async (req, res) => {
+  try {
+    const { startDate, endDate, limit = 30 } = req.query;
+
+    // Only students can access this endpoint
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ 
+        success: false,
+        message: 'This endpoint is only for students' 
+      });
+    }
+
+    // Get student's userId from authenticated user
+    const studentUserId = req.user.userId || req.user._id;
+    const schoolCode = req.user.schoolCode;
+    
+    console.log(`[GET MY ATTENDANCE] Student: ${studentUserId}, School: ${schoolCode}`);
+
+    if (!schoolCode) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'School code not found' 
+      });
+    }
+
+    // Get student's class and section
+    const studentClass = req.user.studentDetails?.currentClass || 
+                        req.user.studentDetails?.academic?.currentClass || 
+                        req.user.class;
+    const studentSection = req.user.studentDetails?.currentSection || 
+                          req.user.studentDetails?.academic?.currentSection || 
+                          req.user.section;
+
+    console.log(`[GET MY ATTENDANCE] Class: ${studentClass}, Section: ${studentSection}`);
+
+    if (!studentClass || !studentSection) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Student class/section information not found' 
+      });
+    }
+
+    // Build query to find attendance records
+    const query = {
+      studentId: studentUserId,
+      class: studentClass,
+      section: studentSection
+    };
+
+    // Add date range if provided
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    } else {
+      // Default to last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      query.date = { $gte: thirtyDaysAgo };
+    }
+
+    console.log(`[GET MY ATTENDANCE] Query:`, JSON.stringify(query));
+
+    // Try school-specific database first
+    let attendanceRecords = [];
+    try {
+      const DatabaseManager = require('../utils/databaseManager');
+      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+      const attendanceCollection = schoolConn.collection('attendances');
+      
+      attendanceRecords = await attendanceCollection
+        .find(query)
+        .sort({ date: -1 })
+        .limit(parseInt(limit))
+        .toArray();
+      
+      console.log(`[GET MY ATTENDANCE] Found ${attendanceRecords.length} records in school database`);
+    } catch (error) {
+      console.error(`[GET MY ATTENDANCE] Error accessing school database:`, error.message);
+      
+      // Fallback to main database
+      const Attendance = require('../models/Attendance');
+      attendanceRecords = await Attendance.find(query)
+        .sort({ date: -1 })
+        .limit(parseInt(limit))
+        .lean();
+      
+      console.log(`[GET MY ATTENDANCE] Found ${attendanceRecords.length} records in main database`);
+    }
+
+    // Calculate statistics
+    let totalDays = attendanceRecords.length;
+    let presentDays = 0;
+    let absentDays = 0;
+    let lateDays = 0;
+    let halfDays = 0;
+    let leaveDays = 0;
+
+    // Process records and extract session-wise data
+    const processedRecords = attendanceRecords.map(record => {
+      // Count status
+      switch (record.status) {
+        case 'present':
+          presentDays++;
+          break;
+        case 'absent':
+          absentDays++;
+          break;
+        case 'late':
+          lateDays++;
+          break;
+        case 'half_day':
+          halfDays++;
+          break;
+        case 'medical_leave':
+        case 'authorized_leave':
+          leaveDays++;
+          break;
+      }
+
+      // Extract session information from periods
+      const sessions = {
+        morning: null,
+        afternoon: null
+      };
+
+      if (record.timeTracking?.periods && record.timeTracking.periods.length > 0) {
+        // Assuming periods 1-4 are morning, 5-8 are afternoon
+        const morningPeriods = record.timeTracking.periods.filter(p => p.periodNumber <= 4);
+        const afternoonPeriods = record.timeTracking.periods.filter(p => p.periodNumber > 4);
+
+        if (morningPeriods.length > 0) {
+          const presentCount = morningPeriods.filter(p => p.status === 'present').length;
+          sessions.morning = {
+            status: presentCount === morningPeriods.length ? 'present' : 
+                   presentCount > 0 ? 'partial' : 'absent',
+            periodsPresent: presentCount,
+            totalPeriods: morningPeriods.length
+          };
+        }
+
+        if (afternoonPeriods.length > 0) {
+          const presentCount = afternoonPeriods.filter(p => p.status === 'present').length;
+          sessions.afternoon = {
+            status: presentCount === afternoonPeriods.length ? 'present' : 
+                   presentCount > 0 ? 'partial' : 'absent',
+            periodsPresent: presentCount,
+            totalPeriods: afternoonPeriods.length
+          };
+        }
+      }
+
+      return {
+        _id: record._id,
+        date: record.date,
+        dayOfWeek: record.dayOfWeek,
+        status: record.status,
+        sessions: sessions,
+        checkIn: record.timeTracking?.checkIn?.time,
+        checkOut: record.timeTracking?.checkOut?.time,
+        totalPeriodsPresent: record.timeTracking?.totalPeriodsPresent || 0,
+        totalPeriodsScheduled: record.timeTracking?.totalPeriodsScheduled || 0,
+        attendancePercentage: record.timeTracking?.attendancePercentage || 0,
+        teacherNotes: record.teacherNotes || [],
+        leaveDetails: record.leaveDetails
+      };
+    });
+
+    // Calculate attendance percentage
+    const attendancePercentage = totalDays > 0 
+      ? Math.round(((presentDays + (halfDays * 0.5)) / totalDays) * 100) 
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        student: {
+          userId: studentUserId,
+          class: studentClass,
+          section: studentSection
+        },
+        summary: {
+          totalDays,
+          presentDays,
+          absentDays,
+          lateDays,
+          halfDays,
+          leaveDays,
+          attendancePercentage
+        },
+        records: processedRecords
+      }
+    });
+
+  } catch (error) {
+    console.error('[GET MY ATTENDANCE] Error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching attendance', 
+      error: error.message 
+    });
+  }
+};
+
 exports.getStudentAttendanceReport = async (req, res) => {
   try {
     const { studentId, startDate, endDate } = req.query;
