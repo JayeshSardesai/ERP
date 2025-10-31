@@ -42,30 +42,74 @@ function generateStudentPassword(studentName, studentId) {
 /**
  * Generate a student password based on Date of Birth
  * Format: DDMMYYYY (8 digits)
- * @param {string} dateOfBirth - Date of birth in DD/MM/YYYY format
- * @returns {string} - Generated password based on DOB
+ * @param {string|Date} dateOfBirth - Date of birth in any format (YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, or Date object)
+ * @returns {string} - Generated password based on DOB in DDMMYYYY format
  */
 function generateStudentPasswordFromDOB(dateOfBirth) {
   if (!dateOfBirth) {
     return generateRandomPassword(8);
   }
   
-  // Convert DD/MM/YYYY to DDMMYYYY
-  const dobStr = String(dateOfBirth).replace(/\D/g, ''); // Remove all non-digits
-  if (dobStr.length === 8) {
-    return dobStr;
+  try {
+    let day, month, year;
+    
+    // If it's a Date object, extract components
+    if (dateOfBirth instanceof Date) {
+      day = String(dateOfBirth.getUTCDate()).padStart(2, '0');
+      month = String(dateOfBirth.getUTCMonth() + 1).padStart(2, '0');
+      year = String(dateOfBirth.getUTCFullYear());
+      return `${day}${month}${year}`;
+    }
+    
+    const dobStr = String(dateOfBirth).trim();
+    
+    // Check if it's already in DDMMYYYY format (8 digits only)
+    if (/^\d{8}$/.test(dobStr)) {
+      return dobStr;
+    }
+    
+    // Try to parse different date formats
+    const parts = dobStr.split(/[\/\-\.]/);
+    
+    if (parts.length === 3) {
+      // Determine format based on first part length
+      if (parts[0].length === 4) {
+        // YYYY-MM-DD or YYYY/MM/DD format
+        year = parts[0];
+        month = parts[1].padStart(2, '0');
+        day = parts[2].padStart(2, '0');
+      } else {
+        // DD-MM-YYYY or DD/MM/YYYY format
+        day = parts[0].padStart(2, '0');
+        month = parts[1].padStart(2, '0');
+        year = parts[2];
+      }
+      
+      // Validate the components
+      const dayNum = parseInt(day);
+      const monthNum = parseInt(month);
+      const yearNum = parseInt(year);
+      
+      if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900 && yearNum <= 2100) {
+        return `${day}${month}${year}`;
+      }
+    }
+    
+    // If all parsing fails, try to create a Date object and extract components
+    const dateObj = new Date(dobStr);
+    if (!isNaN(dateObj.getTime())) {
+      day = String(dateObj.getUTCDate()).padStart(2, '0');
+      month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+      year = String(dateObj.getUTCFullYear());
+      return `${day}${month}${year}`;
+    }
+    
+  } catch (error) {
+    console.error(`Error parsing date of birth: ${dateOfBirth}`, error);
   }
   
-  // If format is different, try to parse and format
-  const parts = String(dateOfBirth).split(/[\/\-\.]/);
-  if (parts.length === 3) {
-    const day = parts[0].padStart(2, '0');
-    const month = parts[1].padStart(2, '0');
-    const year = parts[2];
-    return `${day}${month}${year}`;
-  }
-  
-  // Fallback to random password if parsing fails
+  // Fallback to random password if all parsing fails
+  console.warn(`Could not parse date of birth: ${dateOfBirth}, generating random password`);
   return generateRandomPassword(8);
 }
 

@@ -351,8 +351,36 @@ exports.getAssignments = async (req, res) => {
       console.log(`[GET ASSIGNMENTS] Filtering by teacher: ${teacherId}`);
     }
 
-    // Students and parents can only see published assignments
-    if (['student', 'parent'].includes(req.user.role)) {
+    // Students can only see published assignments for their class/section
+    if (req.user.role === 'student') {
+      query.isPublished = true;
+      query.status = 'active';
+      
+      // Filter by student's class and section
+      // Check multiple possible locations for class/section data
+      const studentClass = req.user.studentDetails?.currentClass || 
+                          req.user.studentDetails?.academic?.currentClass || 
+                          req.user.class;
+      const studentSection = req.user.studentDetails?.currentSection || 
+                            req.user.studentDetails?.academic?.currentSection || 
+                            req.user.section;
+      
+      if (studentClass) {
+        query.class = studentClass;
+        console.log(`[GET ASSIGNMENTS] Filtering for student class: ${studentClass}`);
+      }
+      if (studentSection) {
+        query.section = studentSection;
+        console.log(`[GET ASSIGNMENTS] Filtering for student section: ${studentSection}`);
+      }
+      
+      if (!studentClass || !studentSection) {
+        console.warn(`[GET ASSIGNMENTS] Student ${req.user.userId} missing class/section data`);
+      }
+    }
+    
+    // Parents can only see published assignments
+    if (req.user.role === 'parent') {
       query.isPublished = true;
       query.status = 'active';
     }

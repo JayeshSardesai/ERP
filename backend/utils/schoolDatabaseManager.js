@@ -33,7 +33,7 @@ class SchoolDatabaseManager {
         const timeout = setTimeout(() => {
           reject(new Error(`Connection timeout for ${dbName} after 10 seconds`));
         }, 10000);
-        
+
         connection.once('open', () => {
           clearTimeout(timeout);
           resolve();
@@ -44,13 +44,58 @@ class SchoolDatabaseManager {
           reject(error);
         });
       });
-      
+
       this.connections.set(dbName, connection);
       console.log(`✅ Connected to school database: ${dbName}`);
-      
       return connection;
     } catch (error) {
       console.error(`❌ Failed to connect to school database ${dbName}:`, error.message);
+
+      // Optional fallback for local development when SRV/DNS fails
+      const shouldFallback = (process.env.LOCAL_MONGO_URI || '').length > 0;
+      const looksLikeSrvDnsIssue = /querySrv|ENOTFOUND|EREFUSED|SRV/i.test(String(error?.message || ''));
+
+      if (shouldFallback && looksLikeSrvDnsIssue) {
+        try {
+          const baseUri = process.env.LOCAL_MONGO_URI; // e.g., mongodb://localhost:27017/institute_erp
+          const idx = baseUri.lastIndexOf('/');
+          const hasQuery = baseUri.includes('?');
+          const prefix = idx >= 0 ? baseUri.substring(0, idx + 1) : `${baseUri.replace(/\/$/, '')}/`;
+          const suffix = hasQuery ? baseUri.substring(baseUri.indexOf('?')) : '';
+          const fallbackUri = `${prefix}${dbName}${suffix}`;
+          console.warn(`⚠️ SRV/DNS failed; retrying with LOCAL_MONGO_URI for ${dbName}: ${fallbackUri}`);
+
+          const fallbackConn = mongoose.createConnection(fallbackUri, {
+            maxPoolSize: 10,
+            serverSelectionTimeoutMS: 8000,
+            socketTimeoutMS: 45000,
+            bufferCommands: false
+          });
+
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error(`Fallback connection timeout for ${dbName} after 8 seconds`));
+            }, 8000);
+
+            fallbackConn.once('open', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+
+            fallbackConn.once('error', (err) => {
+              clearTimeout(timeout);
+              reject(err);
+            });
+          });
+
+          this.connections.set(dbName, fallbackConn);
+          console.log(`✅ Connected to school database via fallback: ${dbName}`);
+          return fallbackConn;
+        } catch (fallbackError) {
+          console.error(`❌ Fallback connection failed for ${dbName}:`, String(fallbackError?.message || fallbackError));
+        }
+      }
+
       throw new Error(`Failed to connect to school database: ${error.message}`);
     }
   }
