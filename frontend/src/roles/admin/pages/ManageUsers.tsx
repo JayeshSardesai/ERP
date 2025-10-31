@@ -2715,11 +2715,11 @@ const ManageUsers: React.FC = () => {
     }
   };
 
-  const handleEditClick = (user: User) => {
+  const handleEditClick = (user: any) => {
     console.log('=== EDITING USER ===');
     console.log('User:', user);
     // Set editingUser - the useEffect will handle populating formData
-    setEditingUser(user);
+    setEditingUser(user as User);
     setShowEditModal(true);
   };
 
@@ -3768,8 +3768,8 @@ const ManageUsers: React.FC = () => {
       userEmail.includes(searchLower) ||
       userId.includes(searchLower);
     const matchesRole = user.role === activeTab;
-    const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || user.studentDetails?.class === selectedGrade;
-    const matchesSection = activeTab !== 'student' || selectedSection === 'all' || user.studentDetails?.section === selectedSection;
+    const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || user.studentDetails?.currentClass === selectedGrade;
+    const matchesSection = activeTab !== 'student' || selectedSection === 'all' || user.studentDetails?.currentSection === selectedSection;
     return matchesSearch && matchesRole && matchesGrade && matchesSection;
   }).sort((a, b) => {
     // Sort students by userId (Student ID) in ascending order
@@ -4121,34 +4121,34 @@ const ManageUsers: React.FC = () => {
           contact.primaryPhone || contact.phone || user.phone || '',
 
           // Student Academic Details
-          studentDetails.studentId || '',
-          studentDetails.admissionNumber || academic.admissionNumber || '',
-          studentDetails.rollNumber || academic.rollNumber || '',
-          academic.currentClass || '',
-          academic.currentSection || '',
-          academic.academicYear || '',
-          academic.admissionDate ? new Date(academic.admissionDate).toISOString().split('T')[0] : '',
-          academic.admissionClass || '',
-          academic.stream || '',
-          Array.isArray(academic.electives) ? academic.electives.join(', ') : '',
-          academic.enrollmentNo || '',
-          academic.tcNo || '',
+          studentDetails.studentId || userData.userId || '',
+          studentDetails.admissionNumber || '',
+          studentDetails.rollNumber || '',
+          studentDetails.currentClass || '',
+          studentDetails.currentSection || '',
+          studentDetails.academicYear || '',
+          studentDetails.admissionDate ? new Date(studentDetails.admissionDate).toISOString().split('T')[0] : '',
+          studentDetails.admissionClass || '',
+          studentDetails.stream || '',
+          Array.isArray(studentDetails.electives) ? studentDetails.electives.join(', ') : '',
+          studentDetails.enrollmentNo || '',
+          studentDetails.tcNo || '',
 
           // Personal Information - Basic
-          personal.dateOfBirth ? new Date(personal.dateOfBirth).toISOString().split('T')[0] : '',
-          personal.placeOfBirth || '',
-          personal.gender || '',
-          personal.bloodGroup || '',
-          personal.nationality || '',
-          personal.religion || '',
-          personal.religionOther || '',
-          personal.caste || '',
-          personal.casteOther || '',
-          personal.category || '',
-          personal.categoryOther || '',
-          personal.motherTongue || '',
-          personal.motherTongueOther || '',
-          Array.isArray(personal.languagesKnown) ? personal.languagesKnown.join(', ') : '',
+          studentDetails.dateOfBirth ? new Date(studentDetails.dateOfBirth).toISOString().split('T')[0] : '',
+          studentDetails.placeOfBirth || '',
+          studentDetails.gender || '',
+          studentDetails.bloodGroup || '',
+          studentDetails.nationality || '',
+          studentDetails.religion || '',
+          studentDetails.religionOther || '',
+          studentDetails.caste || '',
+          studentDetails.casteOther || '',
+          studentDetails.category || '',
+          studentDetails.categoryOther || '',
+          studentDetails.motherTongue || '',
+          studentDetails.motherTongueOther || '',
+          Array.isArray(studentDetails.languagesKnown) ? studentDetails.languagesKnown.join(', ') : '',
 
           // Karnataka SATS Specific Personal Fields
           personal.studentNameKannada || '',
@@ -6409,11 +6409,11 @@ const ManageUsers: React.FC = () => {
                             <>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {/* Reads from the processed studentDetails object */}
-                                {user.studentDetails?.class || 'Not assigned'}
+                                {user.studentDetails?.currentClass || 'Not assigned'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {/* Reads from the processed studentDetails object */}
-                                {user.studentDetails?.section || 'Not assigned'}
+                                {user.studentDetails?.currentSection || 'Not assigned'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {(user as any).userId || user._id || 'Not assigned'}

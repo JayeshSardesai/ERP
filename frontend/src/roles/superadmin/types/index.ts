@@ -41,9 +41,14 @@ export interface AccessMatrix {
 export interface RolePermissions {
   manageUsers: boolean;
   manageSchoolSettings: boolean;
+  viewAcademicDetails: boolean;
   viewAttendance: boolean;
+  viewAssignments: boolean;
   viewResults: boolean;
+  viewLeaves: boolean;
   messageStudentsParents: boolean;
+  viewFees: boolean;
+  viewReports: boolean;
 }
 
 export interface DashboardStats {

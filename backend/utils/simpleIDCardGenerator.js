@@ -259,7 +259,7 @@ class SimpleIDCardGenerator {
         classSection: { x: 530, y: 302, fontSize: 24, dynamicX: true },
         dobLabel: { x: 330, y: 348, fontSize: 24, fontWeight: 'bold', dynamicX: true },
         dob: { x: 530, y: 348, fontSize: 24, dynamicX: true },
-        bloodGroup: { x: 413, y: 480, fontSize: 20, fontWeight: 'bold', color: '#000000' }
+        bloodGroup: { x: 415, y: 480, fontSize: 20, fontWeight: 'bold', color: '#000000', textAlign: 'center', maxWidth: 60, centerX: true }
       };
     } else if (orientation === 'landscape' && side === 'back') {
       return {
@@ -284,7 +284,7 @@ class SimpleIDCardGenerator {
         classSection: { x: 170, y: 655, fontSize: 22, fontWeight: 'bold', dynamicX: true },
         dobLabel: { x: 50, y: 700, fontSize: 22, fontWeight: 'bold', baseValueX: 140 },
         dob: { x: 170, y: 700, fontSize: 22, fontWeight: 'bold', dynamicX: true },
-        bloodGroup: { x: 80, y: 345, fontSize: 22, fontWeight: 'bold', color: '#000000' }
+        bloodGroup: { x: 80, y: 345, fontSize: 22, fontWeight: 'bold', color: '#000000', textAlign: 'center', maxWidth: 60, centerX: true }
       };
     } else if (orientation === 'portrait' && side === 'back') {
       return {

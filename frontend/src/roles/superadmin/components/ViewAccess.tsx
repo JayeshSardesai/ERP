@@ -11,6 +11,7 @@ const allPermissions = [
   { key: 'viewAttendance', label: 'Attendance', description: 'Access to view and mark attendance' },
   { key: 'viewAssignments', label: 'Assignments', description: 'Access to manage assignments' },
   { key: 'viewResults', label: 'Results', description: 'Access to view student results' },
+  { key: 'viewLeaves', label: 'Leave Management', description: 'Access to manage leave requests and approvals' },
   { key: 'messageStudentsParents', label: 'Message Students/Parents', description: 'Access to send messages to students and parents' },
   { key: 'viewFees', label: 'Manage Fees', description: 'Access to manage fee structure and payments' },
   { key: 'viewReports', label: 'View Reports', description: 'Access to generate and view reports' },
@@ -21,6 +22,7 @@ const teacherPermissions = [
   { key: 'viewAttendance', label: 'Attendance', description: 'Access to view and mark attendance' },
   { key: 'viewAssignments', label: 'Assignments', description: 'Access to view assignments' },
   { key: 'viewResults', label: 'Results', description: 'Access to view student results' },
+  { key: 'viewLeaves', label: 'Leave Management', description: 'Access to manage own leave requests' },
   { key: 'messageStudentsParents', label: 'Message Students/Parents', description: 'Access to send messages to students and parents' }
 ];
 

@@ -167,7 +167,7 @@ export const attendanceAPI = {
 // Export/Import APIs
 export const exportImportAPI = {
   // Export users to CSV/Excel
-  exportUsers: (schoolCode, params) => api.get(`/export-import/${schoolCode}/export/users`, { // <-- Corrected path
+  exportUsers: (schoolCode, params) => api.get(`/export-import/${schoolCode}/export`, { // <-- Corrected path
     params,
     responseType: 'blob'
   }),
