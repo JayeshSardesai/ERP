@@ -779,7 +779,6 @@ const Results: React.FC = () => {
       toast.error('Please select a test type');
       return;
     }
-
     if (!configuredMaxMarks || configuredMaxMarks <= 0) {
       toast.error('Configured max marks not found for this test. Please configure in Admin > Settings.');
       return;

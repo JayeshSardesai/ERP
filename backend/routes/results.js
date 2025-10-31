@@ -53,6 +53,12 @@ router.get('/class/:grade/:section/report',
   resultController.generateClassPerformanceReport
 );
 
+// Teacher-specific endpoint to view results
+router.get('/teacher/view', 
+  authMiddleware.auth, 
+  resultController.getResultsForTeacher
+);
+
 // Get class performance statistics for dashboard - requires viewResults permission
 router.get('/class-performance-stats', 
   checkPermission('viewResults'),

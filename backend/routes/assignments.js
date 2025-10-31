@@ -49,6 +49,12 @@ router.use((req, res, next) => {
 });
 
 // Assignment management routes - require viewAssignments permission
+router.get('/', 
+  authorize(['admin', 'teacher']),
+  checkPermission('viewAssignments'),
+  assignmentController.getAssignments
+);
+
 router.post('/', upload.array('attachments', 5), 
   authorize(['admin', 'teacher']),
   checkPermission('viewAssignments'),
@@ -70,9 +76,19 @@ router.post('/', upload.array('attachments', 5),
   assignmentController.createAssignment
 );
 
-// View assignments - require viewAssignments permission
-router.get('/', checkPermission('viewAssignments'), assignmentController.getAssignments);
-router.get('/stats', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.getAssignmentStats);
+// Assignment-specific routes
+router.get('/:assignmentId', assignmentController.getAssignmentById);
+router.put('/:assignmentId', 
+  (req, res, next) => {
+    console.log('[UPDATE ROUTE] User role:', req.user?.role);
+    console.log('[UPDATE ROUTE] Assignment ID:', req.params.assignmentId);
+    next();
+  },
+  upload.array('attachments', 5), 
+  assignmentController.updateAssignment
+);
+router.patch('/:assignmentId/publish', authorize(['admin', 'teacher']), assignmentController.publishAssignment);
+router.delete('/:assignmentId', assignmentController.deleteAssignment);
 
 // Assignment-specific routes - all require viewAssignments permission
 router.get('/:assignmentId', checkPermission('viewAssignments'), assignmentController.getAssignmentById);
