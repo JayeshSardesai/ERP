@@ -30,7 +30,13 @@ function normalizeState(raw: AuthState | undefined | null): AuthState {
     // Ensure name is a string
     const nameVal: any = (next.user as any).name;
     const displayName = typeof nameVal === 'string' ? nameVal : (next.user.email || 'User');
-    next.user = { ...next.user, role: norm, name: displayName } as AuthUser;
+    // Preserve all user fields including userId
+    next.user = { 
+      ...next.user, 
+      role: norm, 
+      name: displayName,
+      userId: (next.user as any).userId // Explicitly preserve userId
+    } as AuthUser;
   }
   next.loading = false;
   return next;

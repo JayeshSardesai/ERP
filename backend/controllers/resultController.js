@@ -1047,134 +1047,131 @@ exports.freezeResults = async (req, res) => {
     });
   }
 };
-// Get class performance statistics for dashboard
-exports.getClassPerformanceStats = async (req, res) => {
+
+// Get results for teacher view - formatted for display
+exports.getResultsForTeacher = async (req, res) => {
   try {
-    const schoolCode = req.user?.schoolCode;
-    
-    if (!schoolCode) {
-      return res.status(400).json({ 
+    const { schoolCode, class: className, section, subject, testType, academicYear } = req.query;
+
+    console.log('👨‍🏫 Teacher fetching results:', { schoolCode, className, section, subject, testType, academicYear });
+
+    // Validate required fields
+    if (!schoolCode || !className || !section || !subject || !testType) {
+      return res.status(400).json({
         success: false,
-        message: 'School code is required' 
+        message: 'Missing required fields: schoolCode, class, section, subject, and testType'
       });
     }
 
-    console.log(`[CLASS PERFORMANCE] Fetching stats for school: ${schoolCode}`);
+    // Get school-specific database connection
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const resultsCollection = schoolConn.collection('results');
 
-    // Get connection to the school's dedicated database
-    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
-    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-    const resultsCollection = schoolConnection.collection('results');
-    
-    // Fetch all results
-    const results = await resultsCollection.find({}).toArray();
-    
-    console.log(`[CLASS PERFORMANCE] Found ${results.length} result documents`);
+    // Build query for student documents
+    const query = {
+      schoolCode: schoolCode.toUpperCase(),
+      className,
+      section,
+      academicYear: academicYear || '2024-25'
+    };
 
-    if (results.length === 0) {
-      return res.json({
-        success: true,
-        data: []
-      });
-    }
+    // Fetch all result documents for the class/section
+    const resultDocs = await resultsCollection.find(query).sort({ studentName: 1 }).toArray();
 
-    // Group by class and section, calculate average percentage
-    const performanceMap = {};
+    console.log(`📚 Found ${resultDocs.length} student result documents for ${className}-${section}`);
 
-    results.forEach(result => {
-      const classKey = `${result.className || 'Unknown'}-${result.section || 'A'}`;
-      
-      if (!performanceMap[classKey]) {
-        performanceMap[classKey] = {
-          class: result.className || 'Unknown',
-          section: result.section || 'A',
-          totalPercentage: 0,
-          subjectCount: 0,
-          studentCount: 0
-        };
-      }
+    // Extract and format results for the specific subject and test type
+    const formattedResults = [];
 
-      // Calculate percentage from subjects array
-      if (result.subjects && Array.isArray(result.subjects)) {
-        result.subjects.forEach(subject => {
-          if (subject.percentage !== undefined && subject.percentage !== null) {
-            performanceMap[classKey].totalPercentage += parseFloat(subject.percentage);
-            performanceMap[classKey].subjectCount++;
-          }
-        });
-        performanceMap[classKey].studentCount++;
-      }
-    });
+    for (const doc of resultDocs) {
+      // Handle nested structure with subjects array
+      if (doc.subjects && Array.isArray(doc.subjects)) {
+        // Find the matching subject and test type
+        const matchingSubject = doc.subjects.find(
+          s => s.subjectName === subject && s.testType === testType
+        );
 
-    // Convert to array and calculate averages
-    let performanceData = Object.values(performanceMap)
-      .map(item => {
-        const avgPercentage = item.subjectCount > 0 
-          ? (item.totalPercentage / item.subjectCount).toFixed(1)
-          : 0;
-        
-        return {
-          name: `${item.class}-${item.section}`,
-          class: item.class,
-          section: item.section,
-          percentage: parseFloat(avgPercentage),
-          studentCount: item.studentCount
-        };
-      });
-
-    // Ensure all classes 1-10 with section A are included
-    const allClasses = [];
-    for (let i = 1; i <= 10; i++) {
-      const classKey = `${i}-A`;
-      const existingClass = performanceData.find(item => item.name === classKey);
-      
-      if (existingClass) {
-        allClasses.push(existingClass);
-      } else {
-        // Add placeholder for missing class
-        allClasses.push({
-          name: classKey,
-          class: i.toString(),
-          section: 'A',
-          percentage: 0,
-          studentCount: 0
-        });
-      }
-    }
-
-    // Add any other sections (B, C, etc.) that exist in the data
-    performanceData.forEach(item => {
-      if (item.section !== 'A') {
-        allClasses.push(item);
-      }
-    });
-
-    // Sort by class then section
-    performanceData = allClasses.sort((a, b) => {
-      if (a.class !== b.class) {
-        const aNum = parseInt(a.class);
-        const bNum = parseInt(b.class);
-        if (!isNaN(aNum) && !isNaN(bNum)) {
-          return aNum - bNum;
+        if (matchingSubject) {
+          formattedResults.push({
+            id: doc._id.toString(),
+            _id: doc._id.toString(),
+            studentId: doc.studentId,
+            userId: doc.userId,
+            name: doc.studentName || 'Unknown',
+            studentName: doc.studentName || 'Unknown',
+            rollNumber: doc.rollNumber || 'N/A',
+            class: className,
+            className: className,
+            section: section,
+            subject: subject,
+            testType: testType,
+            obtainedMarks: matchingSubject.obtainedMarks !== null ? matchingSubject.obtainedMarks : 0,
+            totalMarks: matchingSubject.maxMarks || matchingSubject.totalMarks || 100,
+            maxMarks: matchingSubject.maxMarks || matchingSubject.totalMarks || 100,
+            percentage: matchingSubject.percentage !== null ? matchingSubject.percentage : 0,
+            grade: matchingSubject.grade || calculateSimpleGrade(
+              matchingSubject.obtainedMarks, 
+              matchingSubject.maxMarks || matchingSubject.totalMarks || 100
+            ),
+            frozen: matchingSubject.frozen || false, // Include frozen status
+            createdAt: doc.createdAt || doc.updatedAt || new Date(),
+            updatedAt: doc.updatedAt || doc.createdAt || new Date()
+          });
         }
-        return a.class.localeCompare(b.class);
       }
-      return a.section.localeCompare(b.section);
-    });
+    }
 
-    console.log(`[CLASS PERFORMANCE] Calculated performance for ${performanceData.length} class-sections (including all 1-10)`);
+    console.log(`✅ Formatted ${formattedResults.length} results for teacher view`);
+    
+    // Log frozen status for debugging
+    const frozenCount = formattedResults.filter(r => r.frozen).length;
+    if (frozenCount > 0) {
+      console.log(`🔒 ${frozenCount} results are FROZEN and cannot be edited`);
+    }
+
+    // Calculate statistics
+    const statistics = {
+      totalStudents: formattedResults.length,
+      averageMarks: formattedResults.length > 0 
+        ? Math.round(formattedResults.reduce((sum, r) => sum + r.obtainedMarks, 0) / formattedResults.length)
+        : 0,
+      averagePercentage: formattedResults.length > 0
+        ? Math.round(formattedResults.reduce((sum, r) => sum + r.percentage, 0) / formattedResults.length)
+        : 0,
+      highestScore: formattedResults.length > 0 
+        ? Math.max(...formattedResults.map(r => r.obtainedMarks))
+        : 0,
+      lowestScore: formattedResults.length > 0 
+        ? Math.min(...formattedResults.map(r => r.obtainedMarks))
+        : 0,
+      passCount: formattedResults.filter(r => r.percentage >= 40).length,
+      failCount: formattedResults.filter(r => r.percentage < 40).length
+    };
 
     res.json({
       success: true,
-      data: performanceData
+      message: `Found ${formattedResults.length} results`,
+      data: {
+        results: formattedResults,
+        statistics,
+        filters: {
+          schoolCode,
+          className,
+          section,
+          subject,
+          testType,
+          academicYear: academicYear || '2024-25'
+        }
+      }
     });
 
   } catch (error) {
-    console.error('Error fetching class performance stats:', error);
-    res.status(500).json({ 
+    console.error('Error fetching results for teacher:', error);
+    res.status(500).json({
       success: false,
-      message: 'Error fetching class performance stats', 
-      error: error.message 
+      message: 'Error fetching results',
+      error: error.message
     });
   }
 };
@@ -1187,5 +1184,5 @@ module.exports = {
   getResults: exports.getResults,
   updateResult: exports.updateResult,
   freezeResults: exports.freezeResults,
-  getClassPerformanceStats: exports.getClassPerformanceStats
+  getResultsForTeacher: exports.getResultsForTeacher
 };

@@ -655,8 +655,20 @@ const Dashboard: React.FC = () => {
         <>
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <div className="text-sm text-gray-500">
-              Last updated: {new Date().toLocaleDateString()}
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-500">
+                Last updated: {new Date().toLocaleDateString()}
+              </div>
+              <button
+                onClick={() => {
+                  logout();
+                  window.location.href = '/login';
+                }}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-all duration-200"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </button>
             </div>
           </div>
 

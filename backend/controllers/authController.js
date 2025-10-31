@@ -107,7 +107,8 @@ exports.login = async (req, res) => {
       success: true,
       token, 
       user: { 
-        id: user._id, 
+        id: user._id,
+        userId: user.userId,
         name: user.name, 
         email: user.email, 
         role: user.role, 
