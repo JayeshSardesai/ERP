@@ -7,6 +7,7 @@
 // - viewAssignments: Grants ability to view, create, update, and delete assignments
 // - viewFees: Grants ability to view, create, update, and delete fee structures
 // - viewReports: Grants ability to view and generate all reports
+// - viewLeaves: Grants ability to view, create, update, and manage leave requests
 // 
 // This design ensures that when a superadmin grants a feature permission to admin/teacher,
 // they get complete access to that feature, not just read-only access.
@@ -23,6 +24,7 @@ const accessMatrix = {
     submitAssignments: false,
     viewResults: true,
     updateResults: false,
+    viewLeaves: true,
     message: true
   },
   admin: {
@@ -36,6 +38,7 @@ const accessMatrix = {
     submitAssignments: false,
     viewResults: true,
     updateResults: false,
+    viewLeaves: true,
     message: true
   },
   teacher: {
@@ -49,6 +52,7 @@ const accessMatrix = {
     submitAssignments: false,
     viewResults: 'own',
     updateResults: true,
+    viewLeaves: 'own',
     message: true
   },
   student: {
@@ -62,6 +66,7 @@ const accessMatrix = {
     submitAssignments: true,
     viewResults: true,
     updateResults: false,
+    viewLeaves: false,
     message: false
   },
   parent: {
@@ -75,6 +80,7 @@ const accessMatrix = {
     submitAssignments: false,
     viewResults: false,
     updateResults: false,
+    viewLeaves: false,
     message: false
   }
 };

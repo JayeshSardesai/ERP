@@ -8,6 +8,7 @@ export type PermissionKey =
   | 'manageSchoolSettings'
   | 'viewAttendance'
   | 'viewResults'
+  | 'viewLeaves'
   | 'messageStudentsParents'
   | 'viewAcademicDetails'
   | 'viewAssignments'
@@ -19,6 +20,7 @@ export interface RolePermissions {
   manageSchoolSettings: boolean;
   viewAttendance: boolean;
   viewResults: boolean;
+  viewLeaves: boolean;
   messageStudentsParents: boolean;
   viewAcademicDetails: boolean;
   viewAssignments: boolean;
@@ -67,6 +69,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
           manageSchoolSettings: true,
           viewAttendance: true,
           viewResults: true,
+          viewLeaves: true,
           messageStudentsParents: true,
           viewAcademicDetails: true,
           viewAssignments: true,
@@ -123,6 +126,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
             manageSchoolSettings: true,
             viewAttendance: true,
             viewResults: true,
+            viewLeaves: true,
             messageStudentsParents: true,
             viewAcademicDetails: true,
             viewAssignments: true,
@@ -133,6 +137,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
             manageSchoolSettings: false,
             viewAttendance: false,
             viewResults: false,
+            viewLeaves: false,
             messageStudentsParents: false,
             viewAcademicDetails: false,
             viewAssignments: false,
@@ -163,6 +168,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
               manageSchoolSettings: true,
               viewAttendance: true,
               viewResults: true,
+              viewLeaves: true,
               messageStudentsParents: true,
               viewAcademicDetails: true,
               viewAssignments: true,
@@ -173,6 +179,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
               manageSchoolSettings: false,
               viewAttendance: false,
               viewResults: false,
+              viewLeaves: false,
               messageStudentsParents: false,
               viewAcademicDetails: false,
               viewAssignments: false,
@@ -189,6 +196,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
             manageSchoolSettings: true,
             viewAttendance: true,
             viewResults: true,
+            viewLeaves: true,
             messageStudentsParents: true,
             viewAcademicDetails: true,
             viewAssignments: true,
@@ -199,6 +207,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
             manageSchoolSettings: false,
             viewAttendance: false,
             viewResults: false,
+            viewLeaves: false,
             messageStudentsParents: false,
             viewAcademicDetails: false,
             viewAssignments: false,
@@ -215,6 +224,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
           manageSchoolSettings: true,
           viewAttendance: true,
           viewResults: true,
+          viewLeaves: true,
           messageStudentsParents: true,
           viewAcademicDetails: true,
           viewAssignments: true,
@@ -225,6 +235,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
           manageSchoolSettings: false,
           viewAttendance: false,
           viewResults: false,
+          viewLeaves: false,
           messageStudentsParents: false,
           viewAcademicDetails: false,
           viewAssignments: false,
@@ -292,7 +303,9 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
-    const hasAccess = permissions[permission] === true;
+    const permissionValue = permissions[permission];
+    // Handle boolean true, or string values like 'own', 'limited', 'self' as truthy
+    const hasAccess = permissionValue === true || (typeof permissionValue === 'string' && permissionValue !== 'false');
     return hasAccess;
   }, [permissions]);
 

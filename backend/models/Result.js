@@ -92,4 +92,7 @@ resultSchema.index({ schoolId: 1, class: 1, section: 1 });
 resultSchema.index({ academicYear: 1, term: 1 });
 resultSchema.index({ status: 1 });
 
-module.exports = mongoose.model('Result', resultSchema);
+// Explicitly set the collection name to 'results'
+const Result = mongoose.model('Result', resultSchema, 'results');
+
+module.exports = Result;

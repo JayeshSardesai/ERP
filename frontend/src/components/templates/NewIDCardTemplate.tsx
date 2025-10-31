@@ -11,7 +11,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
 }) => {
   const isLandscape = templateId === 'landscape';
   const isFront = side === 'front';
-  
+
   // Card dimensions - Landscape: 85.6mm × 54mm, Portrait: 54mm × 85.6mm
   const cardStyle = {
     width: isLandscape ? '85.6mm' : '54mm',
@@ -92,7 +92,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         backgroundColor: '#d29c00',
         zIndex: 1
       }}></div>
-      
+
       {/* Bottom Gradient Triangle */}
       <div style={{
         position: 'absolute',
@@ -104,7 +104,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         clipPath: 'polygon(0 40%, 100% 100%, 0% 100%)',
         zIndex: 1
       }}></div>
-      
+
       {/* School Logo and Info */}
       <div style={{
         position: 'absolute',
@@ -122,9 +122,9 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
           gap: '3mm'
         }}>
           {settings.logoUrl ? (
-            <img 
-              src={settings.logoUrl} 
-              alt="School Logo" 
+            <img
+              src={settings.logoUrl}
+              alt="School Logo"
               style={{ width: '10mm', height: '10mm', objectFit: 'contain' }}
             />
           ) : (
@@ -158,7 +158,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
           </div>
         </div>
       </div>
-      
+
       {/* Content Area */}
       <div style={{
         position: 'absolute',
@@ -196,7 +196,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
             <strong>Blood Group</strong> : {student.bloodGroup || 'N/A'}
           </div>
         </div>
-        
+
         {/* Photo Frame */}
         <div style={{
           width: '22mm',
@@ -213,9 +213,9 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
           marginTop: '4mm'
         }}>
           {student.profileImage ? (
-            <img 
-              src={student.profileImage} 
-              alt="Student Photo" 
+            <img
+              src={student.profileImage}
+              alt="Student Photo"
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : (
@@ -243,7 +243,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         backgroundColor: '#d29c00',
         zIndex: 1
       }}></div>
-      
+
       {/* Bottom Gradient Triangle */}
       <div style={{
         position: 'absolute',
@@ -255,13 +255,13 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         clipPath: 'polygon(0 40%, 100% 100%, 0% 100%)',
         zIndex: 1
       }}></div>
-      
+
       {/* Content */}
       <div style={{
         position: 'relative',
         zIndex: 2
       }}>
-        
+
         {/* Back Info */}
         <div style={{
           fontSize: '2.2mm',
@@ -278,18 +278,18 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
           <div style={{ marginBottom: '1.8mm', textAlign: 'left' }}>
             <strong>Mobile No.</strong> : {student.phone || '____________________________'}
           </div>
-          
+
           <div style={{ marginTop: '2.5mm', marginBottom: '1mm', textAlign: 'left' }}>
-            <strong>School Address:</strong> {settings.schoolName}<br/>
+            <strong>School Address:</strong> {settings.schoolName}<br />
             <span style={{ marginLeft: '20mm' }}>{settings.address}</span>
           </div>
-          
+
           <div style={{ fontSize: '2mm', fontWeight: 'bold', textAlign: 'center', marginTop: '1.5mm' }}>
             Return to above address if lost
           </div>
         </div>
       </div>
-      
+
       {/* Logo */}
       <div style={{
         position: 'absolute',
@@ -297,9 +297,9 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         right: '6mm',
         textAlign: 'right'
       }}>
-        <img 
-          src="/logo.png" 
-          alt="EduLogix" 
+        <img
+          src="/logo.png"
+          alt="EduLogix"
           style={{ width: '8mm', height: '6mm', objectFit: 'contain' }}
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = 'none';
@@ -330,7 +330,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         backgroundColor: '#d29c00',
         zIndex: 1
       }}></div>
-      
+
       {/* Bottom Gradient Triangle */}
       <div style={{
         position: 'absolute',
@@ -342,7 +342,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         clipPath: 'polygon(0 40%, 100% 100%, 0% 100%)',
         zIndex: 1
       }}></div>
-      
+
       {/* School Logo and Info */}
       <div style={{
         position: 'absolute',
@@ -354,9 +354,9 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         zIndex: 2
       }}>
         {settings.logoUrl ? (
-          <img 
-            src={settings.logoUrl} 
-            alt="School Logo" 
+          <img
+            src={settings.logoUrl}
+            alt="School Logo"
             style={{ width: '8mm', height: '8mm', objectFit: 'contain' }}
           />
         ) : (
@@ -390,7 +390,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
           </div>
         </div>
       </div>
-      
+
       {/* Content */}
       <div style={{
         position: 'relative',
@@ -419,16 +419,16 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
           marginBottom: '1.5mm'
         }}>
           {student.profileImage ? (
-            <img 
-              src={student.profileImage} 
-              alt="Student Photo" 
+            <img
+              src={student.profileImage}
+              alt="Student Photo"
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : (
             'Photo'
           )}
         </div>
-        
+
         {/* Student Info */}
         <div style={{
           width: '100%',
@@ -473,7 +473,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         backgroundColor: '#d29c00',
         zIndex: 1
       }}></div>
-      
+
       {/* Bottom Gradient Triangle */}
       <div style={{
         position: 'absolute',
@@ -485,7 +485,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         clipPath: 'polygon(0 40%, 100% 100%, 0% 100%)',
         zIndex: 1
       }}></div>
-      
+
       {/* Content */}
       <div style={{
         position: 'relative',
@@ -508,18 +508,18 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
           <div style={{ marginBottom: '2mm' }}>
             <strong>Mobile No.</strong> : {student.phone || '+91-9876543210'}
           </div>
-          
+
           <div style={{ marginTop: '2.5mm', marginBottom: '1mm', textAlign: 'left' }}>
-            <strong>School Address:</strong> {settings.schoolName}<br/>
+            <strong>School Address:</strong> {settings.schoolName}<br />
             <span style={{ marginLeft: '18mm' }}>{settings.address}</span>
           </div>
-          
+
           <div style={{ fontSize: '2mm', fontWeight: 'bold', textAlign: 'center', marginTop: '1.5mm' }}>
             Return to above address if lost
           </div>
         </div>
       </div>
-      
+
       {/* Logo */}
       <div style={{
         position: 'absolute',
@@ -527,9 +527,9 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
         right: '6mm',
         textAlign: 'right'
       }}>
-        <img 
-          src="/logo.png" 
-          alt="EduLogix" 
+        <img
+          src="/logo.png"
+          alt="EduLogix"
           style={{ width: '8mm', height: '6mm', objectFit: 'contain' }}
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = 'none';
@@ -549,7 +549,7 @@ const NewIDCardTemplate: React.FC<IDCardTemplateProps> = ({
   };
 
   return (
-    <div className={`id-card ${className}`} style={{ 
+    <div className={`id-card ${className}`} style={{
       display: 'inline-block',
       margin: mode === 'print' ? 0 : '10px',
       pageBreakInside: 'avoid'

@@ -48,8 +48,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
     { name: 'Assignments', icon: FileText, page: 'assignments', permission: 'viewAssignments' as PermissionKey },
     { name: 'Results', icon: BarChart3, page: 'view-results', permission: 'viewResults' as PermissionKey },
     { name: 'Messages', icon: MessageSquare, page: 'messages', permission: 'messageStudentsParents' as PermissionKey },
-    { name: 'Leave Request', icon: Calendar, page: 'leave-request', permission: 'viewLeaveRequest' as PermissionKey },
-    { name: 'Settings', icon: Settings, page: 'settings', permission: null }
+    { name: 'Leave Request', icon: Calendar, page: 'leave-request', permission: 'viewLeaves' as PermissionKey }
   ];
 
 
@@ -116,7 +115,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
           </nav>
 
           <div className="px-4 py-6 border-t border-gray-200">
-            <div className="flex items-center mb-4">
+            <div className="flex items-center">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mr-3">
                 <span className="text-white font-bold text-sm">
                   {getInitials()}
@@ -127,13 +126,6 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
                 <p className="text-xs text-gray-500">{user?.userId || user?.email}</p>
               </div>
             </div>
-            <button
-              onClick={onLogout}
-              className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-700 rounded-lg hover:bg-red-50 transition-colors"
-            >
-              <LogOut className="h-4 w-4 mr-3" />
-              Sign Out
-            </button>
           </div>
         </div>
       </div>

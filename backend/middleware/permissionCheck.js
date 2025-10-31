@@ -80,6 +80,19 @@ const checkPermission = (permission) => {
       // If they have 'viewResults', they can also create/update/freeze results, etc.
       let hasAccess = rolePermissions && rolePermissions[permission];
       
+      // Handle string values like 'own', 'limited', 'self' as truthy
+      if (typeof hasAccess === 'string') {
+        hasAccess = true;
+        console.log(`[PERMISSION CHECK] String permission '${rolePermissions[permission]}' treated as granted for ${req.user.role}`);
+      }
+      
+      // If permission doesn't exist in access matrix, fall back to default permissions
+      if (hasAccess === undefined && rolePermissions) {
+        const defaultPermissions = getDefaultPermissions(req.user.role);
+        hasAccess = defaultPermissions[permission];
+        console.log(`[PERMISSION CHECK] Permission '${permission}' not found in access matrix, using default: ${hasAccess}`);
+      }
+      
       if (!hasAccess && (req.user.role === 'admin' || req.user.role === 'teacher')) {
         // Map specific action permissions to their base view permission
         const permissionMapping = {
@@ -95,7 +108,12 @@ const checkPermission = (permission) => {
           'updateResults': 'viewResults',
           'createResults': 'viewResults',
           'freezeResults': 'viewResults',
-          'deleteResults': 'viewResults'
+          'deleteResults': 'viewResults',
+          'createLeave': 'viewLeaves',
+          'updateLeave': 'viewLeaves',
+          'deleteLeave': 'viewLeaves',
+          'approveLeave': 'viewLeaves',
+          'rejectLeave': 'viewLeaves'
         };
         
         // Check if this is an action permission that maps to a view permission
@@ -147,6 +165,7 @@ function getDefaultPermissions(role) {
       manageSchoolSettings: true,
       viewAttendance: true,
       viewResults: true,
+      viewLeaves: true,
       messageStudentsParents: true,
       viewAcademicDetails: true,
       viewAssignments: true,
@@ -163,6 +182,7 @@ function getDefaultPermissions(role) {
       manageSchoolSettings: true,
       viewAttendance: true,
       viewResults: true,
+      viewLeaves: true,
       messageStudentsParents: true,
       viewAcademicDetails: true,
       viewAssignments: true,
@@ -179,6 +199,7 @@ function getDefaultPermissions(role) {
       manageSchoolSettings: false,
       viewAttendance: true,
       viewResults: true,
+      viewLeaves: true,
       messageStudentsParents: true,
       viewAcademicDetails: true,
       viewAssignments: true,
@@ -195,6 +216,7 @@ function getDefaultPermissions(role) {
       manageSchoolSettings: false,
       viewAttendance: false,
       viewResults: true,
+      viewLeaves: false,
       messageStudentsParents: false,
       viewAcademicDetails: false,
       viewAssignments: true,
@@ -211,6 +233,7 @@ function getDefaultPermissions(role) {
       manageSchoolSettings: false,
       viewAttendance: false,
       viewResults: false,
+      viewLeaves: false,
       messageStudentsParents: false,
       viewAcademicDetails: false,
       viewAssignments: false,

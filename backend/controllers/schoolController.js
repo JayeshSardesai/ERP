@@ -1951,8 +1951,12 @@ exports.updateAccessMatrix = async (req, res) => {
     const { schoolId } = req.params;
     const { accessMatrix } = req.body;
 
+    console.log(`🔐 [UPDATE ACCESS MATRIX] School ID: ${schoolId}`);
+    console.log(`🔐 [UPDATE ACCESS MATRIX] Received access matrix:`, JSON.stringify(accessMatrix, null, 2));
+
     // Validate access matrix structure
     if (!accessMatrix || typeof accessMatrix !== 'object') {
+      console.error(`❌ [UPDATE ACCESS MATRIX] Invalid access matrix structure`);
       return res.status(400).json({ message: 'Valid access matrix is required' });
     }
 
@@ -1964,8 +1968,12 @@ exports.updateAccessMatrix = async (req, res) => {
     );
 
     if (!school) {
+      console.error(`❌ [UPDATE ACCESS MATRIX] School not found: ${schoolId}`);
       return res.status(404).json({ message: 'School not found' });
     }
+
+    console.log(`✅ [UPDATE ACCESS MATRIX] Successfully updated in main database for school: ${school.name}`);
+    console.log(`📋 [UPDATE ACCESS MATRIX] Saved access matrix:`, JSON.stringify(school.accessMatrix, null, 2));
 
     // Sync the updated access matrix to the school's dedicated database
     if (school.databaseCreated) {

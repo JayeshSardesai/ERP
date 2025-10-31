@@ -11,6 +11,7 @@ const allPermissions = [
   { key: 'viewAttendance', label: 'Attendance', description: 'Access to view and mark attendance' },
   { key: 'viewAssignments', label: 'Assignments', description: 'Access to manage assignments' },
   { key: 'viewResults', label: 'Results', description: 'Access to view student results' },
+  { key: 'viewLeaves', label: 'Leave Management', description: 'Access to manage leave requests and approvals' },
   { key: 'messageStudentsParents', label: 'Message Students/Parents', description: 'Access to send messages to students and parents' },
   { key: 'viewFees', label: 'Manage Fees', description: 'Access to manage fee structure and payments' },
   { key: 'viewReports', label: 'View Reports', description: 'Access to generate and view reports' },
@@ -21,6 +22,7 @@ const teacherPermissions = [
   { key: 'viewAttendance', label: 'Attendance', description: 'Access to view and mark attendance' },
   { key: 'viewAssignments', label: 'Assignments', description: 'Access to view assignments' },
   { key: 'viewResults', label: 'Results', description: 'Access to view student results' },
+  { key: 'viewLeaves', label: 'Leave Management', description: 'Access to manage own leave requests' },
   { key: 'messageStudentsParents', label: 'Message Students/Parents', description: 'Access to send messages to students and parents' }
 ];
 
@@ -52,13 +54,33 @@ export function ViewAccess() {
   const handlePermissionChange = (role: keyof AccessMatrix, permission: keyof RolePermissions) => {
     if (!accessMatrix) return;
 
-    setAccessMatrix(prev => ({
-      ...prev!,
-      [role]: {
-        ...prev![role],
-        [permission]: !prev![role][permission]
+    setAccessMatrix(prev => {
+      const currentValue = prev![role][permission];
+      let newValue;
+
+      // Handle special cases for teacher permissions that use string values
+      if (role === 'teacher' && permission === 'viewLeaves') {
+        // Toggle between 'own' (enabled) and false (disabled)
+        newValue = (currentValue === 'own' || currentValue === true) ? false : 'own';
+      } else if (role === 'teacher' && permission === 'viewResults') {
+        // Toggle between 'own' (enabled) and false (disabled)
+        newValue = (currentValue === 'own' || currentValue === true) ? false : 'own';
+      } else if (role === 'teacher' && permission === 'manageSchoolSettings') {
+        // Toggle between 'limited' (enabled) and false (disabled)
+        newValue = (currentValue === 'limited' || currentValue === true) ? false : 'limited';
+      } else {
+        // Standard boolean toggle for other permissions
+        newValue = !currentValue;
       }
-    }));
+
+      return {
+        ...prev!,
+        [role]: {
+          ...prev![role],
+          [permission]: newValue
+        }
+      };
+    });
   };
 
   const handleSave = async () => {
@@ -86,7 +108,7 @@ export function ViewAccess() {
     const permissions = role === 'teacher' ? teacherPermissions : adminPermissions;
 
     const activePermissions = permissions.filter(p =>
-      accessMatrix[role][p.key as keyof RolePermissions]
+      !!accessMatrix[role][p.key as keyof RolePermissions]
     ).length;
 
     return (
@@ -144,7 +166,7 @@ export function ViewAccess() {
                     <label className="inline-flex items-center">
                       <input
                         type="checkbox"
-                        checked={accessMatrix[role][permission.key as keyof RolePermissions]}
+                        checked={!!accessMatrix[role][permission.key as keyof RolePermissions]}
                         onChange={() => handlePermissionChange(role, permission.key as keyof RolePermissions)}
                         className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                       />
@@ -211,7 +233,7 @@ export function ViewAccess() {
           {roles.map(role => {
             const permissions = role === 'teacher' ? teacherPermissions : adminPermissions;
             const activePermissions = permissions.filter(p =>
-              accessMatrix[role][p.key as keyof RolePermissions]
+              !!accessMatrix[role][p.key as keyof RolePermissions]
             ).length;
 
             return (

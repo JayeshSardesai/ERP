@@ -1,19 +1,23 @@
-const StudentFeeRecord = require('../models/StudentFeeRecord');
+const { model: StudentFeeRecord } = require('../models/StudentFeeRecord');
 const FeeStructure = require('../models/FeeStructure');
 const Message = require('../models/Message');
 const reportService = require('../services/reportService');
+const Result = require('../models/Result');
+const { ObjectId } = require('mongodb');
 
 // Get comprehensive school summary
 exports.getSchoolSummary = async (req, res) => {
   try {
     console.log('📊 Generating comprehensive school summary');
     
-    const { from, to, class: targetClass, section: targetSection } = req.query;
+    const { from, to, targetClass, targetSection } = req.query;
+    
+    console.log('📡 Received query params:', { from, to, targetClass, targetSection });
     
     const summary = await reportService.getSchoolSummary(
       req.user.schoolId,
       req.user.schoolCode,
-      { from, to, class: targetClass, section: targetSection }
+      { from, to, targetClass, targetSection }
     );
     
     res.json({
@@ -36,25 +40,74 @@ exports.getClassSummary = async (req, res) => {
   try {
     console.log('📊 Generating class-wise summary');
     
-    const { from, to, page = 1, limit = 20 } = req.query;
+    const { from, to, page = 1, limit = 20, class: targetClass, section: targetSection } = req.query;
     
-    const classSummary = await reportService.getClassSummary(
+    // Use getSchoolSummary with the appropriate filters
+    const classSummary = await reportService.getSchoolSummary(
       req.user.schoolId,
       req.user.schoolCode,
-      { from, to, page: parseInt(page), limit: parseInt(limit) }
+      { 
+        from, 
+        to, 
+        targetClass: targetClass || 'ALL',
+        targetSection: targetSection || 'ALL'
+      }
     );
+    
+    // Ensure classWiseResults exists and is an array
+    const classWiseResults = Array.isArray(classSummary.classWiseResults) 
+      ? classSummary.classWiseResults 
+      : [];
+      
+    console.log('📊 Class-wise results:', JSON.stringify(classWiseResults, null, 2));
+    
+    // Transform the data to match frontend expectations
+    const formattedData = classWiseResults.map(item => ({
+      _id: `${item.class || 'N/A'}_${item.section || 'ALL'}`,
+      class: item.class || 'N/A',
+      section: item.section || 'ALL',
+      totalStudents: item.totalStudents || 0,
+      avgMarks: item.avgMarks || 0,
+      totalResults: item.totalResults || 0
+    }));
+    
+    // Add pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = pageNum * limitNum;
+    
+    const paginatedData = formattedData.slice(startIndex, endIndex);
     
     res.json({
       success: true,
-      data: classSummary
+      data: {
+        classes: paginatedData,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: formattedData.length,
+          pages: Math.ceil(formattedData.length / limitNum)
+        },
+        summary: {
+          total: formattedData.reduce((sum, item) => sum + (item.totalStudents || 0), 0),
+          ...classSummary.summary
+        }
+      }
     });
     
   } catch (error) {
-    console.error('❌ Error generating class summary:', error);
+    console.error('❌ Error generating class summary:', {
+      message: error.message,
+      stack: error.stack,
+      query: req.query
+    });
+    
     res.status(500).json({
       success: false,
       message: 'Failed to generate class summary',
-      error: error.message
+      error: error.message,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
     });
   }
 };
@@ -156,12 +209,31 @@ exports.getDuesList = async (req, res) => {
       section: targetSection, 
       status,
       page = 1,
-      limit = 1000 // Large limit for export
+      limit = 10,
+      search = ''
     } = req.query;
+    
+    // Get school code from user or request
+    const schoolCode = req.user.schoolCode || req.schoolCode;
+    if (!schoolCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'School code is required'
+      });
+    }
+
+    // Get school-specific database connection
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const conn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const db = conn.db || conn;
+    
+    // Get or create model for this connection
+    const StudentFeeRecord = conn.models.StudentFeeRecord || 
+      conn.model('StudentFeeRecord', require('../models/StudentFeeRecord').schema);
     
     // Build query
     const query = {
-      schoolId: req.user.schoolId,
+      schoolId: req.user.schoolId || req.user._id,
       totalPending: { $gt: 0 } // Only records with outstanding amount
     };
     
@@ -174,50 +246,63 @@ exports.getDuesList = async (req, res) => {
     }
     
     if (status && status !== 'ALL') {
-      query.status = status;
+      // Status is already in lowercase from frontend, matching the database enum
+      query.status = status.toLowerCase();
+    }
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { studentName: { $regex: search, $options: 'i' } },
+        { rollNumber: { $regex: search, $options: 'i' } }
+      ];
     }
     
     // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
     
-    // Execute query
-    const dues = await StudentFeeRecord.find(query)
+    console.log('🔍 Query:', JSON.stringify(query, null, 2));
+    
+    // Get total count for pagination
+    const total = await StudentFeeRecord.countDocuments(query);
+    const pages = Math.ceil(total / limitNum);
+    
+    // Execute query with pagination
+    const records = await StudentFeeRecord.find(query)
       .sort({ totalPending: -1, overdueDays: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNum)
+      .lean();
     
-    // Format for export
-    const duesList = dues.map(record => ({
-      studentName: record.studentName,
-      class: record.studentClass,
-      section: record.studentSection,
-      rollNumber: record.rollNumber,
-      feeStructure: record.feeStructureName,
-      academicYear: record.academicYear,
-      totalAmount: record.totalAmount,
-      totalPaid: record.totalPaid,
-      totalPending: record.totalPending,
-      status: record.status,
-      paymentPercentage: record.paymentPercentage,
-      nextDueDate: record.nextDueDate,
-      overdueDays: record.overdueDays,
-      lastPaymentDate: record.payments.length > 0 
-        ? record.payments[record.payments.length - 1].paymentDate 
-        : null
-    }));
+    console.log(`📊 Found ${records.length} records out of ${total} total`);
     
     res.json({
       success: true,
       data: {
-        dues: duesList,
-        totalCount: dues.length,
-        exportInfo: {
-          generatedAt: new Date().toISOString(),
-          filters: {
-            class: targetClass || 'ALL',
-            section: targetSection || 'ALL',
-            status: status || 'ALL'
-          }
+        records: records.map(record => ({
+          id: record._id ? record._id.toString() : null,
+          studentId: record.studentId ? record.studentId.toString() : null,
+          studentName: record.studentName || 'N/A',
+          studentClass: record.studentClass || 'N/A',
+          studentSection: record.studentSection || 'N/A',
+          rollNumber: record.rollNumber || '',
+          feeStructureName: record.feeStructureName || 'N/A',
+          totalAmount: record.totalAmount || 0,
+          totalPaid: record.totalPaid || 0,
+          totalPending: record.totalPending || 0,
+          status: record.status || 'PENDING',
+          paymentPercentage: record.paymentPercentage || 0,
+          nextDueDate: record.nextDueDate || null,
+          overdueDays: record.overdueDays || 0,
+          installments: record.installments || []
+        })),
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          pages
         }
       }
     });
@@ -227,7 +312,8 @@ exports.getDuesList = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to generate dues list',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -322,6 +408,101 @@ exports.getClassWiseAnalysis = async (req, res) => {
   }
 };
 
+// Get school overview from results collection
+exports.getSchoolOverview = async (req, res) => {
+  try {
+    console.log('📊 Fetching school overview from results collection');
+    
+    const { schoolId } = req.user;
+    const { academicYear, class: targetClass, section: targetSection } = req.query;
+    
+    // Debug: Log the request details
+    console.log('🔍 Request details:', {
+      schoolId,
+      academicYear,
+      targetClass,
+      targetSection
+    });
+    
+    // Debug: Check if we have any results in the collection
+    const totalResults = await Result.countDocuments({});
+    console.log(`📊 Total documents in results collection: ${totalResults}`);
+    
+    if (totalResults === 0) {
+      console.warn('⚠️ No documents found in the results collection');
+    }
+    
+    // Build match query
+    const matchQuery = {
+      schoolId: new ObjectId(schoolId),
+      status: 'published'
+    };
+    
+    if (academicYear) matchQuery.academicYear = academicYear;
+    if (targetClass && targetClass !== 'ALL') matchQuery.class = targetClass;
+    if (targetSection && targetSection !== 'ALL') matchQuery.section = targetSection;
+    
+    console.log('🔍 Match query:', JSON.stringify(matchQuery, null, 2));
+    
+    // Debug: Check what documents match our query
+    const matchingDocs = await Result.find(matchQuery).limit(1).lean();
+    console.log('🔍 Sample matching document:', JSON.stringify(matchingDocs[0] || 'No matching documents', null, 2));
+    
+    // Get unique students and their attendance
+    const results = await Result.aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: '$student',
+          totalAttendance: { $sum: '$attendancePercentage' },
+          resultCount: { $sum: 1 }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalStudents: { $sum: 1 },
+          totalAttendance: { $sum: '$totalAttendance' },
+          totalResults: { $sum: '$resultCount' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          totalStudents: 1,
+          avgAttendance: {
+            $cond: [
+              { $gt: ['$totalResults', 0] },
+              { $divide: ['$totalAttendance', '$totalResults'] },
+              0
+            ]
+          }
+        }
+      }
+    ]);
+    
+    const overview = results[0] || { totalStudents: 0, avgAttendance: 0 };
+    
+    console.log('📊 School overview data:', JSON.stringify(overview, null, 2));
+    
+    res.json({
+      success: true,
+      data: {
+        totalStudents: overview.totalStudents,
+        avgAttendance: Math.round(overview.avgAttendance * 10) / 10
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in getSchoolOverview:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch school overview',
+      error: error.message
+    });
+  }
+};
+
 // Get payment trends
 exports.getPaymentTrends = async (req, res) => {
   try {
@@ -404,6 +585,39 @@ exports.getPaymentTrends = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to generate payment trends',
+      error: error.message
+    });
+  }
+};
+
+// Get students by class and section
+exports.getStudentsByClassSection = async (req, res) => {
+  try {
+    console.log('📊 Fetching students by class and section');
+    
+    const { className, section } = req.query;
+    
+    if (!className) {
+      return res.status(400).json({
+        success: false,
+        message: 'Class name is required'
+      });
+    }
+    
+    const result = await reportService.getStudentsByClassSection(
+      req.user.schoolId,
+      req.user.schoolCode,
+      className,
+      section
+    );
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ Error fetching students by class/section:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch students',
       error: error.message
     });
   }

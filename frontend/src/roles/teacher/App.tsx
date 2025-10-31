@@ -10,8 +10,8 @@ import ViewAssignments from './components/Assignments/ViewAssignments';
 import ViewResults from './components/Results/ViewResults';
 import Messages from './components/Messages/Messages';
 import LeaveRequestManagement from './components/LeaveRequest/LeaveRequestManagement';
-import SchoolSettings from './components/Settings/SchoolSettings';
 import { PermissionProvider } from '../../hooks/usePermissions';
+import { PermissionGuard } from '../../components/PermissionGuard';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -51,9 +51,11 @@ function App() {
       case 'messages':
         return <Messages />;
       case 'leave-request':
-        return <LeaveRequestManagement onNavigate={handleNavigate} />;
-      case 'settings':
-        return <SchoolSettings />;
+        return (
+          <PermissionGuard permission="viewLeaves" permissionName="Leave Management">
+            <LeaveRequestManagement onNavigate={handleNavigate} />
+          </PermissionGuard>
+        );
       default:
         return <Dashboard onNavigate={handleNavigate} />;
     }

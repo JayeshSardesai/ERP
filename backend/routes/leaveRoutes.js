@@ -1,27 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const { auth, authorize } = require('../middleware/auth');
+const checkPermission = require('../middleware/permissionCheck');
 const leaveRequestController = require('../controllers/leaveRequestController');
 
 // Teacher Routes
 router.post(
   '/teacher/create',
   auth,
-  authorize('teacher'),
+  checkPermission('viewLeaves'),
   leaveRequestController.createLeaveRequest
 );
 
 router.get(
   '/teacher/my-requests',
   auth,
-  authorize('teacher'),
+  checkPermission('viewLeaves'),
   leaveRequestController.getTeacherLeaveRequests
 );
 
 router.delete(
   '/teacher/:id',
   auth,
-  authorize('teacher'),
+  checkPermission('viewLeaves'),
   leaveRequestController.deleteLeaveRequest
 );
 
@@ -29,28 +30,28 @@ router.delete(
 router.get(
   '/admin/all',
   auth,
-  authorize('admin'),
+  checkPermission('viewLeaves'),
   leaveRequestController.getSchoolLeaveRequests
 );
 
 router.get(
   '/admin/pending',
   auth,
-  authorize('admin'),
+  checkPermission('viewLeaves'),
   leaveRequestController.getPendingLeaveRequests
 );
 
 router.put(
   '/admin/:id/status',
   auth,
-  authorize('admin'),
+  checkPermission('viewLeaves'),
   leaveRequestController.updateLeaveRequestStatus
 );
 
 router.get(
   '/admin/stats',
   auth,
-  authorize('admin'),
+  checkPermission('viewLeaves'),
   leaveRequestController.getLeaveRequestStats
 );
 
@@ -58,7 +59,7 @@ router.get(
 router.get(
   '/:id',
   auth,
-  authorize('teacher', 'admin'),
+  checkPermission('viewLeaves'),
   leaveRequestController.getLeaveRequestById
 );
 
