@@ -36,6 +36,8 @@ import FeesPage from './pages/FeesPage'
 
 import ReportsPage from './pages/ReportsPage'
 
+import LeaveManagement from './pages/LeaveManagement'
+
 import ErrorBoundary from '../../components/ErrorBoundary'
 
 import { PermissionGuard } from '../../components/PermissionGuard'
@@ -170,6 +172,14 @@ export function AdminApp() {
           <Route path="reports" element={
             <PermissionGuard permission="viewReports" permissionName="Reports">
               <ReportsPage />
+            </PermissionGuard>
+
+          } />
+
+          {/* Leave Management - Requires manageUsers permission */}
+          <Route path="leave-management" element={
+            <PermissionGuard permission="manageUsers" permissionName="Leave Management">
+              <LeaveManagement />
             </PermissionGuard>
 
           } />

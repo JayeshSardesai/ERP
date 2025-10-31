@@ -105,11 +105,11 @@ const Dashboard: React.FC = () => {
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [attendanceRate, setAttendanceRate] = useState<string>('0.0%');
-  const [gradeDistribution, setGradeDistribution] = useState<Array<{name: string, students: number}>>([]);
   const [dailyAttendance, setDailyAttendance] = useState<Array<{name: string, attendance: number}>>([]);
   const [todayAttendance, setTodayAttendance] = useState<{present: number, absent: number}>({present: 0, absent: 0});
   const [morningAttendance, setMorningAttendance] = useState<{present: number, absent: number}>({present: 0, absent: 0});
   const [afternoonAttendance, setAfternoonAttendance] = useState<{present: number, absent: number}>({present: 0, absent: 0});
+  const [classPerformance, setClassPerformance] = useState<Array<{name: string, percentage: number, studentCount: number}>>([]);
 
   // Get auth token - improved to use AuthContext first
   const getAuthToken = () => {
@@ -291,15 +291,18 @@ const Dashboard: React.FC = () => {
   }, [user]);
   console.log(user);
 
-  // Fetch overall attendance rate (all sessions, days, sections)
+  // Fetch today's attendance rate only
   useEffect(() => {
     const fetchAttendanceStats = async () => {
       try {
         const token = getAuthToken();
         if (!token || !user?.schoolCode) return;
 
+        const today = new Date().toISOString().split('T')[0];
+        console.log('📊 Fetching today\'s attendance rate for:', today);
+
         const response = await fetch(
-          `http://localhost:5050/api/attendance/overall-rate`,
+          `http://localhost:5050/api/attendance/stats?date=${today}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -310,16 +313,20 @@ const Dashboard: React.FC = () => {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('📊 Overall attendance rate data:', data);
+          console.log('📊 Today\'s attendance data:', data);
           
-          if (data.success && data.attendanceRateFormatted) {
-            setAttendanceRate(data.attendanceRateFormatted);
-          } else if (data.overallAttendanceRate !== undefined) {
-            setAttendanceRate(`${data.overallAttendanceRate}%`);
+          if (data.success) {
+            const totalStudents = (data.presentCount || 0) + (data.absentCount || 0);
+            if (totalStudents > 0) {
+              const rate = ((data.presentCount || 0) / totalStudents * 100).toFixed(1);
+              setAttendanceRate(`${rate}%`);
+            } else {
+              setAttendanceRate('0.0%');
+            }
           }
         }
       } catch (err) {
-        console.error('Error fetching overall attendance rate:', err);
+        console.error('Error fetching today\'s attendance rate:', err);
         // Keep default value on error
       }
     };
@@ -493,60 +500,41 @@ const Dashboard: React.FC = () => {
     fetchDailyAttendance();
   }, [user]);
 
-  // Calculate grade distribution from actual student data
+  // Fetch class performance data
   useEffect(() => {
-    if (users.length > 0) {
-      const students = users.filter(u => u.role === 'student');
-      
-      console.log('📊 Calculating grade distribution for', students.length, 'students');
-      
-      // Group students by class/grade
-      const gradeMap: Record<string, number> = {};
-      
-      students.forEach(student => {
-        // Get class from studentDetails.currentClass (primary field in school database)
-        const studentClass = (student as any).studentDetails?.currentClass || 
-                            (student as any).studentDetails?.class || 
-                            (student as any).class || 
-                            (student as any).currentClass ||
-                            'Unassigned';
-        
-        console.log('Student:', (student as any).name || student.email, 'Class:', studentClass);
-        
-        if (gradeMap[studentClass]) {
-          gradeMap[studentClass]++;
-        } else {
-          gradeMap[studentClass] = 1;
-        }
-      });
-      
-      console.log('📊 Grade distribution map:', gradeMap);
-      
-      // Convert to array format for the chart
-      const distribution = Object.entries(gradeMap)
-        .map(([name, students]) => ({ name, students }))
-        .sort((a, b) => {
-          // Sort by class name (handle numeric and text classes)
-          const aNum = parseInt(a.name);
-          const bNum = parseInt(b.name);
-          if (!isNaN(aNum) && !isNaN(bNum)) {
-            return aNum - bNum;
+    const fetchClassPerformance = async () => {
+      try {
+        const token = getAuthToken();
+        if (!token || !user?.schoolCode) return;
+
+        console.log('📊 Fetching class performance data');
+
+        const response = await fetch(
+          `http://localhost:5050/api/results/class-performance-stats`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
           }
-          return a.name.localeCompare(b.name);
-        });
-      
-      console.log('📊 Final distribution for chart:', distribution);
-      
-      setGradeDistribution(distribution.length > 0 ? distribution : [
-        { name: 'No Data', students: 0 }
-      ]);
-    } else {
-      // Fallback data when no students
-      setGradeDistribution([
-        { name: 'No Students', students: 0 }
-      ]);
-    }
-  }, [users]);
+        );
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('📊 Class performance data:', result);
+          
+          if (result.success && result.data) {
+            setClassPerformance(result.data);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching class performance:', err);
+      }
+    };
+
+    fetchClassPerformance();
+  }, [user]);
+
 
   // Helper function to get full logo URL
   const getLogoUrl = (logoPath: string | undefined): string => {
@@ -698,11 +686,6 @@ const Dashboard: React.FC = () => {
                       </svg>
                       {school?.code || 'N/A'}
                     </span>
-                    {school?.schoolType && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300">
-                        {school.schoolType} School
-                      </span>
-                    )}
                     {school?.affiliationBoard && (
                       <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300">
                         {school.affiliationBoard}
@@ -855,35 +838,36 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Weekly Attendance */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Weekly Attendance</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={attendanceData}>
+          {/* Class Performance */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Class Performance</h3>
+            {classPerformance.length > 0 ? (
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={classPerformance}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="attendance" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                  <YAxis domain={[0, 100]} label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }} />
+                  <Tooltip 
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value}%`,
+                      `Average: ${value}% (${props.payload.studentCount} students)`
+                    ]}
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  />
+                  <Bar dataKey="percentage" fill="#10B981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p>No performance data available</p>
+                <p className="text-sm mt-2">Results will appear here once students' grades are entered</p>
+              </div>
+            )}
+          </div>
 
-            {/* Student Distribution */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Students by Grade</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={gradeDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="students" stroke="#10B981" strokeWidth={3} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+          {/* Today's Attendance Section Title */}
+          <div className="mt-2">
+            <h2 className="text-xl font-semibold text-gray-900 text-center">Today's Attendance</h2>
           </div>
 
           {/* Today's Attendance - Morning and Afternoon Sessions */}
@@ -994,6 +978,22 @@ const Dashboard: React.FC = () => {
                   Total: {afternoonAttendance.present + afternoonAttendance.absent} students
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Weekly Attendance - Centered */}
+          <div className="flex justify-center">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 w-full lg:w-1/2">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">Weekly Attendance</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={attendanceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="attendance" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 

@@ -247,9 +247,9 @@ class SimpleIDCardGenerator {
   getFieldPositions(orientation, side) {
     if (orientation === 'landscape' && side === 'front') {
       return {
-        schoolLogo: { x: 70, y: 60, width: 80, height: 80 },
-        schoolName: { x: 165, y: 58, fontSize: 30, fontWeight: 'bold', maxWidth: 700, multiLine: true, maxCharsPerLine: 70, lineHeight: 1.1, minFontSize: 18, maxLines: 2, autoSize: true, dynamicHeight: true },
-        schoolAddress: { x: 165, y: 105, fontSize: 16, fontWeight: 'normal', maxWidth: 700, multiLine: true, maxCharsPerLine: 90, lineHeight: 1.0, minFontSize: 12, maxLines: 2, autoSize: true, dynamicY: true, baseY: 105, dependsOn: 'schoolName' },
+        schoolLogo: { x: 130, y: 80, width: 80, height: 80 },
+        schoolName: { x: 230, y: 80, fontSize: 30, fontWeight: 'bold', maxWidth: 700, multiLine: true, maxCharsPerLine: 70, lineHeight: 1.1, minFontSize: 18, maxLines: 2, autoSize: true, dynamicHeight: true },
+        schoolAddress: { x: 230, y: 130, fontSize: 16, fontWeight: 'normal', maxWidth: 700, multiLine: true, maxCharsPerLine: 90, lineHeight: 1.0, minFontSize: 12, maxLines: 2, autoSize: true, dynamicY: true, baseY: 105, dependsOn: 'schoolName' },
         photo: { x: 75, y: 185, width: 235, height: 300 },
         nameLabel: { x: 330, y: 203, fontSize: 24, fontWeight: 'bold', dynamicX: true },
         name: { x: 530, y: 203, fontSize: 24, fontWeight: 'bold', maxWidth: 550, multiLine: true, maxCharsPerLine: 30, lineHeight: 1.2, maxLines: 3, dynamicX: true },
@@ -263,7 +263,7 @@ class SimpleIDCardGenerator {
       };
     } else if (orientation === 'landscape' && side === 'back') {
       return {
-        address: { x: 400, y: 116, fontSize: 20, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 52, subsequentMaxCharsPerLine: 85, lineHeight: 1.3, minFontSize: 16, maxLines: 4, autoSize: false, firstLineX: 400, subsequentLinesX: 200, textAlign: 'center' },
+        address: { x: 400, y: 116, fontSize: 20, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 52, lineHeight: 1.3, minFontSize: 16, maxLines: 4, autoSize: false },
         mobile: { x: 520, y: 183, fontSize: 23, fontWeight: 'bold', maxWidth: 200 },
         returnSchoolName: { x: 270, y: 415, fontSize: 23, fontWeight: 'bold', maxWidth: 750, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
         returnAddress: { x: 170, y: 450, fontSize: 23, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true, textAlign: 'center' },
@@ -272,7 +272,7 @@ class SimpleIDCardGenerator {
       };
     } else if (orientation === 'portrait' && side === 'front') {
       return {
-        schoolLogo: { x: 30, y: 55, width: 80, height: 80 },
+        schoolLogo: { x: 30, y: 60, width: 80, height: 80 },
         schoolName: { x: 125, y: 55, fontSize: 24, fontWeight: 'bold', maxWidth: 400, multiLine: true, maxCharsPerLine: 25, lineHeight: 1.2, minFontSize: 24, maxLines: 3, autoSize: false, dynamicHeight: true },
         schoolAddress: { x: 125, y: 95, fontSize: 12, fontWeight: 'normal', maxWidth: 500, multiLine: true, maxCharsPerLine: 65, lineHeight: 1.2, minFontSize: 12, maxLines: 3, autoSize: false, dynamicY: true, baseY: 95, dependsOn: 'schoolName' },
         photo: { x: 175, y: 195, width: 240, height: 300 },

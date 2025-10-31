@@ -53,4 +53,10 @@ router.get('/class/:grade/:section/report',
   resultController.generateClassPerformanceReport
 );
 
+// Get class performance statistics for dashboard - requires viewResults permission
+router.get('/class-performance-stats', 
+  checkPermission('viewResults'),
+  resultController.getClassPerformanceStats
+);
+
 module.exports = router;
