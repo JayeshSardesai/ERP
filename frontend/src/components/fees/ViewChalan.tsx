@@ -70,7 +70,6 @@ interface ChalanDetails {
   // Chalan Details
   chalanNumber: string;
   chalanDate: string;
-  chalanStatus: 'pending' | 'generated' | 'paid' | 'unpaid' | 'cancelled';
   
   // Installment Details
   installmentName: string;
@@ -413,11 +412,6 @@ const ChalanCopy: React.FC<ChalanCopyProps> = ({
           </div>
         </div>
         
-        <div className="mt-4">
-          <div className="w-full h-12 border-t border-b border-gray-300 flex items-center px-4">
-            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">PAYMENT STATUS</p>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -761,7 +755,7 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
     const classSection = `${chalan?.className || ''}${chalan?.section ? '-' + chalan.section : ''}`;
     const installmentName = chalan?.installmentName || 'N/A';
     const amount = chalan?.amount ? `₹${chalan.amount.toLocaleString('en-IN')}` : '₹0';
-    const paymentStatus = (chalan?.status || chalan?.chalanStatus || 'pending').toUpperCase();
+    const paymentStatus = (chalan?.status || chalan?.chalanStatus || 'Status').toUpperCase();
     
     // Use the same logic as the view for bank details
     let bankDetails: BankDetails = chalan?.bankDetails && chalan.bankDetails.bankName ? chalan.bankDetails : (chalan?.schoolData?.bankDetails && chalan.schoolData.bankDetails.bankName ? chalan.schoolData.bankDetails : {
@@ -805,7 +799,7 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
           .school-logo { height: 50px; width: 50px; object-fit: contain; border-radius: 4px; border: 1px solid #eee; background: #fff; }
           .school-info-block { display: flex; flex-direction: column; justify-content: flex-start; margin-left: 12px; }
           .school-info { font-size: 11px; color: #2c3e50; font-weight: bold; text-align: left; }
-          .school-details { font-size: 7px; color: #555; line-height: 1.4; text-align: left; }
+          .school-details { font-size: 10px; color: #555; line-height: 1.4; text-align: left; }
           .title-row { text-align: center; margin: 10px 0 2px 0; }
           .challan-title { font-size: 13px; font-weight: bold; color: #2c3e50; }
           .academic-year { font-size: 9px; color: #666; margin-bottom: 2px; }
@@ -848,7 +842,7 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
                 <span class=\"copy-type\">STUDENT COPY</span>
               </div>
             </div>
-            <div class=\"challan-number\">Chalan: ${chalanNumber}</div>
+        
             <div class=\"content-section\">
               <div class=\"info-group\">
                 <div class=\"info-title\">Bank Details:</div>
@@ -873,7 +867,6 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
                 <div class=\"info-row\"><span class=\"info-label\">Due Date:</span><span class=\"info-value\">${dueDate}</span></div>
               </div>
             </div>
-            <div class=\"payment-status\">${paymentStatus}</div>
             <div class=\"branding\">EduLogix - Institute Management System</div>
           </div>
 
@@ -893,7 +886,7 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
                 <span class=\"copy-type\">OFFICE COPY</span>
               </div>
             </div>
-            <div class=\"challan-number\">Chalan: ${chalanNumber}</div>
+         
             <div class=\"content-section\">
               <div class=\"info-group\">
                 <div class=\"info-title\">Bank Details:</div>
@@ -918,7 +911,6 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
                 <div class=\"info-row\"><span class=\"info-label\">Due Date:</span><span class=\"info-value\">${dueDate}</span></div>
               </div>
             </div>
-            <div class=\"payment-status\">${paymentStatus}</div>
             <div class=\"branding\">EduLogix - Institute Management System</div>
           </div>
 
@@ -938,7 +930,7 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
                 <span class=\"copy-type\">ADMIN COPY</span>
               </div>
             </div>
-            <div class=\"challan-number\">Chalan: ${chalanNumber}</div>
+           
             <div class=\"content-section\">
               <div class=\"info-group\">
                 <div class=\"info-title\">Bank Details:</div>
@@ -963,7 +955,6 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
                 <div class=\"info-row\"><span class=\"info-label\">Due Date:</span><span class=\"info-value\">${dueDate}</span></div>
               </div>
             </div>
-            <div class=\"payment-status\">${paymentStatus}</div>
             <div class=\"branding\">EduLogix - Institute Management System</div>
           </div>
         </div>
