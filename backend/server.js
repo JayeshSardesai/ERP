@@ -77,6 +77,7 @@ const reportsRoutes = require('./routes/reports');
 const promotionRoutes = require('./routes/promotion');
 const academicYearRoutes = require('./routes/academicYear');
 const migrationRoutes = require('./routes/migration');
+const leaveRoutes = require('./routes/leaveRoutes');
 const idCardTemplateRoutes = require('./routes/idCardTemplates');
 
 // Serve uploads statically
@@ -184,6 +185,7 @@ app.use('/api/classes', classesRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/fees', feesRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/leave-requests', leaveRoutes);
 app.use('/api/id-card-templates', idCardTemplateRoutes);
 
 

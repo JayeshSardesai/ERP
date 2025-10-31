@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Upload, Calendar, FileText, Users } from 'lucide-react';
 import * as assignmentAPI from '../../../api/assignment';
 import { useAuth } from '../../../auth/AuthContext';
+import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 
 interface CreateAssignmentModalProps {
   isOpen: boolean;
@@ -26,6 +27,12 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
   onSuccess
 }) => {
   const { token } = useAuth();
+  const {
+    classesData,
+    getClassOptions,
+    getSectionsByClass
+  } = useSchoolClasses();
+
   const [formData, setFormData] = useState<FormData>({
     title: '',
     subject: '',
@@ -41,13 +48,6 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
-
-  // Class options matching our class-subjects system
-  const classes = [
-    'LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'
-  ];
-
-  const sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'];
 
   useEffect(() => {
     if (isOpen && formData.class) {
@@ -308,13 +308,28 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
                   }}
                 >
                   <option value="">Select Class</option>
-                  {classes.map(cls => (
-                    <option key={cls} value={cls}>
-                      {cls === 'LKG' ? 'LKG' : cls === 'UKG' ? 'UKG' : `Class ${cls}`}
-                    </option>
+                  {getClassOptions().map(cls => (
+                    <option key={cls.value} value={cls.value}>{cls.label}</option>
                   ))}
                 </select>
                 {errors.class && <p className="text-red-500 text-xs mt-1">{errors.class}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Section *</label>
+                <select
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                    errors.section ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  value={formData.section}
+                  onChange={e => setFormData({ ...formData, section: e.target.value })}
+                >
+                  <option value="">Select Section</option>
+                  {(formData.class ? getSectionsByClass(formData.class) : []).map(section => (
+                    <option key={section.value} value={section.value}>{section.label}</option>
+                  ))}
+                </select>
+                {errors.section && <p className="text-red-500 text-xs mt-1">{errors.section}</p>}
               </div>
 
               <div>
@@ -333,23 +348,6 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
                   ))}
                 </select>
                 {errors.subject && <p className="text-red-500 text-xs mt-1">{errors.subject}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Section *</label>
-                <select
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.section ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  value={formData.section}
-                  onChange={e => setFormData({ ...formData, section: e.target.value })}
-                >
-                  <option value="">Select Section</option>
-                  {sections.map(section => (
-                    <option key={section} value={section}>Section {section}</option>
-                  ))}
-                </select>
-                {errors.section && <p className="text-red-500 text-xs mt-1">{errors.section}</p>}
               </div>
             </div>
 

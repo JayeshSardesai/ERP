@@ -10,9 +10,7 @@ import {
   UserCheck,
   BookOpen,
   BarChart3,
-  Bell,
   User,
-  LogOut,
   GraduationCap,
   MessageSquare,
   CreditCard,
@@ -36,6 +34,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Attendance', href: '/admin/attendance', icon: UserCheck },
     { name: 'Assignments', href: '/admin/assignments', icon: BookOpen },
     { name: 'Results', href: '/admin/results', icon: BarChart3 },
+    { name: 'Leave Management', href: '/admin/leave-management', icon: Calendar },
     { name: 'Messages', href: '/admin/messages', icon: MessageSquare },
     { name: 'Fees', href: '/admin/fees/structure', icon: CreditCard },
     { name: 'Reports', href: '/admin/reports', icon: FileText },
@@ -132,17 +131,11 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </button>
 
             <div className="flex items-center space-x-4">
-              <button className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
-                <Bell className="h-5 w-5" />
-              </button>
               <div className="flex items-center space-x-2">
                 <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
                   <User className="h-4 w-4 text-white" />
                 </div>
                 <span className="text-sm font-medium text-gray-700">Admin User</span>
-                <button className="text-gray-500 hover:text-gray-700 p-1 rounded">
-                  <LogOut className="h-4 w-4" />
-                </button>
               </div>
             </div>
           </div>

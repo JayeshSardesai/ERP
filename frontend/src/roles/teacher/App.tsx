@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
+import Attendance from './components/Attendance/Attendance';
 import MarkAttendance from './components/Attendance/MarkAttendance';
 import ViewAttendance from './components/Attendance/ViewAttendance';
+import Assignments from './components/Assignments/Assignments';
 import AddAssignments from './components/Assignments/AddAssignments';
+import ViewAssignments from './components/Assignments/ViewAssignments';
 import ViewResults from './components/Results/ViewResults';
 import Messages from './components/Messages/Messages';
-import SchoolSettings from './components/Settings/SchoolSettings';
+import LeaveRequestManagement from './components/LeaveRequest/LeaveRequestManagement';
 import { PermissionProvider } from '../../hooks/usePermissions';
+import { PermissionGuard } from '../../components/PermissionGuard';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -30,18 +34,28 @@ function App() {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard onNavigate={handleNavigate} />;
+      case 'attendance':
+        return <Attendance onNavigate={handleNavigate} />;
       case 'mark-attendance':
         return <MarkAttendance />;
       case 'view-attendance':
         return <ViewAttendance />;
+      case 'assignments':
+        return <Assignments onNavigate={handleNavigate} />;
       case 'add-assignments':
         return <AddAssignments />;
+      case 'view-assignments':
+        return <ViewAssignments />;
       case 'view-results':
         return <ViewResults />;
       case 'messages':
         return <Messages />;
-      case 'settings':
-        return <SchoolSettings />;
+      case 'leave-request':
+        return (
+          <PermissionGuard permission="viewLeaves" permissionName="Leave Management">
+            <LeaveRequestManagement onNavigate={handleNavigate} />
+          </PermissionGuard>
+        );
       default:
         return <Dashboard onNavigate={handleNavigate} />;
     }

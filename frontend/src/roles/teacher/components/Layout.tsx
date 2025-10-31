@@ -14,7 +14,7 @@ import {
   Home,
   UserCheck
 } from 'lucide-react';
-import { currentUser } from '../utils/mockData';
+import { useAuth } from '../../../auth/AuthContext';
 import { usePermissions, PermissionKey } from '../../../hooks/usePermissions';
 import { PermissionDeniedModal } from '../../../components/PermissionDeniedModal';
 
@@ -26,19 +26,31 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout }) => {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { hasPermission, showPermissionDenied, setShowPermissionDenied, deniedPermissionName, checkAndNavigate } = usePermissions();
 
-  // Define menu items with permission requirements
+  // Get initials from teacher name
+  const getInitials = () => {
+    if (!user?.name) return 'T';
+    const nameParts = user.name.split(' ');
+    if (nameParts.length >= 2) {
+      // First letter of first name + first letter of last name
+      return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
+    }
+    // If only one name, return first two letters
+    return user.name.substring(0, 2).toUpperCase();
+  };
+
   const menuItems = [
     { name: 'Dashboard', icon: Home, page: 'dashboard', permission: null },
-    { name: 'Mark Attendance', icon: UserCheck, page: 'mark-attendance', permission: 'viewAttendance' as PermissionKey },
-    { name: 'View Attendance', icon: Users, page: 'view-attendance', permission: 'viewAttendance' as PermissionKey },
-    { name: 'Add Assignments', icon: FileText, page: 'add-assignments', permission: 'viewAssignments' as PermissionKey },
-    { name: 'View Results', icon: BarChart3, page: 'view-results', permission: 'viewResults' as PermissionKey },
+    { name: 'Attendance', icon: UserCheck, page: 'attendance', permission: 'viewAttendance' as PermissionKey },
+    { name: 'Assignments', icon: FileText, page: 'assignments', permission: 'viewAssignments' as PermissionKey },
+    { name: 'Results', icon: BarChart3, page: 'view-results', permission: 'viewResults' as PermissionKey },
     { name: 'Messages', icon: MessageSquare, page: 'messages', permission: 'messageStudentsParents' as PermissionKey },
-    { name: 'Settings', icon: Settings, page: 'settings', permission: null }
+    { name: 'Leave Request', icon: Calendar, page: 'leave-request', permission: 'viewLeaves' as PermissionKey }
   ];
+
 
   const handleMenuClick = (item: typeof menuItems[0]) => {
     if (item.permission && !hasPermission(item.permission)) {
@@ -103,24 +115,17 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
           </nav>
 
           <div className="px-4 py-6 border-t border-gray-200">
-            <div className="flex items-center mb-4">
-              <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
-                className="w-10 h-10 rounded-full mr-3"
-              />
+            <div className="flex items-center">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mr-3">
+                <span className="text-white font-bold text-sm">
+                  {getInitials()}
+                </span>
+              </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">{currentUser.name}</p>
-                <p className="text-xs text-gray-500">{currentUser.employeeId}</p>
+                <p className="text-sm font-medium text-gray-900">{user?.name || 'Teacher'}</p>
+                <p className="text-xs text-gray-500">{user?.userId || user?.email}</p>
               </div>
             </div>
-            <button
-              onClick={onLogout}
-              className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-700 rounded-lg hover:bg-red-50 transition-colors"
-            >
-              <LogOut className="h-4 w-4 mr-3" />
-              Sign Out
-            </button>
           </div>
         </div>
       </div>

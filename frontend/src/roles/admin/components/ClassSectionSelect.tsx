@@ -14,10 +14,15 @@ interface ClassSectionSelectProps {
   showSection?: boolean; // Default true. When false, hide section UI and force 'ALL'
 }
 
+interface SectionData {
+  sectionId: string;
+  sectionName: string;
+}
+
 interface ClassData {
   _id: string;
   className: string;
-  sections: string[];
+  sections: SectionData[];
   displayName: string;
 }
 
@@ -131,8 +136,8 @@ const ClassSectionSelect: React.FC<ClassSectionSelectProps> = ({
       // Find the selected class and its sections
       const selectedClass = classes.find(c => c.className === className);
       if (selectedClass) {
-        const validSections = selectedClass.sections;
-        if (valueSection !== 'ALL' && !validSections.includes(valueSection)) {
+        const validSectionNames = selectedClass.sections.map(s => s.sectionName);
+        if (valueSection !== 'ALL' && !validSectionNames.includes(valueSection)) {
           onSectionChange('ALL');
         }
       } else {
@@ -151,11 +156,19 @@ const ClassSectionSelect: React.FC<ClassSectionSelectProps> = ({
   // Get available sections for the selected class
   const getAvailableSections = () => {
     if (valueClass === 'ALL') {
-      return ['ALL'];
+      return [{ sectionId: 'ALL', sectionName: 'ALL' }];
     }
 
     const selectedClass = classes.find(c => c.className === valueClass);
     return selectedClass ? selectedClass.sections : [];
+  };
+
+  // Get display name for selected section
+  const getSelectedSectionDisplay = () => {
+    if (valueSection === 'ALL') return 'All Sections';
+    
+    const selectedSection = getAvailableSections().find(s => s.sectionName === valueSection);
+    return selectedSection ? `Section ${selectedSection.sectionName}` : 'Select Section';
   };
 
   // Render loading state
@@ -191,7 +204,7 @@ const ClassSectionSelect: React.FC<ClassSectionSelectProps> = ({
   // Render no data state
   if (classes.length === 0) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div key="no-data-state" className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="col-span-2 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded flex items-center">
           <AlertCircle className="h-5 w-5 mr-2" />
           <span className="text-sm">
@@ -209,9 +222,9 @@ const ClassSectionSelect: React.FC<ClassSectionSelectProps> = ({
   }
 
   return (
-    <div className={`grid grid-cols-1 ${showSection ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4`}>
+    <div key="class-section-select" className={`grid grid-cols-1 ${showSection ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4`}>
       {/* Class Selection */}
-      <div className="relative">
+      <div key="class-selector" className="relative">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Class
         </label>
@@ -231,9 +244,10 @@ const ClassSectionSelect: React.FC<ClassSectionSelectProps> = ({
           </button>
 
           {isClassDropdownOpen && (
-            <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none">
+            <div key="class-dropdown" className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none">
               {includeAllOptions && (
                 <div
+                  key="all-classes"
                   className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
                   onClick={() => handleClassChange('ALL')}
                 >
@@ -242,7 +256,7 @@ const ClassSectionSelect: React.FC<ClassSectionSelectProps> = ({
               )}
               {classes.map((classData) => (
                 <div
-                  key={classData._id}
+                  key={`class-${classData.className || classData._id}`}
                   className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
                   onClick={() => handleClassChange(classData.className)}
                 >
@@ -259,7 +273,7 @@ const ClassSectionSelect: React.FC<ClassSectionSelectProps> = ({
 
       {/* Section Selection (optional) */}
       {showSection ? (
-        <div className="relative">
+        <div key="section-selector" className="relative">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Section
           </label>
@@ -271,7 +285,7 @@ const ClassSectionSelect: React.FC<ClassSectionSelectProps> = ({
               className="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
               <span className="block truncate">
-                {valueSection === 'ALL' ? 'All Sections' : `Section ${valueSection}`}
+                {getSelectedSectionDisplay()}
               </span>
               <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                 <ChevronDown className="h-5 w-5 text-gray-400" />
@@ -279,24 +293,27 @@ const ClassSectionSelect: React.FC<ClassSectionSelectProps> = ({
             </button>
 
             {isSectionDropdownOpen && (
-              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none">
+              <div key="section-dropdown" className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none">
                 {includeAllOptions && (
                   <div
+                    key="all-sections"
                     className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
                     onClick={() => handleSectionChange('ALL')}
                   >
                     <span className="font-normal block truncate">All Sections</span>
                   </div>
                 )}
-                {getAvailableSections().filter(section => section !== 'ALL').map((section) => (
-                  <div
-                    key={section}
-                    className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
-                    onClick={() => handleSectionChange(section)}
-                  >
-                    <span className="font-normal block truncate">Section {section}</span>
-                  </div>
-                ))}
+                {getAvailableSections()
+                  .filter(section => section.sectionId !== 'ALL')
+                  .map((section) => (
+                    <div
+                      key={`section-${section.sectionId}`}
+                      className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
+                      onClick={() => handleSectionChange(section.sectionName)}
+                    >
+                      <span className="font-normal block truncate">Section {section.sectionName}</span>
+                    </div>
+                  ))}
               </div>
             )}
           </div>

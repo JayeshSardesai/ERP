@@ -1048,6 +1048,134 @@ exports.freezeResults = async (req, res) => {
   }
 };
 
+// Get results for teacher view - formatted for display
+exports.getResultsForTeacher = async (req, res) => {
+  try {
+    const { schoolCode, class: className, section, subject, testType, academicYear } = req.query;
+
+    console.log('👨‍🏫 Teacher fetching results:', { schoolCode, className, section, subject, testType, academicYear });
+
+    // Validate required fields
+    if (!schoolCode || !className || !section || !subject || !testType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: schoolCode, class, section, subject, and testType'
+      });
+    }
+
+    // Get school-specific database connection
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const resultsCollection = schoolConn.collection('results');
+
+    // Build query for student documents
+    const query = {
+      schoolCode: schoolCode.toUpperCase(),
+      className,
+      section,
+      academicYear: academicYear || '2024-25'
+    };
+
+    // Fetch all result documents for the class/section
+    const resultDocs = await resultsCollection.find(query).sort({ studentName: 1 }).toArray();
+
+    console.log(`📚 Found ${resultDocs.length} student result documents for ${className}-${section}`);
+
+    // Extract and format results for the specific subject and test type
+    const formattedResults = [];
+
+    for (const doc of resultDocs) {
+      // Handle nested structure with subjects array
+      if (doc.subjects && Array.isArray(doc.subjects)) {
+        // Find the matching subject and test type
+        const matchingSubject = doc.subjects.find(
+          s => s.subjectName === subject && s.testType === testType
+        );
+
+        if (matchingSubject) {
+          formattedResults.push({
+            id: doc._id.toString(),
+            _id: doc._id.toString(),
+            studentId: doc.studentId,
+            userId: doc.userId,
+            name: doc.studentName || 'Unknown',
+            studentName: doc.studentName || 'Unknown',
+            rollNumber: doc.rollNumber || 'N/A',
+            class: className,
+            className: className,
+            section: section,
+            subject: subject,
+            testType: testType,
+            obtainedMarks: matchingSubject.obtainedMarks !== null ? matchingSubject.obtainedMarks : 0,
+            totalMarks: matchingSubject.maxMarks || matchingSubject.totalMarks || 100,
+            maxMarks: matchingSubject.maxMarks || matchingSubject.totalMarks || 100,
+            percentage: matchingSubject.percentage !== null ? matchingSubject.percentage : 0,
+            grade: matchingSubject.grade || calculateSimpleGrade(
+              matchingSubject.obtainedMarks, 
+              matchingSubject.maxMarks || matchingSubject.totalMarks || 100
+            ),
+            frozen: matchingSubject.frozen || false, // Include frozen status
+            createdAt: doc.createdAt || doc.updatedAt || new Date(),
+            updatedAt: doc.updatedAt || doc.createdAt || new Date()
+          });
+        }
+      }
+    }
+
+    console.log(`✅ Formatted ${formattedResults.length} results for teacher view`);
+    
+    // Log frozen status for debugging
+    const frozenCount = formattedResults.filter(r => r.frozen).length;
+    if (frozenCount > 0) {
+      console.log(`🔒 ${frozenCount} results are FROZEN and cannot be edited`);
+    }
+
+    // Calculate statistics
+    const statistics = {
+      totalStudents: formattedResults.length,
+      averageMarks: formattedResults.length > 0 
+        ? Math.round(formattedResults.reduce((sum, r) => sum + r.obtainedMarks, 0) / formattedResults.length)
+        : 0,
+      averagePercentage: formattedResults.length > 0
+        ? Math.round(formattedResults.reduce((sum, r) => sum + r.percentage, 0) / formattedResults.length)
+        : 0,
+      highestScore: formattedResults.length > 0 
+        ? Math.max(...formattedResults.map(r => r.obtainedMarks))
+        : 0,
+      lowestScore: formattedResults.length > 0 
+        ? Math.min(...formattedResults.map(r => r.obtainedMarks))
+        : 0,
+      passCount: formattedResults.filter(r => r.percentage >= 40).length,
+      failCount: formattedResults.filter(r => r.percentage < 40).length
+    };
+
+    res.json({
+      success: true,
+      message: `Found ${formattedResults.length} results`,
+      data: {
+        results: formattedResults,
+        statistics,
+        filters: {
+          schoolCode,
+          className,
+          section,
+          subject,
+          testType,
+          academicYear: academicYear || '2024-25'
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching results for teacher:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching results',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createOrUpdateResult: exports.createOrUpdateResult,
   getStudentResultHistory: exports.getStudentResultHistory,
@@ -1055,5 +1183,6 @@ module.exports = {
   saveResults: exports.saveResults,
   getResults: exports.getResults,
   updateResult: exports.updateResult,
-  freezeResults: exports.freezeResults
+  freezeResults: exports.freezeResults,
+  getResultsForTeacher: exports.getResultsForTeacher
 };

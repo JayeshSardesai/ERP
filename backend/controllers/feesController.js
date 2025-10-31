@@ -1,9 +1,210 @@
+const { parse, Parser } = require('json2csv');
 const FeeStructure = require('../models/FeeStructure');
 const StudentFeeRecord = require('../models/StudentFeeRecord');
 const School = require('../models/School');
 const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
 const { ObjectId } = require('mongodb');
 const PDFDocument = require('pdfkit');
+
+// Export student fee records to CSV
+exports.exportStudentFeeRecords = async (req, res) => {
+  console.log('🔵 Starting fee records export process');
+  
+  try {
+    // Validate user and school code
+    if (!req.user || !req.user.schoolCode) {
+      console.error('❌ Missing user or school code in request');
+      return res.status(400).json({
+        success: false,
+        message: 'User authentication or school information is missing'
+      });
+    }
+
+    const { class: className, section, search, status } = req.query;
+    console.log('🔍 Export parameters:', { className, section, search, status });
+    
+    // Build query
+    const query = { 
+      schoolId: new ObjectId(req.user.schoolId || req.user._id),
+      totalPending: { $gt: 0 } // Only include records with pending amount
+    };
+    
+    if (className && className !== 'ALL') {
+      query.studentClass = className;
+    }
+    
+    if (section && section !== 'ALL') {
+      query.studentSection = section;
+    }
+    
+    if (search) {
+      query['$or'] = [
+        { studentName: { $regex: search, $options: 'i' } },
+        { rollNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (status && status !== 'ALL') {
+      query.status = status.toUpperCase();
+    }
+    
+    console.log('🔍 Final query:', JSON.stringify(query, null, 2));
+    
+    // Get school connection
+    const schoolCode = req.user.schoolCode;
+    console.log('🏫 Connecting to school database:', schoolCode);
+    
+    const conn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    if (!conn) {
+      throw new Error('Failed to connect to school database');
+    }
+    
+    const db = conn.db || conn;
+    
+    // Get or create model for this connection
+    const StudentFeeRecord = conn.models.StudentFeeRecord || 
+      conn.model('StudentFeeRecord', require('../models/StudentFeeRecord').schema);
+    
+    console.log('🔍 Fetching fee records...');
+    
+    // First, check if there are any records matching the query
+    const count = await StudentFeeRecord.countDocuments(query);
+    console.log(`📊 Found ${count} matching records`);
+    
+    if (count === 0) {
+      console.log('❌ No records found matching the criteria');
+      return res.status(200).json({
+        success: false,
+        message: 'No fee records found matching the criteria'
+      });
+    }
+    
+    // Fetch records with pagination if needed
+    const records = await StudentFeeRecord.aggregate([
+      { $match: query },
+      { $unwind: '$installments' },
+      {
+        $project: {
+          _id: 0,
+          'Student Name': '$studentName',
+          'Class': '$studentClass',
+          'Section': '$studentSection',
+          'Roll Number': '$rollNumber',
+          'Fee Structure': '$feeStructureName',
+          'Installment': '$installments.name',
+          'Amount': '$installments.amount',
+          'Paid Amount': '$installments.paidAmount',
+          'Due Date': {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$installments.dueDate',
+              timezone: 'Asia/Kolkata'
+            }
+          },
+          'Balance': {
+            $subtract: ['$installments.amount', '$installments.paidAmount']
+          },
+          'Status': {
+            $let: {
+              vars: {
+                isPaid: { $eq: ['$installments.status', 'PAID'] },
+                hasPartial: { $gt: ['$installments.paidAmount', 0] },
+                isOverdue: { $lt: ['$installments.dueDate', new Date()] }
+              },
+              in: {
+                $switch: {
+                  branches: [
+                    { case: '$$isPaid', then: 'Paid' },
+                    { case: '$$hasPartial', then: 'Partial' },
+                    { case: '$$isOverdue', then: 'Overdue' }
+                  ],
+                  default: 'Pending'
+                }
+              }
+            }
+          }
+        }
+      },
+      { $sort: { 'Class': 1, 'Section': 1, 'Student Name': 1 } }
+    ]);
+
+    console.log(`📝 Processed ${records.length} records for export`);
+
+    if (!records || records.length === 0) {
+      console.log('❌ No records found after processing');
+      return res.status(200).json({
+        success: false,
+        message: 'No records found matching the criteria after processing'
+      });
+    }
+
+    // Define CSV fields
+    const fields = [
+      'Student Name',
+      'Class',
+      'Section',
+      'Roll Number',
+      'Fee Structure',
+      'Installment',
+      'Amount',
+      'Paid Amount',
+      'Balance',
+      'Status'
+    ];
+
+    // Convert to CSV
+    try {
+      console.log('📊 Records to export count:', records.length);
+      if (records.length > 0) {
+        console.log('📝 Sample record:', JSON.stringify(records[0], null, 2));
+      } else {
+        console.log('ℹ️ No records to export');
+      }
+
+      const csv = parse(records, { 
+        fields,
+        withBOM: true,
+        delimiter: ',',
+        quote: '"',
+        header: true
+      });
+      
+      console.log('✅ Generated CSV successfully');
+      
+      // Set headers for file download
+      const filename = `fee-export-${new Date().toISOString().split('T')[0]}.csv`;
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      // Send the CSV file
+      return res.send(csv);
+    } catch (parseError) {
+      console.error('❌ CSV Parse Error:', parseError);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to generate CSV',
+          error: process.env.NODE_ENV === 'development' ? parseError.message : undefined
+        });
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Export error:', error);
+    
+    // Check if headers have already been sent
+    if (res.headersSent) {
+      console.error('Headers already sent, cannot send error response');
+      return res.end();
+    }
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to export fee records',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
 
 // Create fee structure (per-school DB)
 exports.createFeeStructure = async (req, res) => {

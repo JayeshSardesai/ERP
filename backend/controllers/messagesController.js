@@ -521,6 +521,69 @@ exports.getMessageStats = async (req, res) => {
   }
 };
 
+// Get messages for teachers (read-only)
+exports.getTeacherMessages = async (req, res) => {
+  try {
+    console.log('📨 Teacher fetching messages:', req.user);
+    
+    // Get school connection for message queries
+    const schoolCode = req.user.schoolCode;
+    if (!schoolCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'School code not found in user profile'
+      });
+    }
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const db = connection.db;
+    const messagesCollection = db.collection('messages');
+    
+    // Fetch all messages from the teacher's school (sorted by newest first)
+    const messages = await messagesCollection.find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    console.log(`✅ Found ${messages.length} messages for teacher`);
+    
+    // Format messages for frontend
+    const formattedMessages = messages.map(msg => ({
+      id: msg._id.toString(),
+      class: msg.class,
+      section: msg.section,
+      adminId: msg.adminId,
+      title: msg.title,
+      subject: msg.subject,
+      message: msg.message,
+      content: msg.message, // Alias for compatibility
+      createdAt: msg.createdAt,
+      timestamp: msg.createdAt, // Alias for compatibility
+      schoolId: msg.schoolId,
+      messageAge: calculateMessageAge(msg.createdAt),
+      type: 'group', // All admin messages are group messages
+      isRead: true, // Teachers can only view, so mark as read
+      sender: 'Admin',
+      recipient: [`Class ${msg.class}-${msg.section}`]
+    }));
+    
+    res.json({
+      success: true,
+      data: {
+        messages: formattedMessages,
+        total: formattedMessages.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching teacher messages:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch messages',
+      error: error.message
+    });
+  }
+};
+
 // Helper function to calculate message age (replaces Mongoose virtual)
 function calculateMessageAge(createdAt) {
   const now = new Date();
@@ -534,8 +597,6 @@ function calculateMessageAge(createdAt) {
   if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
   return `${Math.floor(diffDays / 30)} months ago`;
 }
-
-// backend/controllers/messagesController.js - Add this function
 
 // Delete message
 exports.deleteMessage = async (req, res) => {
