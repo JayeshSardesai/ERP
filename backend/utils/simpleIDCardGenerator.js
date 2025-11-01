@@ -266,7 +266,7 @@ class SimpleIDCardGenerator {
       return {
         address: { x: 400, y: 116, fontSize: 20, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 52, lineHeight: 1.3, minFontSize: 16, maxLines: 4, autoSize: false },
         mobile: { x: 520, y: 183, fontSize: 23, fontWeight: 'bold', maxWidth: 200 },
-        returnSchoolName: { x: 270, y: 415, fontSize: 23, fontWeight: 'bold', maxWidth: 750, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
+        returnSchoolName: { x: 170, y: 415, fontSize: 23, fontWeight: 'bold', maxWidth: 750, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true, textAlign: 'center' },
         returnAddress: { x: 170, y: 450, fontSize: 23, fontWeight: 'bold', maxWidth: 750, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true, textAlign: 'center' },
         schoolPhone: { x: 270, y: 510, fontSize: 20, fontWeight: 'bold', maxWidth: 650 },
         schoolEmail: { x: 470, y: 510, fontSize: 20, fontWeight: 'bold', maxWidth: 650 }
@@ -1119,6 +1119,78 @@ class SimpleIDCardGenerator {
           section: student.section
         }
       });
+      throw error;
+    }
+  }
+
+  /**
+   * Download image from URL or read from local path
+   */
+  async downloadImage(imagePath) {
+    try {
+      if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+        // Fetch from URL (Cloudinary or external)
+        const axios = require('axios');
+        const response = await axios.get(imagePath, { responseType: 'arraybuffer' });
+        return Buffer.from(response.data);
+      } else {
+        // Handle relative paths (local files)
+        if (imagePath.startsWith('/uploads')) {
+          imagePath = path.join(__dirname, '..', imagePath);
+        }
+        // Check if file exists
+        await fs.access(imagePath);
+        return await fs.readFile(imagePath);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Could not load image from ${imagePath}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate ID card as buffer (in-memory) without saving to disk
+   */
+  async generateIDCardBuffer(student, orientation = 'landscape', side = 'front', schoolInfo = {}) {
+    try {
+      console.log(`🎨 Generating ID card buffer for ${student.name} (${orientation} ${side})`);
+
+      // Get template path
+      const templateFilename = `${orientation}-${side}.png`;
+      const templatePath = path.join(this.templatesDir, templateFilename);
+
+      // Check if template exists
+      try {
+        await fs.access(templatePath);
+      } catch (err) {
+        throw new Error(`Template not found: ${templatePath}`);
+      }
+
+      // Load template
+      const templateBuffer = await fs.readFile(templatePath);
+
+      // Get field positions for this orientation and side
+      const positions = this.getFieldPositions(orientation, side);
+
+      // Array to store all composite images
+      const compositeImages = [];
+
+      // Track field heights for dynamic positioning (portrait mode)
+      const fieldHeights = {};
+
+      // Use the same logic as the original generateIDCard method
+      const result = await this.generateIDCard(student, orientation, side, schoolInfo);
+
+      // Read the generated file and return as buffer
+      const generatedBuffer = await fs.readFile(result.outputPath);
+
+      // Clean up the temporary file
+      await fs.unlink(result.outputPath);
+
+      return generatedBuffer;
+
+    } catch (error) {
+      console.error(`❌ Error generating ID card buffer for ${student.name}:`, error);
       throw error;
     }
   }
