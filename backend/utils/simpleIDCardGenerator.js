@@ -1,6 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs').promises;
+const axios = require('axios');
 
 /**
  * Simple ID Card Generator
@@ -343,17 +344,28 @@ class SimpleIDCardGenerator {
       if (side === 'front' && positions.schoolLogo && schoolInfo.logoUrl) {
         try {
           let logoPath = schoolInfo.logoUrl;
+          let logoBuffer;
 
-          // Handle relative paths
-          if (logoPath.startsWith('/uploads')) {
-            logoPath = path.join(__dirname, '..', logoPath);
+          // Check if it's a Cloudinary URL or external URL
+          if (logoPath.startsWith('http://') || logoPath.startsWith('https://')) {
+            // Fetch from URL (Cloudinary or external)
+            const axios = require('axios');
+            const response = await axios.get(logoPath, { responseType: 'arraybuffer' });
+            logoBuffer = Buffer.from(response.data);
+            console.log(`✅ Fetched school logo from URL: ${logoPath}`);
+          } else {
+            // Handle relative paths (local files)
+            if (logoPath.startsWith('/uploads')) {
+              logoPath = path.join(__dirname, '..', logoPath);
+            }
+            // Check if file exists
+            await fs.access(logoPath);
+            logoBuffer = await fs.readFile(logoPath);
+            console.log(`✅ Loaded school logo from local: ${logoPath}`);
           }
 
-          // Check if file exists
-          await fs.access(logoPath);
-
           // Resize and add logo
-          const logoBuffer = await sharp(logoPath)
+          const resizedLogoBuffer = await sharp(logoBuffer)
             .resize(positions.schoolLogo.width, positions.schoolLogo.height, {
               fit: 'contain',
               background: { r: 255, g: 255, b: 255, alpha: 0 }
@@ -361,12 +373,12 @@ class SimpleIDCardGenerator {
             .toBuffer();
 
           compositeImages.push({
-            input: logoBuffer,
+            input: resizedLogoBuffer,
             top: positions.schoolLogo.y,
             left: positions.schoolLogo.x
           });
         } catch (logoError) {
-          console.warn('School logo processing skipped:', logoError.message);
+          console.warn('⚠️ School logo processing skipped:', logoError.message);
         }
       }
 
@@ -482,17 +494,28 @@ class SimpleIDCardGenerator {
       if (side === 'front' && positions.photo && student.profileImage) {
         try {
           let photoPath = student.profileImage;
+          let photoBuffer;
 
-          // Handle relative paths
-          if (photoPath.startsWith('/uploads')) {
-            photoPath = path.join(__dirname, '..', photoPath);
+          // Check if it's a Cloudinary URL or external URL
+          if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+            // Fetch from URL (Cloudinary or external)
+            const axios = require('axios');
+            const response = await axios.get(photoPath, { responseType: 'arraybuffer' });
+            photoBuffer = Buffer.from(response.data);
+            console.log(`✅ Fetched student photo from URL: ${photoPath.substring(0, 50)}...`);
+          } else {
+            // Handle relative paths (local files)
+            if (photoPath.startsWith('/uploads')) {
+              photoPath = path.join(__dirname, '..', photoPath);
+            }
+            // Check if file exists
+            await fs.access(photoPath);
+            photoBuffer = await fs.readFile(photoPath);
+            console.log(`✅ Loaded student photo from local: ${photoPath}`);
           }
 
-          // Check if file exists
-          await fs.access(photoPath);
-
           // Resize and add photo
-          const photoBuffer = await sharp(photoPath)
+          const resizedPhotoBuffer = await sharp(photoBuffer)
             .resize(positions.photo.width, positions.photo.height, {
               fit: 'cover',
               position: 'center'
@@ -500,12 +523,13 @@ class SimpleIDCardGenerator {
             .toBuffer();
 
           compositeImages.push({
-            input: photoBuffer,
+            input: resizedPhotoBuffer,
             top: positions.photo.y,
             left: positions.photo.x
           });
         } catch (photoError) {
-          console.warn('Photo processing skipped:', photoError.message);
+          console.warn('⚠️ Student photo processing skipped:', photoError.message);
+          console.warn('Photo path:', student.profileImage);
         }
       }
 
