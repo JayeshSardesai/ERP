@@ -2,14 +2,22 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const assignmentController = require('../controllers/assignmentController');
 const { auth, authorize } = require('../middleware/auth');
 const checkPermission = require('../middleware/permissionCheck');
 
+// Ensure temp directory exists
+const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
+  console.log('✅ Created temp directory for assignments');
+}
+
 // Configure multer for assignment file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/assignments/');
+    cb(null, 'uploads/temp/'); // Use temp directory
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

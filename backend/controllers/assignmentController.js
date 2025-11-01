@@ -4,6 +4,9 @@ const Submission = require('../models/Submission');
 const User = require('../models/User');
 const School = require('../models/School');
 const DatabaseManager = require('../utils/databaseManager');
+const { uploadPDFToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
+const path = require('path');
+const fs = require('fs');
 
 // Create a new assignment
 exports.createAssignment = async (req, res) => {
@@ -90,16 +93,41 @@ exports.createAssignment = async (req, res) => {
       return res.status(400).json({ message: 'Due date must be after start date' });
     }
 
-    // Process uploaded files
+    // Process uploaded files and upload to Cloudinary
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
-      processedAttachments = req.files.map(file => ({
-        filename: file.filename,
-        originalName: file.originalname,
-        path: file.path,
-        size: file.size,
-        uploadedAt: new Date()
-      }));
+      console.log(`📎 Processing ${req.files.length} attachment(s) for assignment`);
+      
+      for (const file of req.files) {
+        try {
+          const timestamp = Date.now();
+          
+          // Upload to Cloudinary
+          const cloudinaryFolder = `assignments/${schoolCode}`;
+          const publicId = `assignment_${timestamp}_${Math.random().toString(36).substring(7)}`;
+          
+          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
+          
+          processedAttachments.push({
+            filename: file.filename,
+            originalName: file.originalname,
+            path: uploadResult.secure_url, // Store Cloudinary URL
+            cloudinaryPublicId: uploadResult.public_id,
+            size: file.size,
+            uploadedAt: new Date()
+          });
+          
+          console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
+          
+          // Delete local temp file
+          deleteLocalFile(file.path);
+          
+        } catch (error) {
+          console.error(`❌ Error uploading ${file.originalname} to Cloudinary:`, error);
+          // Clean up temp file on error
+          deleteLocalFile(file.path);
+        }
+      }
     }
 
     // Set current academic year if not provided
@@ -528,17 +556,39 @@ exports.updateAssignment = async (req, res) => {
     const schoolCode = req.user.schoolCode || updateData.schoolCode;
     const schoolId = req.user.schoolId;
 
-    // Process uploaded files
+    // Process uploaded files and upload to Cloudinary
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
-      processedAttachments = req.files.map(file => ({
-        filename: file.filename,
-        originalName: file.originalname,
-        path: file.path,
-        size: file.size,
-        uploadedAt: new Date()
-      }));
-      console.log(`[UPDATE ASSIGNMENT] ${processedAttachments.length} new files uploaded`);
+      console.log(`[UPDATE ASSIGNMENT] Processing ${req.files.length} new file(s)`);
+      
+      for (const file of req.files) {
+        try {
+          const timestamp = Date.now();
+          
+          // Upload to Cloudinary
+          const cloudinaryFolder = `assignments/${schoolCode}`;
+          const publicId = `assignment_${timestamp}_${Math.random().toString(36).substring(7)}`;
+          
+          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
+          
+          processedAttachments.push({
+            filename: file.filename,
+            originalName: file.originalname,
+            path: uploadResult.secure_url,
+            cloudinaryPublicId: uploadResult.public_id,
+            size: file.size,
+            uploadedAt: new Date()
+          });
+          
+          console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
+          deleteLocalFile(file.path);
+          
+        } catch (error) {
+          console.error(`❌ Error uploading ${file.originalname}:`, error);
+          deleteLocalFile(file.path);
+        }
+      }
+      console.log(`[UPDATE ASSIGNMENT] ${processedAttachments.length} files uploaded to Cloudinary`);
     }
 
     // Parse existing attachments if provided
@@ -748,6 +798,32 @@ exports.deleteAssignment = async (req, res) => {
             return res.status(403).json({ message: 'You can only delete your own assignments' });
           }
 
+          // Delete all attachments from Cloudinary
+          if (assignment.attachments && assignment.attachments.length > 0) {
+            console.log(`🗑️ Deleting ${assignment.attachments.length} attachment(s) from Cloudinary`);
+            for (const attachment of assignment.attachments) {
+              if (attachment.cloudinaryPublicId) {
+                try {
+                  await deletePDFFromCloudinary(attachment.cloudinaryPublicId);
+                  console.log(`✅ Deleted attachment: ${attachment.originalName}`);
+                } catch (err) {
+                  console.warn(`⚠️ Failed to delete attachment ${attachment.originalName}:`, err.message);
+                }
+              } else if (attachment.path && attachment.path.includes('cloudinary.com')) {
+                // Extract public ID from URL if not stored
+                const publicId = extractPublicId(attachment.path);
+                if (publicId) {
+                  try {
+                    await deletePDFFromCloudinary(publicId);
+                    console.log(`✅ Deleted attachment: ${attachment.originalName}`);
+                  } catch (err) {
+                    console.warn(`⚠️ Failed to delete attachment ${attachment.originalName}:`, err.message);
+                  }
+                }
+              }
+            }
+          }
+
           // Delete the assignment
           await SchoolAssignment.findByIdAndDelete(assignmentId);
           deletedFromSchoolDB = true;
@@ -776,6 +852,32 @@ exports.deleteAssignment = async (req, res) => {
       const teacherId = req.user.userId || req.user._id.toString();
       if (req.user.role === 'teacher' && assignment.teacher.toString() !== teacherId) {
         return res.status(403).json({ message: 'You can only delete your own assignments' });
+      }
+
+      // Delete all attachments from Cloudinary
+      if (assignment.attachments && assignment.attachments.length > 0) {
+        console.log(`🗑️ Deleting ${assignment.attachments.length} attachment(s) from Cloudinary`);
+        for (const attachment of assignment.attachments) {
+          if (attachment.cloudinaryPublicId) {
+            try {
+              await deletePDFFromCloudinary(attachment.cloudinaryPublicId);
+              console.log(`✅ Deleted attachment: ${attachment.originalName}`);
+            } catch (err) {
+              console.warn(`⚠️ Failed to delete attachment ${attachment.originalName}:`, err.message);
+            }
+          } else if (attachment.path && attachment.path.includes('cloudinary.com')) {
+            // Extract public ID from URL if not stored
+            const publicId = extractPublicId(attachment.path);
+            if (publicId) {
+              try {
+                await deletePDFFromCloudinary(publicId);
+                console.log(`✅ Deleted attachment: ${attachment.originalName}`);
+              } catch (err) {
+                console.warn(`⚠️ Failed to delete attachment ${attachment.originalName}:`, err.message);
+              }
+            }
+          }
+        }
       }
 
       await Assignment.findByIdAndDelete(assignmentId);
@@ -959,16 +1061,40 @@ exports.submitAssignment = async (req, res) => {
       return res.status(400).json({ message: 'Assignment submission deadline has passed' });
     }
 
-    // Process uploaded files
+    // Process uploaded files and upload to Cloudinary
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
-      processedAttachments = req.files.map(file => ({
-        filename: file.filename,
-        originalName: file.originalname,
-        path: file.path,
-        size: file.size,
-        uploadedAt: new Date()
-      }));
+      console.log(`📎 Processing ${req.files.length} submission file(s)`);
+      
+      const schoolCode = req.user.schoolCode || assignment.schoolCode;
+      
+      for (const file of req.files) {
+        try {
+          const timestamp = Date.now();
+          
+          // Upload to Cloudinary
+          const cloudinaryFolder = `submissions/${schoolCode}/${assignmentId}`;
+          const publicId = `submission_${req.user.userId}_${timestamp}_${Math.random().toString(36).substring(7)}`;
+          
+          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
+          
+          processedAttachments.push({
+            filename: file.filename,
+            originalName: file.originalname,
+            path: uploadResult.secure_url,
+            cloudinaryPublicId: uploadResult.public_id,
+            size: file.size,
+            uploadedAt: new Date()
+          });
+          
+          console.log(`✅ Uploaded submission ${file.originalname} to Cloudinary`);
+          deleteLocalFile(file.path);
+          
+        } catch (error) {
+          console.error(`❌ Error uploading ${file.originalname}:`, error);
+          deleteLocalFile(file.path);
+        }
+      }
     }
 
     // Check if student has already submitted
