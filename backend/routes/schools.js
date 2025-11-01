@@ -88,6 +88,8 @@ router.get('/:schoolId', setSchoolContext, validateSchoolAccess(['admin', 'super
 
 // Direct school info route (bypasses school-specific database issues)
 router.get('/:schoolId/info', authMiddleware.auth, schoolController.getSchoolInfo);
+// Get school info from school_info collection in school's database
+router.get('/database/school-info', authMiddleware.auth, schoolController.getSchoolInfoFromDatabase);
 router.put('/:schoolId', schoolController.updateSchool);
 router.patch('/:schoolId/access-matrix', setMainDbContext, requireSuperAdmin, schoolController.updateAccessMatrix);
 router.delete('/:schoolId', setMainDbContext, requireSuperAdmin, schoolController.deleteSchool);

@@ -184,6 +184,10 @@ export const generateInvoice = (invoiceData: InvoiceData, templateSettings?: Tem
         <title>Invoice ${invoiceData.invoiceNumber}</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
+          @page {
+            size: A4 landscape;
+            margin: 10mm;
+          }
           @media print {
             body { margin: 0; }
             .no-print { display: none; }

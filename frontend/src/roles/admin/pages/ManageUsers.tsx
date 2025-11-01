@@ -8,6 +8,7 @@ import {
 import { schoolUserAPI, User as ApiUser } from '../../../api/schoolUsers';
 // Keep other imports
 import { exportImportAPI } from '../../../services/api';
+
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
 import { exportUsers, generateImportTemplate } from '../../../utils/userImportExport';
@@ -15,6 +16,8 @@ import { User, UserFormData, getDefaultFormData, transformUserToFormData } from 
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import { ImportUsersDialog } from '../../superadmin/components/ImportUsersDialog'; // Keep if used
 import UserForm from '../../../components/forms/UserForm';
+import LocationSelector from '../../../components/LocationSelector';
+import { State, District, Taluka } from '../../../services/locationAPI';
 import { compressImage, validateImageFile, blobToFile } from '../../../utils/schoolConfig';
 interface School {
   _id: string;
@@ -67,6 +70,11 @@ interface OldAddUserFormData {
   permanentCountry: string;
   permanentPincode: string;
   permanentLandmark?: string;
+  stateId?: string;
+  districtId?: string;
+  talukaId?: string;
+  districtText?: string;
+  talukaText?: string;
 
   currentStreet?: string;
   currentArea?: string;
@@ -516,9 +524,18 @@ const ManageUsers: React.FC = () => {
     }
 
     // Phone validation - check both primaryPhone and legacy phone field
+    // Phone validation - more flexible format
     const phoneToValidate = data.primaryPhone || data.phone;
-    if (!phoneToValidate || phoneToValidate.replace(/\D/g, '').length < 10) {
-      errors.push('A valid 10-digit phone number is required');
+    if (phoneToValidate) {
+      const cleanPhone = phoneToValidate.replace(/\D/g, '');
+      if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+        errors.push('Phone number must be 7-15 digits');
+      }
+    } else {
+      // Only require phone for certain roles or make it optional
+      if (data.role !== 'teacher') { // Make phone optional for teachers
+        errors.push('Phone number is required');
+      }
     }
 
     // Address validation - check both new structure and legacy fields
@@ -912,6 +929,11 @@ const ManageUsers: React.FC = () => {
     permanentCountry: 'India',
     permanentPincode: '',
     permanentLandmark: '',
+    stateId: '',
+    districtId: '',
+    talukaId: '',
+    districtText: '',
+    talukaText: '',
 
     currentStreet: '',
     currentArea: '',
@@ -1392,6 +1414,64 @@ const ManageUsers: React.FC = () => {
       setPasswordModalLoading(false);
     }
   };
+  // Location handlers - matching AddSchoolForm pattern
+  const handleStateChange = (stateId: number, state: State) => {
+    console.log('State changed:', stateId, state.name);
+    setFormData(prev => ({
+      ...prev,
+      stateId: stateId.toString(),
+      state: state.name,
+      permanentState: state.name,
+      // Clear dependent fields
+      districtId: '',
+      district: '',
+      talukaId: '',
+      taluka: '',
+      districtText: '',
+      talukaText: ''
+    }));
+  };
+
+  const handleDistrictChange = (districtId: number, district: District) => {
+    console.log('District changed:', districtId, district.name);
+    setFormData(prev => ({
+      ...prev,
+      districtId: districtId.toString(),
+      district: district.name,
+      // Clear dependent fields
+      talukaId: '',
+      taluka: '',
+      talukaText: ''
+    }));
+  };
+
+  const handleTalukaChange = (talukaId: number, taluka: Taluka) => {
+    console.log('Taluka changed:', talukaId, taluka.name);
+    setFormData(prev => ({
+      ...prev,
+      talukaId: talukaId.toString(),
+      taluka: taluka.name
+    }));
+  };
+
+  const handleDistrictTextChange = (text: string) => {
+    setFormData(prev => ({
+      ...prev,
+      districtText: text,
+      district: text,
+      // Clear dependent fields when typing manually
+      talukaText: ''
+    }));
+  };
+
+  const handleTalukaTextChange = (text: string) => {
+    setFormData(prev => ({
+      ...prev,
+      talukaText: text,
+      taluka: text
+    }));
+  };
+
   const resetForm = () => {
     setFormData({
       // Core Fields
@@ -1422,7 +1502,11 @@ const ManageUsers: React.FC = () => {
       permanentCountry: 'India',
       permanentPincode: '',
       permanentLandmark: '',
-
+      stateId: '',
+      districtId: '',
+      talukaId: '',
+      districtText: '',
+      talukaText: '',
       currentStreet: '',
       currentArea: '',
       currentCity: '',
@@ -1919,26 +2003,24 @@ const ManageUsers: React.FC = () => {
               role: userData.role,
               phone: userData.contact?.primaryPhone || userData.contact?.phone || userData.phone,
               temporaryPassword: userData.temporaryPassword || userData.tempPassword || null,
-              address: userData.address?.permanent?.street || userData.address?.street || userData.address,
+              address: userData.address,
               isActive: userData.isActive !== false,
               createdAt: userData.createdAt || new Date().toISOString(),
-              profileImage: userData.profileImage || userData.profilePicture || null, // 💡 FIX 2a: Map profileImage here
+              profileImage: userData.profileImage || userData.profilePicture || null, // 
               // Initialize studentDetails as an empty object or undefined
               studentDetails: userData.role === 'student' ? {} : undefined
             };
 
-            // Add role-specific details ONLY if the object exists
-            if (userData.role === 'student' && processedUser.studentDetails) {
-              // Assert that studentDetails is not undefined within this block
-              const details = processedUser.studentDetails as { // Type assertion
-                studentId?: string;
-                class?: string;
-                section?: string;
-                // Add other potential studentDetails properties here if needed
+            // Add role-specific details - preserve ALL fields from backend
+            if (userData.role === 'student' && userData.studentDetails) {
+              // Use the ENTIRE studentDetails object from backend
+              processedUser.studentDetails = {
+                ...userData.studentDetails, // Spread all fields from backend
+                // Add convenience fields for backward compatibility
+                class: userData.studentDetails.currentClass || userData.class || 'Not assigned',
+                section: userData.studentDetails.currentSection || userData.section || 'Not assigned',
+                studentId: userData.userId || userData._id
               };
-              details.class = userData.studentDetails?.currentClass || 'Not assigned';
-              details.section = userData.studentDetails?.currentSection || 'Not assigned';
-              details.studentId = userData.userId || userData._id;
             } else if (userData.role === 'teacher' && userData.teacherDetails) {
               // Ensure teacherDetails is properly structured if needed later
               processedUser.teacherDetails = {
@@ -1985,14 +2067,20 @@ const ManageUsers: React.FC = () => {
                   processedUser.studentDetails = {
                     studentId: userData.userId || userData._id,
                     class: userData.academicInfo?.class || userData.class || 'Not assigned',
-                    section: userData.academicInfo?.section || userData.section || 'Not assigned'
+                    section: userData.academicInfo?.section || userData.section || 'Not assigned',
+                    rollNumber: userData.studentDetails?.rollNumber || userData.rollNumber || ''
                   };
                 } else if (role === 'teacher') {
                   processedUser.teacherDetails = {
-                    employeeId: userData.employeeId || userData.teacherId || 'Not assigned',
+                    employeeId: userData.teacherDetails?.employeeId || userData.employeeId || userData.teacherId || 'Not assigned',
                     subjects: userData.subjects || [],
                     qualification: userData.qualification || 'Not provided',
                     experience: userData.experience || 0
+                  };
+                } else if (role === 'admin') {
+                  processedUser.adminDetails = {
+                    employeeId: userData.adminDetails?.employeeId || userData.employeeId || 'Not assigned',
+                    designation: userData.adminDetails?.designation || 'Administrator'
                   };
                 }
 
@@ -2627,14 +2715,305 @@ const ManageUsers: React.FC = () => {
     }
   };
 
-  const handleEditClick = (user: User) => {
-    console.log('Editing user:', user); // Debug log to see the user structure
-    setEditingUser(user);
+  const handleEditClick = (user: any) => {
+    console.log('=== EDITING USER ===');
+    console.log('User:', user);
+    // Set editingUser - the useEffect will handle populating formData
+    setEditingUser(user as User);
+    setShowEditModal(true);
+  };
 
-    // Extract user data based on the actual backend structure
+  // useEffect to populate formData when editingUser changes
+  useEffect(() => {
+    if (!editingUser) return;
+
+    console.log('=== POPULATING FORM DATA FROM EDITING USER ===');
+    console.log('Full editingUser:', JSON.stringify(editingUser, null, 2));
+    const userData = editingUser as any;
+    console.log('Name structure:', userData.name);
+    console.log('userData.name?.firstName:', userData.name?.firstName);
+    console.log('userData.name?.lastName:', userData.name?.lastName);
+    console.log('userData.firstName:', userData.firstName);
+    console.log('userData.lastName:', userData.lastName);
+    console.log('Contact structure:', userData.contact);
+    console.log('Address structure:', userData.address);
+    console.log('Address type:', typeof userData.address);
+    console.log('StudentDetails:', userData.studentDetails);
+    console.log('StudentDetails.class:', userData.studentDetails?.class);
+    console.log('StudentDetails.section:', userData.studentDetails?.section);
+    console.log('TeacherDetails:', userData.teacherDetails);
+    console.log('AdminDetails:', userData.adminDetails);
+
+    // Parse name if it's a string
+    let parsedFirstName = '';
+    let parsedLastName = '';
+    if (typeof userData.name === 'string' && userData.name) {
+      const nameParts = userData.name.trim().split(' ');
+      parsedFirstName = nameParts[0] || '';
+      parsedLastName = nameParts.slice(1).join(' ') || '';
+      console.log('Parsed firstName from string:', parsedFirstName);
+      console.log('Parsed lastName from string:', parsedLastName);
+    }
+
+    const newFormData = {
+      // Generated Information - show existing user ID
+      userId: userData.userId || userData._id || '',
+      generatedPassword: '', // Never show password
+
+      // Basic Information (SATS Standard)
+      enrollmentNo: userData.enrollmentNo || '',
+      tcNo: userData.tcNo || '',
+      role: userData.role || 'student',
+
+      // Admission Details (SATS Standard)
+      class: userData.academicInfo?.class || userData.studentDetails?.currentClass || userData.studentDetails?.class || userData.class || '',
+      academicYear: userData.academicYear || userData.studentDetails?.academicYear || '2024-2025',
+      section: userData.academicInfo?.section || userData.section || userData.studentDetails?.currentSection || userData.studentDetails?.section || '',
+      mediumOfInstruction: userData.mediumOfInstruction || 'English',
+      motherTongue: userData.motherTongue || userData.studentDetails?.motherTongue || '',
+      motherTongueOther: userData.motherTongueOther || userData.studentDetails?.motherTongueOther || '',
+
+      // Student Details (SATS Standard)
+      name: userData.name?.displayName ||
+        (userData.name?.firstName && userData.name?.lastName ? userData.name.firstName + ' ' + userData.name.lastName : '') ||
+        (typeof userData.name === 'string' ? userData.name : '') ||
+        (userData.firstName && userData.lastName ? userData.firstName + ' ' + userData.lastName : '') ||
+        (userData.studentDetails?.firstName && userData.studentDetails?.lastName ? userData.studentDetails.firstName + ' ' + userData.studentDetails.lastName : '') ||
+        '',
+      studentNameKannada: userData.studentNameKannada || userData.studentDetails?.studentNameKannada || '',
+      firstName: userData.name?.firstName || parsedFirstName || userData.firstName || userData.studentDetails?.firstName || '',
+      middleName: userData.name?.middleName || userData.middleName || userData.studentDetails?.middleName || '',
+      lastName: userData.name?.lastName || parsedLastName || userData.lastName || userData.studentDetails?.lastName || '',
+      dateOfBirth: userData.dateOfBirth || userData.studentDetails?.dateOfBirth || '',
+      ageYears: userData.ageYears || userData.studentDetails?.ageYears || 0,
+      ageMonths: userData.ageMonths || userData.studentDetails?.ageMonths || 0,
+      gender: userData.gender || userData.studentDetails?.gender || 'male',
+
+      // Family Details (SATS Standard) - stored directly in students collection
+      fatherName: userData.studentDetails?.fatherName || userData.fatherName || '',
+      fatherNameKannada: userData.studentDetails?.fatherNameKannada || userData.fatherNameKannada || '',
+      fatherAadhaar: userData.studentDetails?.fatherAadhaar || userData.fatherAadhaar || '',
+      motherName: userData.studentDetails?.motherName || userData.motherName || '',
+      motherNameKannada: userData.studentDetails?.motherNameKannada || userData.motherNameKannada || '',
+      motherAadhaar: userData.studentDetails?.motherAadhaar || userData.motherAadhaar || '',
+      guardianName: userData.studentDetails?.guardianName || userData.guardianName || '',
+
+      // Identity Documents (SATS Standard)
+      studentAadhaar: userData.identity?.aadharNumber || userData.studentDetails?.studentAadhaar || userData.studentAadhaar || userData.aadhaarNumber || '',
+      studentCasteCertNo: userData.studentDetails?.studentCasteCertNo || userData.studentCasteCertNo || '',
+      fatherCasteCertNo: userData.studentDetails?.fatherCasteCertNo || userData.fatherCasteCertNo || '',
+      motherCasteCertNo: userData.studentDetails?.motherCasteCertNo || userData.motherCasteCertNo || '',
+
+      // Caste and Category (SATS Standard)
+      studentCaste: userData.studentDetails?.caste || userData.studentCaste || userData.caste || '',
+      studentCasteOther: userData.studentDetails?.studentCasteOther || userData.studentCasteOther || '',
+      fatherCaste: userData.studentDetails?.fatherCaste || userData.fatherCaste || '',
+      fatherCasteOther: userData.studentDetails?.fatherCasteOther || userData.fatherCasteOther || '',
+      motherCaste: userData.studentDetails?.motherCaste || userData.motherCaste || '',
+      motherCasteOther: userData.studentDetails?.motherCasteOther || userData.motherCasteOther || '',
+      socialCategory: userData.studentDetails?.category || userData.socialCategory || userData.category || '',
+      socialCategoryOther: userData.studentDetails?.socialCategoryOther || userData.socialCategoryOther || '',
+      religion: userData.studentDetails?.religion || userData.religion || '',
+      religionOther: userData.studentDetails?.religionOther || userData.religionOther || '',
+
+      // Economic Status (SATS Standard)
+      belongingToBPL: userData.belongingToBPL || userData.studentDetails?.belongingToBPL || 'No',
+      bplCardNo: userData.bplCardNo || userData.studentDetails?.bplCardNo || userData.bplCardNumber || '',
+      bhagyalakshmiBondNo: userData.bhagyalakshmiBondNo || userData.studentDetails?.bhagyalakshmiBondNo || '',
+
+      // Special Needs (SATS Standard)
+      disability: userData.disability || userData.studentDetails?.disability || userData.specialNeeds || 'Not Applicable',
+      disabilityOther: userData.disabilityOther || userData.studentDetails?.disabilityOther || '',
+      isRTECandidate: userData.isRTECandidate || userData.studentDetails?.isRTECandidate || 'No',
+
+      // Address Information (SATS Standard)
+      // Use addressFull (preserved full object) first, then fallback to address
+      address: (userData as any).addressFull?.permanent?.street || userData.address?.permanent?.street || (typeof userData.address === 'string' ? userData.address : '') || '',
+      cityVillageTown: (userData as any).addressFull?.permanent?.city || userData.address?.permanent?.city || userData.cityVillageTown || userData.city || '',
+      locality: userData.locality || '',
+      taluka: userData.taluka || userData.taluk || '',
+      district: (userData as any).addressFull?.permanent?.district || userData.address?.permanent?.district || userData.district || '',
+      pinCode: (userData as any).addressFull?.permanent?.pincode || userData.address?.permanent?.pincode || userData.pinCode || '',
+      state: (userData as any).addressFull?.permanent?.state || userData.address?.permanent?.state || userData.state || '',
+      stateId: userData.stateId || (userData as any).addressFull?.permanent?.stateId || userData.address?.permanent?.stateId || '',
+      districtId: userData.districtId || (userData as any).addressFull?.permanent?.districtId || userData.address?.permanent?.districtId || '',
+      talukaId: userData.talukaId || (userData as any).addressFull?.permanent?.talukaId || userData.address?.permanent?.talukaId || '',
+      districtText: userData.districtText || userData.district || '',
+      talukaText: userData.talukaText || userData.taluka || '',
+
+      // Enhanced Address Fields
+      permanentStreet: (userData as any).addressFull?.permanent?.street || userData.address?.permanent?.street || (typeof userData.address === 'string' ? userData.address : '') || '',
+      permanentArea: (userData as any).addressFull?.permanent?.area || userData.address?.permanent?.area || '',
+      permanentCity: (userData as any).addressFull?.permanent?.city || userData.address?.permanent?.city || userData.city || '',
+      permanentState: (userData as any).addressFull?.permanent?.state || userData.address?.permanent?.state || userData.state || 'Karnataka',
+      permanentCountry: (userData as any).addressFull?.permanent?.country || userData.address?.permanent?.country || 'India',
+      permanentPincode: (userData as any).addressFull?.permanent?.pincode || userData.address?.permanent?.pincode || userData.pinCode || '',
+      permanentLandmark: (userData as any).addressFull?.permanent?.landmark || userData.address?.permanent?.landmark || '',
+
+      currentStreet: userData.address?.current?.street || '',
+      currentArea: userData.address?.current?.area || '',
+      currentCity: userData.address?.current?.city || '',
+      currentState: userData.address?.current?.state || 'Karnataka',
+      currentCountry: userData.address?.current?.country || 'India',
+      currentPincode: userData.address?.current?.pincode || '',
+      currentLandmark: userData.address?.current?.landmark || '',
+      sameAsPermanent: userData.address?.sameAsPermanent !== undefined ? userData.address.sameAsPermanent : true,
+
+      // Communication Details (SATS Standard)
+      studentMobile: userData.contact?.primaryPhone || userData.studentMobile || userData.phone || '',
+      studentEmail: userData.email || userData.studentEmail || '',
+      fatherMobile: userData.studentDetails?.fatherPhone || userData.fatherMobile || userData.fatherPhone || '',
+      fatherEmail: userData.studentDetails?.fatherEmail || userData.fatherEmail || '',
+      motherMobile: userData.studentDetails?.motherPhone || userData.motherMobile || userData.motherPhone || '',
+      motherEmail: userData.studentDetails?.motherEmail || userData.motherEmail || '',
+
+      // School and Banking (SATS Standard)
+      schoolAdmissionDate: userData.studentDetails?.admissionDate ? new Date(userData.studentDetails.admissionDate).toISOString().split('T')[0] :
+        (userData.schoolAdmissionDate || userData.admissionDate || ''),
+      bankName: userData.studentDetails?.bankName || userData.bankName || '',
+      bankAccountNo: userData.studentDetails?.bankAccountNo || userData.bankAccountNo || userData.bankAccountNumber || '',
+      bankIFSC: userData.studentDetails?.bankIFSC || userData.bankIFSC || userData.ifscCode || '',
+
+      // Legacy Compatibility Fields
+      email: userData.email || '',
+      phone: userData.contact?.primaryPhone || userData.phone || '',
+      primaryPhone: userData.contact?.primaryPhone || userData.phone || '',
+      secondaryPhone: userData.contact?.secondaryPhone || '',
+      whatsappNumber: userData.contact?.whatsappNumber || '',
+      city: userData.address?.permanent?.city || '',
+      nationality: userData.nationality || userData.studentDetails?.nationality || 'Indian',
+      bloodGroup: userData.bloodGroup || userData.studentDetails?.bloodGroup || '',
+
+      // Family Information (Legacy)
+      fatherPhone: userData.fatherPhone || userData.studentDetails?.fatherPhone || '',
+      fatherOccupation: userData.fatherOccupation || userData.studentDetails?.fatherOccupation || '',
+      motherPhone: userData.motherPhone || userData.studentDetails?.motherPhone || '',
+      motherOccupation: userData.motherOccupation || userData.studentDetails?.motherOccupation || '',
+      guardianRelation: userData.guardianRelation || userData.studentDetails?.guardianRelationship || '',
+      fatherEducation: userData.fatherEducation || userData.studentDetails?.fatherQualification || '',
+      motherEducation: userData.motherEducation || userData.studentDetails?.motherQualification || '',
+      familyIncome: userData.familyIncome || '',
+
+      // Emergency Contact
+      emergencyContactName: userData.emergencyContactName || '',
+      emergencyContactPhone: userData.contact?.emergencyContact || '',
+      emergencyContactRelation: userData.emergencyContactRelation || '',
+      alternatePhone: userData.contact?.secondaryPhone || '',
+      parentEmail: userData.parentEmail || '',
+
+      // Academic Information (Legacy)
+      rollNumber: userData.academicInfo?.rollNumber || userData.rollNumber || userData.studentDetails?.rollNumber || userData.studentDetails?.studentId || '',
+      admissionNumber: userData.academicInfo?.admissionNumber || userData.admissionNumber || userData.studentDetails?.admissionNumber || userData.studentDetails?.studentId || '',
+      admissionDate: userData.academicInfo?.admissionDate ?
+        new Date(userData.academicInfo.admissionDate).toISOString().split('T')[0] :
+        (userData.admissionDate || userData.studentDetails?.admissionDate || ''),
+      previousSchool: userData.previousSchool || userData.studentDetails?.previousSchoolName || '',
+      previousClass: userData.previousClass || userData.studentDetails?.lastClass || '',
+      tcNumber: userData.tcNumber || userData.studentDetails?.tcNumber || '',
+      migrationCertificate: userData.migrationCertificate || '',
+
+      // Legacy Identity Documents
+      aadhaarNumber: userData.identity?.aadharNumber || userData.aadhaarNumber || '',
+      panNumber: userData.identity?.panNumber || userData.panNumber || '',
+      drivingLicenseNumber: userData.drivingLicenseNumber || '',
+      birthCertificateNumber: userData.birthCertificateNumber || '',
+      rationCardNumber: userData.rationCardNumber || '',
+      voterIdNumber: userData.voterIdNumber || '',
+      passportNumber: userData.passportNumber || '',
+
+      // Legacy Caste and Category
+      caste: userData.studentDetails?.caste || userData.caste || '',
+      casteOther: userData.casteOther || '',
+      category: userData.studentDetails?.category || userData.category || '',
+      categoryOther: userData.categoryOther || '',
+      subCaste: userData.subCaste || '',
+
+      // Economic Status (Legacy)
+      economicStatus: userData.economicStatus || '',
+      bplCardNumber: userData.bplCardNumber || '',
+      scholarshipDetails: userData.scholarshipDetails || '',
+
+      // Special Needs (Legacy)
+      specialNeeds: userData.studentDetails?.specialNeeds || userData.specialNeeds || '',
+      disabilityType: userData.disabilityType || '',
+      disabilityCertificate: userData.disabilityCertificate || '',
+      medicalConditions: userData.studentDetails?.medicalConditions || userData.medicalConditions || '',
+      allergies: userData.studentDetails?.allergies || userData.allergies || '',
+
+      // Address Information (Additional)
+      permanentAddress: userData.address?.permanent?.street || '',
+      currentAddress: userData.address?.current?.street || '',
+      village: userData.village || '',
+
+      // Banking Information (Legacy)
+      bankAccountNumber: userData.bankAccountNumber || '',
+      ifscCode: userData.ifscCode || '',
+      accountHolderName: userData.accountHolderName || '',
+
+      // Teacher Information
+      subjects: Array.isArray(userData.teacherDetails?.subjects) ?
+        userData.teacherDetails.subjects.map((s: any) => s.subjectName || s).join(', ') :
+        userData.teacherDetails?.subjects || userData.subjects || '',
+      qualification: userData.teacherDetails?.qualification?.highest || userData.qualification || '',
+      experience: userData.teacherDetails?.experience?.total || userData.experience || 0,
+      employeeId: userData.teacherDetails?.employeeId || userData.employeeId || '',
+      department: userData.department || userData.teacherDetails?.department || '',
+      joiningDate: userData.joiningDate || userData.teacherDetails?.joiningDate || '',
+
+      // Admin Information
+      adminLevel: userData.adminLevel || userData.adminDetails?.adminType || '',
+      accessLevel: userData.accessLevel || '',
+
+      // Student Details Object
+      studentDetails: userData.studentDetails || {},
+      // Teacher Details Object
+      teacherDetails: userData.teacherDetails || {},
+      // Admin Details Object
+      adminDetails: userData.adminDetails || {}
+    };
+
+    console.log('=== FORM DATA POPULATED ===');
+    console.log('Basic Info:');
+    console.log('  firstName:', newFormData.firstName);
+    console.log('  middleName:', newFormData.middleName);
+    console.log('  lastName:', newFormData.lastName);
+    console.log('  email:', newFormData.email);
+    console.log('  phone:', newFormData.phone);
+    console.log('  dateOfBirth:', newFormData.dateOfBirth);
+    console.log('  gender:', newFormData.gender);
+    console.log('Contact Info:');
+    console.log('  primaryPhone:', newFormData.primaryPhone);
+    console.log('  secondaryPhone:', newFormData.secondaryPhone);
+    console.log('  whatsappNumber:', newFormData.whatsappNumber);
+    console.log('Address Info:');
+    console.log('  address:', newFormData.address);
+    console.log('  permanentStreet:', newFormData.permanentStreet);
+    console.log('  permanentCity:', newFormData.permanentCity);
+    console.log('  permanentState:', newFormData.permanentState);
+    console.log('  permanentPincode:', newFormData.permanentPincode);
+    console.log('Location Info:');
+    console.log('  stateId:', newFormData.stateId);
+    console.log('  districtId:', newFormData.districtId);
+    console.log('  talukaId:', newFormData.talukaId);
+    console.log('  districtText:', newFormData.districtText);
+    console.log('  talukaText:', newFormData.talukaText);
+    console.log('Academic Info:');
+    console.log('  class:', newFormData.class);
+    console.log('  section:', newFormData.section);
+    console.log('  rollNumber:', newFormData.rollNumber);
+    console.log('  admissionNumber:', newFormData.admissionNumber);
+    console.log('  academicYear:', newFormData.academicYear);
+    console.log('Student Details Object:');
+    console.log('  studentDetails:', newFormData.studentDetails);
+    console.log('Total fields populated:', Object.keys(newFormData).length);
+
+    setFormData(newFormData as any);
+  }, [editingUser]);
+
+  // OLD handleEditClick logic - now handled by useEffect
+  const OLD_handleEditClick_UNUSED = (user: User) => {
     const userData = user as any;
-
-    setFormData({
+    const newFormData = {
       // Generated Information - show existing user ID
       userId: userData.userId || userData._id || '',
       generatedPassword: '', // Never show password
@@ -2706,6 +3085,11 @@ const ManageUsers: React.FC = () => {
       district: userData.district || userData.address?.permanent?.district || '',
       pinCode: userData.pinCode || userData.address?.permanent?.pincode || '',
       state: userData.state || userData.address?.permanent?.state || '',
+      stateId: userData.stateId || userData.address?.permanent?.stateId || '',
+      districtId: userData.districtId || userData.address?.permanent?.districtId || '',
+      talukaId: userData.talukaId || userData.address?.permanent?.talukaId || '',
+      districtText: userData.districtText || userData.district || '',
+      talukaText: userData.talukaText || userData.taluka || '',
 
       // Communication Details (SATS Standard)
       studentMobile: userData.studentMobile || userData.contact?.primaryPhone || userData.phone || '',
@@ -2804,9 +3188,175 @@ const ManageUsers: React.FC = () => {
 
       // Admin Information
       adminLevel: userData.adminLevel || '',
-      accessLevel: userData.accessLevel || ''
-    });
+      accessLevel: userData.accessLevel || '',
 
+      // Student Details Object
+      studentDetails: {
+        currentClass: userData.studentDetails?.currentClass || userData.class || '',
+        currentSection: userData.studentDetails?.currentSection || userData.section || '',
+        academicYear: userData.studentDetails?.academicYear || userData.academicYear || '2024-25',
+        admissionDate: userData.studentDetails?.admissionDate || userData.admissionDate || '',
+        admissionClass: userData.studentDetails?.admissionClass || '',
+        rollNumber: userData.studentDetails?.rollNumber || userData.rollNumber || '',
+        admissionNumber: userData.studentDetails?.admissionNumber || userData.admissionNumber || '',
+        enrollmentNo: userData.studentDetails?.enrollmentNo || userData.enrollmentNo || '',
+        tcNo: userData.studentDetails?.tcNo || userData.tcNo || '',
+        previousSchoolName: userData.studentDetails?.previousSchoolName || userData.previousSchool || '',
+        previousBoard: userData.studentDetails?.previousBoard || '',
+        lastClass: userData.studentDetails?.lastClass || userData.previousClass || '',
+        tcNumber: userData.studentDetails?.tcNumber || userData.tcNumber || '',
+        tcDate: userData.studentDetails?.tcDate || '',
+        reasonForTransfer: userData.studentDetails?.reasonForTransfer || '',
+        dateOfBirth: userData.studentDetails?.dateOfBirth || userData.dateOfBirth || '',
+        placeOfBirth: userData.studentDetails?.placeOfBirth || '',
+        gender: userData.studentDetails?.gender || userData.gender || 'male',
+        bloodGroup: userData.studentDetails?.bloodGroup || userData.bloodGroup || '',
+        nationality: userData.studentDetails?.nationality || userData.nationality || 'Indian',
+        religion: userData.studentDetails?.religion || userData.religion || '',
+        religionOther: userData.studentDetails?.religionOther || userData.religionOther || '',
+        caste: userData.studentDetails?.caste || userData.caste || '',
+        casteOther: userData.studentDetails?.casteOther || userData.casteOther || '',
+        category: userData.studentDetails?.category || userData.category || '',
+        categoryOther: userData.studentDetails?.categoryOther || userData.categoryOther || '',
+        motherTongue: userData.studentDetails?.motherTongue || userData.motherTongue || '',
+        motherTongueOther: userData.studentDetails?.motherTongueOther || userData.motherTongueOther || '',
+        studentNameKannada: userData.studentDetails?.studentNameKannada || userData.studentNameKannada || '',
+        ageYears: userData.studentDetails?.ageYears || userData.ageYears || 0,
+        ageMonths: userData.studentDetails?.ageMonths || userData.ageMonths || 0,
+        socialCategory: userData.studentDetails?.socialCategory || userData.socialCategory || '',
+        socialCategoryOther: userData.studentDetails?.socialCategoryOther || userData.socialCategoryOther || '',
+        studentCaste: userData.studentDetails?.studentCaste || userData.studentCaste || '',
+        studentCasteOther: userData.studentDetails?.studentCasteOther || userData.studentCasteOther || '',
+        studentAadhaar: userData.studentDetails?.studentAadhaar || userData.studentAadhaar || '',
+        studentCasteCertNo: userData.studentDetails?.studentCasteCertNo || userData.studentCasteCertNo || '',
+        belongingToBPL: userData.studentDetails?.belongingToBPL || userData.belongingToBPL || 'No',
+        bplCardNo: userData.studentDetails?.bplCardNo || userData.bplCardNo || '',
+        bhagyalakshmiBondNo: userData.studentDetails?.bhagyalakshmiBondNo || userData.bhagyalakshmiBondNo || '',
+        disability: userData.studentDetails?.disability || userData.disability || 'Not Applicable',
+        disabilityOther: userData.studentDetails?.disabilityOther || userData.disabilityOther || '',
+        isRTECandidate: userData.studentDetails?.isRTECandidate || userData.isRTECandidate || 'No',
+        fatherName: userData.studentDetails?.fatherName || userData.fatherName || '',
+        fatherNameKannada: userData.studentDetails?.fatherNameKannada || userData.fatherNameKannada || '',
+        fatherOccupation: userData.studentDetails?.fatherOccupation || userData.fatherOccupation || '',
+        fatherQualification: userData.studentDetails?.fatherQualification || userData.fatherEducation || '',
+        fatherPhone: userData.studentDetails?.fatherPhone || userData.fatherPhone || '',
+        fatherEmail: userData.studentDetails?.fatherEmail || userData.fatherEmail || '',
+        fatherAadhaar: userData.studentDetails?.fatherAadhaar || userData.fatherAadhaar || '',
+        fatherCaste: userData.studentDetails?.fatherCaste || userData.fatherCaste || '',
+        fatherCasteOther: userData.studentDetails?.fatherCasteOther || userData.fatherCasteOther || '',
+        fatherCasteCertNo: userData.studentDetails?.fatherCasteCertNo || userData.fatherCasteCertNo || '',
+        fatherWorkAddress: userData.studentDetails?.fatherWorkAddress || '',
+        fatherAnnualIncome: userData.studentDetails?.fatherAnnualIncome || 0,
+        motherName: userData.studentDetails?.motherName || userData.motherName || '',
+        motherNameKannada: userData.studentDetails?.motherNameKannada || userData.motherNameKannada || '',
+        motherOccupation: userData.studentDetails?.motherOccupation || userData.motherOccupation || '',
+        motherQualification: userData.studentDetails?.motherQualification || userData.motherEducation || '',
+        motherPhone: userData.studentDetails?.motherPhone || userData.motherPhone || '',
+        motherEmail: userData.studentDetails?.motherEmail || userData.motherEmail || '',
+        motherAadhaar: userData.studentDetails?.motherAadhaar || userData.motherAadhaar || '',
+        motherCaste: userData.studentDetails?.motherCaste || userData.motherCaste || '',
+        motherCasteOther: userData.studentDetails?.motherCasteOther || userData.motherCasteOther || '',
+        motherCasteCertNo: userData.studentDetails?.motherCasteCertNo || userData.motherCasteCertNo || '',
+        motherWorkAddress: userData.studentDetails?.motherWorkAddress || '',
+        motherAnnualIncome: userData.studentDetails?.motherAnnualIncome || 0,
+        guardianName: userData.studentDetails?.guardianName || userData.guardianName || '',
+        guardianRelationship: userData.studentDetails?.guardianRelationship || userData.guardianRelation || '',
+        guardianPhone: userData.studentDetails?.guardianPhone || '',
+        guardianEmail: userData.studentDetails?.guardianEmail || '',
+        guardianAddress: userData.studentDetails?.guardianAddress || '',
+        isEmergencyContact: userData.studentDetails?.isEmergencyContact || false,
+        transportMode: userData.studentDetails?.transportMode || '',
+        busRoute: userData.studentDetails?.busRoute || '',
+        pickupPoint: userData.studentDetails?.pickupPoint || '',
+        dropPoint: userData.studentDetails?.dropPoint || '',
+        pickupTime: userData.studentDetails?.pickupTime || '',
+        dropTime: userData.studentDetails?.dropTime || '',
+        feeCategory: userData.studentDetails?.feeCategory || '',
+        concessionType: userData.studentDetails?.concessionType || '',
+        concessionPercentage: userData.studentDetails?.concessionPercentage || 0,
+        scholarshipName: userData.studentDetails?.scholarshipName || '',
+        scholarshipAmount: userData.studentDetails?.scholarshipAmount || 0,
+        scholarshipProvider: userData.studentDetails?.scholarshipProvider || '',
+        bankName: userData.studentDetails?.bankName || userData.bankName || '',
+        bankAccountNo: userData.studentDetails?.bankAccountNo || userData.bankAccountNo || '',
+        bankIFSC: userData.studentDetails?.bankIFSC || userData.bankIFSC || '',
+        bankAccountHolderName: userData.studentDetails?.bankAccountHolderName || userData.accountHolderName || '',
+        allergies: userData.studentDetails?.allergies || [],
+        chronicConditions: userData.studentDetails?.chronicConditions || [],
+        medications: userData.studentDetails?.medications || [],
+        doctorName: userData.studentDetails?.doctorName || '',
+        hospitalName: userData.studentDetails?.hospitalName || '',
+        doctorPhone: userData.studentDetails?.doctorPhone || '',
+        lastMedicalCheckup: userData.studentDetails?.lastMedicalCheckup || '',
+      },
+
+      // Teacher Details Object
+      teacherDetails: {
+        employeeId: userData.teacherDetails?.employeeId || userData.employeeId || '',
+        joiningDate: userData.teacherDetails?.joiningDate || userData.joiningDate || '',
+        highestQualification: userData.teacherDetails?.highestQualification || userData.qualification || '',
+        specialization: userData.teacherDetails?.specialization || '',
+        university: userData.teacherDetails?.university || '',
+        graduationYear: userData.teacherDetails?.graduationYear || 0,
+        totalExperience: userData.teacherDetails?.totalExperience || userData.experience || 0,
+        experienceAtCurrentSchool: userData.teacherDetails?.experienceAtCurrentSchool || 0,
+        previousSchools: userData.teacherDetails?.previousSchools || [],
+        subjects: userData.teacherDetails?.subjects || [],
+        primarySubjects: userData.teacherDetails?.primarySubjects || [],
+        classTeacherOf: userData.teacherDetails?.classTeacherOf || '',
+        responsibilities: userData.teacherDetails?.responsibilities || [],
+        department: userData.teacherDetails?.department || userData.department || '',
+        workingDays: userData.teacherDetails?.workingDays || [],
+        workingHoursStart: userData.teacherDetails?.workingHoursStart || '',
+        workingHoursEnd: userData.teacherDetails?.workingHoursEnd || '',
+        maxPeriodsPerDay: userData.teacherDetails?.maxPeriodsPerDay || 0,
+        maxPeriodsPerWeek: userData.teacherDetails?.maxPeriodsPerWeek || 0,
+        basicSalary: userData.teacherDetails?.basicSalary || 0,
+        allowances: userData.teacherDetails?.allowances || [],
+        bankAccountNumber: userData.teacherDetails?.bankAccountNumber || '',
+        bankIFSC: userData.teacherDetails?.bankIFSC || '',
+        bankName: userData.teacherDetails?.bankName || '',
+        bankBranchName: userData.teacherDetails?.bankBranchName || '',
+      },
+
+      // Admin Details Object
+      adminDetails: {
+        adminType: userData.adminDetails?.adminType || '',
+        employeeId: userData.adminDetails?.employeeId || userData.employeeId || '',
+        joiningDate: userData.adminDetails?.joiningDate || userData.joiningDate || '',
+        designation: userData.adminDetails?.designation || '',
+        department: userData.adminDetails?.department || userData.department || '',
+        userManagement: userData.adminDetails?.userManagement || false,
+        academicManagement: userData.adminDetails?.academicManagement || false,
+        feeManagement: userData.adminDetails?.feeManagement || false,
+        reportGeneration: userData.adminDetails?.reportGeneration || false,
+        systemSettings: userData.adminDetails?.systemSettings || false,
+        schoolSettings: userData.adminDetails?.schoolSettings || false,
+        dataExport: userData.adminDetails?.dataExport || false,
+        auditLogs: userData.adminDetails?.auditLogs || false,
+        workingDays: userData.adminDetails?.workingDays || [],
+        workingHoursStart: userData.adminDetails?.workingHoursStart || '',
+        workingHoursEnd: userData.adminDetails?.workingHoursEnd || '',
+        basicSalary: userData.adminDetails?.basicSalary || 0,
+        allowances: userData.adminDetails?.allowances || [],
+        bankAccountNumber: userData.adminDetails?.bankAccountNumber || '',
+        bankIFSC: userData.adminDetails?.bankIFSC || '',
+        bankName: userData.adminDetails?.bankName || '',
+        bankBranchName: userData.adminDetails?.bankBranchName || '',
+      }
+    };
+
+    console.log('=== FORM DATA BEING SET ===');
+    console.log('firstName:', newFormData.firstName);
+    console.log('lastName:', newFormData.lastName);
+    console.log('email:', newFormData.email);
+    console.log('phone:', newFormData.phone);
+    console.log('dateOfBirth:', newFormData.dateOfBirth);
+    console.log('stateId:', newFormData.stateId);
+    console.log('districtId:', newFormData.districtId);
+    console.log('Full newFormData keys:', Object.keys(newFormData));
+
+    setFormData(newFormData);
     setShowEditModal(true);
   };
 
@@ -2837,13 +3387,51 @@ const ManageUsers: React.FC = () => {
         return;
       }
 
-      // Build comprehensive update data
+      // Build comprehensive update data with ALL fields (flat structure for backend)
       const updateData: any = {
+        // Basic name and contact
         firstName: formData.firstName,
+        middleName: formData.middleName,
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
         role: editingUser.role, // Keep the existing role, don't allow changing
+
+        // Enhanced contact fields (flat)
+        primaryPhone: formData.primaryPhone || formData.phone,
+        secondaryPhone: formData.secondaryPhone,
+        whatsappNumber: formData.whatsappNumber,
+        emergencyContactPhone: formData.emergencyContactPhone,
+
+        // Enhanced address fields (flat)
+        permanentStreet: formData.permanentStreet,
+        permanentArea: formData.permanentArea,
+        permanentCity: formData.permanentCity,
+        permanentState: formData.permanentState,
+        permanentCountry: formData.permanentCountry,
+        permanentPincode: formData.permanentPincode,
+        permanentLandmark: formData.permanentLandmark,
+
+        currentStreet: formData.currentStreet,
+        currentArea: formData.currentArea,
+        currentCity: formData.currentCity,
+        currentState: formData.currentState,
+        currentCountry: formData.currentCountry,
+        currentPincode: formData.currentPincode,
+        currentLandmark: formData.currentLandmark,
+        sameAsPermanent: formData.sameAsPermanent,
+
+        // Location fields
+        stateId: formData.stateId,
+        districtId: formData.districtId,
+        talukaId: formData.talukaId,
+        districtText: formData.districtText,
+        talukaText: formData.talukaText,
+        state: formData.state || formData.permanentState,
+        district: formData.district,
+        taluka: formData.taluka,
+        city: formData.city || formData.permanentCity,
+        pinCode: formData.pinCode || formData.permanentPincode
       };
 
       // Add role-specific fields
@@ -2918,6 +3506,11 @@ const ManageUsers: React.FC = () => {
         updateData.bankName = formData.bankName;
         updateData.ifscCode = formData.ifscCode;
         updateData.accountHolderName = formData.accountHolderName;
+
+        // Add complete studentDetails object
+        if (formData.studentDetails) {
+          updateData.studentDetails = formData.studentDetails;
+        }
       } else if (editingUser.role === 'teacher') {
         updateData.qualification = formData.qualification;
         updateData.experience = formData.experience;
@@ -2925,11 +3518,21 @@ const ManageUsers: React.FC = () => {
         updateData.department = formData.department;
         updateData.employeeId = formData.employeeId;
         updateData.joiningDate = formData.joiningDate;
+
+        // Add complete teacherDetails object
+        if (formData.teacherDetails) {
+          updateData.teacherDetails = formData.teacherDetails;
+        }
       } else if (editingUser.role === 'admin') {
         updateData.adminLevel = formData.adminLevel;
         updateData.department = formData.department;
         updateData.employeeId = formData.employeeId;
         updateData.accessLevel = formData.accessLevel;
+
+        // Add complete adminDetails object
+        if (formData.adminDetails) {
+          updateData.adminDetails = formData.adminDetails;
+        }
       }
 
       // Address information (common for all roles)
@@ -3156,12 +3759,90 @@ const ManageUsers: React.FC = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const userId = ((user as any).userId || user._id || '').toLowerCase();
+    const userName = (user.name || '').toLowerCase();
+    const userEmail = (user.email || '').toLowerCase();
+    const searchLower = searchTerm.toLowerCase();
+    
+    const matchesSearch = userName.includes(searchLower) ||
+      userEmail.includes(searchLower) ||
+      userId.includes(searchLower);
     const matchesRole = user.role === activeTab;
-    const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || user.studentDetails?.class === selectedGrade;
-    const matchesSection = activeTab !== 'student' || selectedSection === 'all' || user.studentDetails?.section === selectedSection;
+    const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || user.studentDetails?.currentClass === selectedGrade;
+    const matchesSection = activeTab !== 'student' || selectedSection === 'all' || user.studentDetails?.currentSection === selectedSection;
     return matchesSearch && matchesRole && matchesGrade && matchesSection;
+  }).sort((a, b) => {
+    // Sort students by userId (Student ID) in ascending order
+    if (a.role === 'student' && b.role === 'student') {
+      const studentIdA = (a as any).userId || a._id || '';
+      const studentIdB = (b as any).userId || b._id || '';
+      
+      // Extract numeric part from student ID (e.g., "BG-S-0003" -> 3)
+      const extractNumber = (id: string) => {
+        const match = id.match(/\d+$/);
+        return match ? parseInt(match[0]) : 0;
+      };
+      
+      const numA = extractNumber(studentIdA);
+      const numB = extractNumber(studentIdB);
+      
+      // If both have numeric parts, compare numerically
+      if (numA !== 0 || numB !== 0) {
+        return numA - numB;
+      }
+      
+      // Fallback to string comparison
+      return studentIdA.localeCompare(studentIdB);
+    }
+
+    // Sort teachers by userId (Teacher ID) in ascending order
+    if (a.role === 'teacher' && b.role === 'teacher') {
+      const teacherIdA = (a as any).userId || a._id || '';
+      const teacherIdB = (b as any).userId || b._id || '';
+      
+      // Extract numeric part from teacher ID (e.g., "BG-T-0003" -> 3)
+      const extractNumber = (id: string) => {
+        const match = id.match(/\d+$/);
+        return match ? parseInt(match[0]) : 0;
+      };
+      
+      const numA = extractNumber(teacherIdA);
+      const numB = extractNumber(teacherIdB);
+      
+      // If both have numeric parts, compare numerically
+      if (numA !== 0 || numB !== 0) {
+        return numA - numB;
+      }
+      
+      // Fallback to string comparison
+      return teacherIdA.localeCompare(teacherIdB);
+    }
+
+    // Sort admins by userId (Admin ID) in ascending order
+    if (a.role === 'admin' && b.role === 'admin') {
+      const adminIdA = (a as any).userId || a._id || '';
+      const adminIdB = (b as any).userId || b._id || '';
+      
+      // Extract numeric part from admin ID (e.g., "BG-A-0003" -> 3)
+      const extractNumber = (id: string) => {
+        const match = id.match(/\d+$/);
+        return match ? parseInt(match[0]) : 0;
+      };
+      
+      const numA = extractNumber(adminIdA);
+      const numB = extractNumber(adminIdB);
+      
+      // If both have numeric parts, compare numerically
+      if (numA !== 0 || numB !== 0) {
+        return numA - numB;
+      }
+      
+      // Fallback to string comparison
+      return adminIdA.localeCompare(adminIdB);
+    }
+
+    // Default: maintain existing order
+    return 0;
   });
 
   // Simple form validity check for disabling submit button
@@ -3320,6 +4001,11 @@ const ManageUsers: React.FC = () => {
   };
 
   // Old template generation logic (keeping for reference but not used)
+  // abhishek-khot/erp/ERP-0a05ff2086e334aa3f3522d1903654711a94ebb2/frontend/src/roles/admin/pages/ManageUsers.tsx
+
+  // ... existing code ...
+
+  // Old template generation logic (keeping for reference but not used)
   const generateTemplateOld = (role: 'student' | 'teacher' | 'admin') => {
     const currentDate = new Date().toISOString().split('T')[0];
     const filename = `${role}_import_template_${currentDate}.csv`;
@@ -3385,6 +4071,8 @@ const ManageUsers: React.FC = () => {
         // Banking Information
         'Bank Name', 'Account Number', 'IFSC Code', 'Account Holder Name',
 
+        'Profile Image Path', // <--- ADDED THE NEW FIELD FOR STUDENT
+
         // Previous School Information
         'Previous School Name', 'Previous School Board', 'Previous School Last Class', 'Previous School TC Number', 'Previous School TC Date', 'Reason for Transfer',
 
@@ -3419,6 +4107,9 @@ const ManageUsers: React.FC = () => {
         const previousSchool = academic.previousSchool || {};
         const academicHistory = studentDetails.academicHistory || [];
         const currentAcademic = academicHistory[0] || {};
+        const identity = userData.identity || {};
+        const metadata = userData.metadata || {};
+        const parentDetails = userData.parentDetails || {};
 
         return [
           // Basic Information
@@ -3430,34 +4121,34 @@ const ManageUsers: React.FC = () => {
           contact.primaryPhone || contact.phone || user.phone || '',
 
           // Student Academic Details
-          studentDetails.studentId || '',
-          studentDetails.admissionNumber || academic.admissionNumber || '',
-          studentDetails.rollNumber || academic.rollNumber || '',
-          academic.currentClass || '',
-          academic.currentSection || '',
-          academic.academicYear || '',
-          academic.admissionDate ? new Date(academic.admissionDate).toISOString().split('T')[0] : '',
-          academic.admissionClass || '',
-          academic.stream || '',
-          Array.isArray(academic.electives) ? academic.electives.join(', ') : '',
-          academic.enrollmentNo || '',
-          academic.tcNo || '',
+          studentDetails.studentId || userData.userId || '',
+          studentDetails.admissionNumber || '',
+          studentDetails.rollNumber || '',
+          studentDetails.currentClass || '',
+          studentDetails.currentSection || '',
+          studentDetails.academicYear || '',
+          studentDetails.admissionDate ? new Date(studentDetails.admissionDate).toISOString().split('T')[0] : '',
+          studentDetails.admissionClass || '',
+          studentDetails.stream || '',
+          Array.isArray(studentDetails.electives) ? studentDetails.electives.join(', ') : '',
+          studentDetails.enrollmentNo || '',
+          studentDetails.tcNo || '',
 
           // Personal Information - Basic
-          personal.dateOfBirth ? new Date(personal.dateOfBirth).toISOString().split('T')[0] : '',
-          personal.placeOfBirth || '',
-          personal.gender || '',
-          personal.bloodGroup || '',
-          personal.nationality || '',
-          personal.religion || '',
-          personal.religionOther || '',
-          personal.caste || '',
-          personal.casteOther || '',
-          personal.category || '',
-          personal.categoryOther || '',
-          personal.motherTongue || '',
-          personal.motherTongueOther || '',
-          Array.isArray(personal.languagesKnown) ? personal.languagesKnown.join(', ') : '',
+          studentDetails.dateOfBirth ? new Date(studentDetails.dateOfBirth).toISOString().split('T')[0] : '',
+          studentDetails.placeOfBirth || '',
+          studentDetails.gender || '',
+          studentDetails.bloodGroup || '',
+          studentDetails.nationality || '',
+          studentDetails.religion || '',
+          studentDetails.religionOther || '',
+          studentDetails.caste || '',
+          studentDetails.casteOther || '',
+          studentDetails.category || '',
+          studentDetails.categoryOther || '',
+          studentDetails.motherTongue || '',
+          studentDetails.motherTongueOther || '',
+          Array.isArray(studentDetails.languagesKnown) ? studentDetails.languagesKnown.join(', ') : '',
 
           // Karnataka SATS Specific Personal Fields
           personal.studentNameKannada || '',
@@ -3467,33 +4158,34 @@ const ManageUsers: React.FC = () => {
           personal.socialCategoryOther || '',
           personal.studentCaste || '',
           personal.studentCasteOther || '',
-          personal.studentAadhaar || '',
+          personal.studentAadhaar || identity.aadharNumber || '',
           personal.studentCasteCertNo || '',
           personal.belongingToBPL || '',
           personal.bplCardNo || '',
           personal.bhagyalakshmiBondNo || '',
           personal.disability || '',
           personal.disabilityOther || '',
+          personal.isRTECandidate || '',
 
           // Address Information - Current
-          address.current?.addressLine1 || address.addressLine1 || '',
-          address.current?.addressLine2 || address.addressLine2 || '',
-          address.current?.city || address.city || '',
-          address.current?.district || address.district || '',
-          address.current?.state || address.state || '',
-          address.current?.pinCode || address.pinCode || '',
-          address.current?.taluka || address.taluka || '',
-          address.current?.urbanRural || '',
+          address.current?.street || '', // Using street for Address Line 1
+          address.current?.area || '',   // Using area for Address Line 2
+          address.current?.city || '',
+          address.current?.district || '', // District not standard in Address model, but mapping to empty
+          address.current?.state || '',
+          address.current?.pincode || '',
+          address.current?.taluka || '', // Taluka not standard in Address model, but mapping to empty
+          address.current?.urbanRural || '', // UrbanRural not standard in Address model, but mapping to empty
 
           // Address Information - Permanent  
-          address.permanent?.addressLine1 || '',
-          address.permanent?.addressLine2 || '',
+          address.permanent?.street || '',
+          address.permanent?.area || '',
           address.permanent?.city || '',
-          address.permanent?.district || '',
+          address.permanent?.district || '', // District not standard in Address model, but mapping to empty
           address.permanent?.state || '',
-          address.permanent?.pinCode || '',
-          address.permanent?.taluka || '',
-          address.permanent?.urbanRural || '',
+          address.permanent?.pincode || '',
+          address.permanent?.taluka || '', // Taluka not standard in Address model, but mapping to empty
+          address.permanent?.urbanRural || '', // UrbanRural not standard in Address model, but mapping to empty
 
           // Father Information
           father.name || '',
@@ -3529,7 +4221,7 @@ const ManageUsers: React.FC = () => {
           guardian.phone || '',
           guardian.email || '',
           guardian.address || '',
-          guardian.isEmergencyContact || '',
+          (guardian.isEmergencyContact === true ? 'TRUE' : 'FALSE') || '',
 
           // Siblings Information (up to 3 siblings)
           siblings[0]?.name || '',
@@ -3580,6 +4272,8 @@ const ManageUsers: React.FC = () => {
           bankDetails.ifscCode || '',
           bankDetails.accountHolderName || '',
 
+          userData.profileImage || userData.profilePicture || '', // <--- MAPPING FOR STUDENT
+
           // Previous School Information
           previousSchool.name || '',
           previousSchool.board || '',
@@ -3589,16 +4283,16 @@ const ManageUsers: React.FC = () => {
           previousSchool.reasonForTransfer || '',
 
           // Emergency Contacts (additional - getting from parentDetails if available)
-          userData.parentDetails?.emergencyContacts?.[0]?.name || '',
-          userData.parentDetails?.emergencyContacts?.[0]?.relationship || '',
-          userData.parentDetails?.emergencyContacts?.[0]?.phone || '',
-          userData.parentDetails?.emergencyContacts?.[0]?.address || '',
-          userData.parentDetails?.emergencyContacts?.[0]?.isPrimary || '',
-          userData.parentDetails?.emergencyContacts?.[1]?.name || '',
-          userData.parentDetails?.emergencyContacts?.[1]?.relationship || '',
-          userData.parentDetails?.emergencyContacts?.[1]?.phone || '',
-          userData.parentDetails?.emergencyContacts?.[1]?.address || '',
-          userData.parentDetails?.emergencyContacts?.[1]?.isPrimary || '',
+          parentDetails.emergencyContacts?.[0]?.name || '',
+          parentDetails.emergencyContacts?.[0]?.relationship || '',
+          parentDetails.emergencyContacts?.[0]?.phone || '',
+          parentDetails.emergencyContacts?.[0]?.address || '',
+          parentDetails.emergencyContacts?.[0]?.isPrimary || '',
+          parentDetails.emergencyContacts?.[1]?.name || '',
+          parentDetails.emergencyContacts?.[1]?.relationship || '',
+          parentDetails.emergencyContacts?.[1]?.phone || '',
+          parentDetails.emergencyContacts?.[1]?.address || '',
+          parentDetails.emergencyContacts?.[1]?.isPrimary || '',
 
           // Academic History (current year)
           currentAcademic.academicYear || '',
@@ -3611,10 +4305,10 @@ const ManageUsers: React.FC = () => {
           user.isActive ? 'Active' : 'Inactive',
           new Date(user.createdAt).toLocaleDateString(),
           (userData as any).updatedAt ? new Date((userData as any).updatedAt).toLocaleDateString() : '',
-          userData.metadata?.source || '',
-          userData.metadata?.importBatch || '',
-          Array.isArray(userData.metadata?.tags) ? userData.metadata.tags.join(', ') : '',
-          userData.metadata?.notes || ''
+          metadata.source || '',
+          metadata.importBatch || '',
+          Array.isArray(metadata.tags) ? metadata.tags.join(', ') : '',
+          metadata.notes || ''
         ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
       });
 
@@ -3674,6 +4368,8 @@ const ManageUsers: React.FC = () => {
         // Banking Information
         'Bank Name', 'Account Number', 'IFSC Code', 'Branch Name', 'Account Holder Name',
 
+        'Profile Image Path', // <--- ADDED THE NEW FIELD FOR TEACHER
+
         // Emergency Contact Information
         'Emergency Contact 1 Name', 'Emergency Contact 1 Relationship', 'Emergency Contact 1 Phone', 'Emergency Contact 1 Address',
         'Emergency Contact 2 Name', 'Emergency Contact 2 Relationship', 'Emergency Contact 2 Phone', 'Emergency Contact 2 Address',
@@ -3692,7 +4388,7 @@ const ManageUsers: React.FC = () => {
         const address = userData.address || {};
         const contact = userData.contact || {};
         const personalInfo = userData.personalInfo || {};
-        const identityDocs = userData.identityDocs || {};
+        const identity = userData.identity || {};
         const qualification = teacherDetails.qualification || {};
         const certificates = qualification.certificates || [];
         const experience = teacherDetails.experience || {};
@@ -3706,6 +4402,24 @@ const ManageUsers: React.FC = () => {
         const allowances = salary.allowances || [];
         const bankDetails = teacherDetails.bankDetails || {};
         const emergencyContacts = userData.emergencyContacts || [];
+        const metadata = userData.metadata || {};
+        const contactEmergency = contact.emergencyContact || {};
+
+        const defaultExperience = { total: 0, atCurrentSchool: 0, previousSchools: [] };
+        const exp = teacherDetails.experience || defaultExperience;
+        const qual = teacherDetails.qualification || {};
+        const workSch = teacherDetails.workSchedule || {};
+
+        // Map allowances to easy access structure
+        const allowanceMap = new Map(allowances.map((a: any) => [a.type, a.amount]));
+
+        // Get subjects (handling array of objects or just array of strings from the backend)
+        const formattedSubjects = subjects.map((s: any) => ({
+          subjectCode: s.subjectCode || s,
+          subjectName: s.subjectName || s,
+          classes: Array.isArray(s.classes) ? s.classes.join(', ') : '',
+          isPrimary: s.isPrimary === true ? 'TRUE' : 'FALSE'
+        })).filter(Boolean);
 
         return [
           // Basic Information
@@ -3716,13 +4430,13 @@ const ManageUsers: React.FC = () => {
           user.email || '',
           contact.primaryPhone || contact.phone || user.phone || '',
 
-          // Personal Information
-          personalInfo.dateOfBirth ? new Date(personalInfo.dateOfBirth).toISOString().split('T')[0] : '',
+          // Personal Information (using top-level contact/details fields if available)
+          teacherDetails.dateOfBirth ? new Date(teacherDetails.dateOfBirth).toISOString().split('T')[0] : '',
           personalInfo.placeOfBirth || '',
-          personalInfo.gender || '',
-          personalInfo.bloodGroup || '',
-          personalInfo.nationality || '',
-          personalInfo.religion || '',
+          teacherDetails.gender || '',
+          teacherDetails.bloodGroup || '',
+          teacherDetails.nationality || '',
+          teacherDetails.religion || '',
           personalInfo.caste || '',
           personalInfo.category || '',
           personalInfo.motherTongue || '',
@@ -3731,39 +4445,39 @@ const ManageUsers: React.FC = () => {
           personalInfo.spouseName || '',
 
           // Address Information - Current
-          address.current?.addressLine1 || address.addressLine1 || '',
-          address.current?.addressLine2 || address.addressLine2 || '',
-          address.current?.city || address.city || '',
-          address.current?.district || address.district || '',
-          address.current?.state || address.state || '',
-          address.current?.pinCode || address.pinCode || '',
+          address.current?.street || '',
+          address.current?.area || '', // Using area for Address Line 2
+          address.current?.city || '',
+          address.current?.district || '',
+          address.current?.state || '',
+          address.current?.pincode || '',
 
           // Address Information - Permanent  
-          address.permanent?.addressLine1 || '',
-          address.permanent?.addressLine2 || '',
+          address.permanent?.street || '',
+          address.permanent?.area || '',
           address.permanent?.city || '',
           address.permanent?.district || '',
           address.permanent?.state || '',
-          address.permanent?.pinCode || '',
+          address.permanent?.pincode || '',
 
           // Identity Documents
-          identityDocs.aadhaarNumber || '',
-          identityDocs.panNumber || '',
-          identityDocs.passportNumber || '',
-          identityDocs.drivingLicense || '',
+          identity.aadharNumber || '',
+          identity.panNumber || '',
+          identity.passportNumber || '',
+          identity.drivingLicenseNumber || '',
 
           // Professional Information
           teacherDetails.employeeId || '',
           teacherDetails.joiningDate ? new Date(teacherDetails.joiningDate).toISOString().split('T')[0] : '',
-          userData.designation || '',
-          userData.department || '',
+          teacherDetails.designation || '',
+          teacherDetails.department || '',
 
           // Qualification Information
-          qualification.highest || '',
-          qualification.specialization || '',
-          qualification.university || '',
-          qualification.year || '',
-          qualification.teachingLicense || '',
+          qual.highest || '',
+          qual.specialization || '',
+          qual.university || '',
+          qual.year || '',
+          '', // Teaching License field not explicitly mapped to user model yet
 
           // Additional Certificates (up to 3)
           certificates[0]?.name || '',
@@ -3777,45 +4491,45 @@ const ManageUsers: React.FC = () => {
           certificates[2]?.year || '',
 
           // Experience Information
-          experience.total || '',
-          experience.atCurrentSchool || '',
+          exp.total || '',
+          exp.atCurrentSchool || '',
 
           // Previous Schools (up to 3)
-          previousSchools[0]?.schoolName || '',
-          previousSchools[0]?.duration || '',
-          previousSchools[0]?.position || '',
-          previousSchools[0]?.reasonForLeaving || '',
-          previousSchools[1]?.schoolName || '',
-          previousSchools[1]?.duration || '',
-          previousSchools[1]?.position || '',
-          previousSchools[1]?.reasonForLeaving || '',
-          previousSchools[2]?.schoolName || '',
-          previousSchools[2]?.duration || '',
-          previousSchools[2]?.position || '',
-          previousSchools[2]?.reasonForLeaving || '',
+          exp.previousSchools[0]?.schoolName || '',
+          exp.previousSchools[0]?.duration || '',
+          exp.previousSchools[0]?.position || '',
+          exp.previousSchools[0]?.reasonForLeaving || '',
+          exp.previousSchools[1]?.schoolName || '',
+          exp.previousSchools[1]?.duration || '',
+          exp.previousSchools[1]?.position || '',
+          exp.previousSchools[1]?.reasonForLeaving || '',
+          exp.previousSchools[2]?.schoolName || '',
+          exp.previousSchools[2]?.duration || '',
+          exp.previousSchools[2]?.position || '',
+          exp.previousSchools[2]?.reasonForLeaving || '',
 
           // Subject and Class Information
-          subjects[0]?.subjectCode || '',
-          subjects[0]?.subjectName || '',
-          Array.isArray(subjects[0]?.classes) ? subjects[0].classes.join(', ') : '',
-          subjects[0]?.isPrimary || '',
-          subjects[1]?.subjectCode || '',
-          subjects[1]?.subjectName || '',
-          Array.isArray(subjects[1]?.classes) ? subjects[1].classes.join(', ') : '',
-          subjects[1]?.isPrimary || '',
-          subjects[2]?.subjectCode || '',
-          subjects[2]?.subjectName || '',
-          Array.isArray(subjects[2]?.classes) ? subjects[2].classes.join(', ') : '',
-          subjects[2]?.isPrimary || '',
+          formattedSubjects[0]?.subjectCode || '',
+          formattedSubjects[0]?.subjectName || '',
+          formattedSubjects[0]?.classes || '',
+          formattedSubjects[0]?.isPrimary || '',
+          formattedSubjects[1]?.subjectCode || '',
+          formattedSubjects[1]?.subjectName || '',
+          formattedSubjects[1]?.classes || '',
+          formattedSubjects[1]?.isPrimary || '',
+          formattedSubjects[2]?.subjectCode || '',
+          formattedSubjects[2]?.subjectName || '',
+          formattedSubjects[2]?.classes || '',
+          formattedSubjects[2]?.isPrimary || '',
           teacherDetails.classTeacherOf || '',
-          Array.isArray(responsibilities) ? responsibilities.join(', ') : '',
+          Array.isArray(teacherDetails.responsibilities) ? teacherDetails.responsibilities.join(', ') : '',
 
           // Work Schedule
-          Array.isArray(workSchedule.workingDays) ? workSchedule.workingDays.join(', ') : '',
-          workSchedule.workingHours?.start || '',
-          workSchedule.workingHours?.end || '',
-          workSchedule.maxPeriodsPerDay || '',
-          workSchedule.maxPeriodsPerWeek || '',
+          Array.isArray(workSch.workingDays) ? workSch.workingDays.join(', ') : '',
+          workSch.workingHours?.start || '',
+          workSch.workingHours?.end || '',
+          workSch.maxPeriodsPerDay || '',
+          workSch.maxPeriodsPerWeek || '',
 
           // Performance Review (Latest)
           latestReview.academicYear || '',
@@ -3824,9 +4538,9 @@ const ManageUsers: React.FC = () => {
 
           // Salary Information
           salary.basic || '',
-          allowances.find((a: any) => a.type === 'HRA')?.amount || '',
-          allowances.find((a: any) => a.type === 'Transport')?.amount || '',
-          allowances.find((a: any) => a.type === 'Medical')?.amount || '',
+          allowanceMap.get('HRA') || '',
+          allowanceMap.get('Transport') || '',
+          allowanceMap.get('Medical') || '',
           allowances.filter((a: any) => !['HRA', 'Transport', 'Medical'].includes(a.type)).map((a: any) => `${a.type}: ${a.amount}`).join(', ') || '',
           salary.currency || '',
 
@@ -3837,30 +4551,32 @@ const ManageUsers: React.FC = () => {
           bankDetails.branchName || '',
           bankDetails.accountHolderName || name.firstName && name.lastName ? `${name.firstName} ${name.lastName}` : '',
 
-          // Emergency Contact Information
+          userData.profileImage || userData.profilePicture || '', // <--- MAPPING FOR TEACHER
+
+          // Emergency Contact Information (using main contact.emergencyContact for simplicity)
+          contactEmergency.name || '',
+          contactEmergency.relationship || '',
+          contactEmergency.phone || '',
+          contactEmergency.address || '', // Address not directly available in model structure for emergencyContact
           emergencyContacts[0]?.name || '',
           emergencyContacts[0]?.relationship || '',
           emergencyContacts[0]?.phone || '',
           emergencyContacts[0]?.address || '',
-          emergencyContacts[1]?.name || '',
-          emergencyContacts[1]?.relationship || '',
-          emergencyContacts[1]?.phone || '',
-          emergencyContacts[1]?.address || '',
 
           // Administrative
-          teacherDetails.assignedBy || '',
-          userData.adminRole || 'teacher',
-          Array.isArray(userData.permissions) ? userData.permissions.join(', ') : '',
+          (userData as any).schoolAccess?.assignedBy || '',
+          user.role || 'teacher',
+          Array.isArray(userData.permissions) ? userData.permissions.join(', ') : '', // Assuming top-level permissions might exist
           userData.lastLogin ? new Date(userData.lastLogin).toLocaleDateString() : '',
 
           // System Information
           user.isActive ? 'Active' : 'Inactive',
           new Date(user.createdAt).toLocaleDateString(),
           (userData as any).updatedAt ? new Date((userData as any).updatedAt).toLocaleDateString() : '',
-          userData.metadata?.source || '',
-          userData.metadata?.importBatch || '',
-          Array.isArray(userData.metadata?.tags) ? userData.metadata.tags.join(', ') : '',
-          userData.metadata?.notes || ''
+          metadata.source || '',
+          metadata.importBatch || '',
+          Array.isArray(metadata.tags) ? metadata.tags.join(', ') : '',
+          metadata.notes || ''
         ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
       });
 
@@ -3911,18 +4627,17 @@ const ManageUsers: React.FC = () => {
         // Banking Information
         'Bank Name', 'Account Number', 'IFSC Code', 'Branch Name', 'Account Holder Name',
 
+        'Profile Image Path', // <--- NEW FIELD ADDED HERE
+
         // Emergency Contact Information
         'Emergency Contact 1 Name', 'Emergency Contact 1 Relationship', 'Emergency Contact 1 Phone', 'Emergency Contact 1 Address',
         'Emergency Contact 2 Name', 'Emergency Contact 2 Relationship', 'Emergency Contact 2 Phone', 'Emergency Contact 2 Address',
 
-        // System Access
-        'Login Permissions', 'System Role', 'Multi-School Access', 'API Access', 'Reporting Access',
-
-        // Performance and Review
-        'Latest Review Date', 'Latest Review Rating', 'Latest Review Comments', 'Goals and Targets',
+        // Administrative
+        'Assigned By', 'Admin Role Level', 'Permissions', 'Last Login',
 
         // System Information
-        'Status', 'Created Date', 'Last Modified', 'Last Login', 'Source', 'Import Batch', 'Tags', 'Notes'
+        'Status', 'Created Date', 'Last Modified', 'Source', 'Import Batch', 'Tags', 'Notes'
       ];
 
       csvRows = filteredUsers.map(user => {
@@ -3931,20 +4646,36 @@ const ManageUsers: React.FC = () => {
         const name = userData.name || {};
         const address = userData.address || {};
         const contact = userData.contact || {};
-        const personalInfo = userData.personalInfo || {};
-        const identityDocs = userData.identityDocs || {};
+        const personalInfo = userData.personalInfo || {}; // Not explicitly in model, using top-level or adminDetails
+        const identity = userData.identity || {};
         const permissions = adminDetails.permissions || {};
-        const responsibilities = adminDetails.responsibilities || {};
-        const qualification = adminDetails.qualification || {};
+        const responsibilities = adminDetails.responsibilities || {}; // Not explicitly in model
+        const qualification = adminDetails.qualification || {}; // Not explicitly in model
         const experience = adminDetails.experience || {};
         const previousExperience = experience.previousExperience || [];
         const workSchedule = adminDetails.workSchedule || {};
         const salary = adminDetails.salary || {};
         const allowances = salary.allowances || [];
         const bankDetails = adminDetails.bankDetails || {};
-        const emergencyContacts = userData.emergencyContacts || [];
-        const systemAccess = adminDetails.systemAccess || {};
-        const performanceReview = adminDetails.performanceReview || {};
+        const emergencyContacts = userData.emergencyContacts || []; // Using top-level for non-parent roles
+        const systemAccess = adminDetails.systemAccess || {}; // Not explicitly in model
+        const performanceReview = adminDetails.performanceReview || {}; // Not explicitly in model
+        const metadata = userData.metadata || {};
+        const contactEmergency = contact.emergencyContact || {};
+
+        // Map allowances to easy access structure
+        const allowanceMap = new Map(allowances.map((a: any) => [a.type, a.amount]));
+
+        const adminPermissions = [
+          permissions.userManagement ? 'UserManagement' : '',
+          permissions.academicManagement ? 'AcademicManagement' : '',
+          permissions.feeManagement ? 'FeeManagement' : '',
+          permissions.reportGeneration ? 'ReportGeneration' : '',
+          permissions.systemSettings ? 'SystemSettings' : '',
+          permissions.schoolSettings ? 'SchoolSettings' : '',
+          permissions.dataExport ? 'DataExport' : '',
+          permissions.auditLogs ? 'AuditLogs' : ''
+        ].filter(Boolean).join(', ');
 
         return [
           // Basic Information
@@ -3955,74 +4686,74 @@ const ManageUsers: React.FC = () => {
           user.email || '',
           contact.primaryPhone || contact.phone || user.phone || '',
 
-          // Personal Information
-          personalInfo.dateOfBirth ? new Date(personalInfo.dateOfBirth).toISOString().split('T')[0] : '',
+          // Personal Information (using top-level user fields or nested adminDetails for consistency)
+          adminDetails.dateOfBirth ? new Date(adminDetails.dateOfBirth).toISOString().split('T')[0] : '',
           personalInfo.placeOfBirth || '',
-          personalInfo.gender || '',
-          personalInfo.bloodGroup || '',
-          personalInfo.nationality || '',
-          personalInfo.religion || '',
-          personalInfo.caste || '',
-          personalInfo.category || '',
+          user.gender || adminDetails.gender || '',
+          user.bloodGroup || adminDetails.bloodGroup || '',
+          user.nationality || 'Indian',
+          user.religion || adminDetails.religion || '',
+          user.caste || adminDetails.caste || '',
+          user.category || adminDetails.category || '',
           personalInfo.motherTongue || '',
           Array.isArray(personalInfo.languagesKnown) ? personalInfo.languagesKnown.join(', ') : '',
           personalInfo.maritalStatus || '',
           personalInfo.spouseName || '',
 
           // Address Information - Current
-          address.current?.addressLine1 || address.addressLine1 || '',
-          address.current?.addressLine2 || address.addressLine2 || '',
-          address.current?.city || address.city || '',
-          address.current?.district || address.district || '',
-          address.current?.state || address.state || '',
-          address.current?.pinCode || address.pinCode || '',
+          address.current?.street || '',
+          address.current?.area || '',
+          address.current?.city || '',
+          address.current?.district || '',
+          address.current?.state || '',
+          address.current?.pincode || '',
 
           // Address Information - Permanent  
-          address.permanent?.addressLine1 || '',
-          address.permanent?.addressLine2 || '',
+          address.permanent?.street || '',
+          address.permanent?.area || '',
           address.permanent?.city || '',
           address.permanent?.district || '',
           address.permanent?.state || '',
-          address.permanent?.pinCode || '',
+          address.permanent?.pincode || '',
 
           // Identity Documents
-          identityDocs.aadhaarNumber || '',
-          identityDocs.panNumber || '',
-          identityDocs.passportNumber || '',
-          identityDocs.drivingLicense || '',
+          identity.aadharNumber || '',
+          identity.panNumber || '',
+          identity.passportNumber || '',
+          identity.drivingLicenseNumber || '',
 
           // Administrative Information
-          adminDetails.adminId || '',
-          adminDetails.adminLevel || 'Admin',
+          adminDetails.employeeId || '',
+          adminDetails.adminType || 'Admin',
           adminDetails.designation || '',
           adminDetails.department || '',
           adminDetails.joiningDate ? new Date(adminDetails.joiningDate).toISOString().split('T')[0] : '',
-          adminDetails.reportingManager || '',
+          adminDetails.reportingTo || '',
 
           // Permissions and Access
-          Array.isArray(permissions.list) ? permissions.list.join(', ') : '',
-          permissions.accessLevel || '',
-          permissions.canManageUsers || '',
-          permissions.canManageAcademics || '',
-          permissions.canManageFinance || '',
-          permissions.canManageReports || '',
-          permissions.canManageSchoolSettings || '',
-          permissions.canViewAllData || '',
-          permissions.canExportData || '',
-          permissions.canImportData || '',
+          adminPermissions,
+          (userData as any).accessLevel || '', // Assuming legacy field for this template
+          permissions.userManagement ? 'TRUE' : 'FALSE',
+          permissions.academicManagement ? 'TRUE' : 'FALSE',
+          permissions.feeManagement ? 'TRUE' : 'FALSE',
+          permissions.reportGeneration ? 'TRUE' : 'FALSE',
+          permissions.systemSettings ? 'TRUE' : 'FALSE',
+          permissions.schoolSettings ? 'TRUE' : 'FALSE',
+          permissions.dataExport ? 'TRUE' : 'FALSE',
+          permissions.auditLogs ? 'TRUE' : 'FALSE',
 
           // Responsibilities
-          Array.isArray(responsibilities.primary) ? responsibilities.primary.join(', ') : '',
-          Array.isArray(responsibilities.secondary) ? responsibilities.secondary.join(', ') : '',
-          Array.isArray(responsibilities.committees) ? responsibilities.committees.join(', ') : '',
-          Array.isArray(responsibilities.specialDuties) ? responsibilities.specialDuties.join(', ') : '',
+          Array.isArray(adminDetails.responsibilities) ? adminDetails.responsibilities.join(', ') : '', // Using array from model
+          responsibilities.secondary || '', // Placeholder for secondary duties
+          responsibilities.committees || '', // Placeholder
+          responsibilities.specialDuties || '', // Placeholder
 
           // Professional Background
           qualification.highest || '',
           qualification.specialization || '',
           qualification.university || '',
           qualification.year || '',
-          experience.totalYears || '',
+          experience.total || '',
           experience.administrativeYears || '',
           experience.educationSectorYears || '',
 
@@ -4045,14 +4776,14 @@ const ManageUsers: React.FC = () => {
           workSchedule.workingHours?.start || '',
           workSchedule.workingHours?.end || '',
           workSchedule.overtimeEligible || '',
-          Array.isArray(workSchedule.onCallDuties) ? workSchedule.onCallDuties.join(', ') : '',
+          workSchedule.onCallDuties || '',
 
           // Salary Information
           salary.basic || '',
-          allowances.find((a: any) => a.type === 'HRA')?.amount || '',
-          allowances.find((a: any) => a.type === 'Transport')?.amount || '',
-          allowances.find((a: any) => a.type === 'Medical')?.amount || '',
-          allowances.find((a: any) => a.type === 'Management')?.amount || '',
+          allowanceMap.get('HRA') || '',
+          allowanceMap.get('Transport') || '',
+          allowanceMap.get('Medical') || '',
+          allowanceMap.get('Management') || '',
           allowances.filter((a: any) => !['HRA', 'Transport', 'Medical', 'Management'].includes(a.type)).map((a: any) => `${a.type}: ${a.amount}`).join(', ') || '',
           salary.currency || '',
 
@@ -4063,38 +4794,32 @@ const ManageUsers: React.FC = () => {
           bankDetails.branchName || '',
           bankDetails.accountHolderName || name.firstName && name.lastName ? `${name.firstName} ${name.lastName}` : '',
 
-          // Emergency Contact Information
+          userData.profileImage || userData.profilePicture || '', // <--- NEW MAPPING FOR ADMIN
+
+          // Emergency Contact Information (using main contact.emergencyContact and nested emergencyContacts)
+          contactEmergency.name || '',
+          contactEmergency.relationship || '',
+          contactEmergency.phone || '',
+          contactEmergency.address || '',
           emergencyContacts[0]?.name || '',
           emergencyContacts[0]?.relationship || '',
           emergencyContacts[0]?.phone || '',
           emergencyContacts[0]?.address || '',
-          emergencyContacts[1]?.name || '',
-          emergencyContacts[1]?.relationship || '',
-          emergencyContacts[1]?.phone || '',
-          emergencyContacts[1]?.address || '',
 
-          // System Access
-          systemAccess.loginPermissions || '',
-          systemAccess.systemRole || '',
-          systemAccess.multiSchoolAccess || '',
-          systemAccess.apiAccess || '',
-          systemAccess.reportingAccess || '',
-
-          // Performance and Review
-          performanceReview.latestReviewDate ? new Date(performanceReview.latestReviewDate).toISOString().split('T')[0] : '',
-          performanceReview.latestReviewRating || '',
-          performanceReview.latestReviewComments || '',
-          Array.isArray(performanceReview.goalsAndTargets) ? performanceReview.goalsAndTargets.join(', ') : '',
+          // Administrative
+          (userData as any).schoolAccess?.assignedBy || '',
+          user.role || 'admin',
+          adminPermissions, // Using joined string again
+          userData.lastLogin ? new Date(userData.lastLogin).toLocaleDateString() : '',
 
           // System Information
           user.isActive ? 'Active' : 'Inactive',
           new Date(user.createdAt).toLocaleDateString(),
           (userData as any).updatedAt ? new Date((userData as any).updatedAt).toLocaleDateString() : '',
-          userData.lastLogin ? new Date(userData.lastLogin).toLocaleDateString() : '',
-          userData.metadata?.source || '',
-          userData.metadata?.importBatch || '',
-          Array.isArray(userData.metadata?.tags) ? userData.metadata.tags.join(', ') : '',
-          userData.metadata?.notes || ''
+          metadata.source || '',
+          metadata.importBatch || '',
+          Array.isArray(metadata.tags) ? metadata.tags.join(', ') : '',
+          metadata.notes || ''
         ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
       });
     }
@@ -4102,7 +4827,13 @@ const ManageUsers: React.FC = () => {
     // Create CSV content
     const csvContent = "data:text/csv;charset=utf-8," +
       headers.join(',') + '\n' +
-      csvRows.join('\n');
+      csvRows.map(row => row.map(cell => {
+        const strCell = String(cell ?? '');
+        if (strCell.includes('"') || strCell.includes(',') || strCell.includes('\n') || strCell.includes('\r')) {
+          return `"${strCell.replace(/"/g, '""')}"`;
+        }
+        return strCell;
+      }).join(',')).join('\n');
 
     // Create and trigger download
     const link = document.createElement("a");
@@ -4115,6 +4846,7 @@ const ManageUsers: React.FC = () => {
     toast.success(`${filteredUsers.length} ${activeTab} records exported successfully!`);
   };
 
+  // ... existing code ...
   // CSV Import Functions
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -5156,7 +5888,28 @@ const ManageUsers: React.FC = () => {
       // Sort sections within each class
       const sortedSections: { [key: string]: User[] } = {};
       Object.keys(organized[className]).sort().forEach(section => {
-        sortedSections[section] = organized[className][section].sort((a, b) => a.name.localeCompare(b.name));
+        // Sort students by userId (Student ID) in ascending order
+        sortedSections[section] = organized[className][section].sort((a, b) => {
+          const studentIdA = (a as any).userId || a._id || '';
+          const studentIdB = (b as any).userId || b._id || '';
+          
+          // Extract numeric part from student ID (e.g., "BG-S-0003" -> 3)
+          const extractNumber = (id: string) => {
+            const match = id.match(/\d+$/);
+            return match ? parseInt(match[0]) : 0;
+          };
+          
+          const numA = extractNumber(studentIdA);
+          const numB = extractNumber(studentIdB);
+          
+          // If both have numeric parts, compare numerically
+          if (numA !== 0 || numB !== 0) {
+            return numA - numB;
+          }
+          
+          // Fallback to string comparison
+          return studentIdA.localeCompare(studentIdB);
+        });
       });
       result[className] = sortedSections;
     });
@@ -5178,6 +5931,8 @@ const ManageUsers: React.FC = () => {
   const handleGradeChange = (grade: string) => {
     setSelectedGrade(grade);
     setSelectedSection('all'); // Reset section when grade changes
+    // Update available sections based on selected class
+    handleClassSelection(grade);
   };
   const userData = user as DisplayUser;
 
@@ -5291,7 +6046,7 @@ const ManageUsers: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <input
                   type="text"
-                  placeholder="Search users..."
+                  placeholder="Search by name, email, or ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -5305,22 +6060,14 @@ const ManageUsers: React.FC = () => {
                       value={selectedGrade}
                       onChange={(e) => handleGradeChange(e.target.value)}
                       className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={classesLoading}
                     >
                       <option value="all">All Classes</option>
-                      <option value="LKG">LKG</option>
-                      <option value="UKG">UKG</option>
-                      <option value="1">Class 1</option>
-                      <option value="2">Class 2</option>
-                      <option value="3">Class 3</option>
-                      <option value="4">Class 4</option>
-                      <option value="5">Class 5</option>
-                      <option value="6">Class 6</option>
-                      <option value="7">Class 7</option>
-                      <option value="8">Class 8</option>
-                      <option value="9">Class 9</option>
-                      <option value="10">Class 10</option>
-                      <option value="11">Class 11</option>
-                      <option value="12">Class 12</option>
+                      {classesData?.classes?.map((classItem) => (
+                        <option key={classItem._id} value={classItem.className}>
+                          Class {classItem.className}
+                        </option>
+                      ))}
                     </select>
 
                     {/* Section Dropdown - only show when a specific class is selected */}
@@ -5329,14 +6076,14 @@ const ManageUsers: React.FC = () => {
                         value={selectedSection}
                         onChange={(e) => setSelectedSection(e.target.value)}
                         className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        disabled={classesLoading}
                       >
                         <option value="all">All Sections</option>
-                        <option value="A">Section A</option>
-                        <option value="B">Section B</option>
-                        <option value="C">Section C</option>
-                        <option value="D">Section D</option>
-                        <option value="E">Section E</option>
-                        <option value="F">Section F</option>
+                        {availableSections.map((sectionOption) => (
+                          <option key={sectionOption.value} value={sectionOption.section}>
+                            Section {sectionOption.section}
+                          </option>
+                        ))}
                       </select>
                     )}
                   </div>
@@ -5496,7 +6243,7 @@ const ManageUsers: React.FC = () => {
                               <div className="divide-y divide-gray-100">
                                 {students.map((student) => (
                                   <div key={student._id} className="px-6 py-3 hover:bg-gray-50 flex items-center justify-between">
-                                    <div className="flex items-center space-x-4">
+                                    <div className="flex items-center space-x-4 flex-1 min-w-0">
                                       <div className="flex-shrink-0">
                                         <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                                           <span className="text-sm font-medium text-blue-600">
@@ -5504,11 +6251,11 @@ const ManageUsers: React.FC = () => {
                                           </span>
                                         </div>
                                       </div>
-                                      <div>
-                                        <div className="text-sm font-medium text-gray-900">{student.name}</div>
-                                        <div className="text-sm text-gray-500">{student.email}</div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium text-gray-900 break-words">{student.name}</div>
+                                        <div className="text-sm text-gray-500 break-words">{student.email}</div>
                                         {student.studentDetails?.studentId && (
-                                          <div className="text-xs text-gray-400">ID: {student.studentDetails.studentId}</div>
+                                          <div className="text-xs text-gray-400 truncate">ID: {student.studentDetails.studentId}</div>
                                         )}
                                       </div>
                                     </div>
@@ -5641,20 +6388,20 @@ const ManageUsers: React.FC = () => {
                             </div>
                           </td>
                           {/* User Column */}
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
+                          <td className="px-6 py-4">
+                            <div className="max-w-xs">
+                              <div className="text-sm font-medium text-gray-900 break-words">
                                 {(user as any).name?.displayName ||
                                   ((user as any).name?.firstName && (user as any).name?.lastName
                                     ? `${(user as any).name.firstName} ${(user as any).name.lastName}`
                                     : (user as any).name?.firstName || user.name || 'No name')}
                               </div>
-                              <div className="text-sm text-gray-500">{(user as any).userId || user._id}</div>
+                              <div className="text-sm text-gray-500 truncate">{(user as any).userId || user._id}</div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div>
-                              <div>{user.email}</div>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            <div className="max-w-xs">
+                              <div className="break-words">{user.email}</div>
                               <div className="text-xs text-gray-400">{(user as any).contact?.primaryPhone || user.phone || 'No phone'}</div>
                             </div>
                           </td>
@@ -5662,11 +6409,11 @@ const ManageUsers: React.FC = () => {
                             <>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {/* Reads from the processed studentDetails object */}
-                                {user.studentDetails?.class || 'Not assigned'}
+                                {user.studentDetails?.currentClass || 'Not assigned'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {/* Reads from the processed studentDetails object */}
-                                {user.studentDetails?.section || 'Not assigned'}
+                                {user.studentDetails?.currentSection || 'Not assigned'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {(user as any).userId || user._id || 'Not assigned'}
@@ -6223,7 +6970,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter full name in English"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Student Name (Kannada)</label>
                           <input
                             type="text"
@@ -6232,7 +6979,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
                           <input
@@ -6305,7 +7052,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter father's name"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Father Name (Kannada)</label>
                           <input
                             type="text"
@@ -6314,7 +7061,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter father's name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Father Aadhaar No</label>
                           <input
@@ -6345,7 +7092,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter mother's name"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mother Name (Kannada)</label>
                           <input
                             type="text"
@@ -6354,7 +7101,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter mother's name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mother Aadhaar No</label>
                           <input
@@ -6684,80 +7431,6 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Taluka/Taluk *</label>
-                          <input
-                            type="text"
-                            required
-                            value={formData.taluka}
-                            onChange={(e) => setFormData({ ...formData, taluka: e.target.value })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                            placeholder="Enter taluka/taluk"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">District *</label>
-                          <select
-                            required
-                            value={formData.district}
-                            onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                          >
-                            <option value="">Select District</option>
-                            <option value="Bagalkot">Bagalkot</option>
-                            <option value="Bangalore Rural">Bangalore Rural</option>
-                            <option value="Bangalore Urban">Bangalore Urban</option>
-                            <option value="Belgaum">Belgaum</option>
-                            <option value="Bellary">Bellary</option>
-                            <option value="Bidar">Bidar</option>
-                            <option value="Chamarajanagar">Chamarajanagar</option>
-                            <option value="Chikkaballapur">Chikkaballapur</option>
-                            <option value="Chikkamagaluru">Chikkamagaluru</option>
-                            <option value="Chitradurga">Chitradurga</option>
-                            <option value="Dakshina Kannada">Dakshina Kannada</option>
-                            <option value="Davanagere">Davanagere</option>
-                            <option value="Dharwad">Dharwad</option>
-                            <option value="Gadag">Gadag</option>
-                            <option value="Gulbarga">Gulbarga</option>
-                            <option value="Hassan">Hassan</option>
-                            <option value="Haveri">Haveri</option>
-                            <option value="Kodagu">Kodagu</option>
-                            <option value="Kolar">Kolar</option>
-                            <option value="Koppal">Koppal</option>
-                            <option value="Mandya">Mandya</option>
-                            <option value="Mysore">Mysore</option>
-                            <option value="Raichur">Raichur</option>
-                            <option value="Ramanagara">Ramanagara</option>
-                            <option value="Shimoga">Shimoga</option>
-                            <option value="Tumkur">Tumkur</option>
-                            <option value="Udupi">Udupi</option>
-                            <option value="Uttara Kannada">Uttara Kannada</option>
-                            <option value="Vijayapura">Vijayapura</option>
-                            <option value="Yadgir">Yadgir</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">State *</label>
-                          <select
-                            required
-                            value={formData.state || formData.permanentState || 'Karnataka'}
-                            onChange={(e) => setFormData({
-                              ...formData,
-                              state: e.target.value,
-                              permanentState: e.target.value
-                            })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                          >
-                            <option value="Karnataka">Karnataka</option>
-                            <option value="Andhra Pradesh">Andhra Pradesh</option>
-                            <option value="Telangana">Telangana</option>
-                            <option value="Tamil Nadu">Tamil Nadu</option>
-                            <option value="Kerala">Kerala</option>
-                            <option value="Goa">Goa</option>
-                            <option value="Maharashtra">Maharashtra</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        </div>
-                        <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Pin Code *</label>
                           <input
                             type="text"
@@ -6770,6 +7443,25 @@ const ManageUsers: React.FC = () => {
                             maxLength={6}
                           />
                         </div>
+                      </div>
+                      <div className="mt-4">
+                        <h5 className="text-md font-medium text-gray-800 mb-2">Location Details (State, District, Taluka)</h5>
+                        <LocationSelector
+                          selectedState={formData.stateId}
+                          selectedDistrict={formData.districtId}
+                          selectedTaluka={formData.talukaId}
+                          districtText={formData.districtText}
+                          talukaText={formData.talukaText}
+                          onStateChange={handleStateChange}
+                          onDistrictChange={handleDistrictChange}
+                          onTalukaChange={handleTalukaChange}
+                          onDistrictTextChange={handleDistrictTextChange}
+                          onTalukaTextChange={handleTalukaTextChange}
+                          required={true}
+                          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       </div>
                     </div>
 
@@ -7594,7 +8286,7 @@ const ManageUsers: React.FC = () => {
                   <div className="space-y-6">
 
                     {/* Basic Information - SATS Standard */}
-                    <div className="bg-blue-50 p-4 rounded-lg">
+                    {/* <div className="bg-blue-50 p-4 rounded-lg">
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
@@ -7618,7 +8310,7 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                       </div>
-                    </div>
+                    </div> */}
 
                     {/* Student Details - SATS Standard */}
                     <div className="bg-yellow-50 p-4 rounded-lg">
@@ -7635,7 +8327,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter full name in English"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Student Name (Kannada)</label>
                           <input
                             type="text"
@@ -7644,7 +8336,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
                           <input
@@ -7827,7 +8519,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter father's name"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Father Name (Kannada)</label>
                           <input
                             type="text"
@@ -7836,7 +8528,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter father's name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Father Aadhaar No</label>
                           <input
@@ -7860,7 +8552,7 @@ const ManageUsers: React.FC = () => {
                             placeholder="Enter mother's name"
                           />
                         </div>
-                        <div>
+                        {/* <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mother Name (Kannada)</label>
                           <input
                             type="text"
@@ -7869,7 +8561,7 @@ const ManageUsers: React.FC = () => {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter mother's name in Kannada"
                           />
-                        </div>
+                        </div> */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mother Aadhaar No</label>
                           <input
@@ -8338,16 +9030,6 @@ const ManageUsers: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                      <input
-                        type="text"
-                        value={formData.state}
-                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        placeholder="Enter state"
-                      />
-                    </div>
-                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Pin Code</label>
                       <input
                         type="text"
@@ -8359,6 +9041,64 @@ const ManageUsers: React.FC = () => {
                         maxLength={6}
                       />
                     </div>
+                  </div>
+                  <div className="mt-4">
+                    <h5 className="text-md font-medium text-gray-800 mb-2">Location Details</h5>
+                    <LocationSelector
+                      selectedState={formData.stateId}
+                      selectedDistrict={formData.districtId}
+                      selectedTaluka={formData.talukaId}
+                      districtText={formData.districtText}
+                      talukaText={formData.talukaText}
+                      onStateChange={(stateId, state) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          stateId: stateId.toString(),
+                          state: state.name,
+                          permanentState: state.name,
+                          districtId: '',
+                          district: '',
+                          talukaId: '',
+                          taluka: '',
+                          districtText: '',
+                          talukaText: ''
+                        }));
+                      }}
+                      onDistrictChange={(districtId, district) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          districtId: districtId.toString(),
+                          district: district.name,
+                          talukaId: '',
+                          taluka: '',
+                          talukaText: ''
+                        }));
+                      }}
+                      onTalukaChange={(talukaId, taluka) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          talukaId: talukaId.toString(),
+                          taluka: taluka.name
+                        }));
+                      }}
+                      onDistrictTextChange={(text) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          districtText: text,
+                          district: text,
+                          talukaText: ''
+                        }));
+                      }}
+                      onTalukaTextChange={(text) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          talukaText: text,
+                          taluka: text
+                        }));
+                      }}
+                      required={false}
+                      className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                    />
                   </div>
                 </div>
 

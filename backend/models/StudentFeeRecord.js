@@ -165,4 +165,10 @@ studentFeeRecordSchema.index({ feeStructureId: 1 });
 studentFeeRecordSchema.index({ nextDueDate: 1 });
 studentFeeRecordSchema.index({ createdAt: -1 });
 
-module.exports = mongoose.model('StudentFeeRecord', studentFeeRecordSchema);
+// Export both the model and schema for dynamic registration
+const StudentFeeRecord = mongoose.model('StudentFeeRecord', studentFeeRecordSchema);
+
+module.exports = {
+  schema: studentFeeRecordSchema,
+  model: StudentFeeRecord
+};

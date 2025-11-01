@@ -10,22 +10,22 @@ import {
   UserCheck,
   BookOpen,
   BarChart3,
-  Bell,
   User,
-  LogOut,
   GraduationCap,
   MessageSquare,
   CreditCard,
   FileText
 } from 'lucide-react';
-import { useAuth } from '../../../auth/AuthContext';
+import { usePermissions, PermissionKey } from '../../../hooks/usePermissions';
+import { PermissionDeniedModal } from '../../../components/PermissionDeniedModal';
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { hasPermission, showPermissionDenied, setShowPermissionDenied, deniedPermissionName, checkAndNavigate } = usePermissions();
 
+  // Define navigation with permission requirements
   const navigation = [
     { name: 'Dashboard', href: '/admin/', icon: Home },
     { name: 'Manage Users', href: '/admin/users', icon: Users },
@@ -34,10 +34,18 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Attendance', href: '/admin/attendance', icon: UserCheck },
     { name: 'Assignments', href: '/admin/assignments', icon: BookOpen },
     { name: 'Results', href: '/admin/results', icon: BarChart3 },
+    { name: 'Leave Management', href: '/admin/leave-management', icon: Calendar },
     { name: 'Messages', href: '/admin/messages', icon: MessageSquare },
     { name: 'Fees', href: '/admin/fees/structure', icon: CreditCard },
     { name: 'Reports', href: '/admin/reports', icon: FileText },
   ];
+
+  const handleNavClick = (e: React.MouseEvent, href: string, permission: PermissionKey | null, name: string) => {
+    if (permission && !hasPermission(permission)) {
+      e.preventDefault();
+      checkAndNavigate(permission, name, () => navigate(href));
+    }
+  };
 
   const isActive = (href: string) => location.pathname === href;
 
@@ -53,11 +61,10 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <Link
               key={item.name}
               to={item.href}
-              className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                isActive(item.href) || location.pathname.startsWith(item.href + '/')
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isActive(item.href) || location.pathname.startsWith(item.href + '/')
                   ? 'bg-blue-100 text-blue-700'
                   : 'text-gray-700 hover:bg-gray-100'
-              }`}
+                }`}
             >
               <item.icon className="mr-3 h-5 w-5" />
               {item.name}
@@ -71,9 +78,8 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <div className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:hidden ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="h-16 px-6 flex items-center justify-between bg-blue-600">
           <h1 className="text-xl font-bold text-white">ERP Admin Portal</h1>
@@ -90,11 +96,10 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               key={item.name}
               to={item.href}
               onClick={() => setSidebarOpen(false)}
-              className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                isActive(item.href) || location.pathname.startsWith(item.href + '/')
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isActive(item.href) || location.pathname.startsWith(item.href + '/')
                   ? 'bg-blue-100 text-blue-700'
                   : 'text-gray-700 hover:bg-gray-100'
-              }`}
+                }`}
             >
               <item.icon className="mr-3 h-5 w-5" />
               {item.name}
@@ -102,6 +107,13 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ))}
         </nav>
       </div>
+
+      {/* Permission Denied Modal */}
+      <PermissionDeniedModal
+        isOpen={showPermissionDenied}
+        onClose={() => setShowPermissionDenied(false)}
+        permissionName={deniedPermissionName}
+      />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col">
@@ -116,24 +128,11 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </button>
 
             <div className="flex items-center space-x-4">
-              <button className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
-                <Bell className="h-5 w-5" />
-              </button>
               <div className="flex items-center space-x-2">
                 <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
                   <User className="h-4 w-4 text-white" />
                 </div>
                 <span className="text-sm font-medium text-gray-700">Admin User</span>
-                <button 
-                  onClick={() => {
-                    logout();
-                    navigate('/login', { replace: true });
-                  }}
-                  className="text-gray-500 hover:text-gray-700 p-1 rounded"
-                  title="Logout"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { testDetailsAPI } from '../../../api/testDetails';
 import { resultsAPI } from '../../../services/api';
 import { toast } from 'react-hot-toast';
+import api from '../../../services/api';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 
 interface StudentResult {
@@ -35,12 +36,20 @@ const Results: React.FC = () => {
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [availableSections, setAvailableSections] = useState<any[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState('');
-  const [subjects, setSubjects] = useState<string[]>([]);
+  // const [selectedSubject, setSelectedSubject] = useState('');
+  // const [subjects, setSubjects] = useState<string[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [selectedTestType, setSelectedTestType] = useState('');
-  const [maxMarks, setMaxMarks] = useState<number | ''>('');
+
+  // const [maxMarks, setMaxMarks] = useState<number | ''>('');
   const [configuredMaxMarks, setConfiguredMaxMarks] = useState<number | null>(null);
+
+  // Subject selection replaces Max Marks input in UI
+  const [subjects, setSubjects] = useState<{ label: string; value: string }[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState('');
+  // Keep maxMarks internally for backend compatibility (default 100)
+  const [maxMarks, setMaxMarks] = useState<number | ''>(100);
+
   const [showResultsTable, setShowResultsTable] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,12 +67,12 @@ const Results: React.FC = () => {
   const [existingResults, setExistingResults] = useState<any[]>([]);
   const [loadingExistingResults, setLoadingExistingResults] = useState(false);
   const [showExistingResults, setShowExistingResults] = useState(false);
-  
+
   // State for inline editing in existing results table
   const [editingResultId, setEditingResultId] = useState<string | null>(null);
   const [editingMarks, setEditingMarks] = useState<number | null>(null);
   const [savingResultId, setSavingResultId] = useState<string | null>(null);
-  
+
   // State for freeze functionality
   const [isFrozen, setIsFrozen] = useState(false);
   const [freezing, setFreezing] = useState(false);
@@ -238,6 +247,31 @@ const Results: React.FC = () => {
       setSubjects([]);
     }
   }, [selectedClass, classesData]);
+
+  // Fetch subjects for selected class and section (aligned with superadmin-created subjects)
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      setSubjects([]);
+      setSelectedSubject('');
+      if (!selectedClass || !selectedSection) return;
+      try {
+        // Use class-subjects route to get subjects for grade/section
+        const res = await api.get(`/class-subjects/grade/${encodeURIComponent(selectedClass)}/section/${encodeURIComponent(selectedSection)}`);
+        // Expecting res.data.subjects or res.data.data; support both
+        const items = (res.data?.subjects || res.data?.data || []) as any[];
+        const mapped = items.map((s: any) => ({
+          label: s.subjectName || s.name || s.subject || s,
+          value: s.subjectCode || s.code || s.subjectName || s.name || s
+        })).filter((x: any) => x.label && x.value);
+        setSubjects(mapped);
+        if (mapped.length > 0) setSelectedSubject(mapped[0].value);
+      } catch (err) {
+        console.error('Error fetching subjects for class/section:', err);
+        toast.error('Failed to load subjects for selected class/section');
+      }
+    };
+    fetchSubjects();
+  }, [selectedClass, selectedSection]);
 
   // Fetch test types when selected class changes
   useEffect(() => {
@@ -493,12 +527,12 @@ const Results: React.FC = () => {
 
       if (res.data?.success && Array.isArray(res.data?.data) && res.data.data.length > 0) {
         const latest = dedupeResultsByStudent(res.data.data);
-        
+
         // Check if results are frozen
         const firstResult = latest[0];
         const frozen = firstResult?.frozen || false;
         setIsFrozen(frozen);
-        
+
         let results: StudentResult[] = latest.map((r: any) => ({
           id: r.studentId,
           name: r.studentName,
@@ -578,12 +612,12 @@ const Results: React.FC = () => {
 
       if (response.data.success && response.data.data) {
         const latest = dedupeResultsByStudent(response.data.data);
-        
+
         // Check if results are frozen (check first result's frozen status)
         const firstResult = latest[0];
         const frozen = firstResult?.frozen || false;
         setIsFrozen(frozen);
-        
+
         // Enrich existing results list with roll numbers
         const enriched = await enrichWithRollNumbers(latest.map((r: any) => ({
           id: r.studentId,
@@ -650,7 +684,7 @@ const Results: React.FC = () => {
     setSavingResultId(result._id);
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      
+
       // Call update API
       await resultsAPI.updateResult(result._id, {
         schoolCode,
@@ -679,7 +713,7 @@ const Results: React.FC = () => {
       // Clear editing state
       setEditingResultId(null);
       setEditingMarks(null);
-      
+
       toast.success('Result updated successfully!');
     } catch (error: any) {
       console.error('Error updating result:', error);
@@ -705,7 +739,7 @@ const Results: React.FC = () => {
     setFreezing(true);
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      
+
       await resultsAPI.freezeResults({
         schoolCode,
         class: selectedClass,
@@ -718,7 +752,7 @@ const Results: React.FC = () => {
       // Update local state to mark all results as frozen
       setExistingResults(prev => prev.map(r => ({ ...r, frozen: true })));
       setIsFrozen(true);
-      
+
       toast.success('Results frozen successfully! Marks can no longer be edited.');
     } catch (error: any) {
       console.error('Error freezing results:', error);
@@ -899,7 +933,7 @@ const Results: React.FC = () => {
       prev.map(student => {
         if (student.id === studentId) {
           const updatedStudent = { ...student, [field]: value };
-          
+
           // Auto-calculate grade when obtainedMarks or totalMarks changes
           if (field === 'obtainedMarks' || field === 'totalMarks') {
             updatedStudent.grade = calculateGrade(
@@ -907,7 +941,7 @@ const Results: React.FC = () => {
               field === 'totalMarks' ? value : student.totalMarks
             );
           }
-          
+
           return updatedStudent;
         }
         return student;
@@ -1231,14 +1265,13 @@ const Results: React.FC = () => {
                       {result.totalMarks}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                        ['A1', 'A2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-green-100 text-green-800' :
-                        ['B1', 'B2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-blue-100 text-blue-800' :
-                        ['C1', 'C2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-yellow-100 text-yellow-800' :
-                        (editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) === 'D' ? 'bg-orange-100 text-orange-800' :
-                        ['E1', 'E2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
+                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${['A1', 'A2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-green-100 text-green-800' :
+                          ['B1', 'B2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-blue-100 text-blue-800' :
+                            ['C1', 'C2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-yellow-100 text-yellow-800' :
+                              (editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) === 'D' ? 'bg-orange-100 text-orange-800' :
+                                ['E1', 'E2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-red-100 text-red-800' :
+                                  'bg-gray-100 text-gray-600'
+                        }`}>
                         {editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade || 'N/A'}
                       </span>
                     </td>
@@ -1361,14 +1394,13 @@ const Results: React.FC = () => {
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`px-3 py-1 rounded-md text-sm font-semibold ${
-                        student.grade && ['A1', 'A2'].includes(student.grade) ? 'bg-green-100 text-green-800' :
-                        student.grade && ['B1', 'B2'].includes(student.grade) ? 'bg-blue-100 text-blue-800' :
-                        student.grade && ['C1', 'C2'].includes(student.grade) ? 'bg-yellow-100 text-yellow-800' :
-                        student.grade === 'D' ? 'bg-orange-100 text-orange-800' :
-                        student.grade && ['E1', 'E2'].includes(student.grade) ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
+                      <span className={`px-3 py-1 rounded-md text-sm font-semibold ${student.grade && ['A1', 'A2'].includes(student.grade) ? 'bg-green-100 text-green-800' :
+                          student.grade && ['B1', 'B2'].includes(student.grade) ? 'bg-blue-100 text-blue-800' :
+                            student.grade && ['C1', 'C2'].includes(student.grade) ? 'bg-yellow-100 text-yellow-800' :
+                              student.grade === 'D' ? 'bg-orange-100 text-orange-800' :
+                                student.grade && ['E1', 'E2'].includes(student.grade) ? 'bg-red-100 text-red-800' :
+                                  'bg-gray-100 text-gray-600'
+                        }`}>
                         {student.grade || 'N/A'}
                       </span>
                     </td>

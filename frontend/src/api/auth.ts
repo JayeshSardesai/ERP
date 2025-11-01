@@ -76,7 +76,8 @@ async function regularLogin(payload: LoginPayload): Promise<LoginResponse> {
       : data.user.email;
 
   const mappedUser: AuthUser = {
-    id: data.user._id || data.user.id || data.user.userId || '',
+    id: data.user._id || data.user.id || '',
+    userId: data.user.userId,
     name: displayName,
     email: data.user.email,
     role: (roleLc as AuthUser['role']),
@@ -142,8 +143,13 @@ async function schoolLogin(payload: LoginPayload): Promise<LoginResponse> {
       ? [nameVal.firstName, nameVal.middleName, nameVal.lastName].filter(Boolean).join(' ').trim() || data.user.email
       : data.user.email;
 
+  console.log('[SCHOOL LOGIN DEBUG] Raw response data.user:', data.user);
+  console.log('[SCHOOL LOGIN DEBUG] data.user.userId specifically:', data.user.userId);
+  console.log('[SCHOOL LOGIN DEBUG] data.user keys:', Object.keys(data.user));
+
   const mappedUser: AuthUser = {
-    id: data.user._id || data.user.id || data.user.userId || '',
+    id: data.user._id || data.user.id || '',
+    userId: data.user.userId,
     name: displayName,
     email: data.user.email,
     role: (roleLc as AuthUser['role']),
@@ -153,7 +159,8 @@ async function schoolLogin(payload: LoginPayload): Promise<LoginResponse> {
     lastLogin: data.user.lastLogin
   };
 
-  console.log('[SCHOOL LOGIN SUCCESS]', mappedUser);
+  console.log('[SCHOOL LOGIN SUCCESS] Mapped user:', mappedUser);
+  console.log('[SCHOOL LOGIN SUCCESS] Mapped user.userId:', mappedUser.userId);
   return { token: data.token, user: mappedUser };
 }
 

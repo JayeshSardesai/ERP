@@ -24,7 +24,7 @@ exports.createAssignment = async (req, res) => {
 
     // Validate required fields
     if (!title || !subject || !className || !section || !startDate || !dueDate) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Missing required fields',
         requiredFields: ['title', 'subject', 'class', 'section', 'startDate', 'dueDate']
       });
@@ -38,33 +38,33 @@ exports.createAssignment = async (req, res) => {
     // Get school ID - depending on user type
     let schoolId;
     let schoolCode;
-    
+
     // First check if schoolCode is provided in the request body (from frontend)
     schoolCode = req.body.schoolCode || req.user.schoolCode;
-    
+
     if (!schoolCode) {
       return res.status(400).json({ message: 'School code is required' });
     }
-    
+
     // Find the school in the main database to get its ObjectId
     const school = await School.findOne({ code: schoolCode });
     if (!school) {
       return res.status(404).json({ message: `School not found with code ${schoolCode}` });
     }
     schoolId = school._id;
-    
+
     console.log(`[ASSIGNMENT] Found school ID ${schoolId} for school code ${schoolCode}`);
-    
-    
+
+
     // Get total students in the class - using appropriate database
     let totalStudents = 0;
-    
+
     try {
       if (req.user.schoolCode) {
         // For multi-tenant, use the school database
         const schoolCode = req.user.schoolCode;
         console.log(`[ASSIGNMENT] Counting students in school ${schoolCode} for class ${className}-${section}`);
-        
+
         // Use a simpler approach - just set a default value for now
         // In production, you would query the correct database
         totalStudents = 30; // Default value
@@ -85,7 +85,7 @@ exports.createAssignment = async (req, res) => {
     // Validate dates
     const startDateObj = new Date(startDate);
     const dueDateObj = new Date(dueDate);
-    
+
     if (startDateObj >= dueDateObj) {
       return res.status(400).json({ message: 'Due date must be after start date' });
     }
@@ -107,31 +107,36 @@ exports.createAssignment = async (req, res) => {
       const now = new Date();
       const year = now.getFullYear();
       const month = now.getMonth() + 1; // Jan is 0, Dec is 11
-      
+
       // If current month is before April, use previous year as start of academic year
       // Example: March 2024 would be in 2023-24 academic year
       if (month < 4) {
-        return `${year-1}-${year.toString().substr(2,2)}`;
+        return `${year - 1}-${year.toString().substr(2, 2)}`;
       } else {
-        return `${year}-${(year+1).toString().substr(2,2)}`;
+        return `${year}-${(year + 1).toString().substr(2, 2)}`;
       }
     };
-    
+
     // Create assignment either in school-specific database or main database
     let assignment;
-    
-    // Get teacher name
-    const teacher = await User.findById(req.user._id).select('firstName lastName');
-    const teacherName = teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unknown Teacher';
-    
+
+    // Get teacher name and ID from req.user (already populated by auth middleware)
+    const teacherName = req.user.name?.firstName
+      ? `${req.user.name.firstName} ${req.user.name.lastName || ''}`.trim()
+      : req.user.name || req.user.email || 'Unknown Teacher';
+
+    const teacherId = req.user.userId || req.user._id.toString();
+
+    console.log(`[ASSIGNMENT] Teacher info - Name: ${teacherName}, ID: ${teacherId}`);
+
     try {
       // Connect to school-specific database
       console.log(`[ASSIGNMENT] Connecting to school database for ${schoolCode}`);
       const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-      
+
       // Get the AssignmentMultiTenant model for this connection
       const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
-      
+
       // Create the assignment in the school-specific database
       assignment = new SchoolAssignment({
         schoolId,
@@ -141,7 +146,7 @@ exports.createAssignment = async (req, res) => {
         subject,
         class: className,
         section,
-        teacher: req.user._id.toString(), // Store as string
+        teacher: teacherId, // Use userId instead of _id
         teacherName,
         startDate: new Date(startDate),
         dueDate: new Date(dueDate),
@@ -153,27 +158,29 @@ exports.createAssignment = async (req, res) => {
         status: 'active',
         isPublished: true,
         publishedAt: new Date(),
-        createdBy: req.user._id.toString(),
+        createdBy: teacherId, // Use userId instead of _id
         createdByName: teacherName
       });
-      
+
       console.log(`[ASSIGNMENT] Created assignment in school_${schoolCode}.assignments`);
-      
+
       await assignment.save();
       console.log(`[ASSIGNMENT] Saved assignment to school_${schoolCode}.assignments successfully`);
     } catch (error) {
       console.error(`[ASSIGNMENT] Error saving to school database: ${error.message}`);
       console.log('[ASSIGNMENT] Falling back to main database');
-      
+
       // Fallback to main database if school-specific fails
       assignment = new Assignment({
         schoolId,
+        schoolCode,
         title,
         description: description || instructions || '',
         subject,
         class: className,
         section,
-        teacher: req.user._id,
+        teacher: teacherId, // Use userId instead of _id
+        teacherName,
         startDate: new Date(startDate),
         dueDate: new Date(dueDate),
         instructions: instructions || description || '',
@@ -184,9 +191,10 @@ exports.createAssignment = async (req, res) => {
         status: 'active',
         isPublished: true,
         publishedAt: new Date(),
-        createdBy: req.user._id
+        createdBy: teacherId, // Use userId instead of _id
+        createdByName: teacherName
       });
-      
+
       await assignment.save();
     }
 
@@ -202,9 +210,9 @@ exports.createAssignment = async (req, res) => {
     }
 
     res.status(201).json({
-      message: `Assignment sent to ${className} • Section ${section} • Due ${dueDateObj.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
+      message: `Assignment sent to ${className} • Section ${section} • Due ${dueDateObj.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit'
@@ -213,9 +221,9 @@ exports.createAssignment = async (req, res) => {
       summary: {
         studentsNotified: totalStudents,
         className: `${className} • Section ${section}`,
-        dueDate: dueDateObj.toLocaleDateString('en-US', { 
-          weekday: 'short', 
-          month: 'short', 
+        dueDate: dueDateObj.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
           day: 'numeric',
           hour: 'numeric',
           minute: '2-digit'
@@ -249,9 +257,9 @@ const sendAssignmentNotifications = async (assignment, schoolId) => {
     // Create notification data
     const notificationData = {
       title: `New Assignment: ${assignment.subject}`,
-      body: `${assignment.title} - Due: ${assignment.dueDate.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
+      body: `${assignment.title} - Due: ${assignment.dueDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit'
@@ -305,19 +313,19 @@ exports.getAssignments = async (req, res) => {
     // Get school information
     const schoolCode = req.user.schoolCode;
     const schoolId = req.user.schoolId;
-    
+
     if (!schoolCode && !schoolId) {
       return res.status(400).json({ message: 'School information not found' });
     }
-    
+
     console.log(`[GET ASSIGNMENTS] Getting assignments for school: ${schoolCode || schoolId}`);
-    
+
     // Build query
     const query = {};
     if (schoolId) {
       query.schoolId = schoolId;
     }
-    
+
     if (status) {
       query.status = status;
     }
@@ -337,16 +345,42 @@ exports.getAssignments = async (req, res) => {
 
     // Teachers can only see their own assignments
     if (req.user.role === 'teacher') {
-      if (schoolCode) {
-        // In multi-tenant DB, teacher ID is stored as string
-        query.teacher = req.user._id.toString();
-      } else {
-        query.teacher = req.user._id;
+      // Use userId (e.g., "SK-T-001") instead of MongoDB _id
+      const teacherId = req.user.userId || req.user._id.toString();
+      query.teacher = teacherId;
+      console.log(`[GET ASSIGNMENTS] Filtering by teacher: ${teacherId}`);
+    }
+
+    // Students can only see published assignments for their class/section
+    if (req.user.role === 'student') {
+      query.isPublished = true;
+      query.status = 'active';
+
+      // Filter by student's class and section
+      // Check multiple possible locations for class/section data
+      const studentClass = req.user.studentDetails?.currentClass ||
+        req.user.studentDetails?.academic?.currentClass ||
+        req.user.class;
+      const studentSection = req.user.studentDetails?.currentSection ||
+        req.user.studentDetails?.academic?.currentSection ||
+        req.user.section;
+
+      if (studentClass) {
+        query.class = studentClass;
+        console.log(`[GET ASSIGNMENTS] Filtering for student class: ${studentClass}`);
+      }
+      if (studentSection) {
+        query.section = studentSection;
+        console.log(`[GET ASSIGNMENTS] Filtering for student section: ${studentSection}`);
+      }
+
+      if (!studentClass || !studentSection) {
+        console.warn(`[GET ASSIGNMENTS] Student ${req.user.userId} missing class/section data`);
       }
     }
 
-    // Students and parents can only see published assignments
-    if (['student', 'parent'].includes(req.user.role)) {
+    // Parents can only see published assignments
+    if (req.user.role === 'parent') {
       query.isPublished = true;
       query.status = 'active';
     }
@@ -360,20 +394,20 @@ exports.getAssignments = async (req, res) => {
         console.log(`[GET ASSIGNMENTS] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
         const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
-        
+
         assignments = await SchoolAssignment.find(query)
           .limit(limit * 1)
           .skip((page - 1) * limit)
           .sort({ createdAt: -1 });
-          
+
         total = await SchoolAssignment.countDocuments(query);
-        
+
         console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in school-specific database`);
       } catch (error) {
         console.error(`[GET ASSIGNMENTS] Error accessing school-specific database: ${error.message}`);
       }
     }
-    
+
     // If no assignments found in school-specific database or no schoolCode, try main database
     if (assignments.length === 0 && schoolId) {
       console.log(`[GET ASSIGNMENTS] Falling back to main database`);
@@ -413,22 +447,22 @@ exports.getAssignmentById = async (req, res) => {
     // Get school information
     const schoolCode = req.user.schoolCode;
     const schoolId = req.user.schoolId;
-    
+
     if (!schoolCode && !schoolId) {
       return res.status(400).json({ message: 'School information not found' });
     }
 
     console.log(`[GET ASSIGNMENT] Getting assignment ${assignmentId} for school: ${schoolCode || schoolId}`);
-    
+
     let assignment = null;
-    
+
     // Try to get the assignment from the school-specific database first
     if (schoolCode) {
       try {
         console.log(`[GET ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
         const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
-        
+
         // Try to find by MongoDB ObjectId first
         try {
           assignment = await SchoolAssignment.findById(assignmentId);
@@ -436,7 +470,7 @@ exports.getAssignmentById = async (req, res) => {
           // If that fails, try to find by assignmentId field
           assignment = await SchoolAssignment.findOne({ assignmentId });
         }
-        
+
         if (assignment) {
           console.log(`[GET ASSIGNMENT] Found assignment in school-specific database`);
         }
@@ -444,26 +478,26 @@ exports.getAssignmentById = async (req, res) => {
         console.error(`[GET ASSIGNMENT] Error accessing school-specific database: ${error.message}`);
       }
     }
-    
+
     // If not found in school-specific database, try main database
     if (!assignment && schoolId) {
       console.log(`[GET ASSIGNMENT] Falling back to main database`);
       assignment = await Assignment.findById(assignmentId)
         .populate('teacher', 'name email')
         .populate('createdBy', 'name email');
-        
+
       if (assignment) {
         console.log(`[GET ASSIGNMENT] Found assignment in main database`);
       }
     }
-    
+
     if (!assignment) {
       return res.status(404).json({ message: 'Assignment not found' });
     }
 
     // Check if user has access to this assignment's school
-    if (schoolId && assignment.schoolId && 
-        schoolId.toString() !== assignment.schoolId.toString()) {
+    if (schoolId && assignment.schoolId &&
+      schoolId.toString() !== assignment.schoolId.toString()) {
       return res.status(403).json({ message: 'Access denied - school mismatch' });
     }
 
@@ -532,14 +566,15 @@ exports.updateAssignment = async (req, res) => {
         console.log(`[UPDATE ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
         const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
-        
+
         assignment = await SchoolAssignment.findById(assignmentId);
-        
+
         if (assignment) {
           console.log(`[UPDATE ASSIGNMENT] Found assignment in school-specific database`);
-          
+
           // Check access
-          if (req.user.role === 'teacher' && assignment.teacher !== req.user._id.toString()) {
+          const teacherId = req.user.userId || req.user._id.toString();
+          if (req.user.role === 'teacher' && assignment.teacher !== teacherId) {
             return res.status(403).json({ message: 'You can only update your own assignments' });
           }
 
@@ -562,7 +597,7 @@ exports.updateAssignment = async (req, res) => {
             { $set: updateFields },
             { new: true, runValidators: true }
           );
-          
+
           console.log(`[UPDATE ASSIGNMENT] Updated assignment in school-specific database`);
         }
       } catch (error) {
@@ -574,7 +609,7 @@ exports.updateAssignment = async (req, res) => {
     if (!assignment && schoolId) {
       console.log(`[UPDATE ASSIGNMENT] Trying main database`);
       assignment = await Assignment.findById(assignmentId);
-      
+
       if (!assignment) {
         return res.status(404).json({ message: 'Assignment not found' });
       }
@@ -585,7 +620,8 @@ exports.updateAssignment = async (req, res) => {
       }
 
       // Teachers can only update their own assignments
-      if (req.user.role === 'teacher' && assignment.teacher.toString() !== req.user._id.toString()) {
+      const teacherId = req.user.userId || req.user._id.toString();
+      if (req.user.role === 'teacher' && assignment.teacher.toString() !== teacherId) {
         return res.status(403).json({ message: 'You can only update your own assignments' });
       }
 
@@ -609,7 +645,7 @@ exports.updateAssignment = async (req, res) => {
         { $set: updateFields },
         { new: true, runValidators: true }
       ).populate('teacher', 'name email');
-      
+
       console.log(`[UPDATE ASSIGNMENT] Updated assignment in main database`);
     }
 
@@ -617,7 +653,7 @@ exports.updateAssignment = async (req, res) => {
       return res.status(404).json({ message: 'Assignment not found or update failed' });
     }
 
-    res.json({ 
+    res.json({
       message: 'Assignment updated successfully',
       assignment: updatedAssignment
     });
@@ -649,7 +685,8 @@ exports.publishAssignment = async (req, res) => {
     }
 
     // Teachers can only publish their own assignments
-    if (req.user.role === 'teacher' && assignment.teacher.toString() !== req.user._id.toString()) {
+    const teacherId = req.user.userId || req.user._id.toString();
+    if (req.user.role === 'teacher' && assignment.teacher.toString() !== teacherId) {
       return res.status(403).json({ message: 'You can only publish your own assignments' });
     }
 
@@ -661,7 +698,7 @@ exports.publishAssignment = async (req, res) => {
 
     await assignment.save();
 
-    res.json({ 
+    res.json({
       message: 'Assignment published successfully',
       assignment: {
         id: assignment._id,
@@ -702,14 +739,15 @@ exports.deleteAssignment = async (req, res) => {
         console.log(`[DELETE ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
         const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
-        
+
         assignment = await SchoolAssignment.findById(assignmentId);
-        
+
         if (assignment) {
           console.log(`[DELETE ASSIGNMENT] Found assignment in school-specific database`);
-          
+
           // Check access - Teachers can only delete their own assignments
-          if (req.user.role === 'teacher' && assignment.teacher !== req.user._id.toString()) {
+          const teacherId = req.user.userId || req.user._id.toString();
+          if (req.user.role === 'teacher' && assignment.teacher !== teacherId) {
             return res.status(403).json({ message: 'You can only delete your own assignments' });
           }
 
@@ -727,7 +765,7 @@ exports.deleteAssignment = async (req, res) => {
     if (!assignment && schoolId) {
       console.log(`[DELETE ASSIGNMENT] Trying main database`);
       assignment = await Assignment.findById(assignmentId);
-      
+
       if (!assignment) {
         return res.status(404).json({ message: 'Assignment not found' });
       }
@@ -738,7 +776,8 @@ exports.deleteAssignment = async (req, res) => {
       }
 
       // Teachers can only delete their own assignments
-      if (req.user.role === 'teacher' && assignment.teacher.toString() !== req.user._id.toString()) {
+      const teacherId = req.user.userId || req.user._id.toString();
+      if (req.user.role === 'teacher' && assignment.teacher.toString() !== teacherId) {
         return res.status(403).json({ message: 'You can only delete your own assignments' });
       }
 
@@ -750,7 +789,7 @@ exports.deleteAssignment = async (req, res) => {
       return res.status(404).json({ message: 'Assignment not found in any database' });
     }
 
-    res.json({ 
+    res.json({
       message: 'Assignment deleted successfully',
       deletedFrom: deletedFromSchoolDB ? 'school-specific database' : 'main database'
     });
@@ -789,7 +828,8 @@ exports.getAssignmentStats = async (req, res) => {
         // Build match query
         const matchQuery = {};
         if (req.user.role === 'teacher') {
-          matchQuery.teacher = req.user._id.toString();
+          const teacherId = req.user.userId || req.user._id.toString();
+          matchQuery.teacher = teacherId;
         }
 
         // Get status counts
@@ -831,11 +871,12 @@ exports.getAssignmentStats = async (req, res) => {
     // Fallback to main database if needed
     if (total === 0 && schoolId) {
       console.log(`[GET STATS] Falling back to main database`);
-      
+
       // Build match query
       const matchQuery = { schoolId };
       if (req.user.role === 'teacher') {
-        matchQuery.teacher = req.user._id;
+        const teacherId = req.user.userId || req.user._id.toString();
+        matchQuery.teacher = teacherId;
       }
 
       stats = await Assignment.aggregate([
@@ -908,15 +949,15 @@ exports.submitAssignment = async (req, res) => {
 
     // Check if student belongs to the assignment's class/section
     const student = req.user;
-    if (student.studentDetails?.class !== assignment.class || 
-        student.studentDetails?.section !== assignment.section) {
+    if (student.studentDetails?.class !== assignment.class ||
+      student.studentDetails?.section !== assignment.section) {
       return res.status(403).json({ message: 'Assignment not assigned to your class/section' });
     }
 
     // Check if assignment is still open for submissions
     const now = new Date();
     const isLate = now > assignment.dueDate;
-    
+
     if (isLate && !assignment.allowLateSubmission) {
       return res.status(400).json({ message: 'Assignment submission deadline has passed' });
     }
@@ -954,7 +995,7 @@ exports.submitAssignment = async (req, res) => {
       existingSubmission.isLateSubmission = isLate;
       existingSubmission.version += 1;
       existingSubmission.status = 'submitted';
-      
+
       await existingSubmission.save();
 
       res.json({
@@ -1087,8 +1128,8 @@ exports.gradeSubmission = async (req, res) => {
     // Validate grade
     const maxMarksToUse = maxMarks || submission.assignmentId.maxMarks;
     if (grade < 0 || grade > maxMarksToUse) {
-      return res.status(400).json({ 
-        message: `Grade must be between 0 and ${maxMarksToUse}` 
+      return res.status(400).json({
+        message: `Grade must be between 0 and ${maxMarksToUse}`
       });
     }
 

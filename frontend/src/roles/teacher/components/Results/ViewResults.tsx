@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, Filter, Download, Medal } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Filter, Download, Medal, Edit, Save, X } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
+import { resultsAPI } from '../../../../services/api';
 import { toast } from 'react-hot-toast';
 
 const ViewResults: React.FC = () => {
   const { user, token } = useAuth();
-  
+
   // Use the useSchoolClasses hook to fetch classes configured by superadmin
   const {
     classesData,
@@ -26,6 +27,14 @@ const ViewResults: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [loadingTestTypes, setLoadingTestTypes] = useState(false);
+
+  // State for inline editing
+  const [editingResultId, setEditingResultId] = useState<string | null>(null);
+  const [editingMarks, setEditingMarks] = useState<number | null>(null);
+  const [savingResultId, setSavingResultId] = useState<string | null>(null);
+
+  // State for freeze functionality
+  const [isFrozen, setIsFrozen] = useState(false);
 
   // Get class list from superadmin configuration
   const classList = classesData?.classes?.map(c => c.className) || [];
@@ -189,6 +198,84 @@ const ViewResults: React.FC = () => {
     return 'bg-gray-100 text-gray-600';
   };
 
+  // Function to start inline editing
+  const startInlineEdit = (result: any) => {
+    if (isFrozen) {
+      toast.error('Results are frozen and cannot be edited');
+      return;
+    }
+    setEditingResultId(result._id || result.id);
+    setEditingMarks(result.obtainedMarks);
+  };
+
+  // Function to cancel inline editing
+  const cancelInlineEdit = () => {
+    setEditingResultId(null);
+    setEditingMarks(null);
+  };
+
+  // Function to save inline edited result
+  const saveInlineEdit = async (result: any) => {
+    if (editingMarks === null || editingMarks === undefined) {
+      toast.error('Please enter valid marks');
+      return;
+    }
+
+    const totalMarks = result.totalMarks || result.maxMarks;
+    if (editingMarks > totalMarks) {
+      toast.error(`Marks cannot exceed ${totalMarks}`);
+      return;
+    }
+
+    if (editingMarks < 0) {
+      toast.error('Marks cannot be negative');
+      return;
+    }
+
+    const resultId = result._id || result.id;
+    setSavingResultId(resultId);
+    try {
+      const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
+
+      // Call update API
+      await resultsAPI.updateResult(resultId, {
+        schoolCode,
+        class: result.className || selectedClass,
+        section: result.section || selectedSection,
+        subject: result.subject || selectedSubject,
+        testType: result.testType || selectedExam,
+        maxMarks: result.maxMarks || totalMarks,
+        obtainedMarks: editingMarks,
+        totalMarks: totalMarks,
+        studentId: result.studentId,
+        studentName: result.studentName,
+        userId: result.userId
+      });
+
+      // Update local state with new marks and calculated grade
+      const updatedGrade = calculateGrade(editingMarks, totalMarks);
+      setResults(prev =>
+        prev.map(r => {
+          const rId = r._id || r.id;
+          return rId === resultId
+            ? { ...r, obtainedMarks: editingMarks, grade: updatedGrade }
+            : r;
+        })
+      );
+
+      // Clear editing state
+      setEditingResultId(null);
+      setEditingMarks(null);
+
+      toast.success('Result updated successfully!');
+    } catch (error: any) {
+      console.error('Error updating result:', error);
+      toast.error(error.response?.data?.message || 'Failed to update result');
+    } finally {
+      setSavingResultId(null);
+    }
+  };
+
   const classStats = {
     totalStudents: results.length,
     averageMarks: results.length > 0 ? Math.round(
@@ -211,7 +298,7 @@ const ViewResults: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">View Results</h1>
           <p className="text-gray-600">Student performance reports for your subjects</p>
         </div>
-        
+
         <button className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mt-4 sm:mt-0">
           <Download className="h-4 w-4 mr-2" />
           Export Results
@@ -293,7 +380,7 @@ const ViewResults: React.FC = () => {
           </div>
 
           <div className="flex items-end">
-            <button 
+            <button
               className="w-full px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
               disabled={!selectedClass || !selectedSection || !selectedSubject || !selectedExam || loading}
               onClick={async () => {
@@ -321,13 +408,25 @@ const ViewResults: React.FC = () => {
                   }
 
                   const data = await response.json();
-                  
+
                   if (data.success) {
-                    setResults(data.data.results || []);
-                    toast.success(`Found ${data.data.results.length} results`);
+                    const resultsData = data.data.results || [];
+                    setResults(resultsData);
+
+                    // Check if results are frozen
+                    const firstResult = resultsData[0];
+                    const frozen = firstResult?.frozen || false;
+                    setIsFrozen(frozen);
+
+                    if (frozen) {
+                      toast.error(`⚠️ Results are FROZEN and cannot be edited. Loaded ${resultsData.length} result(s).`, { duration: 5000 });
+                    } else {
+                      toast.success(`Found ${resultsData.length} results`);
+                    }
                   } else {
                     toast.error(data.message || 'Failed to fetch results');
                     setResults([]);
+                    setIsFrozen(false);
                   }
                 } catch (error) {
                   console.error('Error fetching results:', error);
@@ -434,6 +533,9 @@ const ViewResults: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -470,6 +572,56 @@ const ViewResults: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {result.createdAt ? new Date(result.createdAt).toLocaleDateString() : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {editingResultId === (result._id || result.id) ? (
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              value={editingMarks || ''}
+                              onChange={(e) => setEditingMarks(Number(e.target.value))}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              min="0"
+                              max={result.totalMarks || result.maxMarks}
+                              disabled={savingResultId === (result._id || result.id)}
+                            />
+                            <button
+                              onClick={() => saveInlineEdit(result)}
+                              disabled={savingResultId === (result._id || result.id)}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-md transition-colors disabled:opacity-50"
+                              title="Save"
+                            >
+                              {savingResultId === (result._id || result.id) ? (
+                                <div className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full" />
+                              ) : (
+                                <Save className="h-4 w-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={cancelInlineEdit}
+                              disabled={savingResultId === (result._id || result.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                              title="Cancel"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => startInlineEdit(result)}
+                            disabled={isFrozen || result.frozen}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                            title={isFrozen || result.frozen ? "Results are frozen" : "Edit marks"}
+                          >
+                            {isFrozen || result.frozen ? (
+                              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <Edit className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

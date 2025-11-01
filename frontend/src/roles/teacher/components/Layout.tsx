@@ -14,9 +14,9 @@ import {
   Home,
   UserCheck
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../auth/AuthContext';
-import { currentUser } from '../utils/mockData';
+import { usePermissions, PermissionKey } from '../../../hooks/usePermissions';
+import { PermissionDeniedModal } from '../../../components/PermissionDeniedModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -26,18 +26,43 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout }) => {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { hasPermission, showPermissionDenied, setShowPermissionDenied, deniedPermissionName, checkAndNavigate } = usePermissions();
+
+  // Get initials from teacher name
+  const getInitials = () => {
+    if (!user?.name) return 'T';
+    const nameParts = user.name.split(' ');
+    if (nameParts.length >= 2) {
+      // First letter of first name + first letter of last name
+      return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
+    }
+    // If only one name, return first two letters
+    return user.name.substring(0, 2).toUpperCase();
+  };
 
   const menuItems = [
-    { name: 'Dashboard', icon: Home, page: 'dashboard' },
-    { name: 'Attendance', icon: UserCheck, page: 'attendance' },
-    { name: 'Assignments', icon: FileText, page: 'assignments' },
-    { name: 'Results', icon: BarChart3, page: 'view-results' },
-    { name: 'Messages', icon: MessageSquare, page: 'messages' },
-    { name: 'Settings', icon: Settings, page: 'settings' }
+    { name: 'Dashboard', icon: Home, page: 'dashboard', permission: null },
+    { name: 'Attendance', icon: UserCheck, page: 'attendance', permission: 'viewAttendance' as PermissionKey },
+    { name: 'Assignments', icon: FileText, page: 'assignments', permission: 'viewAssignments' as PermissionKey },
+    { name: 'Results', icon: BarChart3, page: 'view-results', permission: 'viewResults' as PermissionKey },
+    { name: 'Messages', icon: MessageSquare, page: 'messages', permission: 'messageStudentsParents' as PermissionKey },
+    { name: 'Leave Request', icon: Calendar, page: 'leave-request', permission: 'viewLeaves' as PermissionKey }
   ];
+
+
+  const handleMenuClick = (item: typeof menuItems[0]) => {
+    if (item.permission && !hasPermission(item.permission)) {
+      checkAndNavigate(item.permission, item.name, () => {
+        onNavigate(item.page);
+        setSidebarOpen(false);
+      });
+    } else {
+      onNavigate(item.page);
+      setSidebarOpen(false);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -50,9 +75,8 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-lg transform ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
+      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-lg transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
           <div className="flex items-center">
             <div className="flex items-center justify-center w-8 h-8 bg-blue-600 rounded-lg mr-3">
@@ -75,15 +99,11 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
               return (
                 <button
                   key={item.name}
-                  onClick={() => {
-                    onNavigate(item.page);
-                    setSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                    currentPage === item.page
+                  onClick={() => handleMenuClick(item)}
+                  className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${currentPage === item.page
                       ? 'bg-blue-100 text-blue-700'
                       : 'text-gray-700 hover:bg-gray-100'
-                  }`}
+                    }`}
                 >
                   <Icon className="h-5 w-5 mr-3" />
                   {item.name}
@@ -93,30 +113,27 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
           </nav>
 
           <div className="px-4 py-6 border-t border-gray-200">
-            <div className="flex items-center mb-4">
-              <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
-                className="w-10 h-10 rounded-full mr-3"
-              />
+            <div className="flex items-center">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mr-3">
+                <span className="text-white font-bold text-sm">
+                  {getInitials()}
+                </span>
+              </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">{currentUser.name}</p>
-                <p className="text-xs text-gray-500">{currentUser.employeeId}</p>
+                <p className="text-sm font-medium text-gray-900">{user?.name || 'Teacher'}</p>
+                <p className="text-xs text-gray-500">{user?.userId || user?.email}</p>
               </div>
             </div>
-            <button
-              onClick={() => {
-                logout();
-                navigate('/login', { replace: true });
-              }}
-              className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-700 rounded-lg hover:bg-red-50 transition-colors"
-            >
-              <LogOut className="h-4 w-4 mr-3" />
-              Sign Out
-            </button>
           </div>
         </div>
       </div>
+
+      {/* Permission Denied Modal */}
+      <PermissionDeniedModal
+        isOpen={showPermissionDenied}
+        onClose={() => setShowPermissionDenied(false)}
+        permissionName={deniedPermissionName}
+      />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">

@@ -2,21 +2,29 @@ const express = require('express');
 const router = express.Router();
 const attendanceController = require('../controllers/attendanceController');
 const { auth, authorize } = require('../middleware/auth');
+const checkPermission = require('../middleware/permissionCheck');
 
 // Apply authentication middleware to all routes
 router.use(auth);
 
-// Attendance management routes
-router.post('/mark', authorize(['admin', 'teacher']), attendanceController.markAttendance);
-router.post('/mark-session', attendanceController.markSessionAttendance); // Temporarily removed authorization for debugging
-router.post('/mark-bulk', authorize(['admin', 'teacher']), attendanceController.markBulkAttendance);
-router.get('/', attendanceController.getAttendance);
-router.get('/session-status', attendanceController.checkSessionStatus); // Check if session is marked/frozen
-router.get('/class', attendanceController.getClassAttendance); // Temporarily removed authorization for debugging
-router.get('/stats', authorize(['admin', 'teacher']), attendanceController.getAttendanceStats);
-router.get('/student-report', attendanceController.getStudentAttendanceReport);
+// Attendance routes - all require viewAttendance permission (simplified)
+// If user can view attendance, they can also mark it (for admin/teacher roles)
+router.post('/mark', authorize(['admin', 'teacher']), checkPermission('viewAttendance'), attendanceController.markAttendance);
+router.post('/mark-session', authorize(['admin', 'teacher']), checkPermission('viewAttendance'), attendanceController.markSessionAttendance);
+router.post('/mark-bulk', authorize(['admin', 'teacher']), checkPermission('viewAttendance'), attendanceController.markBulkAttendance);
+router.patch('/:attendanceId/lock', authorize(['admin', 'teacher']), checkPermission('viewAttendance'), attendanceController.lockAttendance);
 
-// Attendance-specific routes
-router.patch('/:attendanceId/lock', authorize(['admin', 'teacher']), attendanceController.lockAttendance);
+// View attendance routes
+router.get('/', checkPermission('viewAttendance'), attendanceController.getAttendance);
+router.get('/session-status', checkPermission('viewAttendance'), attendanceController.checkSessionStatus);
+router.get('/session-data', checkPermission('viewAttendance'), attendanceController.getSessionAttendanceData);
+router.get('/class', checkPermission('viewAttendance'), attendanceController.getClassAttendance);
+router.get('/stats', checkPermission('viewAttendance'), attendanceController.getAttendanceStats);
+router.get('/overall-rate', checkPermission('viewAttendance'), attendanceController.getOverallAttendanceRate);
+router.get('/daily-stats', checkPermission('viewAttendance'), attendanceController.getDailyAttendanceStats);
+router.get('/student-report', checkPermission('viewAttendance'), attendanceController.getStudentAttendanceReport);
+
+// Student-specific route to get their own attendance (filtered by class/section)
+router.get('/my-attendance', authorize(['student']), attendanceController.getMyAttendance);
 
 module.exports = router;

@@ -54,6 +54,67 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ? (created.logoUrl.startsWith('http') ? created.logoUrl : `${baseUrl}${created.logoUrl}`) 
             : '/default-school-logo.svg';
           
+          // Default access matrix with all required permissions
+          const defaultAccessMatrix = {
+            admin: {
+              manageUsers: true,
+              manageSchoolSettings: true,
+              viewAcademicDetails: true,
+              viewAttendance: true,
+              viewAssignments: true,
+              viewResults: true,
+              viewLeaves: true,
+              messageStudentsParents: true,
+              viewFees: true,
+              viewReports: true
+            },
+            teacher: {
+              manageUsers: false,
+              manageSchoolSettings: 'limited',
+              viewAcademicDetails: true,
+              viewAttendance: true,
+              viewAssignments: true,
+              viewResults: 'own',
+              viewLeaves: 'own',
+              messageStudentsParents: true,
+              viewFees: false,
+              viewReports: false
+            },
+            student: {
+              manageUsers: false,
+              manageSchoolSettings: false,
+              viewAcademicDetails: false,
+              viewAttendance: false,
+              viewAssignments: true,
+              viewResults: true,
+              viewLeaves: false,
+              messageStudentsParents: false,
+              viewFees: false,
+              viewReports: false
+            },
+            parent: {
+              manageUsers: false,
+              manageSchoolSettings: false,
+              viewAcademicDetails: false,
+              viewAttendance: false,
+              viewAssignments: false,
+              viewResults: false,
+              viewLeaves: false,
+              messageStudentsParents: false,
+              viewFees: false,
+              viewReports: false
+            }
+          };
+
+          // Merge existing access matrix with defaults, ensuring all permissions exist
+          const existingMatrix = created.accessMatrix || {};
+          const mergedAccessMatrix = {
+            admin: { ...defaultAccessMatrix.admin, ...existingMatrix.admin },
+            teacher: { ...defaultAccessMatrix.teacher, ...existingMatrix.teacher },
+            student: { ...defaultAccessMatrix.student, ...existingMatrix.student },
+            parent: { ...defaultAccessMatrix.parent, ...existingMatrix.parent }
+          };
+          
           return {
             id: created._id || created.id,
             name: created.name,
@@ -66,7 +127,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             principalName: created.principalName || '',
             principalEmail: created.principalEmail || created.contact?.email || '',
             bankDetails: created.bankDetails || {},
-            accessMatrix: created.accessMatrix || {}
+            accessMatrix: mergedAccessMatrix
           };
         });
         

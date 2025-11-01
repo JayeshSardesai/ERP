@@ -1,337 +1,486 @@
 # Institute ERP System
 
-A comprehensive Enterprise Resource Planning system designed for educational institutions, featuring role-based access control, automated user management, and comprehensive school administration capabilities.
+A comprehensive Enterprise Resource Planning system for educational institutions with multi-tenant architecture, role-based access control, automated workflows, and complete school administration capabilities.
 
 ## 🏗️ System Architecture
 
 ### User Roles & Hierarchy
 ```
 Super Admin (Platform Level)
-├── Creates Schools
-├── Assigns School Admins
-└── Manages Platform Settings
+├── Multi-School Management
+├── Academic Configuration (Classes, Subjects, Tests)
+├── School Creation & Administration
+├── Platform-wide Settings & Analytics
+└── Access Control Management
 
 School Admin (School Level)
-├── Manages Teachers
-├── Admits Students
-├── Manages Parents
-└── School-specific Operations
+├── User Management (Teachers, Students, Parents)
+├── Academic Operations (Attendance, Results, Assignments)
+├── Fee Management (Structures, Payments, Receipts)
+├── ID Card & Document Generation
+├── Timetable Management
+├── Student Promotion & Migration
+├── Reports & Analytics
+└── School Settings Configuration
 
 Teacher (School Level)
-├── View Student Information
-├── Manage Attendance
-├── Create Assignments
-└── Grade Management
-
-Student (School Level)
-├── View Academic Information
-├── Access Assignments
-├── View Results
+├── Attendance Management (Session-based)
+├── Assignment Creation & Grading
+├── Result Entry & Management
+├── Student Information Access
+├── Timetable Viewing
 └── Communication Portal
 
+Student (School Level)
+├── Academic Dashboard
+├── Attendance & Results Viewing
+├── Assignment Submission
+└── Fee Status Tracking
+
 Parent (School Level)
-├── View Child's Progress
-├── Access Academic Information
+├── Child Progress Monitoring
+├── Fee Payment & History
 ├── Communication with Teachers
-└── Fee Management
+└── Academic Reports Access
 ```
 
+## ✨ Core Features
 
-## 🚀 Recent Integration & Features (August 2025)
+### 🎓 Academic Management
+- **Multi-tenant Architecture**: Separate data isolation for each school
+- **Class & Section Management**: Hierarchical class-section structure
+- **Subject Management**: Class-wise subject mapping with teacher assignment
+- **Academic Year Configuration**: Year-wise academic settings
+- **Test Configuration**: Customizable test types and grading systems
+- **Student Promotion**: Automated class promotion with data migration
+- **Timetable Management**: Period-wise scheduling with teacher allocation
 
-### Backend (Node.js/Express/MongoDB Atlas)
-- All models, controllers, and routes for Users, Assignments, Attendance, Results, Messages, Timetables, and Schools are set up.
-- Role-based access control is enforced via middleware.
-- API endpoints for CRUD and reporting are available and ready for frontend consumption.
-- **NEW**: Canonical classes/sections endpoint for dynamic data fetching.
-
-### API Endpoints
-
-#### Classes & Sections (Canonical Data)
-```
-GET /api/schools/:schoolId/classes
-```
-**Description**: Fetches canonical classes and sections data for a school.
-
-**Authentication**: Required (JWT token)
-
-**Authorization**:
-- `SUPER_ADMIN`: Can access any school's classes
-- `ADMIN`: Can only access their own school's classes
-
-**Response Format**:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "classId": "string",
-      "className": "5",
-      "sections": [
-        { "sectionId": "string", "sectionName": "A" },
-        { "sectionId": "string", "sectionName": "B" }
-      ]
-    }
-  ]
-}
-```
-
-**Caching**: 30-second cache headers included for performance.
-
-### Frontend (React)
-#### Admin & Teacher Features
-- Assignments: Fully integrated with backend for listing, adding, and managing assignments.
-- Attendance: Mark and view attendance, with real data from backend and stats.
-- Results: Fetch and display results from backend, with error/loading states.
-- Messages: Send and view messages using backend APIs.
-- Timetable: Create and view timetables, all data persisted and fetched from backend.
-- Reports: Analytics and reports now fetch real data from backend APIs.
-
-#### Super Admin Features
-- Add School: Connected to backend for school creation and management.
-- School Management: (View/Update) can be integrated using the same API pattern.
-- View Access: Connected to backend for real-time access matrix.
-
-#### Dashboard
-- Admin and Super Admin Dashboards: Ready to be connected to backend stats and analytics endpoints for real-time data.
-
-### Integration Pattern
-- All components use Axios-based API clients for backend communication.
-- Each feature has loading and error state handling.
-- All forms and tables refresh data after create/update/delete.
-- All hardcoded data is replaced with backend data.
-
----
-
-### Super Admin Features
-- **School Management**: Create, update, and manage multiple schools
-- **Admin Assignment**: Assign administrators to schools with specific permissions
-- **Platform Overview**: View statistics across all schools
-- **System Settings**: Configure platform-wide settings
-
-### School Admin Features
-- **Teacher Management**: Add, update, and manage teachers
-- **Student Admission**: Complete student admission process with parent creation
-- **Parent Management**: Manage parent accounts and relationships
-- **School Configuration**: Set up classes, subjects, and academic years
-- **User ID Generation**: Automatic generation of unique IDs for all users
-
-### Automated Features
-- **ID Generation**: 
+### 👥 User Management
+- **Automated ID Generation**:
   - Students: `SCHOOL_CODE + YEAR + SEQUENCE` (e.g., NPS2024001)
   - Teachers: `SCHOOL_CODE + T + SEQUENCE` (e.g., NPST001)
   - Parents: `SCHOOL_CODE + P + SEQUENCE` (e.g., NPSP001)
-- **Password Generation**: Secure, role-specific passwords
-- **User Creation**: Automated user account creation with proper relationships
+- **Bulk Import/Export**: CSV-based user data management
+- **Role-based Permissions**: Granular access control system
+- **User Relationships**: Parent-student linking, teacher-subject mapping
+- **Password Management**: Secure auto-generation and reset functionality
+
+### 📊 Attendance System
+- **Session-based Tracking**: Morning/Afternoon session support
+- **Multiple Marking Methods**: Daily, weekly, monthly views
+- **Real-time Statistics**: Attendance rate calculations
+- **Visual Analytics**: Charts and graphs for attendance trends
+- **Bulk Operations**: Mark attendance for entire class
+- **Historical Records**: Complete attendance history with filters
+
+### 📝 Results & Grading
+- **Flexible Grading System**: Marks, grades, and percentages
+- **Test-wise Result Entry**: Support for multiple test types
+- **Subject-wise Performance**: Detailed subject analysis
+- **Result Publishing**: Controlled result visibility
+- **Performance Analytics**: Class-wise and student-wise reports
+- **Grade Calculation**: Automated grade assignment based on marks
+
+### 💰 Fee Management
+- **Fee Structure Configuration**: Class-wise fee setup
+- **Payment Processing**: Multiple payment modes support
+- **Chalan/Receipt Generation**: PDF receipts with school branding
+- **Payment History**: Complete transaction records
+- **Fee Defaulter Reports**: Outstanding fee tracking
+- **Discount Management**: Student-specific fee adjustments
+
+### 🎫 ID Card System
+- **Custom Template Design**: Upload custom ID card templates
+- **Bulk Generation**: Generate ID cards for multiple students
+- **Dual-side Support**: Front and back side templates
+- **Orientation Options**: Landscape and portrait modes
+- **Dynamic Field Placement**: Configurable text and photo positions
+- **High-quality Output**: 300 DPI PNG images
+- **Batch Download**: ZIP file export for bulk cards
+
+### 📄 Document Templates
+- **Admit Card/Hall Ticket**: Exam admit card generation
+- **Certificates**: Achievement and participation certificates
+- **ID Cards**: Student and staff identification cards
+- **Fee Receipts**: Professional payment receipts
+- **Custom Templates**: React-based template system
+
+### 📧 Communication
+- **Messaging System**: Internal messaging between roles
+- **Announcements**: School-wide notifications
+- **Parent Communication**: Direct teacher-parent messaging
+
+### 📈 Reports & Analytics
+- **Attendance Reports**: Class-wise and student-wise
+- **Academic Performance**: Result analysis and trends
+- **Fee Reports**: Collection and outstanding reports
+- **User Statistics**: Role-wise user counts
+- **Custom Reports**: Filterable and exportable data
 
 ## 🛠️ Technical Stack
 
 ### Backend
-- **Node.js** with Express.js
-- **MongoDB** with Mongoose ODM
-- **JWT** for authentication
-- **bcryptjs** for password hashing
-- **Role-based access control**
+- **Runtime**: Node.js v16+
+- **Framework**: Express.js
+- **Database**: MongoDB Atlas with Mongoose ODM
+- **Authentication**: JWT (JSON Web Tokens)
+- **Password Security**: bcryptjs with salt rounds
+- **File Upload**: Multer for multipart/form-data
+- **Image Processing**: Sharp for ID card generation
+- **PDF Generation**: PDFKit for receipts and documents
+- **Archive Creation**: Archiver for ZIP file generation
+- **CSV Processing**: csv-parse and csv-stringify
 
 ### Frontend
-- **React** with TypeScript
-- **Tailwind CSS** for styling
-- **React Router** for navigation
-- **Role-specific applications**
+- **Framework**: React 18 with TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS
+- **UI Components**: Ant Design (antd)
+- **Icons**: Lucide React, Ant Design Icons
+- **Routing**: React Router DOM v6
+- **State Management**: React Context API
+- **HTTP Client**: Axios
+- **Charts**: Recharts
+- **Notifications**: React Hot Toast, React Toastify
+- **Printing**: React-to-Print
+- **Testing**: Jest with React Testing Library
 
-### Mobile Apps (Separate)
-- **React Native** for Students
-- **React Native** for Parents
+### Database Models (25 Models)
+- User, School, Admission
+- Class, Subject, ClassSubjects
+- Attendance, Result, Assignment, Submission
+- Timetable, TestDetails
+- FeeStructure, StudentFeeRecord, Chalan
+- IDCardTemplate, Message
+- Counter (for ID generation)
+- SuperAdmin
 
-## 📊 Database Schema
+## 📁 Project Structure
 
-### Core Models
-
-#### User Model
-```javascript
-{
-  name: String,
-  email: String (unique),
-  password: String (hashed),
-  role: ['superadmin', 'admin', 'teacher', 'student', 'parent'],
-  schoolId: ObjectId (ref: School),
-  isActive: Boolean,
-  
-  // Role-specific details
-  adminDetails: { permissions: [String], assignedBy: ObjectId },
-  teacherDetails: { employeeId: String, subjects: [String], qualification: String },
-  studentDetails: { studentId: String, class: String, section: String, parentId: ObjectId },
-  parentDetails: { parentId: String, relationship: String, occupation: String }
-}
 ```
-
-#### School Model
-```javascript
-{
-  name: String,
-  code: String (unique, e.g., "NPS"),
-  address: { street, city, state, country, zipCode },
-  contact: { phone, email, website },
-  admin: ObjectId (ref: User),
-  superAdmin: ObjectId (ref: User),
-  settings: { academicYear, classes, subjects, workingDays, workingHours },
-  stats: { totalStudents, totalTeachers, totalParents },
-  features: { hasTransport, hasCanteen, hasLibrary, hasSports }
-}
+ERP/
+├── backend/
+│   ├── config/              # Configuration files
+│   ├── controllers/         # 33 API controllers
+│   ├── middleware/          # Auth, permissions, validation
+│   ├── models/              # 25 Mongoose models
+│   ├── routes/              # 31 API route files
+│   ├── utils/               # Helper utilities
+│   │   ├── idGenerator.js
+│   │   ├── passwordGenerator.js
+│   │   ├── simpleIDCardGenerator.js
+│   │   ├── gradeSystem.js
+│   │   └── databaseManager.js
+│   ├── scripts/             # Database scripts
+│   └── server.js            # Main server file
+│
+├── frontend/
+│   ├── src/
+│   │   ├── roles/
+│   │   │   ├── admin/       # Admin dashboard & features
+│   │   │   ├── superadmin/  # Super admin panel
+│   │   │   ├── teacher/     # Teacher portal
+│   │   │   └── student/     # Student portal
+│   │   ├── components/      # Shared components
+│   │   ├── api/             # API client services
+│   │   ├── hooks/           # Custom React hooks
+│   │   ├── utils/           # Helper functions
+│   │   └── types/           # TypeScript definitions
+│   └── public/              # Static assets
+│
+└── MyApp/                   # Mobile app (React Native)
 ```
-
-#### Admission Model
-```javascript
-{
-  schoolId: ObjectId,
-  admissionNumber: String (unique),
-  academicYear: String,
-  class: String,
-  section: String,
-  personalInfo: { firstName, lastName, dateOfBirth, gender },
-  contactInfo: { address, phone, email, emergencyContact },
-  academicInfo: { previousSchool, lastClassAttended, achievements },
-  parentInfo: { father, mother, guardian },
-  fees: { admissionFee, tuitionFee, totalAmount, paymentStatus },
-  status: ['pending', 'approved', 'rejected', 'admitted', 'withdrawn']
-}
-```
-
-## 🔐 Authentication & Authorization
-
-### JWT Token Structure
-```javascript
-{
-  id: "user_id",
-  role: "user_role",
-  schoolId: "school_id" // for school-specific users
-}
-```
-
-### Permission Levels
-- **Super Admin**: Full platform access
-- **School Admin**: School-specific operations
-- **Teacher**: Class and student management
-- **Student**: Personal academic information
-- **Parent**: Child-related information
 
 ## 📱 API Endpoints
 
 ### Authentication
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - User registration (Super Admin only)
+- `POST /api/auth/login` - User login with role-based routing
+- `POST /api/auth/register` - User registration
 
-### Schools
-- `POST /api/schools` - Create school (Super Admin)
-- `GET /api/schools` - Get all schools (Super Admin)
+### Schools (Super Admin)
+- `POST /api/schools` - Create new school
+- `GET /api/schools` - List all schools
 - `GET /api/schools/:id` - Get school details
 - `PUT /api/schools/:id` - Update school
-- `PATCH /api/schools/:id/toggle-status` - Toggle school status
+- `GET /api/schools/:schoolId/classes` - Get classes and sections
 
-### Users
+### Users & User Management
 - `POST /api/users/teachers` - Add teacher
 - `POST /api/users/students` - Add student with parent
 - `POST /api/users/parents` - Add parent
-- `GET /api/users/role/:role` - Get users by role
+- `GET /api/users` - Get users with filters
 - `PUT /api/users/:id` - Update user
+- `DELETE /api/users/:id` - Delete user
+- `POST /api/users/import` - Bulk import from CSV
+- `GET /api/users/export` - Export users to CSV
 - `PATCH /api/users/:id/reset-password` - Reset password
-- `PATCH /api/users/:id/toggle-status` - Toggle user status
+- `POST /api/users/promote` - Promote students to next class
 
 ### Admissions
-- `POST /api/admissions` - Create admission application
-- `GET /api/admissions` - Get admissions with filters
-- `GET /api/admissions/:id` - Get admission details
+- `POST /api/admissions` - Create admission
+- `GET /api/admissions` - List admissions
 - `PATCH /api/admissions/:id/approve` - Approve admission
 - `PATCH /api/admissions/:id/reject` - Reject admission
+
+### Attendance
+- `POST /api/attendance` - Mark attendance
+- `GET /api/attendance` - Get attendance records
+- `GET /api/attendance/stats` - Attendance statistics
+- `PUT /api/attendance/:id` - Update attendance
+- `GET /api/attendance/student/:studentId` - Student attendance history
+
+### Results
+- `POST /api/results` - Create/update results
+- `GET /api/results` - Get results with filters
+- `GET /api/results/student/:studentId` - Student results
+- `PATCH /api/results/:id/publish` - Publish results
+- `DELETE /api/results/:id` - Delete result
+
+### Assignments
+- `POST /api/assignments` - Create assignment
+- `GET /api/assignments` - List assignments
+- `PUT /api/assignments/:id` - Update assignment
+- `DELETE /api/assignments/:id` - Delete assignment
+- `POST /api/assignments/:id/submit` - Submit assignment
+
+### Timetables
+- `POST /api/timetables` - Create timetable
+- `GET /api/timetables` - Get timetables
+- `PUT /api/timetables/:id` - Update timetable
+- `DELETE /api/timetables/:id` - Delete timetable
+
+### Fees
+- `POST /api/fees/structure` - Create fee structure
+- `GET /api/fees/structure` - Get fee structures
+- `POST /api/fees/payment` - Record payment
+- `GET /api/fees/payments` - Payment history
+- `GET /api/fees/defaulters` - Fee defaulters list
+
+### Chalans/Receipts
+- `POST /api/chalan` - Generate chalan
+- `GET /api/chalan` - List chalans
+- `GET /api/chalan/:id/pdf` - Download PDF receipt
+
+### ID Cards
+- `POST /api/idcard-templates` - Upload template
+- `GET /api/idcard-templates` - List templates
+- `POST /api/idcard-templates/generate` - Generate ID cards
+- `POST /api/idcard-templates/download` - Download as ZIP
+
+### Subjects (Super Admin)
+- `POST /api/superadmin/subjects` - Create subject
+- `GET /api/superadmin/subjects` - List subjects
+- `PUT /api/superadmin/subjects/:id` - Update subject
+- `DELETE /api/superadmin/subjects/:id` - Delete subject
+
+### Classes (Super Admin)
+- `POST /api/superadmin/classes` - Create class
+- `GET /api/superadmin/classes` - List classes
+- `PUT /api/superadmin/classes/:id` - Update class
+- `POST /api/superadmin/classes/:id/sections` - Add sections
+
+### Test Configuration (Super Admin)
+- `POST /api/superadmin/tests` - Create test type
+- `GET /api/superadmin/tests` - List test types
+- `PUT /api/superadmin/tests/:id` - Update test type
+
+### Reports
+- `GET /api/reports/attendance` - Attendance reports
+- `GET /api/reports/results` - Result reports
+- `GET /api/reports/fees` - Fee reports
+- `GET /api/reports/analytics` - Dashboard analytics
+
+### Messages
+- `POST /api/messages` - Send message
+- `GET /api/messages` - Get messages
+- `PATCH /api/messages/:id/read` - Mark as read
 
 ## 🔧 Setup Instructions
 
 ### Prerequisites
-- Node.js (v16 or higher)
-- MongoDB (local or Atlas)
-- npm or yarn
+- Node.js v16 or higher
+- MongoDB Atlas account (or local MongoDB)
+- npm or yarn package manager
 
 ### Backend Setup
 ```bash
 cd backend
 npm install
+
+# Create .env file
 cp .env.example .env
-# Configure your .env file with:
-# MONGODB_URI=your_mongodb_connection_string
-# JWT_SECRET=your_jwt_secret_key
+
+# Configure .env with:
+# MONGODB_URI=your_mongodb_atlas_connection_string
+# JWT_SECRET=your_secure_jwt_secret_key
 # PORT=5000
+# NODE_ENV=development
+
+# Start development server
 npm run dev
+
+# Or start production server
+npm start
 ```
 
 ### Frontend Setup
 ```bash
 cd frontend
 npm install
+
+# Create .env file with:
+# VITE_API_URL=http://localhost:5000
+
+# Start development server
 npm run dev
+
+# Build for production
+npm run build
 ```
 
-### Environment Variables
-```env
-MONGODB_URI=mongodb://localhost:27017/institute_erp
-JWT_SECRET=your_super_secret_jwt_key
-PORT=5000
-NODE_ENV=development
+### Database Seeding (Optional)
+```bash
+cd backend
+npm run seed              # Seed with sample data
+npm run seed:reset        # Reset and seed database
 ```
+
+## 🔐 Security Features
+
+- **Password Hashing**: bcryptjs with configurable salt rounds
+- **JWT Authentication**: Secure token-based auth with expiration
+- **Role-based Access Control**: Granular permission system
+- **Input Validation**: Request data sanitization
+- **CORS Protection**: Configured cross-origin policies
+- **SQL Injection Prevention**: MongoDB parameterized queries
+- **XSS Protection**: Input sanitization and output encoding
+- **Session Management**: Secure token storage and refresh
 
 ## 🚀 Deployment
 
-### Backend Deployment
-1. Set production environment variables
-2. Use PM2 or similar process manager
-3. Configure reverse proxy (Nginx)
-4. Set up SSL certificates
+### Backend Deployment (Production)
+```bash
+# Using PM2
+npm install -g pm2
+pm2 start server.js --name "erp-backend"
+pm2 save
+pm2 startup
+
+# Environment variables
+# Set production MongoDB URI
+# Set strong JWT secret
+# Configure CORS for production domain
+```
 
 ### Frontend Deployment
-1. Build production bundle: `npm run build`
-2. Deploy to static hosting (Vercel, Netlify, or traditional hosting)
-3. Configure environment variables
+```bash
+# Build production bundle
+npm run build
 
-## 🔒 Security Features
+# Deploy to:
+# - Vercel (recommended for React)
+# - Netlify
+# - Traditional hosting (serve dist folder)
 
-- **Password Hashing**: bcrypt with salt rounds
-- **JWT Tokens**: Secure token-based authentication
-- **Role-based Access**: Granular permission system
-- **Input Validation**: Request data sanitization
-- **CORS Protection**: Cross-origin request handling
-- **Rate Limiting**: API request throttling (recommended)
+# Configure environment variables in hosting platform
+```
 
-## 📈 Future Enhancements
+### Recommended Hosting
+- **Backend**: Railway, Render, DigitalOcean, AWS EC2
+- **Frontend**: Vercel, Netlify, Cloudflare Pages
+- **Database**: MongoDB Atlas (managed)
 
-- **Real-time Notifications**: WebSocket integration
-- **File Management**: Document upload and storage
-- **Payment Integration**: Online fee collection
-- **Analytics Dashboard**: Advanced reporting
-- **Mobile API**: Dedicated mobile endpoints
-- **Multi-language Support**: Internationalization
-- **Advanced Search**: Elasticsearch integration
-- **Audit Logging**: Comprehensive activity tracking
+## 📊 Key Workflows
+
+### Student Admission Flow
+1. Create admission application
+2. Admin reviews and approves
+3. System auto-generates Student ID
+4. Creates parent account (if new)
+5. Links student-parent relationship
+6. Assigns to class and section
+7. Generates fee structure
+
+### Attendance Marking Flow
+1. Teacher selects class and section
+2. Chooses date and session
+3. Marks present/absent for each student
+4. System calculates attendance percentage
+5. Updates student attendance records
+6. Generates attendance reports
+
+### Result Entry Flow
+1. Admin configures test details
+2. Teacher enters subject-wise marks
+3. System calculates grades and percentages
+4. Admin reviews and publishes results
+5. Students/parents can view results
+6. Generate result reports and analytics
+
+### Fee Payment Flow
+1. Admin creates fee structure for class
+2. System assigns fees to students
+3. Student/parent makes payment
+4. Admin records payment with mode
+5. System generates chalan/receipt PDF
+6. Updates payment history
+7. Tracks outstanding fees
+
+## 🧪 Testing
+
+```bash
+# Frontend tests
+cd frontend
+npm test                  # Run tests
+npm run test:watch        # Watch mode
+npm run test:coverage     # Coverage report
+
+# Backend tests (if configured)
+cd backend
+npm test
+```
+
+## 📈 Performance Optimizations
+
+- **Database Indexing**: Optimized queries with proper indexes
+- **Caching**: API response caching for frequently accessed data
+- **Lazy Loading**: Code splitting and lazy component loading
+- **Image Optimization**: Sharp for efficient image processing
+- **Pagination**: Large dataset pagination support
+- **Query Optimization**: Efficient MongoDB aggregation pipelines
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🆘 Support
+## 🆘 Support & Documentation
 
-For support and questions:
-- Create an issue in the repository
-- Contact the development team
-- Check the documentation
+- **Issues**: Create an issue in the repository
+- **Documentation**: Check individual .md files for specific features
+- **Contact**: Reach out to the development team
 
 ## 🔄 Version History
 
-- **v1.0.0**: Initial release with core functionality
-- **v1.1.0**: Enhanced user management and admission system
-- **v1.2.0**: Role-based access control and security improvements
+- **v1.0.0** (2024): Initial release with core functionality
+- **v1.1.0** (2024): Enhanced user management and admission system
+- **v1.2.0** (2024): Role-based access control and security improvements
+- **v1.3.0** (2025): ID card generation and template system
+- **v1.4.0** (2025): Fee management and chalan system
+- **v1.5.0** (2025): Advanced attendance tracking with sessions
+- **v1.6.0** (2025): Student promotion and migration features
+
+## 👨‍💻 Development Team
+
+Institute ERP Team - Building the future of educational administration
+
+---
+
+**Note**: This is an active development project. Features and documentation are continuously updated.
