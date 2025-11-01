@@ -51,21 +51,24 @@ export default function Login() {
     if (selectedRole === 'superadmin') {
       setSchoolCode('');
     } else {
-      setSchoolCode('p');
+      setSchoolCode(''); // Keep blank for admin/teacher
     }
   }, [selectedRole]);
 
-  // Auto-fill demo creds when role changes (only if user hasn’t typed)
+  // Auto-fill demo creds when role changes (only for superadmin)
   const onPickRole = (role: RoleKey) => {
     setSelectedRole(role);
-    setEmail(roleMeta[role].demoEmail);
-    setPassword(roleMeta[role].demoPass);
     
-    // Set default school code for non-SuperAdmin roles
-    if (role !== 'superadmin') {
-      setSchoolCode('p'); // Default school code for demo
-    } else {
+    // Only auto-fill credentials for superadmin, keep others blank
+    if (role === 'superadmin') {
+      setEmail(roleMeta[role].demoEmail);
+      setPassword(roleMeta[role].demoPass);
       setSchoolCode(''); // Clear school code for SuperAdmin
+    } else {
+      // Keep admin and teacher fields completely blank
+      setEmail('');
+      setPassword('');
+      setSchoolCode(''); // No auto school code for admin/teacher
     }
   };
 
@@ -250,7 +253,7 @@ export default function Login() {
 
               {/* hint for testers */}
               <p className="text-xs text-slate-500">
-                Tip: Role cards auto-fill demo credentials. Switch roles to try different portals.
+                Tip: Only SuperAdmin has auto-filled demo credentials. Admin and Teacher require manual entry.
               </p>
             </form>
           </div>
