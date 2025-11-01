@@ -23,7 +23,7 @@ router.use((req, res, next) => {
 // Teacher-accessible routes (read-only, no permission check)
 router.get('/teacher/messages',
   roleCheck(['teacher']),
-  messagesController.getMessages
+  messagesController.getTeacherMessages
 );
 
 // Apply role check - only ADMIN and SUPER_ADMIN can access below routes

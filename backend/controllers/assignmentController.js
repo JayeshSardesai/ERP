@@ -412,7 +412,6 @@ exports.getAssignments = async (req, res) => {
     if (assignments.length === 0 && schoolId) {
       console.log(`[GET ASSIGNMENTS] Falling back to main database`);
       assignments = await Assignment.find(query)
-        .populate('teacher', 'name email')
         .limit(limit * 1)
         .skip((page - 1) * limit)
         .sort({ createdAt: -1 });
@@ -482,9 +481,7 @@ exports.getAssignmentById = async (req, res) => {
     // If not found in school-specific database, try main database
     if (!assignment && schoolId) {
       console.log(`[GET ASSIGNMENT] Falling back to main database`);
-      assignment = await Assignment.findById(assignmentId)
-        .populate('teacher', 'name email')
-        .populate('createdBy', 'name email');
+      assignment = await Assignment.findById(assignmentId);
 
       if (assignment) {
         console.log(`[GET ASSIGNMENT] Found assignment in main database`);
@@ -636,7 +633,7 @@ exports.updateAssignment = async (req, res) => {
         instructions: updateData.instructions !== undefined ? updateData.instructions : assignment.instructions,
         description: updateData.instructions !== undefined ? updateData.instructions : assignment.description,
         attachments: allAttachments,
-        updatedBy: req.user._id,
+        updatedBy: req.user.userId || req.user._id.toString(),
         updatedAt: new Date()
       };
 
@@ -644,7 +641,7 @@ exports.updateAssignment = async (req, res) => {
         assignmentId,
         { $set: updateFields },
         { new: true, runValidators: true }
-      ).populate('teacher', 'name email');
+      );
 
       console.log(`[UPDATE ASSIGNMENT] Updated assignment in main database`);
     }
@@ -693,7 +690,7 @@ exports.publishAssignment = async (req, res) => {
     assignment.isPublished = true;
     assignment.publishedAt = new Date();
     assignment.status = 'active';
-    assignment.updatedBy = req.user._id;
+    assignment.updatedBy = req.user.userId || req.user._id.toString();
     assignment.updatedAt = new Date();
 
     await assignment.save();
@@ -1039,7 +1036,7 @@ exports.submitAssignment = async (req, res) => {
 exports.getStudentSubmission = async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const studentId = req.user.role === 'student' ? req.user._id : req.query.studentId;
+    const studentId = req.user.role === 'student' ? (req.user.userId || req.user._id.toString()) : req.query.studentId;
 
     if (!studentId) {
       return res.status(400).json({ message: 'Student ID required' });
@@ -1138,7 +1135,7 @@ exports.gradeSubmission = async (req, res) => {
     submission.feedback = feedback;
     submission.maxMarks = maxMarksToUse;
     submission.status = 'graded';
-    submission.gradedBy = req.user._id;
+    submission.gradedBy = req.user.userId || req.user._id.toString();
     submission.gradedAt = new Date();
 
     await submission.save();
