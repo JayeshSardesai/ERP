@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Users, UserCheck, BookOpen, TrendingUp, Calendar, Clock, AlertCircle, Building, Phone, Mail, MapPin, RefreshCw, Bug, LogOut } from 'lucide-react';
+import { Users, UserCheck, BookOpen, TrendingUp, Calendar, Clock, AlertCircle, Building, Phone, Mail, MapPin, RefreshCw, Bug } from 'lucide-react';
 import { schoolAPI } from '../../../services/api';
 import { schoolUserAPI } from '../../../api/schoolUsers';
 import api from '../../../services/api';
@@ -613,7 +613,6 @@ const Dashboard: React.FC = () => {
                   }}
                   className="inline-flex items-center px-3 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
-                  <LogOut className="h-4 w-4 mr-2" />
                   Login Again
                 </button>
               )}
@@ -659,16 +658,6 @@ const Dashboard: React.FC = () => {
               <div className="text-sm text-gray-500">
                 Last updated: {new Date().toLocaleDateString()}
               </div>
-              <button
-                onClick={() => {
-                  logout();
-                  window.location.href = '/login';
-                }}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-all duration-200"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </button>
             </div>
           </div>
 

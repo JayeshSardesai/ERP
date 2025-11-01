@@ -266,7 +266,7 @@ class SimpleIDCardGenerator {
         address: { x: 400, y: 116, fontSize: 20, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 52, lineHeight: 1.3, minFontSize: 16, maxLines: 4, autoSize: false },
         mobile: { x: 520, y: 183, fontSize: 23, fontWeight: 'bold', maxWidth: 200 },
         returnSchoolName: { x: 270, y: 415, fontSize: 23, fontWeight: 'bold', maxWidth: 750, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true },
-        returnAddress: { x: 170, y: 450, fontSize: 23, fontWeight: 'bold', maxWidth: 650, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true, textAlign: 'center' },
+        returnAddress: { x: 170, y: 450, fontSize: 23, fontWeight: 'bold', maxWidth: 750, multiLine: true, maxCharsPerLine: 50, lineHeight: 1.2, minFontSize: 16, maxLines: 2, autoSize: true, textAlign: 'center' },
         schoolPhone: { x: 270, y: 510, fontSize: 20, fontWeight: 'bold', maxWidth: 650 },
         schoolEmail: { x: 470, y: 510, fontSize: 20, fontWeight: 'bold', maxWidth: 650 }
       };
