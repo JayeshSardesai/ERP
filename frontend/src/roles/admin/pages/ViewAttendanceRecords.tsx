@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import * as attendanceAPI from '../../../../api/attendance';
-import { useAuth } from '../../../../auth/AuthContext';
-import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
-import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, Clock } from 'lucide-react';
+import * as attendanceAPI from '../../../api/attendance';
+import { schoolUserAPI } from '../../../api/schoolUsers';
+import { useAuth } from '../../../auth/AuthContext';
+import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
+import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react';
 
 interface Student {
   _id: string;
@@ -14,9 +15,18 @@ interface Student {
   afternoonStatus: 'present' | 'absent' | null;
 }
 
-const ViewAttendance: React.FC = () => {
+const ViewAttendanceRecords: React.FC = () => {
   const { token, user } = useAuth();
-  const { classesData, loading: classesLoading, getSectionsByClass, hasClasses } = useSchoolClasses();
+
+  // Use the useSchoolClasses hook to fetch classes configured by superadmin
+  const {
+    classesData,
+    loading: classesLoading,
+    error: classesError,
+    getClassOptions,
+    getSectionsByClass,
+    hasClasses
+  } = useSchoolClasses();
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
@@ -29,6 +39,7 @@ const ViewAttendance: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Get class list from superadmin configuration
   const classList = classesData?.classes?.map(c => c.className) || [];
 
   // Update available sections when class changes
@@ -36,6 +47,7 @@ const ViewAttendance: React.FC = () => {
     if (selectedClass && classesData) {
       const sections = getSectionsByClass(selectedClass);
       setAvailableSections(sections);
+      // Auto-select first section if available
       if (sections.length > 0) {
         setSelectedSection(sections[0].value);
       } else {
@@ -58,8 +70,13 @@ const ViewAttendance: React.FC = () => {
   }, [students, searchTerm]);
 
   const fetchStudentsAndAttendance = async () => {
-    if (!selectedClass || !selectedSection || !token || !user?.schoolCode) {
+    if (!selectedClass || !selectedSection) {
       setStudents([]);
+      return;
+    }
+
+    if (!token || !user?.schoolCode) {
+      setError('Authentication required');
       return;
     }
 
@@ -67,8 +84,15 @@ const ViewAttendance: React.FC = () => {
       setLoading(true);
       setError('');
 
+      console.log('🔍 Fetching students for:', { 
+        class: selectedClass, 
+        section: selectedSection, 
+        schoolCode: user.schoolCode 
+      });
+
+      // Make API call with query parameters for filtering
       const response = await fetch(
-        `/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
+        `http://localhost:5050/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -78,11 +102,17 @@ const ViewAttendance: React.FC = () => {
         }
       );
 
-      if (!response.ok) throw new Error('Failed to fetch students');
+      if (!response.ok) {
+        throw new Error('Failed to fetch students');
+      }
 
       const data = await response.json();
+      console.log('📊 API Response:', data);
+      
       const users = data.data || data || [];
+      console.log(`👥 Total users received: ${users.length}`);
 
+      // Filter students - check multiple possible field structures
       const filtered = users.filter((u: any) => {
         const isStudent = u.role === 'student';
         const matchesClass = u.academicInfo?.class === selectedClass || 
@@ -93,20 +123,23 @@ const ViewAttendance: React.FC = () => {
                               u.studentDetails?.section === selectedSection ||
                               u.studentDetails?.currentSection === selectedSection ||
                               u.section === selectedSection;
+        
         return isStudent && matchesClass && matchesSection;
       });
+
+      console.log(`✅ Filtered students: ${filtered.length}`);
 
       let studentsWithAttendance = filtered.map((u: any) => ({
         _id: u._id,
         userId: u.userId,
-        name: u.name?.displayName || `${u.name?.firstName || ''} ${u.name?.lastName || ''}`.trim() || 'Unknown',
-        class: selectedClass,
-        section: selectedSection,
+        name: u.name?.displayName || u.name || 'Unknown',
+        class: u.academicInfo?.class || u.studentDetails?.class || u.studentDetails?.currentClass || u.class || selectedClass,
+        section: u.academicInfo?.section || u.studentDetails?.section || u.studentDetails?.currentSection || u.section || selectedSection,
         morningStatus: null,
         afternoonStatus: null
       }));
 
-      // Load attendance data
+      // Now load attendance data if date is selected
       if (selectedDate) {
         try {
           const attendanceResponse = await attendanceAPI.getAttendance({
@@ -143,12 +176,96 @@ const ViewAttendance: React.FC = () => {
       }
 
       setStudents(studentsWithAttendance);
+      
       if (studentsWithAttendance.length === 0) {
         setError(`No students found for Class ${selectedClass} Section ${selectedSection}`);
       }
     } catch (err) {
       setError('Failed to fetch students');
-      console.error('Error:', err);
+      console.error('❌ Error fetching students:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStudents = async () => {
+    if (!selectedClass || !selectedSection) {
+      setStudents([]);
+      return;
+    }
+
+    if (!token || !user?.schoolCode) {
+      setError('Authentication required');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+
+      console.log('🔍 Fetching students for:', { 
+        class: selectedClass, 
+        section: selectedSection, 
+        schoolCode: user.schoolCode 
+      });
+
+      // Make API call with query parameters for filtering
+      const response = await fetch(
+        `http://localhost:5050/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'x-school-code': user.schoolCode
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch students');
+      }
+
+      const data = await response.json();
+      console.log('📊 API Response:', data);
+      
+      const users = data.data || data || [];
+      console.log(`👥 Total users received: ${users.length}`);
+
+      // Filter students - check multiple possible field structures
+      const filtered = users.filter((u: any) => {
+        const isStudent = u.role === 'student';
+        const matchesClass = u.academicInfo?.class === selectedClass || 
+                            u.studentDetails?.class === selectedClass ||
+                            u.studentDetails?.currentClass === selectedClass ||
+                            u.class === selectedClass;
+        const matchesSection = u.academicInfo?.section === selectedSection || 
+                              u.studentDetails?.section === selectedSection ||
+                              u.studentDetails?.currentSection === selectedSection ||
+                              u.section === selectedSection;
+        
+        return isStudent && matchesClass && matchesSection;
+      });
+
+      console.log(`✅ Filtered students: ${filtered.length}`);
+
+      const studentsWithAttendance = filtered.map((u: any) => ({
+        _id: u._id,
+        userId: u.userId,
+        name: u.name?.displayName || u.name || 'Unknown',
+        class: u.academicInfo?.class || u.studentDetails?.class || u.studentDetails?.currentClass || u.class || selectedClass,
+        section: u.academicInfo?.section || u.studentDetails?.section || u.studentDetails?.currentSection || u.section || selectedSection,
+        morningStatus: null,
+        afternoonStatus: null
+      }));
+
+      setStudents(studentsWithAttendance);
+      
+      if (studentsWithAttendance.length === 0) {
+        setError(`No students found for Class ${selectedClass} Section ${selectedSection}`);
+      }
+    } catch (err) {
+      setError('Failed to fetch students');
+      console.error('❌ Error fetching students:', err);
     } finally {
       setLoading(false);
     }
@@ -159,6 +276,7 @@ const ViewAttendance: React.FC = () => {
       setFilteredStudents(students);
       return;
     }
+
     const filtered = students.filter(student =>
       student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.userId.toLowerCase().includes(searchTerm.toLowerCase())
@@ -166,9 +284,52 @@ const ViewAttendance: React.FC = () => {
     setFilteredStudents(filtered);
   };
 
+  const loadExistingAttendance = async () => {
+    if (!selectedClass || !selectedSection || !selectedDate) {
+      return;
+    }
+
+    try {
+      // Use the getAttendance API with session-based storage
+      const response = await attendanceAPI.getAttendance({
+        class: selectedClass,
+        section: selectedSection,
+        date: selectedDate,
+        session: session
+      });
+
+      if (response.success && response.data && response.data.length > 0) {
+        // Find the session document
+        const sessionDoc = response.data.find(
+          (doc: any) => doc.session === session && doc.dateString === selectedDate
+        );
+
+        if (sessionDoc && sessionDoc.students) {
+          // Update students with existing attendance data from session document
+          setStudents(prev => prev.map(student => {
+            const existingRecord = sessionDoc.students.find(
+              (record: any) => record.studentId === student.userId
+            );
+
+            if (existingRecord) {
+              return {
+                ...student,
+                [session === 'morning' ? 'morningStatus' : 'afternoonStatus']: existingRecord.status
+              };
+            }
+            return student;
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load existing attendance:', err);
+      // Don't show error to user as this is optional
+    }
+  };
+
   const handleClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedClass(e.target.value);
-    setSelectedSection('');
+    setSelectedSection(''); // Reset section when class changes
     setStudents([]);
   };
 
@@ -176,6 +337,7 @@ const ViewAttendance: React.FC = () => {
     setSelectedSection(e.target.value);
   };
 
+  // Helper function to get display name for class
   const getClassDisplayName = (cls: string) => {
     if (cls === 'LKG' || cls === 'UKG') return cls;
     return `Class ${cls}`;
@@ -190,6 +352,7 @@ const ViewAttendance: React.FC = () => {
     const present = filteredStudents.filter(s => s[statusField] === 'present').length;
     const absent = filteredStudents.filter(s => s[statusField] === 'absent').length;
     const unmarked = filteredStudents.filter(s => s[statusField] === null).length;
+
     return { present, absent, unmarked, total: filteredStudents.length };
   };
 
@@ -198,9 +361,10 @@ const ViewAttendance: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">View Attendance Records</h1>
+        <h1 className="text-3xl font-bold text-gray-900">View Attendance Records</h1>
       </div>
 
+      {/* Error Message */}
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           {error}
@@ -212,12 +376,15 @@ const ViewAttendance: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
           </div>
 
           <div>
@@ -233,6 +400,9 @@ const ViewAttendance: React.FC = () => {
                 <option key={cls} value={cls}>{getClassDisplayName(cls)}</option>
               ))}
             </select>
+            {!classesLoading && !hasClasses() && (
+              <span className="text-xs text-red-500 mt-1">No classes configured</span>
+            )}
           </div>
 
           <div>
@@ -331,7 +501,7 @@ const ViewAttendance: React.FC = () => {
         </div>
       )}
 
-      {/* Students List */}
+      {/* Students List - Read Only */}
       {selectedClass && selectedSection && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="p-6">
@@ -426,4 +596,4 @@ const ViewAttendance: React.FC = () => {
   );
 };
 
-export default ViewAttendance;
+export default ViewAttendanceRecords;

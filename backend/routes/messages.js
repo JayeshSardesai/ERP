@@ -7,17 +7,18 @@ const roleCheck = require('../middleware/roleCheck');
 // Apply authentication middleware to all routes
 router.use(authMiddleware.auth);
 
-// Apply role check - only ADMIN and SUPER_ADMIN can access
+// Teacher-specific routes (must come before admin role check)
+router.get('/teacher/messages', roleCheck(['teacher']), messagesController.getTeacherMessages);
+
+// Apply role check - only ADMIN and SUPER_ADMIN can access below routes
 router.use(roleCheck(['admin']));
 
-// Routes
+// Admin Routes
 router.post('/send', messagesController.sendMessage);
 router.post('/preview', messagesController.previewMessage);
 router.get('/', messagesController.getMessages);
 router.get('/stats', messagesController.getMessageStats);
 router.get('/:messageId', messagesController.getMessageDetails);
 router.delete('/:messageId', messagesController.deleteMessage);
-// router.route('/')
-    // .post(messagesController.sendMessage);
 
 module.exports = router;

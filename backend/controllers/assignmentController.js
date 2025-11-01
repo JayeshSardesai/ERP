@@ -486,39 +486,136 @@ exports.updateAssignment = async (req, res) => {
     const { assignmentId } = req.params;
     const updateData = req.body;
 
+    console.log(`[UPDATE ASSIGNMENT] Updating assignment ${assignmentId}`);
+
     // Check if user is admin or teacher
     if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const assignment = await Assignment.findById(assignmentId);
-    if (!assignment) {
-      return res.status(404).json({ message: 'Assignment not found' });
+    // Get school information
+    const schoolCode = req.user.schoolCode || updateData.schoolCode;
+    const schoolId = req.user.schoolId;
+
+    // Process uploaded files
+    let processedAttachments = [];
+    if (req.files && req.files.length > 0) {
+      processedAttachments = req.files.map(file => ({
+        filename: file.filename,
+        originalName: file.originalname,
+        path: file.path,
+        size: file.size,
+        uploadedAt: new Date()
+      }));
+      console.log(`[UPDATE ASSIGNMENT] ${processedAttachments.length} new files uploaded`);
     }
 
-    // Check if user has access to this assignment's school
-    if (req.user.schoolId?.toString() !== assignment.schoolId?.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
+    // Parse existing attachments if provided
+    let existingAttachments = [];
+    if (updateData.existingAttachments) {
+      try {
+        existingAttachments = JSON.parse(updateData.existingAttachments);
+      } catch (e) {
+        console.warn('Failed to parse existingAttachments:', e);
+      }
     }
 
-    // Teachers can only update their own assignments
-    if (req.user.role === 'teacher' && assignment.teacher.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'You can only update your own assignments' });
+    // Combine existing and new attachments
+    const allAttachments = [...existingAttachments, ...processedAttachments];
+
+    let assignment = null;
+    let updatedAssignment = null;
+
+    // Try school-specific database first
+    if (schoolCode) {
+      try {
+        console.log(`[UPDATE ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
+        const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+        
+        assignment = await SchoolAssignment.findById(assignmentId);
+        
+        if (assignment) {
+          console.log(`[UPDATE ASSIGNMENT] Found assignment in school-specific database`);
+          
+          // Check access
+          if (req.user.role === 'teacher' && assignment.teacher !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'You can only update your own assignments' });
+          }
+
+          // Prepare update data
+          const updateFields = {
+            title: updateData.title || assignment.title,
+            subject: updateData.subject || assignment.subject,
+            class: updateData.class || assignment.class,
+            section: updateData.section || assignment.section,
+            startDate: updateData.startDate ? new Date(updateData.startDate) : assignment.startDate,
+            dueDate: updateData.dueDate ? new Date(updateData.dueDate) : assignment.dueDate,
+            instructions: updateData.instructions !== undefined ? updateData.instructions : assignment.instructions,
+            description: updateData.instructions !== undefined ? updateData.instructions : assignment.description,
+            attachments: allAttachments,
+            updatedAt: new Date()
+          };
+
+          updatedAssignment = await SchoolAssignment.findByIdAndUpdate(
+            assignmentId,
+            { $set: updateFields },
+            { new: true, runValidators: true }
+          );
+          
+          console.log(`[UPDATE ASSIGNMENT] Updated assignment in school-specific database`);
+        }
+      } catch (error) {
+        console.error(`[UPDATE ASSIGNMENT] Error with school-specific database: ${error.message}`);
+      }
     }
 
-    // Remove sensitive fields from update
-    delete updateData.schoolId;
-    delete updateData.teacher;
-    delete updateData.createdBy;
+    // Fallback to main database
+    if (!assignment && schoolId) {
+      console.log(`[UPDATE ASSIGNMENT] Trying main database`);
+      assignment = await Assignment.findById(assignmentId);
+      
+      if (!assignment) {
+        return res.status(404).json({ message: 'Assignment not found' });
+      }
 
-    updateData.updatedBy = req.user._id;
-    updateData.updatedAt = new Date();
+      // Check if user has access to this assignment's school
+      if (schoolId.toString() !== assignment.schoolId?.toString()) {
+        return res.status(403).json({ message: 'Access denied - school mismatch' });
+      }
 
-    const updatedAssignment = await Assignment.findByIdAndUpdate(
-      assignmentId,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    ).populate('teacher', 'name email');
+      // Teachers can only update their own assignments
+      if (req.user.role === 'teacher' && assignment.teacher.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: 'You can only update your own assignments' });
+      }
+
+      // Prepare update data
+      const updateFields = {
+        title: updateData.title || assignment.title,
+        subject: updateData.subject || assignment.subject,
+        class: updateData.class || assignment.class,
+        section: updateData.section || assignment.section,
+        startDate: updateData.startDate ? new Date(updateData.startDate) : assignment.startDate,
+        dueDate: updateData.dueDate ? new Date(updateData.dueDate) : assignment.dueDate,
+        instructions: updateData.instructions !== undefined ? updateData.instructions : assignment.instructions,
+        description: updateData.instructions !== undefined ? updateData.instructions : assignment.description,
+        attachments: allAttachments,
+        updatedBy: req.user._id,
+        updatedAt: new Date()
+      };
+
+      updatedAssignment = await Assignment.findByIdAndUpdate(
+        assignmentId,
+        { $set: updateFields },
+        { new: true, runValidators: true }
+      ).populate('teacher', 'name email');
+      
+      console.log(`[UPDATE ASSIGNMENT] Updated assignment in main database`);
+    }
+
+    if (!updatedAssignment) {
+      return res.status(404).json({ message: 'Assignment not found or update failed' });
+    }
 
     res.json({ 
       message: 'Assignment updated successfully',
@@ -585,29 +682,78 @@ exports.deleteAssignment = async (req, res) => {
   try {
     const { assignmentId } = req.params;
 
+    console.log(`[DELETE ASSIGNMENT] Deleting assignment ${assignmentId}`);
+
     // Check if user is admin or teacher
     if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const assignment = await Assignment.findById(assignmentId);
+    // Get school information
+    const schoolCode = req.user.schoolCode;
+    const schoolId = req.user.schoolId;
+
+    let assignment = null;
+    let deletedFromSchoolDB = false;
+
+    // Try to delete from school-specific database first
+    if (schoolCode) {
+      try {
+        console.log(`[DELETE ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
+        const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+        
+        assignment = await SchoolAssignment.findById(assignmentId);
+        
+        if (assignment) {
+          console.log(`[DELETE ASSIGNMENT] Found assignment in school-specific database`);
+          
+          // Check access - Teachers can only delete their own assignments
+          if (req.user.role === 'teacher' && assignment.teacher !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'You can only delete your own assignments' });
+          }
+
+          // Delete the assignment
+          await SchoolAssignment.findByIdAndDelete(assignmentId);
+          deletedFromSchoolDB = true;
+          console.log(`[DELETE ASSIGNMENT] Deleted assignment from school-specific database`);
+        }
+      } catch (error) {
+        console.error(`[DELETE ASSIGNMENT] Error with school-specific database: ${error.message}`);
+      }
+    }
+
+    // If not found in school-specific database, try main database
+    if (!assignment && schoolId) {
+      console.log(`[DELETE ASSIGNMENT] Trying main database`);
+      assignment = await Assignment.findById(assignmentId);
+      
+      if (!assignment) {
+        return res.status(404).json({ message: 'Assignment not found' });
+      }
+
+      // Check if user has access to this assignment's school
+      if (schoolId.toString() !== assignment.schoolId?.toString()) {
+        return res.status(403).json({ message: 'Access denied - school mismatch' });
+      }
+
+      // Teachers can only delete their own assignments
+      if (req.user.role === 'teacher' && assignment.teacher.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: 'You can only delete your own assignments' });
+      }
+
+      await Assignment.findByIdAndDelete(assignmentId);
+      console.log(`[DELETE ASSIGNMENT] Deleted assignment from main database`);
+    }
+
     if (!assignment) {
-      return res.status(404).json({ message: 'Assignment not found' });
+      return res.status(404).json({ message: 'Assignment not found in any database' });
     }
 
-    // Check if user has access to this assignment's school
-    if (req.user.schoolId?.toString() !== assignment.schoolId?.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    // Teachers can only delete their own assignments
-    if (req.user.role === 'teacher' && assignment.teacher.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'You can only delete your own assignments' });
-    }
-
-    await Assignment.findByIdAndDelete(assignmentId);
-
-    res.json({ message: 'Assignment deleted successfully' });
+    res.json({ 
+      message: 'Assignment deleted successfully',
+      deletedFrom: deletedFromSchoolDB ? 'school-specific database' : 'main database'
+    });
 
   } catch (error) {
     console.error('Error deleting assignment:', error);
@@ -623,47 +769,113 @@ exports.getAssignmentStats = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    const schoolCode = req.user.schoolCode;
     const schoolId = req.user.schoolId;
-    
-    // Build match query
-    const matchQuery = { schoolId };
-    if (req.user.role === 'teacher') {
-      matchQuery.teacher = req.user._id;
+
+    console.log(`[GET STATS] Getting stats for school: ${schoolCode || schoolId}`);
+
+    let stats = [];
+    let total = 0;
+    let overdueCount = 0;
+    let dueThisWeekCount = 0;
+
+    // Try school-specific database first
+    if (schoolCode) {
+      try {
+        console.log(`[GET STATS] Trying school-specific database for ${schoolCode}`);
+        const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+
+        // Build match query
+        const matchQuery = {};
+        if (req.user.role === 'teacher') {
+          matchQuery.teacher = req.user._id.toString();
+        }
+
+        // Get status counts
+        stats = await SchoolAssignment.aggregate([
+          { $match: matchQuery },
+          {
+            $group: {
+              _id: '$status',
+              count: { $sum: 1 }
+            }
+          }
+        ]);
+
+        // Get total count
+        total = await SchoolAssignment.countDocuments(matchQuery);
+
+        // Get overdue assignments count
+        overdueCount = await SchoolAssignment.countDocuments({
+          ...matchQuery,
+          dueDate: { $lt: new Date() },
+          status: { $in: ['draft', 'active'] }
+        });
+
+        // Get assignments due this week
+        const weekFromNow = new Date();
+        weekFromNow.setDate(weekFromNow.getDate() + 7);
+        dueThisWeekCount = await SchoolAssignment.countDocuments({
+          ...matchQuery,
+          dueDate: { $gte: new Date(), $lte: weekFromNow },
+          status: { $in: ['draft', 'active'] }
+        });
+
+        console.log(`[GET STATS] Found stats in school-specific database: total=${total}, dueThisWeek=${dueThisWeekCount}`);
+      } catch (error) {
+        console.error(`[GET STATS] Error with school-specific database: ${error.message}`);
+      }
     }
 
-    const stats = await Assignment.aggregate([
-      { $match: matchQuery },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
+    // Fallback to main database if needed
+    if (total === 0 && schoolId) {
+      console.log(`[GET STATS] Falling back to main database`);
+      
+      // Build match query
+      const matchQuery = { schoolId };
+      if (req.user.role === 'teacher') {
+        matchQuery.teacher = req.user._id;
       }
-    ]);
+
+      stats = await Assignment.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+      total = await Assignment.countDocuments(matchQuery);
+
+      // Get overdue assignments count
+      overdueCount = await Assignment.countDocuments({
+        ...matchQuery,
+        dueDate: { $lt: new Date() },
+        status: { $in: ['draft', 'active'] }
+      });
+
+      // Get assignments due this week
+      const weekFromNow = new Date();
+      weekFromNow.setDate(weekFromNow.getDate() + 7);
+      dueThisWeekCount = await Assignment.countDocuments({
+        ...matchQuery,
+        dueDate: { $gte: new Date(), $lte: weekFromNow },
+        status: { $in: ['draft', 'active'] }
+      });
+
+      console.log(`[GET STATS] Found stats in main database: total=${total}, dueThisWeek=${dueThisWeekCount}`);
+    }
 
     const statsObj = {};
     stats.forEach(stat => {
       statsObj[stat._id] = stat.count;
     });
 
-    // Get overdue assignments count
-    const overdueCount = await Assignment.countDocuments({
-      ...matchQuery,
-      dueDate: { $lt: new Date() },
-      status: { $in: ['draft', 'active'] }
-    });
-
-    // Get assignments due this week
-    const weekFromNow = new Date();
-    weekFromNow.setDate(weekFromNow.getDate() + 7);
-    const dueThisWeekCount = await Assignment.countDocuments({
-      ...matchQuery,
-      dueDate: { $gte: new Date(), $lte: weekFromNow },
-      status: { $in: ['draft', 'active'] }
-    });
-
     res.json({
-      total: Object.values(statsObj).reduce((a, b) => a + b, 0),
+      total: total,
       draft: statsObj.draft || 0,
       active: statsObj.active || 0,
       completed: statsObj.completed || 0,

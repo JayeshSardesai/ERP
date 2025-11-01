@@ -1,9 +1,13 @@
 import React from 'react';
-import { Home, Plus, LogOut, School, Users, MessageSquare, Clock, Award } from 'lucide-react';
+import { Home, Plus, LogOut, School } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../../../auth/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export function Navigation() {
   const { currentView, setCurrentView, stats } = useApp();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -54,13 +58,15 @@ export function Navigation() {
               <span className="text-xs text-gray-600">Users</span>
               <span className="text-sm font-semibold text-gray-900">{stats.totalUsers}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-600">Messages</span>
-              <span className="text-sm font-semibold text-gray-900">{stats.messagesSent}</span>
-            </div>
           </div>
         </div>
-        <button className="w-full flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200">
+        <button 
+          onClick={() => {
+            logout();
+            navigate('/login', { replace: true });
+          }}
+          className="w-full flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200"
+        >
           <LogOut className="h-5 w-5" />
           <span className="font-medium">Logout</span>
         </button>

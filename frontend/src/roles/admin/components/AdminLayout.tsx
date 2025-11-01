@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Menu,
   X,
@@ -18,31 +18,22 @@ import {
   CreditCard,
   FileText
 } from 'lucide-react';
+import { useAuth } from '../../../auth/AuthContext';
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const navigation = [
     { name: 'Dashboard', href: '/admin/', icon: Home },
     { name: 'Manage Users', href: '/admin/users', icon: Users },
     { name: 'School Settings', href: '/admin/settings', icon: Settings },
     { name: 'Academic Details', href: '/admin/academic-details', icon: GraduationCap },
-    {
-      name: 'Attendance',
-      icon: UserCheck,
-      children: [
-        { name: 'Mark Attendance', href: '/admin/attendance/mark' }
-      ]
-    },
+    { name: 'Attendance', href: '/admin/attendance', icon: UserCheck },
     { name: 'Assignments', href: '/admin/assignments', icon: BookOpen },
-    {
-      name: 'Results',
-      icon: BarChart3,
-      children: [
-        { name: 'View Results', href: '/admin/results' }
-      ]
-    },
+    { name: 'Results', href: '/admin/results', icon: BarChart3 },
     { name: 'Messages', href: '/admin/messages', icon: MessageSquare },
     { name: 'Fees', href: '/admin/fees/structure', icon: CreditCard },
     { name: 'Reports', href: '/admin/reports', icon: FileText },
@@ -59,43 +50,18 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
         <nav className="mt-8 px-4 space-y-2">
           {navigation.map((item) => (
-            <div key={item.name}>
-              {item.children ? (
-                <div>
-                  <div className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 rounded-lg">
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.name}
-                  </div>
-                  <div className="ml-8 space-y-1">
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.href}
-                        to={child.href}
-                        className={`block px-4 py-2 text-sm rounded-lg transition-colors ${
-                          isActive(child.href)
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        {child.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <Link
-                  to={item.href}
-                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    isActive(item.href)
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Link>
-              )}
-            </div>
+            <Link
+              key={item.name}
+              to={item.href}
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                isActive(item.href) || location.pathname.startsWith(item.href + '/')
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <item.icon className="mr-3 h-5 w-5" />
+              {item.name}
+            </Link>
           ))}
         </nav>
       </div>
@@ -120,43 +86,19 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
         <nav className="mt-8 px-4 space-y-2">
           {navigation.map((item) => (
-            <div key={item.name}>
-              {item.children ? (
-                <div>
-                  <div className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 rounded-lg">
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.name}
-                  </div>
-                  <div className="ml-8 space-y-1">
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.href}
-                        to={child.href}
-                        className={`block px-4 py-2 text-sm rounded-lg transition-colors ${
-                          isActive(child.href)
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        {child.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <Link
-                  to={item.href}
-                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    isActive(item.href)
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Link>
-              )}
-            </div>
+            <Link
+              key={item.name}
+              to={item.href}
+              onClick={() => setSidebarOpen(false)}
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                isActive(item.href) || location.pathname.startsWith(item.href + '/')
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <item.icon className="mr-3 h-5 w-5" />
+              {item.name}
+            </Link>
           ))}
         </nav>
       </div>
@@ -182,7 +124,14 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <User className="h-4 w-4 text-white" />
                 </div>
                 <span className="text-sm font-medium text-gray-700">Admin User</span>
-                <button className="text-gray-500 hover:text-gray-700 p-1 rounded">
+                <button 
+                  onClick={() => {
+                    logout();
+                    navigate('/login', { replace: true });
+                  }}
+                  className="text-gray-500 hover:text-gray-700 p-1 rounded"
+                  title="Logout"
+                >
                   <LogOut className="h-4 w-4" />
                 </button>
               </div>

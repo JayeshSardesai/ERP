@@ -14,6 +14,8 @@ import {
   Home,
   UserCheck
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../auth/AuthContext';
 import { currentUser } from '../utils/mockData';
 
 interface LayoutProps {
@@ -25,13 +27,14 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const menuItems = [
     { name: 'Dashboard', icon: Home, page: 'dashboard' },
-    { name: 'Mark Attendance', icon: UserCheck, page: 'mark-attendance' },
-    { name: 'View Attendance', icon: Users, page: 'view-attendance' },
-    { name: 'Add Assignments', icon: FileText, page: 'add-assignments' },
-    { name: 'View Results', icon: BarChart3, page: 'view-results' },
+    { name: 'Attendance', icon: UserCheck, page: 'attendance' },
+    { name: 'Assignments', icon: FileText, page: 'assignments' },
+    { name: 'Results', icon: BarChart3, page: 'view-results' },
     { name: 'Messages', icon: MessageSquare, page: 'messages' },
     { name: 'Settings', icon: Settings, page: 'settings' }
   ];
@@ -102,7 +105,10 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
               </div>
             </div>
             <button
-              onClick={onLogout}
+              onClick={() => {
+                logout();
+                navigate('/login', { replace: true });
+              }}
               className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-700 rounded-lg hover:bg-red-50 transition-colors"
             >
               <LogOut className="h-4 w-4 mr-3" />
