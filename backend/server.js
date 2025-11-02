@@ -21,7 +21,12 @@ const app = express();
 const PORT = process.env.PORT || 5050;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://erp-host-1.web.app', 'https://erpedulogix.web.app'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-school-code']
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true })); // Added for handling form data potentially from import
 
@@ -171,7 +176,6 @@ app.use('/api/admissions', admissionRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/subjects', subjectRoutes);
-app.use('/api/class-subjects', classSubjectsRoutes);
 app.use('/api/timetables', timetableRoutes);
 app.use('/api/results', resultRoutes);
 app.use('/api/config', configRoutes);
@@ -186,6 +190,7 @@ app.use('/api/admin/promotion', promotionRoutes);
 app.use('/api/admin/academic-year', academicYearRoutes);
 app.use('/api/admin/migration', migrationRoutes);
 app.use('/api/classes', classesRoutes);
+app.use('/api/class-subjects', classSubjectsRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/fees', feesRoutes);
 app.use('/api/reports', reportsRoutes);
@@ -359,6 +364,26 @@ function startTempFolderCleanup() {
     cleanupTempFolder();
   }, 1000); // 60 seconds
 }
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('❌ Unhandled error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+  });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  console.log('❌ 404 - Route not found:', req.originalUrl);
+  res.status(404).json({
+    success: false,
+    message: 'Route not found',
+    path: req.originalUrl
+  });
+});
 
 // Graceful shutdown handling
 process.on('SIGINT', async () => {
