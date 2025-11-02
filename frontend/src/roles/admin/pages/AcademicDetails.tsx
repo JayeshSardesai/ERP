@@ -534,12 +534,12 @@ const AcademicDetails: React.FC = () => {
         if (response.ok) {
           const responseData = await response.json();
           console.log('📥 Class-subjects API response:', responseData);
-          
+
           // Find the class data for the selected class and section
-          const classData = responseData?.data?.classes?.find((c: any) => 
+          const classData = responseData?.data?.classes?.find((c: any) =>
             c.className === hallTicketClass && c.section === hallTicketSection
           );
-          
+
           if (classData && classData.subjects) {
             // Filter only active subjects
             const activeSubjects = classData.subjects.filter((subject: any) => subject.isActive !== false);
@@ -585,7 +585,7 @@ const AcademicDetails: React.FC = () => {
       } catch (apiError) {
         console.log('🔄 Primary API failed, using fallback method...', apiError);
       }
-      
+
       // Fallback to direct endpoint if primary API didn't return data
       try {
         console.log('🔄 Trying fallback endpoint for subjects...');
@@ -598,7 +598,7 @@ const AcademicDetails: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           console.log('📥 Fallback API response:', data);
-          
+
           if (data.data && data.data.subjects && data.data.subjects.length > 0) {
             const subjectExamsList: SubjectExam[] = data.data.subjects.map((subject: any, index: number) => ({
               id: `${hallTicketClass}-${hallTicketSection}-${subject.name}-${selectedTest}`,
@@ -639,7 +639,7 @@ const AcademicDetails: React.FC = () => {
       } catch (fallbackError) {
         console.error('❌ Fallback API also failed:', fallbackError);
       }
-      
+
       // If we reach here, both APIs failed
       console.log('❌ No subjects found for class-section combination');
       toast.error(`No subjects configured for Class ${hallTicketClass} Section ${hallTicketSection}. Please add subjects first in the "Class Subjects Management" tab.`);
@@ -675,7 +675,7 @@ const AcademicDetails: React.FC = () => {
 
       // Try to fetch real students from API
       try {
-        const response = await fetch(`http://localhost:5050/api/users/role/student`, {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/role/student`, {
           headers: {
             'Authorization': `Bearer ${authToken}`,
             'X-School-Code': schoolCode.toUpperCase(),
@@ -712,7 +712,7 @@ const AcademicDetails: React.FC = () => {
 
                   // If it starts with /uploads, construct full URL
                   if (rawImageUrl.startsWith('/uploads')) {
-                    const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+                    const envBase = (import.meta.env.VITE_API_BASE_URL as string);
                     const baseUrl = envBase.replace(/\/api\/?$/, '');
                     return `${baseUrl}${rawImageUrl}`;
                   }
@@ -742,7 +742,7 @@ const AcademicDetails: React.FC = () => {
       try {
         console.log('🔄 Trying school-users endpoint pattern...');
 
-        const altResponse = await fetch(`http://localhost:5050/api/school-users/${schoolCode}/users`, {
+        const altResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/school-users/${schoolCode}/users`, {
           headers: {
             'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
@@ -785,7 +785,7 @@ const AcademicDetails: React.FC = () => {
 
                   // If it starts with /uploads, construct full URL
                   if (rawImageUrl.startsWith('/uploads')) {
-                    const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+                    const envBase = (import.meta.env.VITE_API_BASE_URL as string);
                     const baseUrl = envBase.replace(/\/api\/?$/, '');
                     return `${baseUrl}${rawImageUrl}`;
                   }
@@ -835,7 +835,7 @@ const AcademicDetails: React.FC = () => {
 
       // Use the same API pattern as hall tickets
       try {
-        const response = await fetch(`http://localhost:5050/api/users/role/student`, {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/role/student`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'X-School-Code': schoolCode.toUpperCase(),
@@ -965,27 +965,27 @@ const AcademicDetails: React.FC = () => {
   const convertImageToBase64 = (url: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       console.log('🖼️ Starting image conversion for URL:', url);
-      
+
       const img = new Image();
-      
+
       // Set crossOrigin before setting src
       img.crossOrigin = 'anonymous';
-      
+
       img.onload = () => {
         console.log('✅ Image loaded successfully, converting to base64...');
         try {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          
+
           if (!ctx) {
             reject(new Error('Failed to get canvas context'));
             return;
           }
-          
+
           canvas.width = img.width;
           canvas.height = img.height;
           ctx.drawImage(img, 0, 0);
-          
+
           const base64 = canvas.toDataURL('image/png');
           console.log('✅ Base64 conversion successful, length:', base64.length);
           resolve(base64);
@@ -994,13 +994,13 @@ const AcademicDetails: React.FC = () => {
           reject(error);
         }
       };
-      
+
       img.onerror = (error) => {
         console.error('❌ Image load error:', error);
         console.error('❌ Failed URL:', url);
         reject(new Error('Failed to load image from URL'));
       };
-      
+
       // Set src after setting up event handlers
       img.src = url;
       console.log('📡 Image src set, waiting for load...');

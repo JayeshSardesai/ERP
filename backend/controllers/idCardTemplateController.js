@@ -1,44 +1,14 @@
 const IDCardTemplate = require('../models/IDCardTemplate');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const sharp = require('sharp');
 
-// Configure multer for template uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, '..', 'uploads', 'templates');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `template-${uniqueSuffix}${path.extname(file.originalname)}`);
-  }
-});
+// --- HOSTING FIX: Import Cloudinary helpers ---
+const {
+  uploadBufferToCloudinary,
+  deleteFromCloudinary,
+  extractPublicId
+} = require('../config/cloudinary');
 
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 20 * 1024 * 1024 // 20MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Only image files (JPEG, PNG, GIF, WebP) are allowed!'));
-    }
-  }
-});
-
-// Upload middleware
-const uploadTemplate = upload.single('templateImage');
+// --- HOSTING FIX: All local 'multer', 'fs', and 'path' logic has been removed ---
 
 // Get all templates for a school
 const getTemplates = async (req, res) => {
@@ -104,7 +74,7 @@ const getTemplate = async (req, res) => {
 // Create a new template
 const createTemplate = async (req, res) => {
   try {
-    const { schoolId, _id: userId } = req.user;
+    const { schoolId, _id: userId, schoolCode } = req.user;
     const {
       name,
       description,
@@ -122,23 +92,26 @@ const createTemplate = async (req, res) => {
       });
     }
 
-    // Process and optimize the uploaded image
-    const originalPath = req.file.path;
-    const optimizedPath = originalPath.replace(path.extname(originalPath), '_optimized.png');
-    
+    // --- HOSTING FIX: Process image in memory and upload to Cloudinary ---
+    const folder = `id_card_templates/${schoolCode.toUpperCase()}`;
+    const publicId = `${name.replace(/\s+/g, '_')}_${side}_${Date.now()}`;
+    let imageBuffer;
+
     try {
-      await sharp(originalPath)
+      // Optimize image from buffer (using req.file.buffer from memory)
+      imageBuffer = await sharp(req.file.buffer)
         .resize(1200, 800, { fit: 'inside', withoutEnlargement: true })
         .png({ quality: 90 })
-        .toFile(optimizedPath);
-      
-      // Remove original file and rename optimized version
-      fs.unlinkSync(originalPath);
-      fs.renameSync(optimizedPath, originalPath);
+        .toBuffer();
     } catch (imageError) {
       console.error('Image processing error:', imageError);
-      // Continue with original file if processing fails
+      // Fallback to original buffer if sharp fails
+      imageBuffer = req.file.buffer;
     }
+
+    // Upload optimized buffer to Cloudinary
+    const uploadResult = await uploadBufferToCloudinary(imageBuffer, folder, publicId);
+    // --- END FIX ---
 
     const template = new IDCardTemplate({
       schoolId,
@@ -146,7 +119,7 @@ const createTemplate = async (req, res) => {
       description,
       orientation,
       side,
-      templateImage: `/uploads/templates/${req.file.filename}`,
+      templateImage: uploadResult.secure_url, // <-- Save Cloudinary URL
       dataFields: dataFields || {},
       photoPlacement: photoPlacement || {},
       schoolLogoPlacement: schoolLogoPlacement || {},
@@ -162,6 +135,11 @@ const createTemplate = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating template:', error);
+    // --- HOSTING FIX: Clean up req.file if it exists on error ---
+    if (req.file) {
+      // This is just good practice, though not strictly needed with memoryStorage
+      console.warn('Cleaning up failed upload from memory.');
+    }
     res.status(500).json({
       success: false,
       message: 'Error creating template',
@@ -181,6 +159,13 @@ const updateTemplate = async (req, res) => {
     delete updateData.schoolId;
     delete updateData.createdBy;
     delete updateData.createdAt;
+
+    // --- HOSTING FIX: ---
+    // This function, as you wrote it, does not handle file uploads.
+    // If you add a file upload to your "Update" feature in the future,
+    // you must copy the upload logic from 'createTemplate' here
+    // and also delete the old image from Cloudinary.
+    // --- END FIX ---
 
     const template = await IDCardTemplate.findOneAndUpdate(
       { _id: templateId, schoolId },
@@ -229,13 +214,15 @@ const deleteTemplate = async (req, res) => {
       });
     }
 
-    // Optionally delete the file
+    // --- HOSTING FIX: Delete the template image from Cloudinary ---
     if (template.templateImage) {
-      const filePath = path.join(__dirname, '..', template.templateImage);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      const publicId = extractPublicId(template.templateImage);
+      if (publicId) {
+        await deleteFromCloudinary(publicId);
+        console.log(`Deleted template image from Cloudinary: ${publicId}`);
       }
     }
+    // --- END FIX ---
 
     res.json({
       success: true,
@@ -294,7 +281,7 @@ const setDefaultTemplate = async (req, res) => {
 };
 
 module.exports = {
-  uploadTemplate,
+  // --- HOSTING FIX: 'uploadTemplate' is no longer exported ---
   getTemplates,
   getTemplate,
   createTemplate,

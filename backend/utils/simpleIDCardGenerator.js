@@ -1,7 +1,23 @@
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs').promises;
-const axios = require('axios');
+const axios = require('axios'); // <-- Make sure axios is at the top
+
+/**
+ * --- HOSTING FIX: CLOUDINARY TEMPLATES ---
+ * Manually upload your 4 template files to Cloudinary and paste their URLs here.
+ * This code will now download templates from Cloudinary instead of reading from a local folder.
+ */
+const TEMPLATE_PATHS = {
+  landscape: {
+    front: 'https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/landscape-front_m59zcq.png', // <-- PASTE YOUR URL
+    back: 'https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/landscape-back_fqroxh.png',  // <-- PASTE YOUR URL
+  },
+  portrait: {
+    front: 'https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/portrait-front_iqllye.png', // <-- PASTE YOUR URL
+    back: 'https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/portrait-back_m5wxzh.png',  // <-- PASTE YOUR URL
+  },
+};
 
 /**
  * Simple ID Card Generator
@@ -10,8 +26,11 @@ const axios = require('axios');
 
 class SimpleIDCardGenerator {
   constructor() {
-    this.templatesDir = path.join(__dirname, '..', 'idcard-templates');
-    this.outputDir = path.join(__dirname, '..', 'uploads', 'generated-idcards');
+    // --- HOSTING FIX: CHANGED OUTPUT DIRECTORY ---
+    // We no longer read templates from disk
+    this.templatesDir = null; // <-- CHANGED
+    // We write final generated cards to the 'temp' folder, which is cleaned up by server.js
+    this.outputDir = path.join(__dirname, '..', 'uploads', 'temp', 'generated-idcards'); // <-- CHANGED
   }
 
   /**
@@ -313,23 +332,16 @@ class SimpleIDCardGenerator {
         hasPhoto: !!student.profileImage
       });
 
-      // Get template path
-      const templatePath = path.join(this.templatesDir, `${orientation}-${side}.png`);
-
-      console.log(`📁 Looking for template at: ${templatePath}`);
-
-      // Check if template exists
-      try {
-        await fs.access(templatePath);
-        console.log(`✅ Template found: ${orientation}-${side}.png`);
-      } catch (error) {
-        console.error(`❌ Template not found: ${templatePath}`);
-        console.error(`❌ Templates directory: ${this.templatesDir}`);
-        throw new Error(`Template not found: ${orientation}-${side}.png. Please add it to backend/idcard-templates/`);
+      // --- HOSTING FIX: DOWNLOAD TEMPLATE FROM CLOUDINARY URL ---
+      const templateUrl = TEMPLATE_PATHS[orientation]?.[side];
+      if (!templateUrl) {
+        throw new Error(`Template URL not found for ${orientation} ${side}. Check TEMPLATE_PATHS constant.`);
       }
 
-      // Read template
-      const templateBuffer = await fs.readFile(templatePath);
+      console.log(`✅ Fetching template from: ${templateUrl}`);
+      const templateResponse = await axios.get(templateUrl, { responseType: 'arraybuffer' });
+      const templateBuffer = Buffer.from(templateResponse.data);
+      // --- END FIX ---
 
       // Get field positions
       const positions = this.getFieldPositions(orientation, side);
@@ -340,31 +352,11 @@ class SimpleIDCardGenerator {
       // Prepare composite layers
       const compositeImages = [];
 
+      // --- HOSTING FIX: DOWNLOAD LOGO FROM URL ---
       // Add school logo (FRONT SIDE ONLY)
       if (side === 'front' && positions.schoolLogo && schoolInfo.logoUrl) {
         try {
-          let logoPath = schoolInfo.logoUrl;
-          let logoBuffer;
-
-          // Check if it's a Cloudinary URL or external URL
-          if (logoPath.startsWith('http://') || logoPath.startsWith('https://')) {
-            // Fetch from URL (Cloudinary or external)
-            const axios = require('axios');
-            const response = await axios.get(logoPath, { responseType: 'arraybuffer' });
-            logoBuffer = Buffer.from(response.data);
-            console.log(`✅ Fetched school logo from URL: ${logoPath}`);
-          } else {
-            // Handle relative paths (local files)
-            if (logoPath.startsWith('/uploads')) {
-              logoPath = path.join(__dirname, '..', logoPath);
-            }
-            // Check if file exists
-            await fs.access(logoPath);
-            logoBuffer = await fs.readFile(logoPath);
-            console.log(`✅ Loaded school logo from local: ${logoPath}`);
-          }
-
-          // Resize and add logo
+          const logoBuffer = await this.downloadImage(schoolInfo.logoUrl); // Use helper
           const resizedLogoBuffer = await sharp(logoBuffer)
             .resize(positions.schoolLogo.width, positions.schoolLogo.height, {
               fit: 'contain',
@@ -377,10 +369,13 @@ class SimpleIDCardGenerator {
             top: positions.schoolLogo.y,
             left: positions.schoolLogo.x
           });
+          console.log(`✅ Fetched and resized school logo`);
         } catch (logoError) {
           console.warn('⚠️ School logo processing skipped:', logoError.message);
         }
       }
+      // --- END FIX ---
+
 
       // Add school name (FRONT SIDE ONLY)
       if (side === 'front' && positions.schoolName && schoolInfo.schoolName) {
@@ -490,31 +485,11 @@ class SimpleIDCardGenerator {
         });
       }
 
+      // --- HOSTING FIX: DOWNLOAD PHOTO FROM URL ---
       // Add student photo (front side only)
       if (side === 'front' && positions.photo && student.profileImage) {
         try {
-          let photoPath = student.profileImage;
-          let photoBuffer;
-
-          // Check if it's a Cloudinary URL or external URL
-          if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
-            // Fetch from URL (Cloudinary or external)
-            const axios = require('axios');
-            const response = await axios.get(photoPath, { responseType: 'arraybuffer' });
-            photoBuffer = Buffer.from(response.data);
-            console.log(`✅ Fetched student photo from URL: ${photoPath.substring(0, 50)}...`);
-          } else {
-            // Handle relative paths (local files)
-            if (photoPath.startsWith('/uploads')) {
-              photoPath = path.join(__dirname, '..', photoPath);
-            }
-            // Check if file exists
-            await fs.access(photoPath);
-            photoBuffer = await fs.readFile(photoPath);
-            console.log(`✅ Loaded student photo from local: ${photoPath}`);
-          }
-
-          // Resize and add photo
+          const photoBuffer = await this.downloadImage(student.profileImage); // Use helper
           const resizedPhotoBuffer = await sharp(photoBuffer)
             .resize(positions.photo.width, positions.photo.height, {
               fit: 'cover',
@@ -527,11 +502,14 @@ class SimpleIDCardGenerator {
             top: positions.photo.y,
             left: positions.photo.x
           });
+          console.log(`✅ Fetched and resized student photo`);
         } catch (photoError) {
           console.warn('⚠️ Student photo processing skipped:', photoError.message);
-          console.warn('Photo path:', student.profileImage);
+          console.warn('Photo URL:', student.profileImage);
         }
       }
+      // --- END FIX ---
+
 
       // Add text fields based on side
       if (side === 'front') {
@@ -1085,7 +1063,7 @@ class SimpleIDCardGenerator {
         }
       }
 
-      // Ensure output directory exists
+      // Ensure output directory exists (using fs.promises)
       await fs.mkdir(this.outputDir, { recursive: true });
 
       // Generate output filename using sequence ID
@@ -1104,7 +1082,8 @@ class SimpleIDCardGenerator {
       return {
         success: true,
         outputPath,
-        relativePath: `/uploads/generated-idcards/${outputFilename}`,
+        // --- HOSTING FIX: Update relative path to new temp dir ---
+        relativePath: `/uploads/temp/generated-idcards/${outputFilename}`, // <-- CHANGED
         message: 'ID card generated successfully'
       };
     } catch (error) {
@@ -1130,17 +1109,14 @@ class SimpleIDCardGenerator {
     try {
       if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
         // Fetch from URL (Cloudinary or external)
-        const axios = require('axios');
+        // const axios = require('axios'); // Already required at top
         const response = await axios.get(imagePath, { responseType: 'arraybuffer' });
         return Buffer.from(response.data);
       } else {
-        // Handle relative paths (local files)
-        if (imagePath.startsWith('/uploads')) {
-          imagePath = path.join(__dirname, '..', imagePath);
-        }
-        // Check if file exists
-        await fs.access(imagePath);
-        return await fs.readFile(imagePath);
+        // --- HOSTING FIX: REMOVED LOCAL FILE FALLBACK ---
+        // Local file access is forbidden in a hosted environment.
+        console.warn(`⚠️ Invalid image path. Only http/https URLs are allowed: ${imagePath}`);
+        throw new Error(`Invalid image path. Only http/https URLs are allowed: ${imagePath}`);
       }
     } catch (error) {
       console.warn(`⚠️ Could not load image from ${imagePath}:`, error.message);
@@ -1155,19 +1131,15 @@ class SimpleIDCardGenerator {
     try {
       console.log(`🎨 Generating ID card buffer for ${student.name} (${orientation} ${side})`);
 
-      // Get template path
-      const templateFilename = `${orientation}-${side}.png`;
-      const templatePath = path.join(this.templatesDir, templateFilename);
-
-      // Check if template exists
-      try {
-        await fs.access(templatePath);
-      } catch (err) {
-        throw new Error(`Template not found: ${templatePath}`);
+      // --- HOSTING FIX: DOWNLOAD TEMPLATE FROM CLOUDINARY URL ---
+      const templateUrl = TEMPLATE_PATHS[orientation]?.[side];
+      if (!templateUrl) {
+        throw new Error(`Template URL not found for ${orientation} ${side}. Check TEMPLATE_PATHS constant.`);
       }
+      // Note: We don't need to download the template here,
+      // because the generateIDCard function (which we call) will do it.
+      // --- END FIX ---
 
-      // Load template
-      const templateBuffer = await fs.readFile(templatePath);
 
       // Get field positions for this orientation and side
       const positions = this.getFieldPositions(orientation, side);
@@ -1179,12 +1151,13 @@ class SimpleIDCardGenerator {
       const fieldHeights = {};
 
       // Use the same logic as the original generateIDCard method
+      // This will generate the file in the `uploads/temp` directory
       const result = await this.generateIDCard(student, orientation, side, schoolInfo);
 
-      // Read the generated file and return as buffer
+      // Read the generated file from the temp directory
       const generatedBuffer = await fs.readFile(result.outputPath);
 
-      // Clean up the temporary file
+      // Clean up the temporary file immediately
       await fs.unlink(result.outputPath);
 
       return generatedBuffer;

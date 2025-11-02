@@ -27,7 +27,8 @@ app.use(bodyParser.urlencoded({ extended: true })); // Added for handling form d
 
 // Configure multer for file uploads
 // Make sure the 'uploads/' directory exists in your backend folder
-const upload = multer({ dest: path.join(__dirname, 'uploads/') });
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // Middleware to attach mainDb to req
 app.use((req, res, next) => {
@@ -53,10 +54,7 @@ const requireAdminAccess = (req, res, next) => {
 // Import other routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
-const schoolRoutes = require('./routes/schools');
-const schoolUserRoutes = require('./routes/schoolUsers');
 const admissionRoutes = require('./routes/admissions');
-const assignmentRoutes = require('./routes/assignments');
 const attendanceRoutes = require('./routes/attendance');
 const subjectRoutes = require('./routes/subjects');
 const classSubjectsRoutes = require('./routes/classSubjects');
@@ -78,14 +76,20 @@ const promotionRoutes = require('./routes/promotion');
 const academicYearRoutes = require('./routes/academicYear');
 const migrationRoutes = require('./routes/migration');
 const leaveRoutes = require('./routes/leaveRoutes');
-const idCardTemplateRoutes = require('./routes/idCardTemplates');
 const chalanRoutes = require('./routes/chalanRoutes');
 
+// --- HOSTING FIX: Inject 'upload' into routes that handle file uploads ---
+const schoolRoutes = require('./routes/schools')(upload);
+const schoolUserRoutes = require('./routes/schoolUsers')(upload);
+const assignmentRoutes = require('./routes/assignments')(upload);
+const idCardTemplateRoutes = require('./routes/idCardTemplates')(upload);
+// --- END FIX ---
+
 // Serve uploads statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Serve ID card templates statically
-app.use('/idcard-templates', express.static(path.join(__dirname, 'idcard-templates')));
+// app.use('/idcard-templates', express.static(path.join(__dirname, 'idcard-templates')));
 
 // Test endpoint for debugging
 app.get('/api/test-endpoint', (req, res) => {
@@ -258,7 +262,7 @@ mongoose.connect(MONGODB_URI, {
     app.listen(PORT, () => {
       console.log(`🌐 Server running on port ${PORT}`);
       console.log(`🏫 Multi-tenant school ERP system ready`);
-      
+
       // Start temp folder cleanup task (runs every 30 seconds)
       startTempFolderCleanup();
     });
@@ -272,33 +276,40 @@ mongoose.connect(MONGODB_URI, {
 // Temp folder cleanup function
 function cleanupTempFolder() {
   const tempDir = path.join(__dirname, 'uploads', 'temp');
-  
+
   // Check if temp directory exists
   if (!fs.existsSync(tempDir)) {
-    console.log('ℹ️ Temp directory does not exist, skipping cleanup');
-    return;
+    // --- HOSTING FIX: Create temp dir if it doesn't exist ---
+    try {
+      fs.mkdirSync(tempDir, { recursive: true });
+      console.log('ℹ️ Created temp directory for uploads.');
+    } catch (mkdirError) {
+      console.error('❌ Failed to create temp directory:', mkdirError);
+      return;
+    }
+    // --- END FIX ---
   }
-  
+
   try {
     const files = fs.readdirSync(tempDir);
-    
+
     if (files.length === 0) {
       // console.log('✅ Temp folder is already clean (0 files)');
       return;
     }
-    
+
     let deletedCount = 0;
     let errorCount = 0;
     let skippedCount = 0;
     const now = Date.now();
     const fiveMinutesAgo = now - (5 * 60 * 1000); // 5 minutes in milliseconds
-    
+
     files.forEach(file => {
       const filePath = path.join(tempDir, file);
-      
+
       try {
         const stats = fs.statSync(filePath);
-        
+
         // Only delete files, not directories
         if (stats.isFile()) {
           // Only delete files older than 5 minutes to avoid EPERM errors
@@ -310,7 +321,7 @@ function cleanupTempFolder() {
             } catch (e) {
               // Ignore if file handle release fails
             }
-            
+
             fs.unlinkSync(filePath);
             deletedCount++;
           } else {
@@ -328,7 +339,7 @@ function cleanupTempFolder() {
         }
       }
     });
-    
+
     if (deletedCount > 0 || errorCount > 0) {
       console.log(`🗑️ Temp cleanup: Deleted ${deletedCount} file(s), Skipped ${skippedCount} file(s), ${errorCount} error(s)`);
     }
@@ -340,10 +351,10 @@ function cleanupTempFolder() {
 // Start periodic temp folder cleanup
 function startTempFolderCleanup() {
   console.log('🗑️ Starting temp folder cleanup task (runs every 60 seconds)...');
-  
+
   // Run immediately on startup
   cleanupTempFolder();
-  
+
   //Then run every 60 seconds (less aggressive for Windows)
   setInterval(() => {
     cleanupTempFolder();

@@ -131,3 +131,7 @@ export interface Message {
   isRead: boolean;
   type: 'individual' | 'group';
 }
+
+export interface SchoolData {
+  [key: string]: any;
+}

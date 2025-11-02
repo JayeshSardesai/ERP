@@ -21,7 +21,7 @@ const uploadToCloudinary = async (filePath, folder, publicId) => {
   try {
     console.log(`☁️ Uploading to Cloudinary: ${filePath}`);
     console.log(`📁 Folder: ${folder}, Public ID: ${publicId}`);
-    
+
     const result = await cloudinary.uploader.upload(filePath, {
       folder: folder,
       public_id: publicId,
@@ -33,7 +33,7 @@ const uploadToCloudinary = async (filePath, folder, publicId) => {
         { fetch_format: 'auto' }
       ]
     });
-    
+
     console.log(`✅ Uploaded to Cloudinary: ${result.secure_url}`);
     return result;
   } catch (error) {
@@ -53,18 +53,77 @@ const deleteFromCloudinary = async (publicId) => {
       console.warn('⚠️ No public ID provided for deletion');
       return null;
     }
-    
+
     console.log(`🗑️ Deleting from Cloudinary: ${publicId}`);
     const result = await cloudinary.uploader.destroy(publicId, {
       resource_type: 'image'
     });
-    
+
     console.log(`✅ Deleted from Cloudinary: ${publicId}`, result);
     return result;
   } catch (error) {
     console.error('❌ Cloudinary deletion error:', error.message);
     throw error;
   }
+};
+const { Readable } = require('stream');
+
+// ADD THIS NEW FUNCTION FOR IMAGES
+const uploadBufferToCloudinary = (buffer, folder, publicId) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: folder,
+        public_id: publicId,
+        resource_type: 'image',
+        overwrite: true,
+        transformation: [
+          { width: 800, height: 800, crop: 'limit' },
+          { quality: 'auto:good' },
+          { fetch_format: 'auto' }
+        ]
+      },
+      (error, result) => {
+        if (error) {
+          console.error('❌ Cloudinary buffer upload error:', error.message);
+          return reject(error);
+        }
+        console.log(`✅ Uploaded buffer to Cloudinary: ${result.secure_url}`);
+        resolve(result);
+      }
+    );
+    // Create a readable stream from the buffer and pipe it
+    const stream = new Readable();
+    stream.push(buffer);
+    stream.push(null);
+    stream.pipe(uploadStream);
+  });
+};
+
+// ADD THIS NEW FUNCTION FOR PDFs/RAW FILES
+const uploadPDFBufferToCloudinary = (buffer, folder, publicId) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: folder,
+        public_id: publicId,
+        resource_type: 'raw', // Use 'raw' for PDFs
+        overwrite: true
+      },
+      (error, result) => {
+        if (error) {
+          console.error('❌ Cloudinary PDF buffer upload error:', error.message);
+          return reject(error);
+        }
+        console.log(`✅ Uploaded PDF buffer to Cloudinary: ${result.secure_url}`);
+        resolve(result);
+      }
+    );
+    const stream = new Readable();
+    stream.push(buffer);
+    stream.push(null);
+    stream.pipe(uploadStream);
+  });
 };
 
 /**
@@ -75,23 +134,23 @@ const deleteFromCloudinary = async (publicId) => {
 const extractPublicId = (cloudinaryUrl) => {
   try {
     if (!cloudinaryUrl || typeof cloudinaryUrl !== 'string') return null;
-    
+
     // Check if it's a Cloudinary URL
     if (!cloudinaryUrl.includes('cloudinary.com')) return null;
-    
+
     // Extract public ID from URL
     // Format: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{public_id}.{format}
     const parts = cloudinaryUrl.split('/upload/');
     if (parts.length < 2) return null;
-    
+
     const pathParts = parts[1].split('/');
     // Remove version (v1234567890) if present
     const startIndex = pathParts[0].startsWith('v') && !isNaN(pathParts[0].substring(1)) ? 1 : 0;
-    
+
     // Join remaining parts and remove file extension
     const publicIdWithExt = pathParts.slice(startIndex).join('/');
     const publicId = publicIdWithExt.replace(/\.[^.]+$/, '');
-    
+
     return publicId;
   } catch (error) {
     console.error('Error extracting public ID:', error.message);
@@ -123,16 +182,16 @@ const deleteLocalFile = (filePath) => {
 const compressPDF = async (inputPath, outputPath) => {
   try {
     console.log(`🔄 Compressing PDF: ${path.basename(inputPath)}`);
-    
+
     const originalSize = fs.statSync(inputPath).size;
     console.log(`📄 Original PDF size: ${(originalSize / 1024).toFixed(2)}KB`);
-    
+
     // Compress PDF with compress-pdf
     await compressPdf(inputPath, outputPath, {
       compressionLevel: 'ebook', // Options: 'screen', 'ebook', 'printer', 'prepress'
       gsModule: null // Auto-detect ghostscript
     });
-    
+
     const compressedSize = fs.statSync(outputPath).size;
     const reduction = ((1 - compressedSize / originalSize) * 100).toFixed(1);
     console.log(`✅ Compressed PDF size: ${(compressedSize / 1024).toFixed(2)}KB (${reduction}% reduction)`);
@@ -157,25 +216,25 @@ const compressPDF = async (inputPath, outputPath) => {
  */
 const uploadPDFToCloudinary = async (filePath, folder, publicId) => {
   let compressedPath = null;
-  
+
   try {
     console.log(`☁️ Uploading PDF to Cloudinary: ${filePath}`);
     console.log(`📁 Folder: ${folder}, Public ID: ${publicId}`);
-    
+
     const fileExt = path.extname(filePath).toLowerCase();
-    
+
     // Only compress PDFs
     if (fileExt === '.pdf') {
       const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
-      
+
       compressedPath = path.join(tempDir, `compressed_${Date.now()}.pdf`);
-      
+
       // Compress PDF
       await compressPDF(filePath, compressedPath);
-      
+
       // Upload compressed PDF
       const result = await cloudinary.uploader.upload(compressedPath, {
         folder: folder,
@@ -183,10 +242,10 @@ const uploadPDFToCloudinary = async (filePath, folder, publicId) => {
         resource_type: 'raw',
         overwrite: true
       });
-      
+
       // Clean up compressed file
       deleteLocalFile(compressedPath);
-      
+
       console.log(`✅ Uploaded compressed PDF to Cloudinary: ${result.secure_url}`);
       return result;
     } else {
@@ -197,7 +256,7 @@ const uploadPDFToCloudinary = async (filePath, folder, publicId) => {
         resource_type: 'raw',
         overwrite: true
       });
-      
+
       console.log(`✅ Uploaded file to Cloudinary: ${result.secure_url}`);
       return result;
     }
@@ -222,12 +281,12 @@ const deletePDFFromCloudinary = async (publicId) => {
       console.warn('⚠️ No public ID provided for PDF deletion');
       return null;
     }
-    
+
     console.log(`🗑️ Deleting PDF from Cloudinary: ${publicId}`);
     const result = await cloudinary.uploader.destroy(publicId, {
       resource_type: 'raw' // Use 'raw' for PDFs and documents
     });
-    
+
     console.log(`✅ Deleted PDF from Cloudinary: ${publicId}`, result);
     return result;
   } catch (error) {
@@ -240,6 +299,8 @@ module.exports = {
   cloudinary,
   uploadToCloudinary,
   uploadPDFToCloudinary,
+  uploadBufferToCloudinary,       // <-- ADD THIS
+  uploadPDFBufferToCloudinary,    // <-- ADD THIS
   deleteFromCloudinary,
   deletePDFFromCloudinary,
   extractPublicId,

@@ -302,7 +302,7 @@ const Dashboard: React.FC = () => {
         console.log('📊 Fetching today\'s attendance rate for:', today);
 
         const response = await fetch(
-          `http://localhost:5050/api/attendance/stats?date=${today}`,
+          `${import.meta.env.VITE_API_BASE_URL}/attendance/stats?date=${today}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -346,7 +346,7 @@ const Dashboard: React.FC = () => {
 
         // Fetch overall today's attendance
         const response = await fetch(
-          `http://localhost:5050/api/attendance/stats?date=${today}`,
+          `${import.meta.env.VITE_API_BASE_URL}/attendance/stats?date=${today}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -369,7 +369,7 @@ const Dashboard: React.FC = () => {
 
         // Fetch morning session data
         const morningResponse = await fetch(
-          `http://localhost:5050/api/attendance/session-data?date=${today}&session=morning`,
+          `${import.meta.env.VITE_API_BASE_URL}/attendance/session-data?date=${today}&session=morning`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -392,7 +392,7 @@ const Dashboard: React.FC = () => {
 
         // Fetch afternoon session data
         const afternoonResponse = await fetch(
-          `http://localhost:5050/api/attendance/session-data?date=${today}&session=afternoon`,
+          `${import.meta.env.VITE_API_BASE_URL}/attendance/session-data?date=${today}&session=afternoon`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -440,7 +440,7 @@ const Dashboard: React.FC = () => {
 
         // Fetch attendance data from backend
         const response = await fetch(
-          `http://localhost:5050/api/attendance/daily-stats?schoolCode=${user.schoolCode}`,
+          `${import.meta.env.VITE_API_BASE_URL}/attendance/daily-stats?schoolCode=${user.schoolCode}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -510,7 +510,7 @@ const Dashboard: React.FC = () => {
         console.log('📊 Fetching class performance data');
 
         const response = await fetch(
-          `http://localhost:5050/api/results/class-performance-stats`,
+          `${import.meta.env.VITE_API_BASE_URL}/results/class-performance-stats`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -541,7 +541,7 @@ const Dashboard: React.FC = () => {
     if (!logoPath) return '';
     if (logoPath.startsWith('http')) return logoPath;
     if (logoPath.startsWith('/uploads')) {
-      const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+      const envBase = (import.meta.env.VITE_API_BASE_URL as string);
       const baseUrl = envBase.replace(/\/api\/?$/, '');
       return `${baseUrl}${logoPath}`;
     }

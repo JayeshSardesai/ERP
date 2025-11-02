@@ -14,7 +14,8 @@ const { ObjectId } = require('mongodb');
 const SchoolDatabaseManager = require('../utils/databaseManager');
 const { generateSequentialUserId } = require('./userController');
 const sharp = require('sharp');
-const { uploadToCloudinary, deleteLocalFile } = require('../config/cloudinary');
+const axios = require('axios');
+const { uploadToCloudinary, deleteLocalFile, uploadBufferToCloudinary } = require('../config/cloudinary');
 
 const parseCsv = promisify(csv.parse);
 
@@ -112,7 +113,6 @@ exports.importUsers = async (req, res) => {
   if (!file) { return res.status(400).json({ message: 'No file uploaded' }); }
   if (!creatingUserId) {
     // Attempt to delete temp file before sending error
-    if (file?.path && fs.existsSync(file.path)) { try { fs.unlinkSync(file.path); } catch (e) { console.error("Error deleting temp file:", e); } }
     return res.status(401).json({ message: 'Unauthorized: User performing import not identified.' });
   }
 
@@ -124,7 +124,6 @@ exports.importUsers = async (req, res) => {
       throw new Error(`School with code ${upperSchoolCode} not found`);
     }
   } catch (schoolError) {
-    if (file?.path && fs.existsSync(file.path)) { try { fs.unlinkSync(file.path); } catch (e) { console.error("Error deleting temp file:", e); } }
     console.error(`Error finding school ${upperSchoolCode}:`, schoolError);
     return res.status(500).json({ message: schoolError.message || 'Error verifying school.' });
   }
@@ -135,7 +134,6 @@ exports.importUsers = async (req, res) => {
     connection = await SchoolDatabaseManager.getSchoolConnection(upperSchoolCode);
     if (!connection) throw new Error('Database connection object invalid');
   } catch (connError) {
-    if (file?.path && fs.existsSync(file.path)) { try { fs.unlinkSync(file.path); } catch (e) { console.error("Error deleting temp file:", e); } }
     console.error(`DB Connect Error for ${upperSchoolCode} in importUsers: ${connError.message}`);
     return res.status(500).json({ success: false, message: 'Could not connect to school database' });
   }
@@ -205,7 +203,7 @@ exports.importUsers = async (req, res) => {
 
   try {
     console.log(`Parsing CSV file and inferring role...`);
-    const fileContent = fs.readFileSync(file.path);
+    const fileContent = file.buffer;
     csvData = await parseCsv(fileContent, {
       columns: true, trim: true, skip_empty_lines: true, bom: true,
       on_record: (record, context) => {
@@ -263,14 +261,10 @@ exports.importUsers = async (req, res) => {
 
   } catch (parseError) {
     // Clean up file before returning error
-    if (file?.path && fs.existsSync(file.path)) { try { fs.unlinkSync(file.path); } catch (e) { console.error("Error deleting temp file:", e); } }
     console.error('CSV Parsing/Role Inference Error:', parseError);
     return res.status(400).json({ message: parseError.message || 'Failed to parse CSV file or infer role. Ensure valid CSV format and appropriate headers.', error: parseError.message });
   } finally {
-    // Ensure file is deleted even if role inference failed mid-parse
-    if (file?.path && fs.existsSync(file.path)) {
-      try { fs.unlinkSync(file.path); } catch (unlinkErr) { console.error(`Error deleting uploaded file ${file.path}: ${unlinkErr.message}`); }
-    }
+    // Ensure file is deleted even if role inference failed mid-pars
   }
 
   // Handle case where file had only headers or was empty
@@ -554,95 +548,50 @@ exports.generateTemplate = async (req, res) => {
 // ==================================================================
 
 // --- Profile Picture Upload Helper with Cloudinary ---
-async function copyProfilePicture(sourcePath, userId, schoolCode) {
-  if (!sourcePath || String(sourcePath).trim() === '') return '';
-
-  let tempCompressedPath = null;
-
-  try {
-    // Normalize the source path
-    const normalizedSourcePath = path.resolve(sourcePath.trim());
-
-    // Check if source file exists
-    if (!fs.existsSync(normalizedSourcePath)) {
-      console.warn(`Profile picture not found at: ${normalizedSourcePath}`);
-      return '';
-    }
-
-    // Get file extension
-    const ext = path.extname(normalizedSourcePath);
-    const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-
-    if (!validExtensions.includes(ext.toLowerCase())) {
-      console.warn(`Invalid profile picture format: ${ext}. Allowed: ${validExtensions.join(', ')}`);
-      return '';
-    }
-
-    // Get original file size
-    const originalStats = fs.statSync(normalizedSourcePath);
-    console.log(`📸 Original image: ${path.basename(normalizedSourcePath)}, Size: ${(originalStats.size / 1024).toFixed(2)}KB`);
-
-    // Create temp directory for compression
-    const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-
-    // Generate unique filename with .jpg extension (Sharp will convert to JPEG)
-    const timestamp = Date.now();
-    const filename = `${userId}_${timestamp}.jpg`;
-    tempCompressedPath = path.join(tempDir, filename);
-
-    // Compress image using Sharp to ~30KB
-    console.log('🔄 Compressing image with Sharp...');
-    await sharp(normalizedSourcePath)
-      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 60 })
-      .toFile(tempCompressedPath);
-
-    // Check file size and re-compress if needed
-    let stats = fs.statSync(tempCompressedPath);
-    let quality = 60;
-
-    while (stats.size > 30 * 1024 && quality > 20) {
-      quality -= 10;
-      console.log(`🔄 Re-compressing with quality ${quality}...`);
-      await sharp(normalizedSourcePath)
-        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality })
-        .toFile(tempCompressedPath);
-      stats = fs.statSync(tempCompressedPath);
-    }
-
-    console.log(`✅ Compressed image: ${(stats.size / 1024).toFixed(2)}KB (quality: ${quality})`);
-
-    // Upload to Cloudinary
-    const cloudinaryFolder = `profiles/${schoolCode.toUpperCase()}`;
-    const publicId = `${userId}_${timestamp}`;
-    const uploadResult = await uploadToCloudinary(tempCompressedPath, cloudinaryFolder, publicId);
-
-    // Delete source file after successful upload (to avoid accumulation in temp folder)
-    if (normalizedSourcePath.includes('temp') || normalizedSourcePath.includes('upload')) {
-      deleteLocalFile(normalizedSourcePath);
-    }
-
-    // Delete compressed temp file
-    deleteLocalFile(tempCompressedPath);
-
-    // Return Cloudinary URL for storage in database
-    return uploadResult.secure_url;
-  } catch (error) {
-    console.error(`Error processing profile picture from ${sourcePath}:`, error.message);
-    
-    // Clean up temp file on error
-    if (tempCompressedPath) {
-      deleteLocalFile(tempCompressedPath);
-    }
-    
+// REPLACED FUNCTION
+// REPLACE THE ENTIRE 'copyProfilePicture' FUNCTION WITH THIS
+// REPLACE the old function with this
+async function copyProfilePicture(sourceUrl, userId, schoolCode) {
+  if (!sourceUrl || String(sourceUrl).trim() === '' || !sourceUrl.startsWith('http')) {
+    console.warn(`Invalid or empty profile image URL: ${sourceUrl}. Skipping.`);
     return '';
   }
-}
 
+  try {
+    // 1. Download the image from the URL
+    console.log(`📸 Downloading image from: ${sourceUrl}`);
+    const response = await axios.get(sourceUrl, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(response.data);
+
+    console.log('🔄 Compressing image with Sharp...');
+    // 2. Compress the buffer in memory
+    const compressedImageBuffer = await sharp(imageBuffer)
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 60 })
+      .toBuffer();
+
+    console.log(`✅ Compressed image in memory: ${(compressedImageBuffer.length / 1024).toFixed(2)}KB`);
+
+    // 3. Upload the compressed buffer to Cloudinary
+    const timestamp = Date.now();
+    const cloudinaryFolder = `profiles/${schoolCode.toUpperCase()}`;
+    const publicId = `${userId}_${timestamp}`;
+
+    // USE THE NEW BUFFER UPLOAD FUNCTION
+    const uploadResult = await uploadBufferToCloudinary(
+      compressedImageBuffer,
+      cloudinaryFolder,
+      publicId
+    );
+
+    // 4. Return the secure URL
+    return uploadResult.secure_url;
+
+  } catch (error) {
+    console.error(`Error processing profile picture from URL ${sourceUrl}:`, error.message);
+    return ''; // Return empty string on failure
+  }
+}
 // --- Date Parser Helper ---
 function parseFlexibleDate(dateString, fieldName = 'Date') {
   // (Keep this function exactly as it was in the previous 'role-aware' version)

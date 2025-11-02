@@ -13,9 +13,6 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "setupFilesAfterEnv": [
-      "<rootDir>/src/setupTests.js"
-    ],
     "moduleNameMapper": {
       "\\.(css|less|scss|sass)$": "identity-obj-proxy"
     },
@@ -35,6 +32,7 @@
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
     "@types/react-toastify": "^4.0.2",
+    "@types/uuid": "^10.0.0",
     "antd": "^5.27.6",
     "axios": "^1.11.0",
     "html2canvas": "^1.4.1",
@@ -47,7 +45,8 @@
     "react-router-dom": "^6.22.3",
     "react-to-print": "^3.2.0",
     "react-toastify": "^11.0.5",
-    "recharts": "^2.11.0"
+    "recharts": "^2.11.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

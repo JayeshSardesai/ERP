@@ -4,7 +4,7 @@ const Submission = require('../models/Submission');
 const User = require('../models/User');
 const School = require('../models/School');
 const DatabaseManager = require('../utils/databaseManager');
-const { uploadPDFToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
+const { uploadPDFToCloudinary, uploadPDFBufferToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
 const path = require('path');
 const fs = require('fs');
 
@@ -97,35 +97,35 @@ exports.createAssignment = async (req, res) => {
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
       console.log(`📎 Processing ${req.files.length} attachment(s) for assignment`);
-      
+
       for (const file of req.files) {
         try {
           const timestamp = Date.now();
-          
+
           // Upload to Cloudinary
           const cloudinaryFolder = `assignments/${schoolCode}`;
           const publicId = `assignment_${timestamp}_${Math.random().toString(36).substring(7)}`;
-          
-          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
-          
+
+          // NEW CODE BLOCK
+          // Use file.buffer (memory) instead of file.path (disk)
+          const uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
+
           processedAttachments.push({
-            filename: file.filename,
+            filename: file.filename, // This might be undefined, use originalname
             originalName: file.originalname,
             path: uploadResult.secure_url, // Store Cloudinary URL
             cloudinaryPublicId: uploadResult.public_id,
             size: file.size,
             uploadedAt: new Date()
           });
-          
+
           console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
-          
-          // Delete local temp file
-          deleteLocalFile(file.path);
-          
+
+          // DELETE the deleteLocalFile(file.path) line
+
         } catch (error) {
           console.error(`❌ Error uploading ${file.originalname} to Cloudinary:`, error);
           // Clean up temp file on error
-          deleteLocalFile(file.path);
         }
       }
     }
@@ -560,32 +560,30 @@ exports.updateAssignment = async (req, res) => {
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
       console.log(`[UPDATE ASSIGNMENT] Processing ${req.files.length} new file(s)`);
-      
+
       for (const file of req.files) {
         try {
           const timestamp = Date.now();
-          
+
           // Upload to Cloudinary
           const cloudinaryFolder = `assignments/${schoolCode}`;
           const publicId = `assignment_${timestamp}_${Math.random().toString(36).substring(7)}`;
-          
-          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
-          
+
+          const uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
+
           processedAttachments.push({
-            filename: file.filename,
+            filename: file.filename, // This might be undefined, use originalname
             originalName: file.originalname,
             path: uploadResult.secure_url,
             cloudinaryPublicId: uploadResult.public_id,
             size: file.size,
             uploadedAt: new Date()
           });
-          
-          console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
-          deleteLocalFile(file.path);
-          
+
+          console.log(`✅ Uploaded submission ${file.originalname} to Cloudinary`);
+
         } catch (error) {
           console.error(`❌ Error uploading ${file.originalname}:`, error);
-          deleteLocalFile(file.path);
         }
       }
       console.log(`[UPDATE ASSIGNMENT] ${processedAttachments.length} files uploaded to Cloudinary`);
@@ -1065,34 +1063,31 @@ exports.submitAssignment = async (req, res) => {
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
       console.log(`📎 Processing ${req.files.length} submission file(s)`);
-      
+
       const schoolCode = req.user.schoolCode || assignment.schoolCode;
-      
+
       for (const file of req.files) {
         try {
           const timestamp = Date.now();
-          
+
           // Upload to Cloudinary
           const cloudinaryFolder = `submissions/${schoolCode}/${assignmentId}`;
           const publicId = `submission_${req.user.userId}_${timestamp}_${Math.random().toString(36).substring(7)}`;
-          
-          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
-          
+
+          const uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
+
           processedAttachments.push({
-            filename: file.filename,
+            filename: file.filename, // This might be undefined, use originalname
             originalName: file.originalname,
             path: uploadResult.secure_url,
             cloudinaryPublicId: uploadResult.public_id,
             size: file.size,
             uploadedAt: new Date()
           });
-          
-          console.log(`✅ Uploaded submission ${file.originalname} to Cloudinary`);
-          deleteLocalFile(file.path);
-          
+
+          console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
         } catch (error) {
           console.error(`❌ Error uploading ${file.originalname}:`, error);
-          deleteLocalFile(file.path);
         }
       }
     }

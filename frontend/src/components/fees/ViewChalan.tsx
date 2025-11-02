@@ -198,7 +198,7 @@ const ChalanCopy: React.FC<ChalanCopyProps> = ({
     
     // If it's a path starting with /uploads, prepend the API base URL
     if (logoPath.startsWith('/uploads')) {
-      const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+      const envBase = (import.meta.env.VITE_API_BASE_URL as string);
       const baseUrl = envBase.replace(/\/api\/?$/, '');
       return `${baseUrl}${logoPath}`;
     }
@@ -690,7 +690,7 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
             if (schoolData.logoUrl || schoolData.logo) {
               const rawLogoUrl = schoolData.logoUrl || schoolData.logo;
               if (rawLogoUrl.startsWith('/uploads')) {
-                const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+                const envBase = (import.meta.env.VITE_API_BASE_URL as string);
                 const baseUrl = envBase.replace(/\/api\/?$/, '');
                 logoUrl = `${baseUrl}${rawLogoUrl}`;
               } else {
@@ -812,7 +812,7 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
       if (!logoPath) return '';
       if (logoPath.startsWith('http')) return logoPath;
       if (logoPath.startsWith('/uploads')) {
-        const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+        const envBase = (import.meta.env.VITE_API_BASE_URL as string);
         const baseUrl = envBase.replace(/\/api\/?$/, '');
         return `${baseUrl}${logoPath}`;
       }

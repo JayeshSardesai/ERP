@@ -167,7 +167,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Landscape Front</h2>
-              <img src="${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/landscape-front.png" 
+              <img src="${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/landscape-front.png" 
                    alt="Landscape Front Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -177,7 +177,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Landscape Back</h2>
-              <img src="${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/landscape-back.png" 
+              <img src="${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/landscape-back.png" 
                    alt="Landscape Back Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -187,7 +187,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Portrait Front</h2>
-              <img src="${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/portrait-front.png" 
+              <img src="${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/portrait-front.png" 
                    alt="Portrait Front Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -197,7 +197,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Portrait Back</h2>
-              <img src="${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/portrait-back.png" 
+              <img src="${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/portrait-back.png" 
                    alt="Portrait Back Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -287,7 +287,7 @@ const UniversalTemplate: React.FC = () => {
           if (data.logoUrl || data.logo) {
             const rawLogoUrl = data.logoUrl || data.logo;
             if (rawLogoUrl.startsWith('/uploads')) {
-              const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+              const envBase = (import.meta.env.VITE_API_BASE_URL as string);
               const baseUrl = envBase.replace(/\/api\/?$/, '');
               logoUrl = `${baseUrl}${rawLogoUrl}`;
             } else {
@@ -398,7 +398,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Landscape Front</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src={`${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/landscape-front.png`}
+                src={`${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/landscape-front.png`}
                 alt="Landscape Front Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -416,7 +416,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Landscape Back</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src={`${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/landscape-back.png`}
+                src={`${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/landscape-back.png`}
                 alt="Landscape Back Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -434,7 +434,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Portrait Front</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src={`${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/portrait-front.png`}
+                src={`${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/portrait-front.png`}
                 alt="Portrait Front Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -452,7 +452,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Portrait Back</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src={`${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050'}/idcard-templates/portrait-back.png`}
+                src={`${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/portrait-back.png`}
                 alt="Portrait Back Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
