@@ -22,13 +22,28 @@ const PORT = process.env.PORT || 5050;
 
 // Middleware
 app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'https://erp-host-1.web.app', 
-    'https://erp-host-1.firebaseapp.com',
-    'https://erpedulogix.web.app',
-    'https://erpedulogix.firebaseapp.com'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000', 
+      'https://erp-host-1.web.app', 
+      'https://erp-host-1.firebaseapp.com',
+      'https://erpedulogix.web.app',
+      'https://erpedulogix.firebaseapp.com'
+    ];
+    
+    console.log('🌐 CORS check for origin:', origin);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ CORS allowed for:', origin);
+      callback(null, true);
+    } else {
+      console.log('❌ CORS blocked for:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-school-code']
@@ -40,6 +55,12 @@ app.use(bodyParser.urlencoded({ extended: true })); // Added for handling form d
 // Make sure the 'uploads/' directory exists in your backend folder
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`📝 ${req.method} ${req.originalUrl} - Origin: ${req.headers.origin || 'none'}`);
+  next();
+});
 
 // Middleware to attach mainDb to req
 app.use((req, res, next) => {
