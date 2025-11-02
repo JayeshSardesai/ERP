@@ -22,7 +22,13 @@ const PORT = process.env.PORT || 5050;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://erp-host-1.web.app', 'https://erpedulogix.web.app'],
+  origin: [
+    'http://localhost:3000', 
+    'https://erp-host-1.web.app', 
+    'https://erp-host-1.firebaseapp.com',
+    'https://erpedulogix.web.app',
+    'https://erpedulogix.firebaseapp.com'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-school-code']
