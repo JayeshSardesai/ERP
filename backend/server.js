@@ -78,12 +78,11 @@ const migrationRoutes = require('./routes/migration');
 const leaveRoutes = require('./routes/leaveRoutes');
 const chalanRoutes = require('./routes/chalanRoutes');
 
-// --- HOSTING FIX: Inject 'upload' into routes that handle file uploads ---
-const schoolRoutes = require('./routes/schools')(upload);
-const schoolUserRoutes = require('./routes/schoolUsers')(upload);
-const assignmentRoutes = require('./routes/assignments')(upload);
-const idCardTemplateRoutes = require('./routes/idCardTemplates')(upload);
-// --- END FIX ---
+// Route imports
+const schoolRoutes = require('./routes/schools');
+const schoolUserRoutes = require('./routes/schoolUsers');
+const assignmentRoutes = require('./routes/assignments');
+const idCardTemplateRoutes = require('./routes/idCardTemplates');
 
 // Serve uploads statically
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

@@ -1,5 +1,4 @@
 const Assignment = require('../models/Assignment');
-const AssignmentMultiTenant = require('../models/AssignmentMultiTenant');
 const Submission = require('../models/Submission');
 const User = require('../models/User');
 const School = require('../models/School');
