@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { TemplateSettings } from '../templates/types';
-import api from '@/services/api';
+import api from '../../services/api';
 
 interface BankDetails {
   bankName: string;

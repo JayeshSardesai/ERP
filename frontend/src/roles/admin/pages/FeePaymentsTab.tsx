@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, X, FileText, Receipt, Eye } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
 import ClassSectionSelect from '../components/ClassSectionSelect';
-import { feesAPI, userAPI, schoolAPI } from '../../../services/api';
+import api, { feesAPI, userAPI, schoolAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
 import DualCopyReceipt from '../../../components/receipts/DualCopyReceipt';
 import ViewChalan from '../../../components/fees/ViewChalan';
@@ -456,8 +456,7 @@ const FeePaymentsTab: React.FC = () => {
               email: data.email || data.contact?.email || data.principalEmail || schoolData.email,
               website: data.website || schoolData.website,
               hasSchoolLogo: !!(data.logoUrl || data.logo || schoolData.schoolLogo),
-              schoolLogo: data.logoUrl ? (data.logoUrl.startsWith('http') ? data.logoUrl : `${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || import.meta.env.VITE_API_BASE_URL}${data.logoUrl}`) : schoolData.schoolLogo,
-              principalName: data.principalName || ''
+              schoolLogo: data.logoUrl ? (data.logoUrl.startsWith('http') ? data.logoUrl : `${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || import.meta.env.VITE_API_BASE_URL}${data.logoUrl}`) : schoolData.schoolLogo
             };
 
             console.log('Processed school data for receipt:', schoolData);
@@ -531,7 +530,7 @@ const FeePaymentsTab: React.FC = () => {
           const allStudents = allStudentsResponse.data?.data || [];
 
           // Look for student with matching userId in the fee records
-          const matchingStudent = allStudents.find(student =>
+          const matchingStudent = allStudents.find((student: any) =>
             student.userId === userIdToFetch ||
             student.studentId === userIdToFetch ||
             student._id === userIdToFetch
@@ -625,7 +624,7 @@ const FeePaymentsTab: React.FC = () => {
           console.log('Student ID Debug - Generated from roll number:', studentId);
         } else {
           // Last resort: use student name initials + sequence
-          const nameInitials = (historyRecord.studentName || 'STU').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+          const nameInitials = (historyRecord.studentName || 'STU').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
           const timestamp = Date.now().toString().slice(-4);
           studentId = `${schoolCode}-${nameInitials}-${timestamp}`;
           console.log('Student ID Debug - Generated from name initials:', studentId, 'from name:', historyRecord.studentName);
@@ -1137,7 +1136,7 @@ const FeePaymentsTab: React.FC = () => {
           break; // Exit loop if successful
         } catch (error) {
           lastError = error;
-          console.warn(`Failed to fetch with ${type} ${value}:`, error.message);
+          console.warn(`Failed to fetch with ${type} ${value}:`, (error as Error).message);
 
           // If this was the last identifier, try the chalan API as a fallback
           if (type === identifiers[identifiers.length - 1].type) {
@@ -1151,7 +1150,7 @@ const FeePaymentsTab: React.FC = () => {
               }
             } catch (chalanError) {
               console.error('Chalan API also failed:', chalanError);
-              throw new Error(`Failed to fetch fee records. Last error: ${lastError?.message || 'Unknown error'}`);
+              throw new Error(`Failed to fetch fee records. Last error: ${(lastError as Error)?.message || 'Unknown error'}`);
             }
           }
         }
@@ -1691,7 +1690,7 @@ const FeePaymentsTab: React.FC = () => {
                                 accountNumber: schoolDetails.bankDetails.accountNumber || 'Not specified',
                                 ifscCode: schoolDetails.bankDetails.ifscCode || 'Not specified',
                                 branch: schoolDetails.bankDetails.branch || 'Not specified',
-                                accountHolderName: schoolDetails.bankDetails.accountHolderName ||
+                                accountHolderName: (schoolDetails.bankDetails as any).accountHolderName ||
                                   schoolDetails.bankDetails.accountName ||
                                   schoolDetails.schoolName ||
                                   'School Account'
@@ -1709,7 +1708,7 @@ const FeePaymentsTab: React.FC = () => {
                                   accountNumber: schoolDetails.bankDetails.accountNumber,
                                   ifscCode: schoolDetails.bankDetails.ifscCode,
                                   branch: schoolDetails.bankDetails.branch,
-                                  accountHolderName: schoolDetails.bankDetails.accountHolderName ||
+                                  accountHolderName: (schoolDetails.bankDetails as any).accountHolderName ||
                                     schoolDetails.bankDetails.accountName
                                 } : null
                               },

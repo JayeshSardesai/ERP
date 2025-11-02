@@ -11,6 +11,9 @@ export const defaultSchoolDetails = {
   website: 'www.school.edu.in',
   headerColor: '#1f2937',
   accentColor: '#3b82f6',
+  contact: {
+    phone: '+91 XXXXXXXXXX'
+  },
   bankDetails: {
     bankName: 'School Bank',
     accountNumber: '12345678901234',

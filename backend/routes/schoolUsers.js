@@ -36,13 +36,7 @@ module.exports = (upload) => {
         schoolUserController.updateUser
     );
 
-    // --- HOSTING FIX: This route is for a user updating their *own* profile ---
-    router.post(
-        '/update-profile',
-        upload.single('profileImage'), // <-- Use injected upload
-        schoolUserController.updateUserProfile
-    );
-    // --- END FIX ---
+    // Profile update route removed - function not implemented
 
     // Reset user password
     router.post('/:schoolCode/users/:userId/reset-password', schoolUserController.resetUserPassword);

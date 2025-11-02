@@ -78,11 +78,11 @@ const migrationRoutes = require('./routes/migration');
 const leaveRoutes = require('./routes/leaveRoutes');
 const chalanRoutes = require('./routes/chalanRoutes');
 
-// Route imports
+// Route imports - some routes need upload middleware
 const schoolRoutes = require('./routes/schools');
-const schoolUserRoutes = require('./routes/schoolUsers');
-const assignmentRoutes = require('./routes/assignments');
-const idCardTemplateRoutes = require('./routes/idCardTemplates');
+const schoolUserRoutes = require('./routes/schoolUsers')(upload);
+const assignmentRoutes = require('./routes/assignments')(upload);
+const idCardTemplateRoutes = require('./routes/idCardTemplates')(upload);
 
 // Serve uploads statically
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

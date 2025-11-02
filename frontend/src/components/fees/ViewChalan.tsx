@@ -791,7 +791,7 @@ const ViewChalan: React.FC<ViewChalanProps> = ({ isOpen, onClose, chalan: initia
     const classSection = `${chalan?.className || ''}${chalan?.section ? '-' + chalan.section : ''}`;
     const installmentName = chalan?.installmentName || 'N/A';
     const amount = chalan?.amount ? `₹${chalan.amount.toLocaleString('en-IN')}` : '₹0';
-    const paymentStatus = (chalan?.status || chalan?.chalanStatus || 'Status').toUpperCase();
+    const paymentStatus = String(chalan?.status || chalan?.chalanStatus || 'Status').toUpperCase();
     
     // Use bank details from schoolData (fetched) or fallback to chalan.bankDetails (passed from parent)
     console.log('[Print] Bank details check:', {
