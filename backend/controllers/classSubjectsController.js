@@ -1,5 +1,4 @@
 const ClassSubjectsSimple = require('../models/ClassSubjectsSimple');
-const User = require('../models/User');
 const { gradeSystem } = require('../utils/gradeSystem');
 const DatabaseManager = require('../utils/databaseManager');
 

@@ -651,7 +651,11 @@ exports.deleteMessage = async (req, res) => {
     
     // Optional: Check if user has permission to delete this message
     // For example, only allow admin who created the message to delete it
-    if (message.adminId.toString() !== req.user._id.toString()) {
+    const messageAdminId = message.adminId ? message.adminId.toString() : null;
+    const currentUserId = req.user._id ? req.user._id.toString() : null;
+    
+    if (messageAdminId && currentUserId && messageAdminId !== currentUserId) {
+      console.log(`⚠️ Permission denied: Message admin ${messageAdminId} !== Current user ${currentUserId}`);
       return res.status(403).json({
         success: false,
         message: 'You can only delete messages that you created'
