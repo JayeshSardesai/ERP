@@ -170,7 +170,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Landscape Front</h2>
-              <img src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/landscape-front_bkwvmf.png" 
+              <img src="https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/landscape-front_m59zcq.png" 
                    alt="Landscape Front Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -180,7 +180,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Landscape Back</h2>
-              <img src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/landscape-back_jvvqjw.png" 
+              <img src="https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/landscape-back_fqroxh.png" 
                    alt="Landscape Back Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -190,7 +190,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Portrait Front</h2>
-              <img src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/portrait-front_hhfqxh.png" 
+              <img src="https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/portrait-front_iqllye.png" 
                    alt="Portrait Front Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -200,7 +200,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Portrait Back</h2>
-              <img src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/portrait-back_yvfxfn.png" 
+              <img src="https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/portrait-back_m5wxzh.png" 
                    alt="Portrait Back Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -401,7 +401,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Landscape Front</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/landscape-front_bkwvmf.png"
+                src="https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/landscape-front_m59zcq.png"
                 alt="Landscape Front Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -426,7 +426,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Landscape Back</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/landscape-back_jvvqjw.png"
+                src="https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/landscape-back_fqroxh.png"
                 alt="Landscape Back Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -444,7 +444,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Portrait Front</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/portrait-front_hhfqxh.png"
+                src="https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/portrait-front_iqllye.png"
                 alt="Portrait Front Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -462,7 +462,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Portrait Back</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/portrait-back_yvfxfn.png"
+                src="https://res.cloudinary.com/dbcutmb0z/image/upload/v1762088066/portrait-back_m5wxzh.png"
                 alt="Portrait Back Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}

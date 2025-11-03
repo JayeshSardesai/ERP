@@ -1,6 +1,4 @@
-const Subject = require('../models/Subject');
-const User = require('../models/User');
-const Class = require('../models/Class');
+const DatabaseManager = require('../utils/databaseManager');
 const { gradeSystem, gradeUtils } = require('../utils/gradeSystem');
 
 // Create a new subject with grade assignments
@@ -28,6 +26,10 @@ const createSubject = async (req, res) => {
       });
     }
 
+    // Get school-specific connection
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const Subject = schoolConn.model('Subject', require('../models/Subject').schema);
+    
     // Check if subject code already exists
     const existingSubject = await Subject.findOne({
       schoolCode,
@@ -113,6 +115,12 @@ const assignTeacherToSubject = async (req, res) => {
       });
     }
 
+    // Get school-specific connection
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const Subject = schoolConn.model('Subject', require('../models/Subject').schema);
+    const User = schoolConn.model('User', require('../models/User').schema);
+    const Class = schoolConn.model('Class', require('../models/Class').schema);
+    
     // Find subject
     const subject = await Subject.findOne({
       _id: subjectId,
@@ -252,6 +260,11 @@ const removeTeacherFromSubject = async (req, res) => {
 
     const schoolCode = req.user.schoolCode;
 
+    // Get school-specific connection
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const Subject = schoolConn.model('Subject', require('../models/Subject').schema);
+    const User = schoolConn.model('User', require('../models/User').schema);
+    
     // Find subject
     const subject = await Subject.findOne({
       _id: subjectId,
@@ -295,6 +308,10 @@ const getSubjectsByGrade = async (req, res) => {
     const schoolCode = req.user.schoolCode;
     const academicYear = req.query.academicYear || '2024-25';
 
+    // Get school-specific connection
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const Subject = schoolConn.model('Subject', require('../models/Subject').schema);
+    
     // Validate grade
     if (!gradeSystem.gradeStructure[grade]) {
       return res.status(400).json({ message: 'Invalid grade' });
@@ -377,6 +394,11 @@ const getSubjectsByTeacher = async (req, res) => {
     const schoolCode = req.user.schoolCode;
     const academicYear = req.query.academicYear || '2024-25';
 
+    // Get school-specific connection
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const User = schoolConn.model('User', require('../models/User').schema);
+    const Subject = schoolConn.model('Subject', require('../models/Subject').schema);
+    
     // Find teacher
     const teacher = await User.findOne({
       _id: teacherId,
@@ -468,6 +490,11 @@ const getTeacherWorkloadSummary = async (req, res) => {
     const schoolCode = req.user.schoolCode;
     const academicYear = req.query.academicYear || '2024-25';
 
+    // Get school-specific connection
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const Subject = schoolConn.model('Subject', require('../models/Subject').schema);
+    const User = schoolConn.model('User', require('../models/User').schema);
+    
     const workloadSummary = await Subject.getTeacherWorkloadSummary(schoolCode, academicYear);
 
     // Get all teachers for comparison
@@ -521,6 +548,10 @@ const updateTeacherSubjectAssignment = async (req, res) => {
 
     const schoolCode = req.user.schoolCode;
 
+    // Get school-specific connection
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const Subject = schoolConn.model('Subject', require('../models/Subject').schema);
+    
     // Validate input
     if (!classAssignments || !Array.isArray(classAssignments)) {
       return res.status(400).json({

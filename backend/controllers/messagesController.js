@@ -2,7 +2,7 @@
 
 const Message = require('../models/Message');
 const User = require('../models/User');
-const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+const DatabaseManager = require('../utils/databaseManager');
 
 // Send message to students by class/section
 exports.sendMessage = async (req, res) => {
@@ -45,7 +45,7 @@ exports.sendMessage = async (req, res) => {
       });
     }
     
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     
     // Build student query to handle all possible data structures:
@@ -213,7 +213,7 @@ exports.previewMessage = async (req, res) => {
       });
     }
     
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     
     // Build student query to handle all possible data structures (case-insensitive)
@@ -318,7 +318,7 @@ exports.getMessages = async (req, res) => {
       });
     }
     
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
 
     // Build query for new schema
@@ -415,7 +415,7 @@ exports.getMessageDetails = async (req, res) => {
       });
     }
     
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     const messagesCollection = db.collection('messages');
     
@@ -469,7 +469,7 @@ exports.getMessageStats = async (req, res) => {
       });
     }
     
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     const messagesCollection = db.collection('messages');
     
@@ -535,7 +535,7 @@ exports.getTeacherMessages = async (req, res) => {
       });
     }
     
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     const messagesCollection = db.collection('messages');
     
@@ -630,7 +630,7 @@ exports.deleteMessage = async (req, res) => {
       });
     }
     
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     const messagesCollection = db.collection('messages');
     
