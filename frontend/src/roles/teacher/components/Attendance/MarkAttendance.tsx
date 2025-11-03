@@ -3,6 +3,7 @@ import { Save, CheckCircle, XCircle, Calendar, Sun, Moon, Users as UsersIcon, Lo
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { toast } from 'react-hot-toast';
+import api from '../../../../api/axios';
 import * as attendanceAPI from '../../../../api/attendance';
 
 const MarkAttendance: React.FC = () => {
@@ -58,22 +59,11 @@ const MarkAttendance: React.FC = () => {
         });
 
         // Use the same API endpoint as admin - teachers have access via validateSchoolAccess(['admin', 'teacher'])
-        const response = await fetch(
-          `/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'x-school-code': user.schoolCode
-            }
-          }
+        const response = await api.get(
+          `/users/role/student?class=${selectedClass}&section=${selectedSection}`
         );
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch students');
-        }
-
-        const data = await response.json();
+        const data = response.data;
         console.log('📊 API Response:', data);
         
         const users = data.data || data || [];

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { toast } from 'react-hot-toast';
+import api from '../../../../api/axios';
 
 interface LeaveRequestForm {
   teacherName: string;
@@ -15,10 +16,6 @@ const LeaveRequest: React.FC = () => {
   const { user, token } = useAuth();
   const [saving, setSaving] = useState(false);
 
-  console.log('🔍 LeaveRequest - User data:', user);
-  console.log('🔍 LeaveRequest - userId:', user?.userId);
-  console.log('🔍 LeaveRequest - User keys:', user ? Object.keys(user) : 'No user');
-  console.log('🔍 LeaveRequest - User.id:', user?.id);
 
   const [leaveRequest, setLeaveRequest] = useState<LeaveRequestForm>({
     teacherName: '',
@@ -75,22 +72,14 @@ const LeaveRequest: React.FC = () => {
       // Get school code from localStorage or user context
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
       
-      const response = await fetch('/api/leave-requests/teacher/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'x-school-code': schoolCode
-        },
-        body: JSON.stringify({
-          ...leaveRequest,
-          schoolCode: schoolCode
-        })
+      const response = await api.post('/leave-requests/teacher/create', {
+        ...leaveRequest,
+        schoolCode: schoolCode
       });
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (response.ok && data.success) {
+      if (data.success) {
         toast.success('Leave request submitted successfully!');
         // Reset form but keep teacher info
         setLeaveRequest({

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import * as attendanceAPI from '../../../../api/attendance';
+import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
-import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, Clock } from 'lucide-react';
+import api from '../../../../api/axios';
+import { attendanceAPI } from '../../../../services/api';
 
 interface Student {
   _id: string;
@@ -67,20 +68,11 @@ const ViewAttendance: React.FC = () => {
       setLoading(true);
       setError('');
 
-      const response = await fetch(
-        `/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'x-school-code': user.schoolCode
-          }
-        }
+      const response = await api.get(
+        `/users/role/student?class=${selectedClass}&section=${selectedSection}`
       );
 
-      if (!response.ok) throw new Error('Failed to fetch students');
-
-      const data = await response.json();
+      const data = response.data;
       const users = data.data || data || [];
 
       const filtered = users.filter((u: any) => {
