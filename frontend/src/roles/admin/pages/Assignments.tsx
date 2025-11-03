@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import * as assignmentAPI from '../../../api/assignment';
-import * as configAPI from '../../../api/config';
+import { Search, Plus, Edit2, Trash2, Calendar, FileText, Download } from 'lucide-react';
 import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import EditAssignmentModal from '../components/EditAssignmentModal';
-import { Plus, Search, Download, Calendar, Clock, FileText, Users, Edit, Trash2 } from 'lucide-react';
+import { assignmentAPI } from '../../../services/api';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
+import api from '../../../api/axios';
 
 interface Assignment {
   _id: string;
@@ -214,27 +214,17 @@ const Assignments: React.FC = () => {
         token = parsedAuth.token || '';
       }
       
-      // Try the class-subjects API
-      const response = await fetch(`/api/class-subjects/class/${encodeURIComponent(className)}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'x-school-code': schoolCode.toUpperCase(),
-          'Content-Type': 'application/json'
-        }
-      });
+      // Try the class-subjects API - use api instance instead of fetch to use smart interceptor
+      const response = await api.get(`/class-subjects/class/${encodeURIComponent(className)}`);
       
-      if (response.ok) {
-        const data = await response.json();
-        const subjectNames = (data?.data?.subjects || [])
-          .filter((s: any) => s.isActive !== false)
-          .map((s: any) => s.name)
-          .filter(Boolean);
-        setSubjects(subjectNames);
-        console.log('✅ Subjects loaded:', subjectNames);
-      } else {
-        console.warn('Failed to fetch subjects:', response.status);
-        setSubjects([]);
-      }
+      // Axios response structure is different from fetch
+      const data = response.data;
+      const subjectNames = (data?.data?.subjects || [])
+        .filter((s: any) => s.isActive !== false)
+        .map((s: any) => s.name)
+        .filter(Boolean);
+      setSubjects(subjectNames);
+      console.log('✅ Subjects loaded:', subjectNames);
     } catch (err) {
       console.error('Error fetching subjects:', err);
       setSubjects([]);
@@ -486,7 +476,7 @@ const Assignments: React.FC = () => {
                           className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                           title="Edit assignment"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit2 className="h-4 w-4" />
                         </button>
                         <button 
                           onClick={() => handleDeleteAssignment(assignment._id, assignment.title)}

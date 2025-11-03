@@ -31,7 +31,8 @@ app.use(cors({
       'https://erp-host-1.web.app', 
       'https://erp-host-1.firebaseapp.com',
       'https://erpedulogix.web.app',
-      'https://erpedulogix.firebaseapp.com'
+      'https://erpedulogix.firebaseapp.com',
+      'https://erp-backend-1jtx.onrender.com' // Add the production backend URL
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -43,7 +44,8 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-school-code']
+  // Allow both header casings for full robustness
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-school-code', 'X-School-Code']
 }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true })); // Added for handling form data potentially from import

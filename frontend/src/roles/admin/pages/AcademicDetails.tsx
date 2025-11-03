@@ -209,11 +209,7 @@ const AcademicDetails: React.FC = () => {
 
       console.log('Fetching subjects with school code:', schoolCode);
 
-      const response = await api.get('/class-subjects/classes', {
-        headers: {
-          'x-school-code': schoolCode
-        }
-      });
+      const response = await api.get('/class-subjects/classes');
 
       const data = response.data;
       setClassSubjects(data.data.classes || []);
@@ -244,11 +240,7 @@ const AcademicDetails: React.FC = () => {
       const results = await Promise.all(
         classList.map(async (className) => {
           try {
-            const response = await api.get(`/direct-test/class-subjects/${className}?schoolCode=${schoolCode}`, {
-              headers: {
-                'x-school-code': schoolCode
-              }
-            });
+            const response = await api.get(`/direct-test/class-subjects/${className}?schoolCode=${schoolCode}`);
 
             const data = response.data;
             return data.data;
@@ -306,10 +298,6 @@ const AcademicDetails: React.FC = () => {
         grade: selectedClass,
         section: selectedSection,
         subjectName: newSubjectName.trim()
-      }, {
-        headers: {
-          'x-school-code': schoolCode.toUpperCase() // Ensure uppercase for consistency
-        }
       });
 
       const data = response.data;
@@ -334,9 +322,6 @@ const AcademicDetails: React.FC = () => {
           className,
           section,
           subjectName
-        },
-        headers: {
-          'x-school-code': user?.schoolCode || ''
         }
       });
 
@@ -375,10 +360,6 @@ const AcademicDetails: React.FC = () => {
         className: selectedClass,
         grade: selectedClass,
         section: selectedSection
-      }, {
-        headers: {
-          'x-school-code': schoolCode.toUpperCase()
-        }
       });
 
       const data = response.data;

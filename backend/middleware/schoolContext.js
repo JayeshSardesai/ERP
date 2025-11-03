@@ -10,11 +10,19 @@ const setSchoolContext = async (req, res, next) => {
     let schoolId = null;
     let schoolCode = null;
     
+    // --- START OF FIX: Case-insensitive header check ---
+    // Helper function to get a header case-insensitively
+    const getHeader = (name) => req.headers[name.toLowerCase()] || req.headers[name.toUpperCase()] || req.headers[name];
+    
     // Try to get school identifier from multiple sources
-    if (req.headers['x-school-id']) {
-      schoolId = req.headers['x-school-id'];
-    } else if (req.headers['x-school-code']) {
-      schoolCode = req.headers['x-school-code'];
+    const headerSchoolId = getHeader('x-school-id');
+    const headerSchoolCode = getHeader('x-school-code');
+    // --- END OF FIX ---
+
+    if (headerSchoolId) {
+      schoolId = headerSchoolId;
+    } else if (headerSchoolCode) {
+      schoolCode = headerSchoolCode;
     } else if (req.body.schoolId) {
       schoolId = req.body.schoolId;
     } else if (req.body.schoolCode) {
@@ -193,11 +201,17 @@ const requireSchoolContext = async (req, res, next) => {
     let schoolId = null;
     let schoolCode = null;
     
+    // Helper function to get a header case-insensitively (same as setSchoolContext)
+    const getHeader = (name) => req.headers[name.toLowerCase()] || req.headers[name.toUpperCase()] || req.headers[name];
+    
     // Try to get school identifier from multiple sources
-    if (req.headers['x-school-id']) {
-      schoolId = req.headers['x-school-id'];
-    } else if (req.headers['x-school-code']) {
-      schoolCode = req.headers['x-school-code'];
+    const headerSchoolId = getHeader('x-school-id');
+    const headerSchoolCode = getHeader('x-school-code');
+
+    if (headerSchoolId) {
+      schoolId = headerSchoolId;
+    } else if (headerSchoolCode) {
+      schoolCode = headerSchoolCode;
     } else if (req.body.schoolId) {
       schoolId = req.body.schoolId;
     } else if (req.body.schoolCode) {

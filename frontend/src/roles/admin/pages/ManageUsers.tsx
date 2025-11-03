@@ -11,7 +11,7 @@ import { exportImportAPI } from '../../../services/api';
 
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
-import { exportUsers, generateImportTemplate } from '../../../utils/userImportExport';
+import { exportUsers as exportUsersUtil, generateImportTemplate } from '../../../utils/userImportExport';
 import { User, UserFormData, getDefaultFormData, transformUserToFormData } from '../../../types/user'; // Keep original User for form types
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import { ImportUsersDialog } from '../../superadmin/components/ImportUsersDialog'; // Keep if used
@@ -33,9 +33,11 @@ interface DisplayUser extends ApiUser {
   section?: string | null;
   // Explicitly add details objects if you access them directly below
   studentDetails?: { currentClass?: string | null; currentSection?: string | null; rollNumber?: string | null; };
-  teacherDetails?: { subjects?: string[]; };
+  teacherDetails?: { subjects?: string[]; temporaryPassword?: string | null; };
   adminDetails?: { designation?: string; };
-  profileImage?: string | null; // 💡 FIX 1: Add the missing profileImage field to the DisplayUser interface
+  profileImage?: string | null;
+  // Override name to be more flexible
+  name?: string | { firstName: string; lastName: string; displayName: string; };
 }
 // User interface now imported from standardized types
 
@@ -129,6 +131,7 @@ interface OldAddUserFormData {
     motherTongueOther?: string;
 
     // Karnataka SATS Specific
+    studentNameKannada?: string;
     ageYears: number;
     ageMonths: number;
     socialCategory?: string;
@@ -219,13 +222,13 @@ interface OldAddUserFormData {
     joiningDate?: string;
 
     // Qualification
-    highestQualification: string;
+    highestQualification?: string;
     specialization?: string;
     university?: string;
     graduationYear?: number;
 
     // Experience
-    totalExperience: number;
+    totalExperience?: number;
     experienceAtCurrentSchool?: number;
 
     // Previous Experience
@@ -323,8 +326,16 @@ interface OldAddUserFormData {
   // Generated Information
   userId?: string;
   generatedPassword?: string;
+  employeeId?: string;
+  
+  // Additional missing fields
+  pickupPoint?: string;
+  department?: string;
+  academicYear?: string;
+  isRTECandidate?: string;
 
   // Additional SATS fields for backward compatibility
+  studentNameKannada?: string;
   ageYears?: number;
   ageMonths?: number;
   socialCategory?: string;
@@ -900,7 +911,7 @@ const ManageUsers: React.FC = () => {
     errors: Array<{ row: number, error: string, data: any }>
   } | null>(null);
 
-  const [formData, setFormData] = useState<AddUserFormData>({
+  const [formData, setFormData] = useState<OldAddUserFormData>({
     // Core Fields
     role: 'student',
 
@@ -3760,10 +3771,11 @@ const ManageUsers: React.FC = () => {
 
   const filteredUsers = users.filter(user => {
     const userId = ((user as any).userId || user._id || '').toLowerCase();
-    const userName = (user.name || '').toLowerCase();
+    const userName = typeof user.name === 'string' ? user.name.toLowerCase() : 
+                     (user.name?.displayName || '').toLowerCase();
     const userEmail = (user.email || '').toLowerCase();
     const searchLower = searchTerm.toLowerCase();
-    
+
     const matchesSearch = userName.includes(searchLower) ||
       userEmail.includes(searchLower) ||
       userId.includes(searchLower);
@@ -3776,21 +3788,21 @@ const ManageUsers: React.FC = () => {
     if (a.role === 'student' && b.role === 'student') {
       const studentIdA = (a as any).userId || a._id || '';
       const studentIdB = (b as any).userId || b._id || '';
-      
+
       // Extract numeric part from student ID (e.g., "BG-S-0003" -> 3)
       const extractNumber = (id: string) => {
         const match = id.match(/\d+$/);
         return match ? parseInt(match[0]) : 0;
       };
-      
+
       const numA = extractNumber(studentIdA);
       const numB = extractNumber(studentIdB);
-      
+
       // If both have numeric parts, compare numerically
       if (numA !== 0 || numB !== 0) {
         return numA - numB;
       }
-      
+
       // Fallback to string comparison
       return studentIdA.localeCompare(studentIdB);
     }
@@ -3799,21 +3811,21 @@ const ManageUsers: React.FC = () => {
     if (a.role === 'teacher' && b.role === 'teacher') {
       const teacherIdA = (a as any).userId || a._id || '';
       const teacherIdB = (b as any).userId || b._id || '';
-      
+
       // Extract numeric part from teacher ID (e.g., "BG-T-0003" -> 3)
       const extractNumber = (id: string) => {
         const match = id.match(/\d+$/);
         return match ? parseInt(match[0]) : 0;
       };
-      
+
       const numA = extractNumber(teacherIdA);
       const numB = extractNumber(teacherIdB);
-      
+
       // If both have numeric parts, compare numerically
       if (numA !== 0 || numB !== 0) {
         return numA - numB;
       }
-      
+
       // Fallback to string comparison
       return teacherIdA.localeCompare(teacherIdB);
     }
@@ -3822,21 +3834,21 @@ const ManageUsers: React.FC = () => {
     if (a.role === 'admin' && b.role === 'admin') {
       const adminIdA = (a as any).userId || a._id || '';
       const adminIdB = (b as any).userId || b._id || '';
-      
+
       // Extract numeric part from admin ID (e.g., "BG-A-0003" -> 3)
       const extractNumber = (id: string) => {
         const match = id.match(/\d+$/);
         return match ? parseInt(match[0]) : 0;
       };
-      
+
       const numA = extractNumber(adminIdA);
       const numB = extractNumber(adminIdB);
-      
+
       // If both have numeric parts, compare numerically
       if (numA !== 0 || numB !== 0) {
         return numA - numB;
       }
-      
+
       // Fallback to string comparison
       return adminIdA.localeCompare(adminIdB);
     }
@@ -5892,21 +5904,21 @@ const ManageUsers: React.FC = () => {
         sortedSections[section] = organized[className][section].sort((a, b) => {
           const studentIdA = (a as any).userId || a._id || '';
           const studentIdB = (b as any).userId || b._id || '';
-          
+
           // Extract numeric part from student ID (e.g., "BG-S-0003" -> 3)
           const extractNumber = (id: string) => {
             const match = id.match(/\d+$/);
             return match ? parseInt(match[0]) : 0;
           };
-          
+
           const numA = extractNumber(studentIdA);
           const numB = extractNumber(studentIdB);
-          
+
           // If both have numeric parts, compare numerically
           if (numA !== 0 || numB !== 0) {
             return numA - numB;
           }
-          
+
           // Fallback to string comparison
           return studentIdA.localeCompare(studentIdB);
         });
