@@ -103,19 +103,8 @@ const Assignments: React.FC = () => {
         }
         
         // Try direct endpoint with the user's school code
-        const response = await fetch(`/api/direct-test/assignments?schoolCode=${userSchoolCode}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-School-Code': userSchoolCode
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Direct endpoint failed with status: ${response.status}`);
-        }
-        
-        data = await response.json();
+        const response = await api.get(`/direct-test/assignments?schoolCode=${userSchoolCode}`);
+        const data = response.data;
         console.log('✅ Assignments fetched from direct endpoint:', data);
       }
       

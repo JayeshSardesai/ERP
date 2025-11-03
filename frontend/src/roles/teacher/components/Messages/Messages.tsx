@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, User, MessageCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { toast } from 'react-hot-toast';
+import api from '../../../../api/axios';
 
 interface Message {
   id: string;
@@ -38,20 +39,8 @@ const Messages: React.FC = () => {
       // Get school code from localStorage or user context
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
       
-      const response = await fetch('/api/messages/teacher/messages', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'x-school-code': schoolCode
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to fetch messages');
-      }
-
-      const data = await response.json();
+      const response = await api.get('/messages/teacher/messages');
+      const data = response.data;
       
       if (data.success) {
         // Handle both data.messages and data.data.messages formats

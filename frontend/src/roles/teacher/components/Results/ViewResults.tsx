@@ -381,21 +381,11 @@ const ViewResults: React.FC = () => {
                     return;
                   }
 
-                  const response = await fetch(
-                    `/api/results/teacher/view?schoolCode=${schoolCode}&class=${selectedClass}&section=${selectedSection}&subject=${selectedSubject}&testType=${selectedExam}`,
-                    {
-                      headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                      }
-                    }
+                  const response = await api.get(
+                    `/results/teacher/view?schoolCode=${schoolCode}&class=${selectedClass}&section=${selectedSection}&subject=${selectedSubject}&testType=${selectedExam}`
                   );
 
-                  if (!response.ok) {
-                    throw new Error('Failed to fetch results');
-                  }
-
-                  const data = await response.json();
+                  const data = response.data;
 
                   if (data.success) {
                     const resultsData = data.data.results || [];

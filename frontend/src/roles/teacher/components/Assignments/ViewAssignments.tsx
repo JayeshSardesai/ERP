@@ -94,19 +94,8 @@ const ViewAssignments: React.FC = () => {
         const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
         console.log('🔍 Trying direct endpoint with schoolCode:', schoolCode);
         
-        const response = await fetch(`/api/direct-test/assignments?schoolCode=${schoolCode}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-School-Code': schoolCode
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Direct endpoint failed with status: ${response.status}`);
-        }
-        
-        data = await response.json();
+        const response = await api.get(`/direct-test/assignments?schoolCode=${schoolCode}`);
+        data = response.data;
         console.log('✅ Direct endpoint response:', data);
         
         // Handle different response structures

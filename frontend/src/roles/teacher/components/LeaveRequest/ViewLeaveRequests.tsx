@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
+import api from '../../../../api/axios';
 import { toast } from 'react-hot-toast';
 
 interface LeaveRequest {
@@ -31,18 +32,10 @@ const ViewLeaveRequests: React.FC = () => {
   const fetchLeaveRequests = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/leave-requests/teacher/my-requests', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setLeaveRequests(data.data.leaveRequests);
-        }
+      const response = await api.get('/leave-requests/teacher/my-requests');
+      const data = response.data;
+      if (data.success) {
+        setLeaveRequests(data.data.leaveRequests);
       } else {
         toast.error('Failed to fetch leave requests');
       }

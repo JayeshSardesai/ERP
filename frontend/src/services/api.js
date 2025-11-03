@@ -44,6 +44,26 @@ api.interceptors.request.use(
       console.warn('[API] No token found. Authorization header not set.');
     }
 
+    // Add school code header
+    let schoolCode;
+    const authData = localStorage.getItem('erp.auth');
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData);
+        schoolCode = parsed.user?.schoolCode;
+      } catch (error) {
+        console.error('Error parsing auth data:', error);
+      }
+    }
+    
+    if (!schoolCode) {
+      schoolCode = localStorage.getItem('erp.schoolCode');
+    }
+    
+    if (schoolCode) {
+      config.headers['x-school-code'] = schoolCode;
+    }
+
     return config;
   },
   (error) => {
@@ -148,6 +168,7 @@ export const admissionAPI = {
 export const assignmentAPI = {
   createAssignment: (assignmentData) => api.post('/assignments', assignmentData),
   getAssignments: (params) => api.get('/assignments', { params }),
+  fetchAssignments: () => api.get('/assignments').then(res => res.data),
   getAssignmentById: (assignmentId) => api.get(`/assignments/${assignmentId}`),
   updateAssignment: (assignmentId, updateData) => api.put(`/assignments/${assignmentId}`, updateData),
   publishAssignment: (assignmentId) => api.patch(`/assignments/${assignmentId}/publish`),

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, FileText, Download, Upload, CheckCircle, AlertTriangle, BookOpen } from 'lucide-react';
 import * as assignmentAPI from '../../../api/assignment';
+import api from '../../../api/axios';
 
 interface Assignment {
   _id: string;
@@ -88,19 +89,8 @@ const StudentAssignments: React.FC = () => {
         }
         
         // Try direct endpoint with the user's school code
-        const response = await fetch(`/api/direct-test/assignments?schoolCode=${userSchoolCode}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-School-Code': userSchoolCode
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Direct endpoint failed with status: ${response.status}`);
-        }
-        
-        data = await response.json();
+        const response = await api.get(`/direct-test/assignments?schoolCode=${userSchoolCode}`);
+        const data = response.data;
         console.log('✅ Student: Assignments fetched from direct endpoint:', data);
       }
       
