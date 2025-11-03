@@ -378,10 +378,11 @@ const getAllClassesWithSubjects = async (req, res) => {
  * GET /api/subjects/class/:className
  */
 const getSubjectsForClass = async (req, res) => {
+  console.log('🎯 [CONTROLLER] getSubjectsForClass called for class:', req.params.className);
   try {
     // Validate request user data
     if (!req.user || !req.user.schoolCode) {
-      console.error('[GET CLASS SUBJECTS] Missing user data');
+      console.error('[GET CLASS SUBJECTS] Missing user data:', req.user);
       return res.status(401).json({
         success: false,
         message: 'User authentication error: missing school code'

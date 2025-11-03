@@ -7,11 +7,13 @@ const { setSchoolContext } = require('../middleware/schoolContext');
 // Apply authentication middleware to all routes
 router.use(authMiddleware.auth);
 
-// Minimal logging for class-subjects routes
+// Debug logging for class-subjects routes
 router.use((req, res, next) => {
-  if (!req.originalUrl.includes('/classes')) {
-    console.log('[CLASS-SUBJECTS]', req.method, req.originalUrl);
-  }
+  console.log('🎯 [CLASS-SUBJECTS] Route hit:', req.method, req.originalUrl);
+  console.log('🎯 [CLASS-SUBJECTS] Headers:', {
+    authorization: req.headers.authorization ? 'Present' : 'Missing',
+    schoolCode: req.headers['x-school-code']
+  });
   next();
 });
 
@@ -19,6 +21,17 @@ router.use((req, res, next) => {
 router.use(setSchoolContext);
 
 // Class-based Subject Management Routes
+
+// Test endpoint to verify router is working
+router.get('/test', (req, res) => {
+  console.log('🎯 [CLASS-SUBJECTS] Test endpoint hit');
+  res.json({
+    success: true,
+    message: 'Class subjects router is working',
+    user: req.user ? { userId: req.user.userId, schoolCode: req.user.schoolCode } : 'No user',
+    timestamp: new Date().toISOString()
+  });
+});
 
 /**
  * Add Subject to Class
@@ -57,6 +70,11 @@ router.get(
  */
 router.get(
   '/class/:className',
+  (req, res, next) => {
+    console.log('🎯 [GET CLASS SUBJECTS] Route handler called for class:', req.params.className);
+    console.log('🎯 [GET CLASS SUBJECTS] User:', req.user ? { userId: req.user.userId, schoolCode: req.user.schoolCode } : 'No user');
+    next();
+  },
   classSubjectsController.getSubjectsForClass
 );
 
