@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Users, FileText, Search, Calendar, Clock, MapPin, CreditCard, Download, ChevronDown, ChevronRight, Plus, Trash2, RectangleHorizontal, RectangleVertical } from 'lucide-react';
+import { BookOpen, FileText, Search, Calendar, MapPin, CreditCard, ChevronDown, ChevronRight, Plus, Trash2, RectangleHorizontal, RectangleVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import { renderToString } from 'react-dom/server';
 import AdmitCardTemplate from '../../../components/templates/AdmitCardTemplate';
 import SimpleIDCardGenerator from '../../../components/SimpleIDCardGenerator';
-import NewIDCardTemplate from '../../../components/templates/NewIDCardTemplate';
-import { useTemplateData } from '../hooks/useTemplateData';
 import { useAuth } from '../../../auth/AuthContext';
-import api from '../../../services/api';
+import api from '../../../api/axios';
 import { schoolAPI } from '../../../services/api';
 
 interface Subject {
@@ -21,11 +19,6 @@ interface ClassSubjects {
   className: string;
   section?: string;
   subjects: Subject[];
-}
-
-interface ClassSectionKey {
-  className: string;
-  section: string;
 }
 
 interface Test {
@@ -82,7 +75,6 @@ const AcademicDetails: React.FC = () => {
     classesData,
     loading: classesLoading,
     error: classesError,
-    getClassOptions,
     getSectionsByClass,
     hasClasses
   } = useSchoolClasses();
@@ -118,7 +110,6 @@ const AcademicDetails: React.FC = () => {
   // ID Card Generation State
   const [idCardClass, setIdCardClass] = useState('');
   const [idCardSection, setIdCardSection] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('');
   const [idCardStudents, setIdCardStudents] = useState<Student[]>([]);
 
   // ID Card Orientation Options
@@ -139,12 +130,7 @@ const AcademicDetails: React.FC = () => {
 
   // ID Card Generation State
   const [selectedOrientation, setSelectedOrientation] = useState('');
-  const [idCardPreview, setIdCardPreview] = useState<any>(null);
-  const [generatingCards, setGeneratingCards] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-
-  // Template data hook for consistent settings
-  const { templateSettings } = useTemplateData();
 
   const [availableTests, setAvailableTests] = useState<Test[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -223,21 +209,14 @@ const AcademicDetails: React.FC = () => {
 
       console.log('Fetching subjects with school code:', schoolCode);
 
-      const response = await fetch('/api/class-subjects/classes', {
+      const response = await api.get('/class-subjects/classes', {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'x-school-code': schoolCode
         }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setClassSubjects(data.data.classes || []);
-      } else {
-        // Try direct test endpoints for each class as fallback
-        console.log('Regular API failed, trying direct test endpoints...');
-        await fetchClassesViaDirectEndpoints();
-      }
+      const data = response.data;
+      setClassSubjects(data.data.classes || []);
     } catch (error) {
       console.error('Error fetching class subjects:', error);
       toast.error('Error connecting to server, trying fallback...');
@@ -265,19 +244,14 @@ const AcademicDetails: React.FC = () => {
       const results = await Promise.all(
         classList.map(async (className) => {
           try {
-            const response = await fetch(`/api/direct-test/class-subjects/${className}?schoolCode=${schoolCode}`, {
+            const response = await api.get(`/direct-test/class-subjects/${className}?schoolCode=${schoolCode}`, {
               headers: {
                 'x-school-code': schoolCode
               }
             });
 
-            if (response.ok) {
-              const data = await response.json();
-              return data.data;
-            } else {
-              console.log(`No subjects found for class ${className}`);
-              return null;
-            }
+            const data = response.data;
+            return data.data;
           } catch (error) {
             console.error(`Error fetching class ${className}:`, error);
             return null;
@@ -327,37 +301,21 @@ const AcademicDetails: React.FC = () => {
 
       console.log('Adding subject with school code:', schoolCode, 'class:', selectedClass, 'section:', selectedSection);
 
-      const response = await fetch('/api/class-subjects/add-subject', {
-        method: 'POST',
+      const response = await api.post('/class-subjects/add-subject', {
+        className: selectedClass,
+        grade: selectedClass,
+        section: selectedSection,
+        subjectName: newSubjectName.trim()
+      }, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
           'x-school-code': schoolCode.toUpperCase() // Ensure uppercase for consistency
-        },
-        body: JSON.stringify({
-          className: selectedClass,
-          grade: selectedClass,
-          section: selectedSection,
-          subjectName: newSubjectName.trim()
-        })
+        }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        toast.success(data.message);
-        setNewSubjectName('');
-        fetchAllClassSubjects(); // Refresh the list
-      } else {
-        let errorMessage = 'Failed to add subject';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-          console.error('Error adding subject:', errorData);
-        } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
-        }
-        toast.error(errorMessage);
-      }
+      const data = response.data;
+      toast.success(data.message);
+      setNewSubjectName('');
+      fetchAllClassSubjects(); // Refresh the list
     } catch (error) {
       console.error('Error adding subject:', error);
       toast.error('Network error while adding subject');
@@ -371,28 +329,20 @@ const AcademicDetails: React.FC = () => {
     }
 
     try {
-      const response = await fetch('/api/class-subjects/remove-subject', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'x-school-code': user?.schoolCode || ''
-        },
-        body: JSON.stringify({
+      const response = await api.delete('/class-subjects/remove-subject', {
+        data: {
           className,
           section,
           subjectName
-        })
+        },
+        headers: {
+          'x-school-code': user?.schoolCode || ''
+        }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        toast.success(data.message);
-        fetchAllClassSubjects(); // Refresh the list
-      } else {
-        const error = await response.json();
-        toast.error(error.message || 'Failed to remove subject');
-      }
+      const data = response.data;
+      toast.success(data.message);
+      fetchAllClassSubjects(); // Refresh the list
     } catch (error) {
       console.error('Error removing subject:', error);
       toast.error('Error removing subject');
@@ -412,13 +362,6 @@ const AcademicDetails: React.FC = () => {
     return classData?.subjects || [];
   };
 
-  // Get all sections for a class from fetched data
-  const getClassSections = (className: string): string[] => {
-    const sections = classSubjects
-      .filter(cs => cs.className === className)
-      .map(cs => cs.section || 'A');
-    return [...new Set(sections)];
-  };
 
   // Toggle class expansion
   const toggleClassExpansion = (className: string) => {
@@ -525,28 +468,26 @@ const AcademicDetails: React.FC = () => {
 
       // Fetch actual subjects from the class-subjects API
       try {
-        const response = await fetch(`/api/class-subjects/classes`, {
+        const response = await api.get('/class-subjects/classes', {
           headers: {
-            'Authorization': `Bearer ${token}`,
             'x-school-code': schoolCode.toUpperCase() // Ensure uppercase for consistency
           }
         });
 
-        if (response.ok) {
-          const responseData = await response.json();
-          console.log('📥 Class-subjects API response:', responseData);
+        const responseData = response.data;
+        console.log(' Class-subjects API response:', responseData);
 
-          // Find the class data for the selected class and section
-          const classData = responseData?.data?.classes?.find((c: any) =>
-            c.className === hallTicketClass && c.section === hallTicketSection
-          );
+        // Find the class data for the selected class and section
+        const classData = responseData?.data?.classes?.find((c: any) =>
+          c.className === hallTicketClass && c.section === hallTicketSection
+        );
 
           if (classData && classData.subjects) {
             // Filter only active subjects
             const activeSubjects = classData.subjects.filter((subject: any) => subject.isActive !== false);
             console.log('🔍 Total subjects:', classData.subjects.length, 'Active subjects:', activeSubjects.length);
 
-            const subjectExamsList: SubjectExam[] = activeSubjects.map((subject: any, index: number) => ({
+            const subjectExamsList: SubjectExam[] = activeSubjects.map((subject: any) => ({
               id: `${hallTicketClass}-${hallTicketSection}-${subject.name}-${selectedTest}`,
               name: subject.name,
               className: hallTicketClass,
@@ -580,9 +521,6 @@ const AcademicDetails: React.FC = () => {
             console.log('❌ No subjects found for class-section combination in primary API');
             // Don't throw error, let it fall through to fallback
           }
-        } else {
-          console.log('❌ Primary API response not OK:', response.status);
-        }
       } catch (apiError) {
         console.log('🔄 Primary API failed, using fallback method...', apiError);
       }
@@ -590,18 +528,17 @@ const AcademicDetails: React.FC = () => {
       // Fallback to direct endpoint if primary API didn't return data
       try {
         console.log('🔄 Trying fallback endpoint for subjects...');
-        const response = await fetch(`/api/direct-test/class-subjects/${hallTicketClass}?schoolCode=${schoolCode}`, {
+        const response = await api.get(`/direct-test/class-subjects/${hallTicketClass}?schoolCode=${schoolCode}`, {
           headers: {
             'x-school-code': schoolCode
           }
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          console.log('📥 Fallback API response:', data);
+        const data = response.data;
+        console.log('📥 Fallback API response:', data);
 
-          if (data.data && data.data.subjects && data.data.subjects.length > 0) {
-            const subjectExamsList: SubjectExam[] = data.data.subjects.map((subject: any, index: number) => ({
+        if (data.data && data.data.subjects && data.data.subjects.length > 0) {
+            const subjectExamsList: SubjectExam[] = data.data.subjects.map((subject: any) => ({
               id: `${hallTicketClass}-${hallTicketSection}-${subject.name}-${selectedTest}`,
               name: subject.name,
               className: hallTicketClass,
@@ -634,9 +571,6 @@ const AcademicDetails: React.FC = () => {
           } else {
             console.log('❌ Fallback API returned no subjects');
           }
-        } else {
-          console.log('❌ Fallback API response not OK:', response.status);
-        }
       } catch (fallbackError) {
         console.error('❌ Fallback API also failed:', fallbackError);
       }
@@ -676,63 +610,59 @@ const AcademicDetails: React.FC = () => {
 
       // Try to fetch real students from API
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/role/student`, {
+        const response = await api.get('/users/role/student', {
           headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'X-School-Code': schoolCode.toUpperCase(),
-            'Content-Type': 'application/json'
+            'X-School-Code': schoolCode.toUpperCase()
           }
         });
 
-        if (response.ok) {
-          const data = await response.json();
+        const data = response.data;
 
-          if (data.success && data.data && data.data.length > 0) {
-            // Filter for students in the specific class and section
-            const filteredStudents = data.data.filter((student: any) => {
-              const studentClass = student.studentDetails?.currentClass || student.currentclass || student.class || student.className;
-              const studentSection = student.studentDetails?.currentSection || student.currentsection || student.section;
+        if (data.success && data.data && data.data.length > 0) {
+          // Filter for students in the specific class and section
+          const filteredStudents = data.data.filter((student: any) => {
+            const studentClass = student.studentDetails?.currentClass || student.currentclass || student.class || student.className;
+            const studentSection = student.studentDetails?.currentSection || student.currentsection || student.section;
 
-              return String(studentClass) === String(hallTicketClass) &&
-                String(studentSection).toUpperCase() === String(hallTicketSection).toUpperCase();
-            });
+            return String(studentClass) === String(hallTicketClass) &&
+              String(studentSection).toUpperCase() === String(hallTicketSection).toUpperCase();
+          });
 
-            if (filteredStudents.length > 0) {
-              // Transform real students to include sequence IDs and profile images
-              const studentsWithSeqId = filteredStudents.map((student: any, index: number) => ({
-                id: student._id || student.id,
-                name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.firstname + ' ' + student.lastname || 'Unknown Student',
-                rollNumber: student.studentDetails?.rollNumber || student.rollNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-                sequenceId: student.userId || student.studentDetails?.admissionNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-                className: hallTicketClass,
-                section: hallTicketSection,
-                // Include profile image from database with proper URL construction
-                profileImage: (() => {
-                  const rawImageUrl = student.profileImage || student.profilePicture;
-                  if (!rawImageUrl) return null;
+          if (filteredStudents.length > 0) {
+            // Transform real students to include sequence IDs and profile images
+            const studentsWithSeqId = filteredStudents.map((student: any, index: number) => ({
+              id: student._id || student.id,
+              name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.firstname + ' ' + student.lastname || 'Unknown Student',
+              rollNumber: student.studentDetails?.rollNumber || student.rollNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
+              sequenceId: student.userId || student.studentDetails?.admissionNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
+              className: hallTicketClass,
+              section: hallTicketSection,
+              // Include profile image from database with proper URL construction
+              profileImage: (() => {
+                const rawImageUrl = student.profileImage || student.profilePicture;
+                if (!rawImageUrl) return null;
 
-                  // If it starts with /uploads, construct full URL
-                  if (rawImageUrl.startsWith('/uploads')) {
-                    const envBase = (import.meta.env.VITE_API_BASE_URL as string);
-                    const baseUrl = envBase.replace(/\/api\/?$/, '');
-                    return `${baseUrl}${rawImageUrl}`;
-                  }
+                // If it starts with /uploads, construct full URL
+                if (rawImageUrl.startsWith('/uploads')) {
+                  const envBase = (import.meta.env.VITE_API_BASE_URL as string);
+                  const baseUrl = envBase.replace(/\/api\/?$/, '');
+                  return `${baseUrl}${rawImageUrl}`;
+                }
 
-                  // Otherwise return as is (for external URLs or full URLs)
-                  return rawImageUrl;
-                })()
-              }));
+                // Otherwise return as is (for external URLs or full URLs)
+                return rawImageUrl;
+              })()
+            }));
 
-              setStudents(studentsWithSeqId);
-              toast.success(`Loaded ${studentsWithSeqId.length} students for Class ${hallTicketClass} Section ${hallTicketSection}`);
-              console.log('✅ Real students loaded:', studentsWithSeqId);
-              return;
-            } else {
-              console.log(`⚠️ No students found for Class ${hallTicketClass} Section ${hallTicketSection} in ${data.data.length} total students`);
-              setStudents([]);
-              toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}`);
-              return;
-            }
+            setStudents(studentsWithSeqId);
+            toast.success(`Loaded ${studentsWithSeqId.length} students for Class ${hallTicketClass} Section ${hallTicketSection}`);
+            console.log('✅ Real students loaded:', studentsWithSeqId);
+            return;
+          } else {
+            console.log(`⚠️ No students found for Class ${hallTicketClass} Section ${hallTicketSection} in ${data.data.length} total students`);
+            setStudents([]);
+            toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}`);
+            return;
           }
         }
       } catch (apiError) {
@@ -743,69 +673,61 @@ const AcademicDetails: React.FC = () => {
       try {
         console.log('🔄 Trying school-users endpoint pattern...');
 
-        const altResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/school-users/${schoolCode}/users`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        const altResponse = await api.get(`/school-users/${schoolCode}/users`);
+        const altData = altResponse.data;
+        console.log('📥 School-users API Response:', altData);
 
-        if (altResponse.ok) {
-          const altData = await altResponse.json();
-          console.log('📥 School-users API Response:', altData);
+        if (altData.success && altData.data && altData.data.length > 0) {
+          // Filter for students in the specific class and section
+          const filteredStudents = altData.data.filter((user: any) => {
+            const isStudent = user.role === 'student';
+            const userClass = user.studentDetails?.currentClass || user.currentclass || user.class || user.className;
+            const userSection = user.studentDetails?.currentSection || user.currentsection || user.section;
+            const userName = `${user.name?.firstName || user.firstname || ''} ${user.name?.lastName || user.lastname || ''}`.trim();
 
-          if (altData.success && altData.data && altData.data.length > 0) {
-            // Filter for students in the specific class and section
-            const filteredStudents = altData.data.filter((user: any) => {
-              const isStudent = user.role === 'student';
-              const userClass = user.studentDetails?.currentClass || user.currentclass || user.class || user.className;
-              const userSection = user.studentDetails?.currentSection || user.currentsection || user.section;
-              const userName = `${user.name?.firstName || user.firstname || ''} ${user.name?.lastName || user.lastname || ''}`.trim();
+            console.log(`🔍 School-user: ${userName}, Role: ${user.role}, Class: ${userClass}, Section: ${userSection}`);
 
-              console.log(`🔍 School-user: ${userName}, Role: ${user.role}, Class: ${userClass}, Section: ${userSection}`);
+            return isStudent &&
+              String(userClass) === String(hallTicketClass) &&
+              String(userSection).toUpperCase() === String(hallTicketSection).toUpperCase();
+          });
 
-              return isStudent &&
-                String(userClass) === String(hallTicketClass) &&
-                String(userSection).toUpperCase() === String(hallTicketSection).toUpperCase();
-            });
+          console.log(`🔍 Filtered students from school-users for Class ${hallTicketClass} Section ${hallTicketSection}:`, filteredStudents);
 
-            console.log(`🔍 Filtered students from school-users for Class ${hallTicketClass} Section ${hallTicketSection}:`, filteredStudents);
+          if (filteredStudents.length > 0) {
+            const studentsWithSeqId = filteredStudents.map((student: any, index: number) => ({
+              id: student._id || student.id,
+              name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.firstname + ' ' + student.lastname || 'Unknown Student',
+              rollNumber: student.studentDetails?.rollNumber || student.rollNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
+              sequenceId: student.userId || student.studentDetails?.admissionNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
+              className: hallTicketClass,
+              section: hallTicketSection,
+              // Include profile image from database with proper URL construction
+              profileImage: (() => {
+                const rawImageUrl = student.profileImage || student.profilePicture;
+                if (!rawImageUrl) return null;
 
-            if (filteredStudents.length > 0) {
-              const studentsWithSeqId = filteredStudents.map((student: any, index: number) => ({
-                id: student._id || student.id,
-                name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.firstname + ' ' + student.lastname || 'Unknown Student',
-                rollNumber: student.studentDetails?.rollNumber || student.rollNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-                sequenceId: student.userId || student.studentDetails?.admissionNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-                className: hallTicketClass,
-                section: hallTicketSection,
-                // Include profile image from database with proper URL construction
-                profileImage: (() => {
-                  const rawImageUrl = student.profileImage || student.profilePicture;
-                  if (!rawImageUrl) return null;
+                // If it starts with /uploads, construct full URL
+                if (rawImageUrl.startsWith('/uploads')) {
+                  const envBase = (import.meta.env.VITE_API_BASE_URL as string);
+                  const baseUrl = envBase.replace(/\/api\/?$/, '');
+                  return `${baseUrl}${rawImageUrl}`;
+                }
 
-                  // If it starts with /uploads, construct full URL
-                  if (rawImageUrl.startsWith('/uploads')) {
-                    const envBase = (import.meta.env.VITE_API_BASE_URL as string);
-                    const baseUrl = envBase.replace(/\/api\/?$/, '');
-                    return `${baseUrl}${rawImageUrl}`;
-                  }
+                // Otherwise return as is (for external URLs or full URLs)
+                return rawImageUrl;
+              })()
+            }));
 
-                  // Otherwise return as is (for external URLs or full URLs)
-                  return rawImageUrl;
-                })()
-              }));
-
-              setStudents(studentsWithSeqId);
-              toast.success(`Loaded ${studentsWithSeqId.length} students for Class ${hallTicketClass} Section ${hallTicketSection}`);
-              console.log('✅ Real students loaded from school-users endpoint:', studentsWithSeqId);
-              return;
-            } else {
-              console.log(`⚠️ No students found in school-users endpoint for Class ${hallTicketClass} Section ${hallTicketSection}`);
-              setStudents([]);
-              toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}`);
-              return;
-            }
+            setStudents(studentsWithSeqId);
+            toast.success(`Loaded ${studentsWithSeqId.length} students for Class ${hallTicketClass} Section ${hallTicketSection}`);
+            console.log('✅ Real students loaded from school-users endpoint:', studentsWithSeqId);
+            return;
+          } else {
+            console.log(`⚠️ No students found in school-users endpoint for Class ${hallTicketClass} Section ${hallTicketSection}`);
+            setStudents([]);
+            toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}`);
+            return;
           }
         }
       } catch (altApiError) {
@@ -836,56 +758,52 @@ const AcademicDetails: React.FC = () => {
 
       // Use the same API pattern as hall tickets
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/role/student`, {
+        const response = await api.get('/users/role/student', {
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'X-School-Code': schoolCode.toUpperCase(),
-            'Content-Type': 'application/json'
+            'X-School-Code': schoolCode.toUpperCase()
           }
         });
 
-        if (response.ok) {
-          const data = await response.json();
+        const data = response.data;
 
-          if (data.success && data.data && data.data.length > 0) {
-            // Filter students by class and section
-            const filteredStudents = data.data.filter((student: any) => {
-              const studentClass = student.studentDetails?.currentClass || student.currentclass || student.class || student.className;
-              const studentSection = student.studentDetails?.currentSection || student.currentsection || student.section;
+        if (data.success && data.data && data.data.length > 0) {
+          // Filter students by class and section
+          const filteredStudents = data.data.filter((student: any) => {
+            const studentClass = student.studentDetails?.currentClass || student.currentclass || student.class || student.className;
+            const studentSection = student.studentDetails?.currentSection || student.currentsection || student.section;
 
-              return String(studentClass) === String(idCardClass) &&
-                String(studentSection).toUpperCase() === String(idCardSection).toUpperCase();
-            });
+            return String(studentClass) === String(idCardClass) &&
+              String(studentSection).toUpperCase() === String(idCardSection).toUpperCase();
+          });
 
-            if (filteredStudents.length > 0) {
-              const studentsWithData = filteredStudents.map((student: any, index: number) => ({
-                _id: student._id || student.id,
-                id: student._id || student.id,
-                name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || 'Unknown Student',
-                rollNumber: student.studentDetails?.rollNumber || student.rollNumber || `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
-                sequenceId: student.userId || student.studentDetails?.admissionNumber || `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
-                className: idCardClass,
-                section: idCardSection,
-                profileImage: student.profileImage || student.profilePicture || null,
-                // Additional fields for ID cards - try multiple field paths
-                fatherName: student.parentDetails?.fatherName || student.fatherName || student.parent?.father?.name || 'Not Available',
-                motherName: student.parentDetails?.motherName || student.motherName || student.parent?.mother?.name || 'Not Available',
-                dateOfBirth: student.personalDetails?.dateOfBirth || student.dateOfBirth || student.dob || student.personal?.dateOfBirth || 'Not Available',
-                bloodGroup: student.personalDetails?.bloodGroup || student.bloodGroup || student.personal?.bloodGroup || student.medicalInfo?.bloodGroup || 'Not Available',
-                address: student.address?.permanent?.street || student.address?.street || student.personalDetails?.address || student.address || 'Not Available',
-                phone: student.contact?.primaryPhone || student.contact?.phone || student.phone || student.personalDetails?.phone || 'Not Available'
-              }));
+          if (filteredStudents.length > 0) {
+            const studentsWithData = filteredStudents.map((student: any, index: number) => ({
+              _id: student._id || student.id,
+              id: student._id || student.id,
+              name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || 'Unknown Student',
+              rollNumber: student.studentDetails?.rollNumber || student.rollNumber || `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
+              sequenceId: student.userId || student.studentDetails?.admissionNumber || `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
+              className: idCardClass,
+              section: idCardSection,
+              profileImage: student.profileImage || student.profilePicture || null,
+              // Additional fields for ID cards - try multiple field paths
+              fatherName: student.parentDetails?.fatherName || student.fatherName || student.parent?.father?.name || 'Not Available',
+              motherName: student.parentDetails?.motherName || student.motherName || student.parent?.mother?.name || 'Not Available',
+              dateOfBirth: student.personalDetails?.dateOfBirth || student.dateOfBirth || student.dob || student.personal?.dateOfBirth || 'Not Available',
+              bloodGroup: student.personalDetails?.bloodGroup || student.bloodGroup || student.personal?.bloodGroup || student.medicalInfo?.bloodGroup || 'Not Available',
+              address: student.address?.permanent?.street || student.address?.street || student.personalDetails?.address || student.address || 'Not Available',
+              phone: student.contact?.primaryPhone || student.contact?.phone || student.phone || student.personalDetails?.phone || 'Not Available'
+            }));
 
-              setIdCardStudents(studentsWithData);
-              toast.success(`Loaded ${studentsWithData.length} students for ID card generation`);
-              console.log('✅ ID Card students loaded:', studentsWithData);
-              return;
-            } else {
-              console.log(`⚠️ No students found for Class ${idCardClass} Section ${idCardSection}`);
-              setIdCardStudents([]);
-              toast.error(`No students found for Class ${idCardClass} Section ${idCardSection}`);
-              return;
-            }
+            setIdCardStudents(studentsWithData);
+            toast.success(`Loaded ${studentsWithData.length} students for ID card generation`);
+            console.log('✅ ID Card students loaded:', studentsWithData);
+            return;
+          } else {
+            console.log(`⚠️ No students found for Class ${idCardClass} Section ${idCardSection}`);
+            setIdCardStudents([]);
+            toast.error(`No students found for Class ${idCardClass} Section ${idCardSection}`);
+            return;
           }
         }
       } catch (apiError) {
@@ -900,38 +818,6 @@ const AcademicDetails: React.FC = () => {
       console.error('Error in fetchStudentsForIdCards:', error);
       setIdCardStudents([]);
     }
-  };
-
-  const updateHallTicketData = (subjectId: string, field: 'examDate' | 'examTime' | 'examHour' | 'examMinute' | 'examAmPm' | 'roomNumber', value: string) => {
-    setHallTicketData(prev => {
-      const currentData = prev[subjectId] || {};
-      const updatedData = {
-        ...currentData,
-        [field]: value
-      };
-
-      // Auto-update examTime when hour/minute/ampm changes for backward compatibility
-      if (field === 'examHour' || field === 'examMinute' || field === 'examAmPm') {
-        const hour = field === 'examHour' ? value : (currentData.examHour || '00');
-        const minute = field === 'examMinute' ? value : (currentData.examMinute || '00');
-        const ampm = field === 'examAmPm' ? value : (currentData.examAmPm || 'AM');
-
-        // Convert to 24-hour format for examTime field
-        let hour24 = parseInt(hour);
-        if (hour === '00') hour24 = 12; // Handle "00" as 12
-        if (ampm === 'AM' && hour24 === 12) hour24 = 0;
-        if (ampm === 'PM' && hour24 !== 12) hour24 += 12;
-
-        updatedData.examTime = `${hour24.toString().padStart(2, '0')}:${minute}`;
-
-        console.log(`🔄 Auto-updating examTime: ${hour}:${minute} ${ampm} → ${updatedData.examTime}`);
-      }
-
-      return {
-        ...prev,
-        [subjectId]: updatedData
-      };
-    });
   };
 
   // Functions to manage instructions
@@ -960,6 +846,47 @@ const AcademicDetails: React.FC = () => {
       'Malpractice leads to disqualification'
     ]);
     toast.success('Instructions reset to default');
+  };
+
+  // Function to update hall ticket data
+  const updateHallTicketData = (subjectId: string, field: string, value: string) => {
+    setHallTicketData(prev => {
+      const currentData = prev[subjectId] || {
+        subjectId,
+        examDate: '',
+        examTime: '',
+        examHour: '00',
+        examMinute: '00',
+        examAmPm: 'AM',
+        roomNumber: ''
+      };
+      const updatedData = {
+        ...currentData,
+        [field]: value
+      };
+
+      // Auto-update examTime when hour/minute/ampm changes for backward compatibility
+      if (field === 'examHour' || field === 'examMinute' || field === 'examAmPm') {
+        const hour = field === 'examHour' ? value : (currentData.examHour || '00');
+        const minute = field === 'examMinute' ? value : (currentData.examMinute || '00');
+        const ampm = field === 'examAmPm' ? value : (currentData.examAmPm || 'AM');
+
+        // Convert to 24-hour format for examTime field
+        let hour24 = parseInt(hour as string);
+        if (hour === '00') hour24 = 12; // Handle "00" as 12
+        if (ampm === 'AM' && hour24 === 12) hour24 = 0;
+        if (ampm === 'PM' && hour24 !== 12) hour24 += 12;
+
+        updatedData.examTime = `${hour24.toString().padStart(2, '0')}:${minute}`;
+
+        console.log(`🔄 Auto-updating examTime: ${hour}:${minute} ${ampm} → ${updatedData.examTime}`);
+      }
+
+      return {
+        ...prev,
+        [subjectId]: updatedData
+      };
+    });
   };
 
   // Function to convert image to base64 for better print compatibility
@@ -1105,7 +1032,7 @@ const AcademicDetails: React.FC = () => {
               // Use the new /info endpoint that bypasses school-specific database issues
               response = await api.get(`/schools/${schoolIdentifier}/info`);
               console.log('Success with school info endpoint:', response?.data);
-            } catch (infoError) {
+            } catch {
               console.log('School info endpoint failed, trying original endpoint...');
               // Fallback to original endpoint if new one fails
               response = await schoolAPI.getSchoolById(schoolIdentifier);
@@ -1268,22 +1195,6 @@ const AcademicDetails: React.FC = () => {
         data: templateSettings
       });
 
-      // Function to format time from 12-hour components
-      const formatTime12Hour = (hour: string, minute: string, ampm: string): string => {
-        if (!hour || !minute || !ampm) return 'Time not set';
-
-        try {
-          // Convert "00" hour to "12" for display
-          const displayHour = hour === '00' ? '12' : hour;
-          const formattedTime = `${displayHour}:${minute} ${ampm}`;
-          console.log(`🕐 Formatting 12-hour time: ${hour}:${minute} ${ampm} → ${formattedTime}`);
-          return formattedTime;
-        } catch (error) {
-          console.error('Error formatting 12-hour time:', error);
-          return 'Time error';
-        }
-      };
-
       // Sort completed subjects by exam date and time
       const sortedSubjects = [...completedSubjects].sort((a, b) => {
         const examDataA = hallTicketData[a.id];
@@ -1435,157 +1346,6 @@ const AcademicDetails: React.FC = () => {
     }
   };
 
-
-  // Generate Bulk ID Card Images function
-  const generateBulkIdCardImages = async () => {
-    if (!selectedOrientation) {
-      toast.error('Please select an orientation first');
-      return;
-    }
-
-    if (idCardStudents.length === 0) {
-      toast.error('No students found');
-      return;
-    }
-
-    setGeneratingCards(true);
-
-    try {
-      // Dynamic imports for the libraries
-      const JSZip = (await import('jszip')).default;
-      const html2canvas = (await import('html2canvas')).default;
-
-      const zip = new JSZip();
-
-      // Process each student
-      for (let i = 0; i < idCardStudents.length; i++) {
-        const student = idCardStudents[i];
-        const folderName = student.sequenceId || student.rollNumber || `student_${i + 1}`;
-        const studentFolder = zip.folder(folderName);
-
-        if (!studentFolder) continue;
-
-        // Create temporary containers for rendering
-        const frontContainer = document.createElement('div');
-        const backContainer = document.createElement('div');
-
-        // Position containers off-screen
-        frontContainer.style.position = 'absolute';
-        frontContainer.style.left = '-9999px';
-        frontContainer.style.top = '-9999px';
-        frontContainer.style.background = 'white';
-
-        backContainer.style.position = 'absolute';
-        backContainer.style.left = '-9999px';
-        backContainer.style.top = '-9999px';
-        backContainer.style.background = 'white';
-
-        document.body.appendChild(frontContainer);
-        document.body.appendChild(backContainer);
-
-        try {
-          // Create React elements and render them to HTML
-          const frontElement = document.createElement('div');
-          frontElement.style.width = selectedOrientation === 'landscape' ? '85.6mm' : '54mm';
-          frontElement.style.height = selectedOrientation === 'landscape' ? '54mm' : '85.6mm';
-          frontElement.style.backgroundColor = 'white';
-
-          const backElement = document.createElement('div');
-          backElement.style.width = selectedOrientation === 'landscape' ? '85.6mm' : '54mm';
-          backElement.style.height = selectedOrientation === 'landscape' ? '54mm' : '85.6mm';
-          backElement.style.backgroundColor = 'white';
-
-          // Use React.renderToString to convert components to HTML
-          const { renderToString } = await import('react-dom/server');
-          const React = await import('react');
-
-          // Render front side
-          const frontHTML = renderToString(
-            React.createElement(NewIDCardTemplate, {
-              settings: templateSettings,
-              student: student,
-              templateId: selectedOrientation as 'landscape' | 'portrait',
-              side: 'front',
-              mode: 'print'
-            })
-          );
-
-          // Render back side
-          const backHTML = renderToString(
-            React.createElement(NewIDCardTemplate, {
-              settings: templateSettings,
-              student: student,
-              templateId: selectedOrientation as 'landscape' | 'portrait',
-              side: 'back',
-              mode: 'print'
-            })
-          );
-
-          frontElement.innerHTML = frontHTML;
-          backElement.innerHTML = backHTML;
-
-          frontContainer.appendChild(frontElement);
-          backContainer.appendChild(backElement);
-
-          // Wait for rendering
-          await new Promise(resolve => setTimeout(resolve, 500));
-
-          // Convert to canvas and then to image
-          const frontCanvas = await html2canvas(frontElement, {
-            backgroundColor: 'white',
-            scale: 3,
-            useCORS: true,
-            allowTaint: true,
-            width: selectedOrientation === 'landscape' ? 324 : 204, // 85.6mm ≈ 324px, 54mm ≈ 204px at 96dpi
-            height: selectedOrientation === 'landscape' ? 204 : 324
-          });
-
-          const backCanvas = await html2canvas(backElement, {
-            backgroundColor: 'white',
-            scale: 3,
-            useCORS: true,
-            allowTaint: true,
-            width: selectedOrientation === 'landscape' ? 324 : 204,
-            height: selectedOrientation === 'landscape' ? 204 : 324
-          });
-
-          // Convert to PNG and add to ZIP
-          const frontImageData = frontCanvas.toDataURL('image/png').split(',')[1];
-          const backImageData = backCanvas.toDataURL('image/png').split(',')[1];
-
-          studentFolder.file(`${folderName}_front.png`, frontImageData, { base64: true });
-          studentFolder.file(`${folderName}_back.png`, backImageData, { base64: true });
-
-        } catch (error) {
-          console.error(`Error processing student ${student.name}:`, error);
-        } finally {
-          // Clean up
-          document.body.removeChild(frontContainer);
-          document.body.removeChild(backContainer);
-        }
-      }
-
-      // Generate and download ZIP
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(zipBlob);
-
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `ID_Cards_${idCardClass}_${idCardSection}_${selectedOrientation}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      URL.revokeObjectURL(url);
-
-      toast.success(`ZIP file created with ${idCardStudents.length} student ID cards organized in folders!`);
-    } catch (error) {
-      console.error('Error generating bulk ID card images:', error);
-      toast.error('Failed to generate ID card images. Please run: npm install html2canvas jszip @types/jszip');
-    } finally {
-      setGeneratingCards(false);
-    }
-  };
 
   if (showPreview && idCardStudents.length > 0) {
     return (
@@ -1910,11 +1670,11 @@ const AcademicDetails: React.FC = () => {
                 {hallTicketClass && hallTicketSection && subjectExams.length === 0 && (
                   <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded">
                     <p className="text-xs text-red-700">
-                      ⚠️ No subjects found for Class {hallTicketClass} Section {hallTicketSection}.
-                      Please add subjects in the "Class Subjects Management" tab first.
+                      No subjects found for Class {hallTicketClass} Section {hallTicketSection}.
+                      Please add subjects in the &quot;Class Subjects Management&quot; tab first.
                     </p>
                     <p className="text-xs text-red-600 mt-1">
-                      💡 Available classes in database: Check console for details
+                      Available classes in database: Check console for details
                     </p>
                   </div>
                 )}
@@ -2301,7 +2061,6 @@ const AcademicDetails: React.FC = () => {
                         key={orientation.id}
                         onClick={() => {
                           setSelectedOrientation(orientation.id);
-                          setSelectedTemplate(orientation.id);
                         }}
                         className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOrientation === orientation.id
                           ? 'border-blue-500 bg-blue-50'

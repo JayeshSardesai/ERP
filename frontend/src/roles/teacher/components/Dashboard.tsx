@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../../../api/axios';
 import {
   Users,
   BookOpen,
@@ -59,53 +60,35 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       console.log('📊 Fetching dashboard data...');
       
       // Fetch assignments (the /api/assignments endpoint already filters by teacher role)
-      const assignmentsRes = await fetch('/api/assignments?limit=100', {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
       let assignmentsData: any = { assignments: [] };
-      if (assignmentsRes.ok) {
-        assignmentsData = await assignmentsRes.json();
+      try {
+        const assignmentsRes = await api.get('/assignments?limit=100');
+        assignmentsData = assignmentsRes.data;
         console.log('✅ Assignments data:', assignmentsData);
-      } else {
-        console.warn('⚠️ Assignments API failed:', assignmentsRes.status);
+      } catch (error) {
+        console.warn('⚠️ Assignments API failed:', error);
       }
       
       // Fetch leave requests
-      const leaveRes = await fetch('http://localhost:5050/api/leave-requests/teacher/my-requests', {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
       let leaveData: any = { success: false, data: { leaveRequests: [] } };
-      if (leaveRes.ok) {
-        leaveData = await leaveRes.json();
+      try {
+        const leaveRes = await api.get('/leave-requests/teacher/my-requests');
+        leaveData = leaveRes.data;
         console.log('✅ Leave requests data:', leaveData);
-      } else {
-        console.warn('⚠️ Leave requests API failed:', leaveRes.status);
+      } catch (error) {
+        console.warn('⚠️ Leave requests API failed:', error);
       }
 
       // Fetch latest message (teacher-specific endpoint)
-      const messagesRes = await fetch('/api/messages/teacher/messages?limit=1', {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (messagesRes.ok) {
-        const messagesData = await messagesRes.json();
+      try {
+        const messagesRes = await api.get('/messages/teacher/messages?limit=1');
+        const messagesData = messagesRes.data;
         console.log('✅ Messages data:', messagesData);
         if (messagesData.messages && messagesData.messages.length > 0) {
           setLatestMessage(messagesData.messages[0]);
         }
-      } else {
-        console.warn('⚠️ Messages API failed:', messagesRes.status);
+      } catch (error) {
+        console.warn('⚠️ Messages API failed:', error);
       }
 
       // Calculate stats

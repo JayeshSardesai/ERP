@@ -3,6 +3,7 @@ import * as attendanceAPI from '../../../api/attendance';
 import { schoolUserAPI } from '../../../api/schoolUsers';
 import { useAuth } from '../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
+import api from '../../../api/axios';
 import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react';
 
 interface Student {
@@ -91,22 +92,13 @@ const ViewAttendanceRecords: React.FC = () => {
       });
 
       // Make API call with query parameters for filtering
-      const response = await fetch(
-        `http://localhost:5050/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'x-school-code': user.schoolCode
-          }
+      const response = await api.get(`/users/role/student?class=${selectedClass}&section=${selectedSection}`, {
+        headers: {
+          'x-school-code': user.schoolCode
         }
-      );
+      });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch students');
-      }
-
-      const data = await response.json();
+      const data = response.data;
       console.log('📊 API Response:', data);
       
       const users = data.data || data || [];
@@ -210,22 +202,13 @@ const ViewAttendanceRecords: React.FC = () => {
       });
 
       // Make API call with query parameters for filtering
-      const response = await fetch(
-        `http://localhost:5050/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'x-school-code': user.schoolCode
-          }
+      const response = await api.get(`/users/role/student?class=${selectedClass}&section=${selectedSection}`, {
+        headers: {
+          'x-school-code': user.schoolCode
         }
-      );
+      });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch students');
-      }
-
-      const data = await response.json();
+      const data = response.data;
       console.log('📊 API Response:', data);
       
       const users = data.data || data || [];

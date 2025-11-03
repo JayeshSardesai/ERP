@@ -4,7 +4,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { testDetailsAPI } from '../../../api/testDetails';
 import { resultsAPI } from '../../../services/api';
 import { toast } from 'react-hot-toast';
-import api from '../../../services/api';
+import api from '../../../api/axios';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 
 interface StudentResult {
@@ -322,40 +322,41 @@ const Results: React.FC = () => {
 
         // Primary API
         try {
-          const resp = await fetch('/api/class-subjects/classes', {
+          const resp = await api.get('/class-subjects/classes', {
             headers: {
-              'Authorization': `Bearer ${token}`,
               'x-school-code': schoolCode.toUpperCase()
             }
           });
-          if (resp.ok) {
-            const data = await resp.json();
-            const classData = data?.data?.classes?.find((c: any) => c.className === selectedClass && c.section === selectedSection);
-            const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
-            const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
-            setSubjects(subjectNames);
-            // Auto-select first subject if available
-            setSelectedSubject(subjectNames[0] || '');
-            return;
-          }
+          const data = resp.data;
+          const classData = data?.data?.classes?.find((c: any) => c.className === selectedClass && c.section === selectedSection);
+          const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
+          const subjectObjects = activeSubjects.map((s: any) => ({
+            label: s.name,
+            value: s.name
+          })).filter(Boolean);
+          setSubjects(subjectObjects);
+          // Auto-select first subject if available
+          setSelectedSubject(subjectObjects[0]?.value || '');
+          return;
         } catch (_) {
           // fall through to fallback
         }
 
         // Fallback API
         try {
-          const resp2 = await fetch(`/api/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`, {
+          const resp2 = await api.get(`/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`, {
             headers: {
               'x-school-code': schoolCode.toUpperCase()
             }
           });
-          if (resp2.ok) {
-            const data2 = await resp2.json();
-            const subjectNames = (data2?.data?.subjects || []).map((s: any) => s.name).filter(Boolean);
-            setSubjects(subjectNames);
-            setSelectedSubject(subjectNames[0] || '');
-            return;
-          }
+          const data2 = resp2.data;
+          const subjectObjects = (data2?.data?.subjects || []).map((s: any) => ({
+            label: s.name,
+            value: s.name
+          })).filter(Boolean);
+          setSubjects(subjectObjects);
+          setSelectedSubject(subjectObjects[0]?.value || '');
+          return;
         } catch (_) {
           // ignore
         }
@@ -441,50 +442,41 @@ const Results: React.FC = () => {
 
       // Fallback: try school-users endpoint pattern used elsewhere
       try {
-        const altResp = await fetch(`http://localhost:5050/api/school-users/${schoolCode}/users`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+        const altResp = await api.get(`/school-users/${schoolCode}/users`);
+
+        const altData = altResp.data;
+        const users = (altData?.data || []) as any[];
+        const filtered = users.filter((u: any) => {
+          const isStudent = u.role === 'student';
+          const uClass = u.studentDetails?.currentClass || u.currentclass || u.class || u.className;
+          const uSection = u.studentDetails?.currentSection || u.currentsection || u.section;
+          return isStudent && String(uClass) === String(selectedClass) && String(uSection).toUpperCase() === String(selectedSection).toUpperCase();
         });
 
-        if (altResp.ok) {
-          const altData = await altResp.json();
-          const users = (altData?.data || []) as any[];
-          const filtered = users.filter((u: any) => {
-            const isStudent = u.role === 'student';
-            const uClass = u.studentDetails?.currentClass || u.currentclass || u.class || u.className;
-            const uSection = u.studentDetails?.currentSection || u.currentsection || u.section;
-            return isStudent && String(uClass) === String(selectedClass) && String(uSection).toUpperCase() === String(selectedSection).toUpperCase();
-          });
+        const students = filtered.map((student: any, index: number) => ({
+          id: student._id || student.id,
+          name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.fullName || 'Unknown',
+          userId: student.userId || student.user_id || 'N/A',
+          rollNumber: student.studentDetails?.rollNumber
+            || student.studentDetails?.currentRollNumber
+            || student.rollNumber
+            || student.sequenceId
+            || `${schoolCode}-${selectedSection}-${String(index + 1).padStart(4, '0')}`,
+          class: selectedClass,
+          section: selectedSection,
+          totalMarks: configuredMaxMarks,
+          obtainedMarks: null,
+          grade: null
+        }));
 
-          const students = filtered.map((student: any, index: number) => ({
-            id: student._id || student.id,
-            name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.fullName || 'Unknown',
-            userId: student.userId || student.user_id || 'N/A',
-            rollNumber: student.studentDetails?.rollNumber
-              || student.studentDetails?.currentRollNumber
-              || student.rollNumber
-              || student.sequenceId
-              || `${schoolCode}-${selectedSection}-${String(index + 1).padStart(4, '0')}`,
-            class: selectedClass,
-            section: selectedSection,
-            totalMarks: configuredMaxMarks,
-            obtainedMarks: null,
-            grade: null
-          }));
-
-          if (students.length > 0) {
-            setStudentResults(sortStudentsByUserId(students));
-            setShowResultsTable(true);
-            const initialSavedState: { [key: string]: boolean } = {};
-            students.forEach((student: StudentResult) => { initialSavedState[student.id] = false; });
-            setSavedRows(initialSavedState);
-            toast.success(`Loaded ${students.length} students via fallback API`);
-            return;
-          }
-        } else {
-          console.warn('Fallback school-users API failed', altResp.status, altResp.statusText);
+        if (students.length > 0) {
+          setStudentResults(sortStudentsByUserId(students));
+          setShowResultsTable(true);
+          const initialSavedState: { [key: string]: boolean } = {};
+          students.forEach((student: StudentResult) => { initialSavedState[student.id] = false; });
+          setSavedRows(initialSavedState);
+          toast.success(`Loaded ${students.length} students via fallback API`);
+          return;
         }
       } catch (altErr) {
         console.error('Fallback school-users API error:', altErr);
@@ -1050,7 +1042,7 @@ const Results: React.FC = () => {
                       : 'Select Subject'}
               </option>
               {subjects.map((subj) => (
-                <option key={subj} value={subj}>{subj}</option>
+                <option key={subj.value} value={subj.value}>{subj.label}</option>
               ))}
             </select>
           </div>

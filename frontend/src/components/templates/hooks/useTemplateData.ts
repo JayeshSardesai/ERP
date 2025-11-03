@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TemplateSettings } from '../types';
 import { useAuth } from '../../../auth/AuthContext';
+import api from '../../../api/axios';
 
 export const useTemplateData = () => {
   const { user } = useAuth();
@@ -28,42 +29,38 @@ export const useTemplateData = () => {
       const token = localStorage.getItem('erp.authToken');
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode;
 
-      const response = await fetch(`http://localhost:5050/api/schools/profile`, {
+      const response = await api.get('/schools/profile', {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-School-Code': schoolCode,
-          'Content-Type': 'application/json'
+          'X-School-Code': schoolCode
         }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('🏫 Fetched school data for templates:', data);
+      const data = response.data;
+      console.log('🏫 Fetched school data for templates:', data);
+      
+      if (data.success && data.data) {
+        const schoolData = data.data;
+        let logoUrl = '';
         
-        if (data.success && data.data) {
-          const schoolData = data.data;
-          let logoUrl = '';
-          
-          if (schoolData.logo) {
-            if (schoolData.logo.startsWith('/uploads')) {
-              const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
-              const baseUrl = envBase.replace(/\/api\/?$/, '');
-              logoUrl = `${baseUrl}${schoolData.logo}`;
-            } else {
-              logoUrl = schoolData.logo;
-            }
+        if (schoolData.logo) {
+          if (schoolData.logo.startsWith('/uploads')) {
+            const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+            const baseUrl = envBase.replace(/\/api\/?$/, '');
+            logoUrl = `${baseUrl}${schoolData.logo}`;
+          } else {
+            logoUrl = schoolData.logo;
           }
-
-          setTemplateSettings(prev => ({
-            ...prev,
-            schoolName: schoolData.name || schoolData.schoolName || prev.schoolName,
-            schoolCode: schoolData.code || schoolData.schoolCode || prev.schoolCode,
-            address: schoolData.address || prev.address,
-            phone: schoolData.phone || schoolData.contact?.phone || prev.phone,
-            email: schoolData.email || schoolData.contact?.email || prev.email,
-            logoUrl: logoUrl || prev.logoUrl
-          }));
         }
+
+        setTemplateSettings(prev => ({
+          ...prev,
+          schoolName: schoolData.name || schoolData.schoolName || prev.schoolName,
+          schoolCode: schoolData.code || schoolData.schoolCode || prev.schoolCode,
+          address: schoolData.address || prev.address,
+          phone: schoolData.phone || schoolData.contact?.phone || prev.phone,
+          email: schoolData.email || schoolData.contact?.email || prev.email,
+          logoUrl: logoUrl || prev.logoUrl
+        }));
       }
     } catch (error) {
       console.error('Error fetching school data:', error);

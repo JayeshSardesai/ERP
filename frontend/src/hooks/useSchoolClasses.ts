@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import api from '../api/axios';
 
 interface ClassOption {
   value: string;
@@ -68,25 +69,11 @@ export const useSchoolClasses = () => {
     try {
       // Fetch both classes and tests in parallel
       const [classesResponse, testsResponse] = await Promise.all([
-        fetch(`/api/admin/classes/${user.schoolCode}/classes-sections`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }),
-        fetch(`/api/admin/classes/${user.schoolCode}/tests`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
+        api.get(`/admin/classes/${user.schoolCode}/classes-sections`),
+        api.get(`/admin/classes/${user.schoolCode}/tests`)
       ]);
 
-      if (!classesResponse.ok) {
-        throw new Error(`Failed to fetch classes: ${classesResponse.statusText}`);
-      }
-
-      const classesResult = await classesResponse.json();
+      const classesResult = classesResponse.data;
       
       if (!classesResult.success) {
         throw new Error(classesResult.message || 'Failed to fetch classes');
@@ -94,11 +81,13 @@ export const useSchoolClasses = () => {
 
       // Handle tests response (optional - don't fail if tests don't exist)
       let testsData = { tests: [], testsByClass: {}, totalTests: 0 };
-      if (testsResponse.ok) {
-        const testsResult = await testsResponse.json();
+      try {
+        const testsResult = testsResponse.data;
         if (testsResult.success) {
           testsData = testsResult.data;
         }
+      } catch (testsError) {
+        console.log('Tests endpoint failed, continuing without tests:', testsError);
       }
 
       // Combine classes and tests data
@@ -124,18 +113,9 @@ export const useSchoolClasses = () => {
     }
 
     try {
-      const response = await fetch(`/api/admin/classes/${user.schoolCode}/classes/${className}/sections`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await api.get(`/admin/classes/${user.schoolCode}/classes/${className}/sections`);
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch sections: ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      const result = response.data;
       
       if (result.success) {
         return result.data.sections;

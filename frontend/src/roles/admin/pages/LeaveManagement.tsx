@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Check, X, Clock, User, FileText, Filter, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
+import api from '../../../api/axios';
 
 interface LeaveRequest {
   _id: string;
@@ -65,26 +66,12 @@ const LeaveManagement: React.FC = () => {
       }
 
       console.log('📋 Fetching leave requests from backend...');
-      console.log('🌐 API URL:', 'http://localhost:5050/api/leave-requests/admin/all');
 
-      const response = await fetch('http://localhost:5050/api/leave-requests/admin/all', {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await api.get('/leave-requests/admin/all');
 
       console.log('📡 Response status:', response.status);
-      console.log('📡 Response ok:', response.ok);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        console.error('❌ API Error:', errorData);
-        console.error('❌ Response status:', response.status);
-        throw new Error(errorData.message || 'Failed to fetch leave requests');
-      }
-
-      const result = await response.json();
+      const result = response.data;
       console.log('✅ Leave requests API response:', result);
       console.log('📊 Number of requests:', result.data?.leaveRequests?.length || 0);
       
@@ -162,23 +149,12 @@ const LeaveManagement: React.FC = () => {
         return;
       }
 
-      const response = await fetch(`http://localhost:5050/api/leave-requests/admin/${requestId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          status: 'approved',
-          adminComments: reviewComments || 'Approved'
-        })
+      const response = await api.put(`/leave-requests/admin/${requestId}/status`, {
+        status: 'approved',
+        adminComments: reviewComments || 'Approved'
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to approve leave request');
-      }
-
-      const result = await response.json();
+      const result = response.data;
       
       if (result.success) {
         toast.success('Leave request approved successfully');
@@ -205,23 +181,12 @@ const LeaveManagement: React.FC = () => {
         return;
       }
 
-      const response = await fetch(`http://localhost:5050/api/leave-requests/admin/${requestId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          status: 'rejected',
-          adminComments: reviewComments || 'Rejected'
-        })
+      const response = await api.put(`/leave-requests/admin/${requestId}/status`, {
+        status: 'rejected',
+        adminComments: reviewComments || 'Rejected'
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to reject leave request');
-      }
-
-      const result = await response.json();
+      const result = response.data;
       
       if (result.success) {
         toast.success('Leave request rejected');

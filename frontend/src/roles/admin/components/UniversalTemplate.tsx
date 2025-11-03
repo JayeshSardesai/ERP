@@ -3,7 +3,7 @@ import { renderToString } from 'react-dom/server';
 import { FileText, Download, Eye, Settings, Save } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
-import api, { schoolAPI } from '../../../services/api';
+import api from '../../../services/api';
 import {
   InvoiceTemplate,
   CertificateTemplate,
@@ -106,7 +106,7 @@ const UniversalTemplate: React.FC = () => {
     try {
       localStorage.setItem('universalTemplate', JSON.stringify(templateSettings));
       toast.success('Template settings saved successfully!');
-    } catch (error) {
+    } catch {
       toast.error('Failed to save template settings');
     }
   };
@@ -123,7 +123,7 @@ const UniversalTemplate: React.FC = () => {
 
     try {
       switch (templateType) {
-        case 'invoice':
+        case 'invoice': {
           const invoiceData = getSampleData() as any;
           componentHTML = renderToString(
             React.createElement(InvoiceTemplate, {
@@ -133,7 +133,8 @@ const UniversalTemplate: React.FC = () => {
             })
           );
           break;
-        case 'certificate':
+        }
+        case 'certificate': {
           const certificateData = getSampleData() as any;
           componentHTML = renderToString(
             React.createElement(CertificateTemplate, {
@@ -143,7 +144,8 @@ const UniversalTemplate: React.FC = () => {
             })
           );
           break;
-        case 'admit_card':
+        }
+        case 'admit_card': {
           const admitCardData = getSampleData() as any;
           componentHTML = renderToString(
             React.createElement(AdmitCardTemplate, {
@@ -163,11 +165,12 @@ const UniversalTemplate: React.FC = () => {
             })
           );
           break;
+        }
         case 'id_card_landscape_front':
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Landscape Front</h2>
-              <img src="${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/landscape-front.png" 
+              <img src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/landscape-front_bkwvmf.png" 
                    alt="Landscape Front Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -177,7 +180,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Landscape Back</h2>
-              <img src="${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/landscape-back.png" 
+              <img src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/landscape-back_jvvqjw.png" 
                    alt="Landscape Back Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -187,7 +190,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Portrait Front</h2>
-              <img src="${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/portrait-front.png" 
+              <img src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/portrait-front_hhfqxh.png" 
                    alt="Portrait Front Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -197,7 +200,7 @@ const UniversalTemplate: React.FC = () => {
           componentHTML = `
             <div style="text-align: center; padding: 20px;">
               <h2>ID Card Template - Portrait Back</h2>
-              <img src="${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/portrait-back.png" 
+              <img src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/portrait-back_yvfxfn.png" 
                    alt="Portrait Back Template" 
                    style="max-width: 100%; height: auto;" />
             </div>
@@ -398,7 +401,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Landscape Front</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src={`${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/landscape-front.png`}
+                src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/landscape-front_bkwvmf.png"
                 alt="Landscape Front Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -407,7 +410,7 @@ const UniversalTemplate: React.FC = () => {
                 }}
               />
             </div>
-            <p className="text-sm text-gray-600 mt-3">Template file: <code className="bg-gray-100 px-2 py-1 rounded">landscape-front.png</code></p>
+            <p className="text-sm text-gray-600 mt-3">Template: <code className="bg-gray-100 px-2 py-1 rounded">Landscape Front (Horizontal)</code></p>
           </div>
         );
       case 'id_card_landscape_back':
@@ -416,7 +419,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Landscape Back</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src={`${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/landscape-back.png`}
+                src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/landscape-back_jvvqjw.png"
                 alt="Landscape Back Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -425,7 +428,7 @@ const UniversalTemplate: React.FC = () => {
                 }}
               />
             </div>
-            <p className="text-sm text-gray-600 mt-3">Template file: <code className="bg-gray-100 px-2 py-1 rounded">landscape-back.png</code></p>
+            <p className="text-sm text-gray-600 mt-3">Template: <code className="bg-gray-100 px-2 py-1 rounded">Landscape Back (Horizontal)</code></p>
           </div>
         );
       case 'id_card_portrait_front':
@@ -434,7 +437,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Portrait Front</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src={`${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/portrait-front.png`}
+                src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/portrait-front_hhfqxh.png"
                 alt="Portrait Front Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -443,7 +446,7 @@ const UniversalTemplate: React.FC = () => {
                 }}
               />
             </div>
-            <p className="text-sm text-gray-600 mt-3">Template file: <code className="bg-gray-100 px-2 py-1 rounded">portrait-front.png</code></p>
+            <p className="text-sm text-gray-600 mt-3">Template: <code className="bg-gray-100 px-2 py-1 rounded">Portrait Front (Vertical)</code></p>
           </div>
         );
       case 'id_card_portrait_back':
@@ -452,7 +455,7 @@ const UniversalTemplate: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">ID Card Template - Portrait Back</h3>
             <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-center" style={{ minHeight: '400px' }}>
               <img
-                src={`${(import.meta.env.VITE_API_BASE_URL as string)?.replace('/api', '') || (import.meta.env.VITE_API_BASE_URL as string)}/idcard-templates/portrait-back.png`}
+                src="https://res.cloudinary.com/dqy2ts9h6/image/upload/v1730631776/portrait-back_yvfxfn.png"
                 alt="Portrait Back Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
@@ -461,7 +464,7 @@ const UniversalTemplate: React.FC = () => {
                 }}
               />
             </div>
-            <p className="text-sm text-gray-600 mt-3">Template file: <code className="bg-gray-100 px-2 py-1 rounded">portrait-back.png</code></p>
+            <p className="text-sm text-gray-600 mt-3">Template: <code className="bg-gray-100 px-2 py-1 rounded">Portrait Back (Vertical)</code></p>
           </div>
         );
       default:
@@ -579,7 +582,7 @@ const UniversalTemplate: React.FC = () => {
           <div>
             <h4 className="text-sm font-medium text-blue-900">Universal Template System</h4>
             <p className="text-sm text-blue-700 mt-1">
-              Configure your school's universal template for all documents including invoices, admit cards, certificates, and more. This template will be used across the entire system.
+              Configure your school&apos;s universal template for all documents including invoices, admit cards, certificates, and more. This template will be used across the entire system.
             </p>
           </div>
         </div>
