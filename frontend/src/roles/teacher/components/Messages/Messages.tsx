@@ -35,28 +35,39 @@ const Messages: React.FC = () => {
   const fetchMessages = async () => {
     setLoading(true);
     try {
+      // Get school code from localStorage or user context
+      const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
+      
       const response = await fetch('/api/messages/teacher/messages', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-school-code': schoolCode
         }
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch messages');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to fetch messages');
       }
 
       const data = await response.json();
       
       if (data.success) {
-        setMessages(data.data.messages || []);
-        console.log('✅ Fetched messages:', data.data.messages);
+        // Handle both data.messages and data.data.messages formats
+        const messages = data.data?.messages || data.messages || [];
+        setMessages(messages);
+        console.log('✅ Fetched messages:', messages);
+        
+        if (messages.length === 0) {
+          console.log('ℹ️ No messages found for teacher');
+        }
       } else {
         toast.error(data.message || 'Failed to fetch messages');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching messages:', error);
-      toast.error('Failed to load messages');
+      toast.error(error.message || 'Failed to load messages');
     } finally {
       setLoading(false);
     }

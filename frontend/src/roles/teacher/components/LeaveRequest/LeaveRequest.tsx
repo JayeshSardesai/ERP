@@ -72,13 +72,20 @@ const LeaveRequest: React.FC = () => {
     setSaving(true);
 
     try {
+      // Get school code from localStorage or user context
+      const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
+      
       const response = await fetch('/api/leave-requests/teacher/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'x-school-code': schoolCode
         },
-        body: JSON.stringify(leaveRequest)
+        body: JSON.stringify({
+          ...leaveRequest,
+          schoolCode: schoolCode
+        })
       });
 
       const data = await response.json();

@@ -271,8 +271,10 @@ const MessagesPage: React.FC = () => {
   };
 
   // Delete message function
-  const handleDeleteMessage = async (messageId: string) => {
+  const handleDeleteMessage = async (message: Message) => {
     try {
+      // Use _id if available, otherwise use id
+      const messageId = message._id || message.id;
       setDeleteLoading(messageId);
 
       const response = await deleteMessageAPI(messageId);
@@ -858,27 +860,26 @@ const MessagesPage: React.FC = () => {
             <div className="flex justify-end space-x-3">
               <button
                 onClick={cancelDelete}
-                disabled={deleteLoading === messageToDelete.id}
+                disabled={deleteLoading === (messageToDelete._id || messageToDelete.id)}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleDeleteMessage(messageToDelete.id)}
-                disabled={deleteLoading === messageToDelete.id}
-                className={`px-4 py-2 text-white rounded-md ${deleteLoading === messageToDelete.id
+                onClick={() => handleDeleteMessage(messageToDelete)}
+                disabled={deleteLoading === (messageToDelete._id || messageToDelete.id)}
+                className={`px-4 py-2 text-white rounded-md ${deleteLoading === (messageToDelete._id || messageToDelete.id)
                   ? 'bg-red-400 cursor-not-allowed'
                   : 'bg-red-600 hover:bg-red-700'
                   } transition-colors`}
               >
-                {deleteLoading === messageToDelete.id ? 'Deleting...' : 'Delete'}
+                {deleteLoading === (messageToDelete._id || messageToDelete.id) ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Message Preview Modal */}
       {/* Message Preview Modal */}
       {messageToPreview && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex justify-center items-center">

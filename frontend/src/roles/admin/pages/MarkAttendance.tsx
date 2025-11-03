@@ -322,11 +322,12 @@ const MarkAttendance: React.FC = () => {
 
   const getAttendanceSummary = () => {
     const statusField = session === 'morning' ? 'morningStatus' : 'afternoonStatus';
-    const present = filteredStudents.filter(s => s[statusField] === 'present').length;
-    const absent = filteredStudents.filter(s => s[statusField] === 'absent').length;
-    const unmarked = filteredStudents.filter(s => s[statusField] === null).length;
+    // Use all students, not just filtered ones, for accurate summary
+    const present = students.filter(s => s[statusField] === 'present').length;
+    const absent = students.filter(s => s[statusField] === 'absent').length;
+    const unmarked = students.filter(s => s[statusField] === null).length;
 
-    return { present, absent, unmarked, total: filteredStudents.length };
+    return { present, absent, unmarked, total: students.length };
   };
 
   const summary = getAttendanceSummary();
@@ -377,13 +378,9 @@ const MarkAttendance: React.FC = () => {
           `${response.data.successCount} students marked.`
         );
 
-        // Clear all attendance entries (reset to null)
-        const statusField = session === 'morning' ? 'morningStatus' : 'afternoonStatus';
-        setStudents(prev => prev.map(student => ({
-          ...student,
-          [statusField]: null
-        })));
-
+        // Don't clear attendance - keep it visible for reference
+        // The session is now frozen so it can't be modified anyway
+        
         // Refresh session status to show it's now frozen
         await checkSessionStatus();
 

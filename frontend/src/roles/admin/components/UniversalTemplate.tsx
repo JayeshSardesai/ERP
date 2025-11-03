@@ -405,12 +405,19 @@ const UniversalTemplate: React.FC = () => {
                 alt="Landscape Front Template"
                 className="max-w-full h-auto"
                 style={{ maxHeight: '500px', objectFit: 'contain' }}
+                onLoad={() => console.log('✅ Landscape Front template loaded successfully')}
                 onError={(e) => {
+                  console.error('❌ Failed to load Landscape Front template image');
                   (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5UZW1wbGF0ZSBOb3QgRm91bmQ8L3RleHQ+PC9zdmc+';
                 }}
               />
             </div>
-            <p className="text-sm text-gray-600 mt-3">Template: <code className="bg-gray-100 px-2 py-1 rounded">Landscape Front (Horizontal)</code></p>
+            <p className="text-sm text-gray-600 mt-3">
+              Template: <code className="bg-gray-100 px-2 py-1 rounded">Landscape Front (Horizontal)</code>
+            </p>
+            <p className="text-xs text-blue-600 mt-2">
+              💡 Tip: Click "Preview" button above and select this template from the dropdown to view it
+            </p>
           </div>
         );
       case 'id_card_landscape_back':
