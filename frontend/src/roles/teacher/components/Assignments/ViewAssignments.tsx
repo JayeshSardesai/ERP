@@ -64,6 +64,11 @@ const ViewAssignments: React.FC = () => {
     }
   }, [selectedClass, selectedSection]);
 
+  // Refetch assignments when filters change
+  useEffect(() => {
+    fetchAssignments();
+  }, [selectedClass, selectedSection, selectedSubject, searchTerm]);
+
   const fetchAssignments = async () => {
     try {
       setLoading(true);
@@ -73,8 +78,17 @@ const ViewAssignments: React.FC = () => {
       let assignmentsArray = [];
       
       try {
-        // Try the regular endpoint first
-        data = await assignmentAPI.fetchAssignments();
+        // Build filter parameters for teacher
+        const filterParams: any = {};
+        if (selectedClass) filterParams.class = selectedClass;
+        if (selectedSection) filterParams.section = selectedSection;
+        if (selectedSubject) filterParams.subject = selectedSubject;
+        if (searchTerm) filterParams.search = searchTerm;
+        
+        console.log('🔍 Teacher applying filters:', filterParams);
+        
+        // Try the regular endpoint first with filters
+        data = await assignmentAPI.fetchAssignments(filterParams);
         console.log('✅ Raw API response:', data);
         
         // Handle different response structures

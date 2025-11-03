@@ -2,12 +2,14 @@ const mongoose = require('mongoose');
 
 const assignmentSchema = new mongoose.Schema({
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+  schoolCode: { type: String, required: true }, // Add schoolCode field
   title: { type: String, required: true },
   description: { type: String, required: true },
   subject: { type: String, required: true },
   class: { type: String, required: true },
   section: { type: String, required: true },
   teacher: { type: String, required: true }, // Store teacher userId (e.g., "KVS-T-0046")
+  teacherName: { type: String }, // Store teacher name for display
   
   // Assignment details
   startDate: { type: Date, required: true },
@@ -17,6 +19,7 @@ const assignmentSchema = new mongoose.Schema({
     filename: String,
     originalName: String,
     path: String,
+    cloudinaryPublicId: String, // Add cloudinary public ID for deletion
     size: Number,
     uploadedAt: { type: Date, default: Date.now }
   }],
@@ -41,6 +44,7 @@ const assignmentSchema = new mongoose.Schema({
   
   // Created and updated by
   createdBy: { type: String, required: true }, // Store userId (e.g., "KVS-T-0046")
+  createdByName: { type: String }, // Store creator name for display
   updatedBy: { type: String }, // Store userId (e.g., "KVS-T-0046")
   
   // Timestamps
@@ -86,4 +90,7 @@ assignmentSchema.index({ subject: 1 });
 assignmentSchema.index({ dueDate: 1 });
 assignmentSchema.index({ academicYear: 1, term: 1 });
 
-module.exports = mongoose.model('Assignment', assignmentSchema);
+// Export both the model and schema for multi-tenant usage
+const Assignment = mongoose.model('Assignment', assignmentSchema);
+Assignment.schema = assignmentSchema;
+module.exports = Assignment;

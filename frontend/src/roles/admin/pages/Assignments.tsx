@@ -72,6 +72,11 @@ const Assignments: React.FC = () => {
     }
   }, [selectedClass]);
 
+  // Refetch assignments when filters change
+  useEffect(() => {
+    fetchAssignments();
+  }, [selectedClass, selectedSection, selectedSubject, selectedFilter, searchTerm]);
+
   const fetchAssignments = async () => {
     try {
       setLoading(true);
@@ -80,8 +85,18 @@ const Assignments: React.FC = () => {
       
       let data;
       try {
-        // Try the regular endpoint first
-        data = await assignmentAPI.fetchAssignments();
+        // Build filter parameters
+        const filterParams: any = {};
+        if (selectedClass) filterParams.class = selectedClass;
+        if (selectedSection) filterParams.section = selectedSection;
+        if (selectedSubject) filterParams.subject = selectedSubject;
+        if (selectedFilter !== 'all') filterParams.status = selectedFilter;
+        if (searchTerm) filterParams.search = searchTerm;
+        
+        console.log('🔍 Applying filters:', filterParams);
+        
+        // Try the regular endpoint first with filters
+        data = await assignmentAPI.fetchAssignments(filterParams);
         console.log('✅ Assignments fetched from regular endpoint:', data);
       } catch (regularError) {
         console.error('❌ Error with regular endpoint:', regularError);

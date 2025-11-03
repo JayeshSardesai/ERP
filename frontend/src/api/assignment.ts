@@ -1,7 +1,13 @@
 import api from '../api/axios';
 
-export async function fetchAssignments() {
-  const res = await api.get('/assignments');
+export async function fetchAssignments(params?: {
+  class?: string;
+  section?: string;
+  subject?: string;
+  status?: string;
+  search?: string;
+}) {
+  const res = await api.get('/assignments', { params });
   return res.data;
 }
 

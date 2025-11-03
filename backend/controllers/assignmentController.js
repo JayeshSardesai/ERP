@@ -6,6 +6,13 @@ const DatabaseManager = require('../utils/databaseManager');
 const { uploadPDFToCloudinary, uploadPDFBufferToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
 const path = require('path');
 const fs = require('fs');
+const mongoose = require('mongoose');
+
+// Helper function to get Assignment model for a school connection
+const getAssignmentModelForConnection = (connection) => {
+  const assignmentSchema = require('../models/Assignment').schema;
+  return connection.model('Assignment', assignmentSchema);
+};
 
 // Create a new assignment
 exports.createAssignment = async (req, res) => {
@@ -161,8 +168,8 @@ exports.createAssignment = async (req, res) => {
       console.log(`[ASSIGNMENT] Connecting to school database for ${schoolCode}`);
       const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
 
-      // Get the AssignmentMultiTenant model for this connection
-      const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+      // Get the Assignment model for this connection
+      const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
 
       // Create the assignment in the school-specific database
       assignment = new SchoolAssignment({
@@ -374,33 +381,10 @@ exports.getAssignments = async (req, res) => {
     if (req.user.role === 'teacher') {
       const teacherId = req.user.userId || req.user._id.toString();
       
-      // Get teacher's subjects and classes from user profile
-      const teacherSubjects = req.user.teacherDetails?.subjects || [];
-      const teacherClasses = [];
-      
-      // Extract classes from teacher's subject assignments
-      teacherSubjects.forEach(subject => {
-        if (subject.classes && Array.isArray(subject.classes)) {
-          teacherClasses.push(...subject.classes);
-        }
-      });
-      
-      // Teachers can see:
-      // 1. Assignments they created (teacher field matches)
-      // 2. Assignments for classes they teach (class field matches)
-      // 3. Assignments for subjects they teach (subject field matches)
-      const teacherQuery = {
-        $or: [
-          { teacher: teacherId }, // Own assignments
-          { class: { $in: teacherClasses } }, // Assignments for classes they teach
-          { subject: { $in: teacherSubjects.map(s => s.subjectCode || s.subjectName) } } // Assignments for subjects they teach
-        ]
-      };
-      
-      // Merge with existing query
-      query = { ...query, ...teacherQuery };
-      
-      console.log(`[GET ASSIGNMENTS] Teacher filter - ID: ${teacherId}, Classes: ${teacherClasses}, Subjects: ${teacherSubjects.map(s => s.subjectCode || s.subjectName)}`);
+      // For now, teachers can see all assignments in their school
+      // This ensures assignments created by admin are visible to teachers
+      // In the future, we can add more granular filtering based on teacher's subjects/classes
+      console.log(`[GET ASSIGNMENTS] Teacher filter - ID: ${teacherId}, showing all school assignments`);
     }
 
     // Students can only see published assignments for their class/section
@@ -445,7 +429,7 @@ exports.getAssignments = async (req, res) => {
       try {
         console.log(`[GET ASSIGNMENTS] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
 
         assignments = await SchoolAssignment.find(query)
           .limit(limit * 1)
@@ -512,7 +496,7 @@ exports.getAssignmentById = async (req, res) => {
       try {
         console.log(`[GET ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
 
         // Try to find by MongoDB ObjectId first
         try {
@@ -634,7 +618,7 @@ exports.updateAssignment = async (req, res) => {
       try {
         console.log(`[UPDATE ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
 
         assignment = await SchoolAssignment.findById(assignmentId);
 
@@ -807,7 +791,7 @@ exports.deleteAssignment = async (req, res) => {
       try {
         console.log(`[DELETE ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
 
         assignment = await SchoolAssignment.findById(assignmentId);
 
@@ -944,7 +928,7 @@ exports.getAssignmentStats = async (req, res) => {
       try {
         console.log(`[GET STATS] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
 
         // Build match query
         const matchQuery = {};

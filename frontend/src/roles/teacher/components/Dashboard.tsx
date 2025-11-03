@@ -30,6 +30,8 @@ interface DashboardStats {
     total: number;
     pending: number;
     approved: number;
+    rejected: number;
+    year: number;
   };
   todayAttendance: {
     marked: boolean;
@@ -43,7 +45,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [stats, setStats] = useState<DashboardStats>({
     totalAssignments: 0,
     activeAssignments: 0,
-    leaveRequests: { total: 0, pending: 0, approved: 0 },
+    leaveRequests: { total: 0, pending: 0, approved: 0, rejected: 0, year: new Date().getFullYear() },
     todayAttendance: { marked: false, classesCount: 0 }
   });
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -110,12 +112,28 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         return dueDate >= today;
       }).length;
       
-      const totalLeaves = leaveRequests.length;
-      const pendingLeaves = leaveRequests.filter((l: any) => l.status === 'pending').length;
-      const approvedLeaves = leaveRequests.filter((l: any) => l.status === 'approved').length;
+      // Filter leave requests for current year
+      const currentYear = new Date().getFullYear();
+      const yearlyLeaveRequests = leaveRequestsArray.filter((l: any) => {
+        if (!l.startDate) return false;
+        const leaveYear = new Date(l.startDate).getFullYear();
+        return leaveYear === currentYear;
+      });
+
+      const totalLeaves = yearlyLeaveRequests.length;
+      const pendingLeaves = yearlyLeaveRequests.filter((l: any) => l.status === 'pending').length;
+      const approvedLeaves = yearlyLeaveRequests.filter((l: any) => l.status === 'approved').length;
+      const rejectedLeaves = yearlyLeaveRequests.filter((l: any) => l.status === 'rejected').length;
 
       // Debug leave request statuses
-      console.log('🔍 Leave request statuses:', leaveRequests.map((l: any) => ({ id: l._id, status: l.status })));
+      console.log('🔍 Leave request statuses:', leaveRequestsArray.map((l: any) => ({ id: l._id, status: l.status, startDate: l.startDate })));
+      console.log(`📅 Yearly (${currentYear}) leave stats:`, {
+        totalYearlyLeaves: totalLeaves,
+        pendingLeaves,
+        approvedLeaves,
+        rejectedLeaves,
+        allTimeTotal: leaveRequestsArray.length
+      });
       console.log('📈 Calculated stats:', {
         totalAssignments,
         activeAssignments,
@@ -130,7 +148,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         leaveRequests: {
           total: totalLeaves,
           pending: pendingLeaves,
-          approved: approvedLeaves
+          approved: approvedLeaves,
+          rejected: rejectedLeaves,
+          year: currentYear
         },
         todayAttendance: { marked: false, classesCount: 0 }
       });
@@ -151,7 +171,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       onClick: () => onNavigate('assignments')
     },
     {
-      name: 'Leave Requests',
+      name: `Leave Requests (${stats.leaveRequests.year})`,
       value: stats.leaveRequests.total.toString(),
       icon: Calendar,
       color: 'bg-green-500',
@@ -159,11 +179,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       onClick: () => onNavigate('leave-request')
     },
     {
-      name: 'Approved Leaves',
+      name: `Approved Leaves (${stats.leaveRequests.year})`,
       value: stats.leaveRequests.approved.toString(),
       icon: CheckCircle,
       color: 'bg-emerald-500',
-      change: 'This year',
+      change: `${stats.leaveRequests.rejected} rejected`,
       onClick: () => onNavigate('leave-request')
     },
     {
