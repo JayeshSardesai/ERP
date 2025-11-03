@@ -17,9 +17,9 @@ class SchoolDatabaseManager {
       }
     }
     
-    console.log(`🔍 Attempting to connect to database: ${dbName}`);
+    // Only log new connections, not every request
+    console.log(`🔗 Connecting to: ${dbName}`);
     const connectionUri = `mongodb+srv://nitopunk04o:IOilWo4osDam0vmN@erp.ua5qems.mongodb.net/${dbName}?retryWrites=true&w=majority&appName=erp`;
-    console.log(`🔗 Connection URI: ${connectionUri}`);
     
     const connection = mongoose.createConnection(connectionUri, {
       maxPoolSize: 10,

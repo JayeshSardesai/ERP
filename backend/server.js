@@ -34,10 +34,7 @@ app.use(cors({
       'https://erpedulogix.firebaseapp.com'
     ];
     
-    console.log('🌐 CORS check for origin:', origin);
-    
     if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log('✅ CORS allowed for:', origin);
       callback(null, true);
     } else {
       console.log('❌ CORS blocked for:', origin);
@@ -56,16 +53,20 @@ app.use(bodyParser.urlencoded({ extended: true })); // Added for handling form d
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Request logging middleware
+// Request logging middleware - only log non-health/info endpoints
 app.use((req, res, next) => {
-  console.log(`📝 ${req.method} ${req.originalUrl} - Origin: ${req.headers.origin || 'none'}`);
+  // Skip logging for health checks and frequent polling endpoints
+  if (!req.originalUrl.includes('/health') && 
+      !req.originalUrl.includes('/school-info') &&
+      !req.originalUrl.includes('/stats')) {
+    console.log(`📝 ${req.method} ${req.originalUrl}`);
+  }
   next();
 });
 
 // Middleware to attach mainDb to req
 app.use((req, res, next) => {
   req.mainDb = mongoose.connection.db;
-  console.log('[DEBUG] mainDb middleware executed.'); // Keep debug log concise
   next();
 });
 

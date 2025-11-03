@@ -87,8 +87,7 @@ class DatabaseManager {
           }
         }
 
-        console.log(`🔍 Attempting to connect to database: ${databaseName}`);
-        console.log(`🔗 Connection URI: ${connectionUri}`);
+        console.log(`🔗 Connecting to: ${databaseName}`);
 
         const connection = mongoose.createConnection(connectionUri, {
           maxPoolSize: 50,

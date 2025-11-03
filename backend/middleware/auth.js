@@ -6,8 +6,10 @@ const SuperAdmin = require('../models/SuperAdmin');
 // Authentication middleware
 const auth = async (req, res, next) => {
   try {
-    console.log('🔑 AUTH middleware called for:', req.method, req.originalUrl);
-    console.log('Authorization header:', req.headers.authorization);
+    // Only log auth for non-health check endpoints to reduce noise
+    if (!req.originalUrl.includes('/health') && !req.originalUrl.includes('/api/schools/database/school-info')) {
+      console.log('🔑 AUTH:', req.method, req.originalUrl);
+    }
 
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -16,9 +18,6 @@ const auth = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('[AUTH] Token decoded:', decoded);
-
-    console.log('[DEBUG] mainDb in auth middleware:', req.mainDb);
 
     // Note: mainDb is not always required in auth middleware, it's set by setMainDbContext middleware when needed
 
@@ -56,10 +55,8 @@ const auth = async (req, res, next) => {
     let user;
     if (decoded.userType === 'school_user' && decoded.schoolCode) {
       // For school users, use the UserGenerator to find them across all school collections
-      console.log(`[AUTH DEBUG] Looking for user ID: ${userId} in school database: ${decoded.schoolCode}`);
       const UserGenerator = require('../utils/userGenerator');
       user = await UserGenerator.getUserByIdOrEmail(decoded.schoolCode, userId);
-      console.log(`[AUTH DEBUG] Found user:`, user ? { id: user._id, userId: user.userId, name: user.name, role: user.role, collection: user.collection } : 'null');
 
       // For school users, we need to add the schoolId from the School collection
       if (user) {
@@ -75,7 +72,6 @@ const auth = async (req, res, next) => {
       }
     } else {
       // For global users, check the main users collection
-      console.log(`[AUTH DEBUG] Looking for user ID: ${userId} in main database`);
       user = await User.findById(userId);
 
       // For global users that have a schoolCode, populate schoolId
@@ -93,24 +89,7 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
 
-    console.log('[AUTH] User fetched - ID:', user._id || user.userId);
-    console.log('[AUTH] User role:', user.role);
-    console.log('[AUTH] User role type:', typeof user.role);
-    console.log('[AUTH] User role length:', user.role ? user.role.length : 'null');
-    console.log('[AUTH] User keys:', Object.keys(user));
-    console.log('[AUTH] User object type:', user.constructor.name);
-    
-    // For students, log class/section info for debugging
-    if (user.role === 'student') {
-      console.log('[AUTH] Student class/section info:', {
-        class: user.class,
-        section: user.section,
-        currentClass: user.studentDetails?.currentClass,
-        currentSection: user.studentDetails?.currentSection,
-        academicClass: user.studentDetails?.academic?.currentClass,
-        academicSection: user.studentDetails?.academic?.currentSection
-      });
-    }
+    // User fetched successfully
     
     // Ensure user object is a plain object with role property
     req.user = {
@@ -125,7 +104,6 @@ const auth = async (req, res, next) => {
       class: user.class,
       section: user.section
     };
-    console.log('[AUTH] req.user.role after assignment:', req.user.role);
     next();
   } catch (error) {
     console.error('[AUTH ERROR] Token verification failed:', error);
