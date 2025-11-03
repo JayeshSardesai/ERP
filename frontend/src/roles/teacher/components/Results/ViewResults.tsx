@@ -279,6 +279,48 @@ const ViewResults: React.FC = () => {
     lowestScore: results.length > 0 ? Math.min(...results.map(student => student.obtainedMarks || 0)) : 0
   };
 
+  const handleExportResults = async () => {
+    if (results.length === 0) {
+      toast.error('No results to export');
+      return;
+    }
+
+    try {
+      // Create CSV content
+      const headers = ['Student ID', 'Student Name', 'Subject', 'Test Type', 'Obtained Marks', 'Total Marks', 'Percentage', 'Grade', 'Date'];
+      const csvContent = [
+        headers.join(','),
+        ...results.map(result => [
+          result.userId || '',
+          result.studentName || result.name || '',
+          result.subject || selectedSubject || '',
+          result.testType || selectedExam || '',
+          result.obtainedMarks || 0,
+          result.totalMarks || result.maxMarks || 0,
+          result.totalMarks ? Math.round((result.obtainedMarks / result.totalMarks) * 100) : 0,
+          calculateGrade(result.obtainedMarks, result.totalMarks || result.maxMarks),
+          result.createdAt ? new Date(result.createdAt).toLocaleDateString() : ''
+        ].join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `results_${selectedClass}_${selectedSection}_${selectedSubject}_${selectedExam}_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Results exported successfully!');
+    } catch (error) {
+      console.error('Error exporting results:', error);
+      toast.error('Failed to export results');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
@@ -287,7 +329,11 @@ const ViewResults: React.FC = () => {
           <p className="text-gray-600">Student performance reports for your subjects</p>
         </div>
 
-        <button className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mt-4 sm:mt-0">
+        <button 
+          onClick={handleExportResults}
+          disabled={results.length === 0}
+          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mt-4 sm:mt-0 disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
           <Download className="h-4 w-4 mr-2" />
           Export Results
         </button>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, Calendar, FileText, Download } from 'lucide-react';
 import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import EditAssignmentModal from '../components/EditAssignmentModal';
-import { assignmentAPI } from '../../../services/api';
+import * as assignmentAPI from '../../../api/assignment';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import api from '../../../api/axios';
 

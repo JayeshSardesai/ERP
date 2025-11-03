@@ -114,6 +114,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       const pendingLeaves = leaveRequests.filter((l: any) => l.status === 'pending').length;
       const approvedLeaves = leaveRequests.filter((l: any) => l.status === 'approved').length;
 
+      // Debug leave request statuses
+      console.log('🔍 Leave request statuses:', leaveRequests.map((l: any) => ({ id: l._id, status: l.status })));
       console.log('📈 Calculated stats:', {
         totalAssignments,
         activeAssignments,

@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { X, Lock, Eye, EyeOff } from 'lucide-react';
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050/api';
+import api from '../../../api/axios';
 
 interface ChangePasswordDialogProps {
   onClose: () => void;
@@ -59,19 +57,10 @@ export function ChangePasswordDialog({ onClose, onSuccess }: ChangePasswordDialo
       }
 
       // Call API to change password
-      const response = await axios.post(
-        `${API_BASE_URL}/auth/change-password`,
-        {
-          currentPassword,
-          newPassword
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await api.post('/auth/change-password', {
+        currentPassword,
+        newPassword
+      });
 
       if (response.data.success) {
         alert('Password changed successfully! Please login again with your new password.');

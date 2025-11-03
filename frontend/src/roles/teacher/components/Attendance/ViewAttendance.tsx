@@ -3,7 +3,7 @@ import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, Clock } from 
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import api from '../../../../api/axios';
-import { attendanceAPI } from '../../../../services/api';
+import * as attendanceAPI from '../../../../api/attendance';
 
 interface Student {
   _id: string;

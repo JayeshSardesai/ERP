@@ -370,12 +370,37 @@ exports.getAssignments = async (req, res) => {
       ];
     }
 
-    // Teachers can only see their own assignments
+    // Teachers can see assignments for classes/subjects they teach
     if (req.user.role === 'teacher') {
-      // Use userId (e.g., "SK-T-001") instead of MongoDB _id
       const teacherId = req.user.userId || req.user._id.toString();
-      query.teacher = teacherId;
-      console.log(`[GET ASSIGNMENTS] Filtering by teacher: ${teacherId}`);
+      
+      // Get teacher's subjects and classes from user profile
+      const teacherSubjects = req.user.teacherDetails?.subjects || [];
+      const teacherClasses = [];
+      
+      // Extract classes from teacher's subject assignments
+      teacherSubjects.forEach(subject => {
+        if (subject.classes && Array.isArray(subject.classes)) {
+          teacherClasses.push(...subject.classes);
+        }
+      });
+      
+      // Teachers can see:
+      // 1. Assignments they created (teacher field matches)
+      // 2. Assignments for classes they teach (class field matches)
+      // 3. Assignments for subjects they teach (subject field matches)
+      const teacherQuery = {
+        $or: [
+          { teacher: teacherId }, // Own assignments
+          { class: { $in: teacherClasses } }, // Assignments for classes they teach
+          { subject: { $in: teacherSubjects.map(s => s.subjectCode || s.subjectName) } } // Assignments for subjects they teach
+        ]
+      };
+      
+      // Merge with existing query
+      query = { ...query, ...teacherQuery };
+      
+      console.log(`[GET ASSIGNMENTS] Teacher filter - ID: ${teacherId}, Classes: ${teacherClasses}, Subjects: ${teacherSubjects.map(s => s.subjectCode || s.subjectName)}`);
     }
 
     // Students can only see published assignments for their class/section

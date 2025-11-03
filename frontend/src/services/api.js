@@ -174,6 +174,9 @@ export const assignmentAPI = {
   publishAssignment: (assignmentId) => api.patch(`/assignments/${assignmentId}/publish`),
   deleteAssignment: (assignmentId) => api.delete(`/assignments/${assignmentId}`),
   getAssignmentStats: (params) => api.get('/assignments/stats', { params }),
+  createAssignmentWithFiles: (formData) => api.post('/assignments', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }).then(res => res.data),
 };
 
 // Attendance Management APIs
@@ -183,6 +186,8 @@ export const attendanceAPI = {
   getAttendanceStats: (params) => api.get('/attendance/stats', { params }),
   lockAttendance: (attendanceId) => api.patch(`/attendance/${attendanceId}/lock`),
   getStudentAttendanceReport: (params) => api.get('/attendance/student-report', { params }),
+  markSessionAttendance: (data) => api.post('/attendance/mark-session', data),
+  checkSessionStatus: (params) => api.get('/attendance/session-status', { params }),
 };
 
 // Export/Import APIs
