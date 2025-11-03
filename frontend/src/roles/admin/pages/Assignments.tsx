@@ -62,19 +62,28 @@ const Assignments: React.FC = () => {
     }
   }, [assignments]);
 
-  // Fetch subjects when class changes
+  // Fetch subjects when class changes and reset dependent filters
   useEffect(() => {
     if (selectedClass) {
       fetchSubjectsForClass(selectedClass);
+      // Don't reset section here as it should be handled by the dropdown onChange
     } else {
       setSubjects([]);
       setSelectedSubject('');
+      setSelectedSection(''); // Reset section when no class is selected
     }
   }, [selectedClass]);
 
-  // Refetch assignments when filters change
+  // Fetch assignments only once on component mount
   useEffect(() => {
     fetchAssignments();
+  }, []);
+
+  // Add effect to trigger re-render when filters change (for local filtering)
+  useEffect(() => {
+    // This effect doesn't need to do anything, it just triggers re-render when filters change
+    // The filteredAssignments computed property will handle the actual filtering
+    console.log('🔍 Filters changed, triggering local filter update');
   }, [selectedClass, selectedSection, selectedSubject, selectedFilter, searchTerm]);
 
   const fetchAssignments = async () => {
@@ -84,20 +93,29 @@ const Assignments: React.FC = () => {
       console.log('🔍 Fetching assignments...');
       
       let data;
+      let assignmentsArray = [];
+      
       try {
-        // Build filter parameters
+        // Build filter parameters - don't send filters to API, handle locally like teacher portal
         const filterParams: any = {};
-        if (selectedClass) filterParams.class = selectedClass;
-        if (selectedSection) filterParams.section = selectedSection;
-        if (selectedSubject) filterParams.subject = selectedSubject;
-        if (selectedFilter !== 'all') filterParams.status = selectedFilter;
-        if (searchTerm) filterParams.search = searchTerm;
+        // Only send basic params to API, handle filtering locally
         
-        console.log('🔍 Applying filters:', filterParams);
+        console.log('🔍 Admin fetching all assignments for local filtering');
         
-        // Try the regular endpoint first with filters
-        data = await assignmentAPI.fetchAssignments(filterParams);
-        console.log('✅ Assignments fetched from regular endpoint:', data);
+        // Try the regular endpoint first
+        data = await assignmentAPI.fetchAssignments();
+        console.log('✅ Raw API response:', data);
+        
+        // Handle different response structures like teacher portal
+        if (data.data && Array.isArray(data.data)) {
+          assignmentsArray = data.data;
+        } else if (data.assignments && Array.isArray(data.assignments)) {
+          assignmentsArray = data.assignments;
+        } else if (Array.isArray(data)) {
+          assignmentsArray = data;
+        }
+        
+        console.log('✅ Extracted assignments array:', assignmentsArray);
       } catch (regularError) {
         console.error('❌ Error with regular endpoint:', regularError);
         
@@ -119,32 +137,50 @@ const Assignments: React.FC = () => {
         
         // Try direct endpoint with the user's school code
         const response = await api.get(`/direct-test/assignments?schoolCode=${userSchoolCode}`);
-        const data = response.data;
-        console.log('✅ Assignments fetched from direct endpoint:', data);
+        data = response.data;
+        console.log('✅ Direct endpoint response:', data);
+        
+        // Handle different response structures like teacher portal
+        if (data.data && Array.isArray(data.data)) {
+          assignmentsArray = data.data;
+        } else if (data.assignments && Array.isArray(data.assignments)) {
+          assignmentsArray = data.assignments;
+        } else if (Array.isArray(data)) {
+          assignmentsArray = data;
+        }
       }
       
-      // Extract assignments array from response object
-      const assignmentsArray = data.assignments || data || [];
+      console.log(`📊 Total assignments before filtering: ${assignmentsArray.length}`);
       
-      // Validate each assignment has required fields and filter out incomplete ones
+      // Validate each assignment has required fields like teacher portal
       const validAssignments = assignmentsArray.filter((assignment: any) => {
-        // Must be an object
-        if (!assignment || typeof assignment !== 'object') return false;
-        
-        // Must have at least a title, class, and subject (not just default values)
+        if (!assignment || typeof assignment !== 'object') {
+          console.log('❌ Invalid assignment (not an object):', assignment);
+          return false;
+        }
         const hasTitle = assignment.title && assignment.title.trim() !== '';
         const hasClass = assignment.class && assignment.class.trim() !== '';
         const hasSubject = assignment.subject && assignment.subject.trim() !== '';
         
-        return hasTitle && hasClass && hasSubject;
+        if (!hasTitle || !hasClass || !hasSubject) {
+          console.log('❌ Invalid assignment (missing fields):', {
+            title: assignment.title,
+            class: assignment.class,
+            subject: assignment.subject
+          });
+          return false;
+        }
+        
+        return true;
       });
       
-      console.log(`✅ Processed ${validAssignments.length} valid assignments (filtered out ${assignmentsArray.length - validAssignments.length} incomplete)`);
+      console.log(`✅ Loaded ${validAssignments.length} valid assignments out of ${assignmentsArray.length} total`);
+      console.log('📋 Valid assignments:', validAssignments);
       setAssignments(validAssignments);
     } catch (err: any) {
       console.error('❌ Error fetching assignments:', err);
+      console.error('Error details:', err.message, err.response);
       setError(err.response?.data?.message || err.message || 'Failed to fetch assignments');
-      // Set empty array to prevent filtering errors
       setAssignments([]);
     } finally {
       setLoading(false);
@@ -297,23 +333,89 @@ const Assignments: React.FC = () => {
     }
   };
 
+  // Local filtering function with enhanced logic
   const filteredAssignments = assignments.filter(assignment => {
-    // Add null checks to prevent "Cannot read properties of undefined" errors
-    const title = assignment?.title || '';
-    const subject = assignment?.subject || '';
-    const status = assignment?.status || '';
-    const assignmentClass = assignment?.class || '';
+    if (!assignment || typeof assignment !== 'object') return false;
     
-    const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    // Add null checks and normalize data
+    const title = (assignment?.title || '').toString().trim();
+    const subject = (assignment?.subject || '').toString().trim();
+    const status = (assignment?.status || '').toString().toLowerCase();
+    const assignmentClass = (assignment?.class || '').toString().trim();
+    const assignmentSection = (assignment?.section || '').toString().trim();
+    
+    // Debug logging for first few assignments
+    if (assignments.indexOf(assignment) < 3) {
+      console.log(`🔍 Assignment ${assignments.indexOf(assignment) + 1}:`, {
+        title,
+        class: assignmentClass,
+        section: assignmentSection,
+        subject,
+        status
+      });
+      console.log(`🔍 Filters:`, {
+        selectedClass,
+        selectedSection,
+        selectedSubject,
+        selectedFilter,
+        searchTerm
+      });
+    }
+    
+    // Search filter - search in title and subject
+    const matchesSearch = !searchTerm || searchTerm.trim() === '' ||
+      title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       subject.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = selectedFilter === 'all' || status === selectedFilter;
-    const matchesClass = !selectedClass || assignmentClass === selectedClass;
-    const matchesSubject = !selectedSubject || subject === selectedSubject;
     
-    // Note: Section filtering would require section data in assignment model
+    // Status filter - match exact status or show all
+    const matchesFilter = selectedFilter === 'all' || 
+      status === selectedFilter.toLowerCase() ||
+      (selectedFilter === 'active' && (status === 'active' || status === '')) ||
+      (selectedFilter === 'overdue' && status === 'overdue');
     
-    return matchesSearch && matchesFilter && matchesClass && matchesSubject;
+    // Class filter - exact match or show all
+    const matchesClass = !selectedClass || selectedClass === '' || 
+      assignmentClass === selectedClass ||
+      assignmentClass.toLowerCase() === selectedClass.toLowerCase();
+    
+    // Section filter - exact match or show all
+    const matchesSection = !selectedSection || selectedSection === '' || 
+      assignmentSection === selectedSection ||
+      assignmentSection.toLowerCase() === selectedSection.toLowerCase();
+    
+    // Subject filter - exact match or show all
+    const matchesSubject = !selectedSubject || selectedSubject === '' || 
+      subject === selectedSubject ||
+      subject.toLowerCase() === selectedSubject.toLowerCase();
+    
+    const result = matchesSearch && matchesFilter && matchesClass && matchesSection && matchesSubject;
+    
+    // Debug logging for first few assignments
+    if (assignments.indexOf(assignment) < 3) {
+      console.log(`🔍 Filter results:`, {
+        matchesSearch,
+        matchesFilter,
+        matchesClass,
+        matchesSection,
+        matchesSubject,
+        finalResult: result
+      });
+    }
+    
+    return result;
   });
+
+  // Log filtering results
+  console.log(`🔍 Total assignments: ${assignments.length}, Filtered: ${filteredAssignments.length}`);
+  if (filteredAssignments.length === 0 && assignments.length > 0) {
+    console.log('⚠️ No assignments match current filters:', {
+      selectedClass,
+      selectedSection,
+      selectedSubject,
+      selectedFilter,
+      searchTerm
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -391,7 +493,12 @@ const Assignments: React.FC = () => {
           <div className="flex flex-1 gap-3">
             <select
               value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
+              onChange={(e) => {
+                setSelectedClass(e.target.value);
+                // Reset section and subject when class changes
+                setSelectedSection('');
+                setSelectedSubject('');
+              }}
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">All Classes</option>
@@ -401,7 +508,13 @@ const Assignments: React.FC = () => {
             </select>
             <select
               value={selectedSection}
-              onChange={(e) => setSelectedSection(e.target.value)}
+              onChange={(e) => {
+                setSelectedSection(e.target.value);
+                // Reset subject when section changes since subjects are class+section specific
+                if (e.target.value !== selectedSection) {
+                  setSelectedSubject('');
+                }
+              }}
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">All Sections</option>
@@ -418,6 +531,17 @@ const Assignments: React.FC = () => {
               {subjects.map((subject) => (
                 <option key={subject} value={subject}>{subject}</option>
               ))}
+            </select>
+            <select
+              value={selectedFilter}
+              onChange={(e) => setSelectedFilter(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="draft">Draft</option>
+              <option value="overdue">Overdue</option>
             </select>
           </div>
         </div>

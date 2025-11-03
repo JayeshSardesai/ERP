@@ -546,49 +546,65 @@ exports.generateTemplate = async (req, res) => {
 // ==================================================================
 // HELPER FUNCTIONS
 // ==================================================================
-
 // --- Profile Picture Upload Helper with Cloudinary ---
 // REPLACED FUNCTION
 // REPLACE THE ENTIRE 'copyProfilePicture' FUNCTION WITH THIS
 // REPLACE the old function with this
-async function copyProfilePicture(sourceUrl, userId, schoolCode) {
-  if (!sourceUrl || String(sourceUrl).trim() === '' || !sourceUrl.startsWith('http')) {
-    console.warn(`Invalid or empty profile image URL: ${sourceUrl}. Skipping.`);
+async function copyProfilePicture(sourcePath, userId, schoolCode) {
+  if (!sourcePath || String(sourcePath).trim() === '') {
+    console.warn(`Empty profile image path provided. Skipping.`);
     return '';
   }
 
   try {
-    // 1. Download the image from the URL
-    console.log(`📸 Downloading image from: ${sourceUrl}`);
-    const response = await axios.get(sourceUrl, { responseType: 'arraybuffer' });
-    const imageBuffer = Buffer.from(response.data);
+    let imageBuffer;
+    
+    // Check if it's a URL or local file path
+    if (sourcePath.startsWith('http://') || sourcePath.startsWith('https://')) {
+      // Handle URL - download the image
+      console.log(`📸 Downloading image from URL: ${sourcePath}`);
+      const response = await axios.get(sourcePath, { responseType: 'arraybuffer' });
+      imageBuffer = Buffer.from(response.data);
+    } else {
+      // Handle local file path
+      console.log(`📁 Reading image from local path: ${sourcePath}`);
+      
+      // Check if file exists
+      if (!fs.existsSync(sourcePath)) {
+        console.warn(`Local image file not found: ${sourcePath}. Skipping.`);
+        return '';
+      }
+      
+      // Read the local file
+      imageBuffer = fs.readFileSync(sourcePath);
+    }
 
     console.log('🔄 Compressing image with Sharp...');
-    // 2. Compress the buffer in memory
+    // Compress the buffer in memory
     const compressedImageBuffer = await sharp(imageBuffer)
       .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 60 })
+      .jpeg({ quality: 80 }) // Slightly higher quality for profile images
       .toBuffer();
 
     console.log(`✅ Compressed image in memory: ${(compressedImageBuffer.length / 1024).toFixed(2)}KB`);
 
-    // 3. Upload the compressed buffer to Cloudinary
+    // Upload the compressed buffer to Cloudinary
     const timestamp = Date.now();
     const cloudinaryFolder = `profiles/${schoolCode.toUpperCase()}`;
     const publicId = `${userId}_${timestamp}`;
 
-    // USE THE NEW BUFFER UPLOAD FUNCTION
+    console.log(`☁️ Uploading to Cloudinary: ${cloudinaryFolder}/${publicId}`);
     const uploadResult = await uploadBufferToCloudinary(
       compressedImageBuffer,
       cloudinaryFolder,
       publicId
     );
 
-    // 4. Return the secure URL
+    console.log(`✅ Profile image uploaded successfully: ${uploadResult.secure_url}`);
     return uploadResult.secure_url;
 
   } catch (error) {
-    console.error(`Error processing profile picture from URL ${sourceUrl}:`, error.message);
+    console.error(`Error processing profile picture from ${sourcePath}:`, error.message);
     return ''; // Return empty string on failure
   }
 }
