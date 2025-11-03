@@ -10,8 +10,46 @@ const mongoose = require('mongoose');
 
 // Helper function to get Assignment model for a school connection
 const getAssignmentModelForConnection = (connection) => {
-  const assignmentSchema = require('../models/Assignment').schema;
-  return connection.model('Assignment', assignmentSchema);
+  try {
+    // Try to get existing model first
+    return connection.models.Assignment || connection.model('Assignment', Assignment.schema);
+  } catch (error) {
+    console.error('Error creating Assignment model for connection:', error.message);
+    // Fallback: recreate the schema
+    const mongoose = require('mongoose');
+    const assignmentSchema = new mongoose.Schema({
+      schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+      schoolCode: { type: String, required: true },
+      title: { type: String, required: true },
+      description: { type: String, required: true },
+      subject: { type: String, required: true },
+      class: { type: String, required: true },
+      section: { type: String, required: true },
+      teacher: { type: String, required: true },
+      teacherName: { type: String },
+      startDate: { type: Date, required: true },
+      dueDate: { type: Date, required: true },
+      instructions: String,
+      attachments: [{
+        filename: String,
+        originalName: String,
+        cloudinaryUrl: String,
+        cloudinaryPublicId: String,
+        uploadedAt: { type: Date, default: Date.now }
+      }],
+      academicYear: { type: String, required: true },
+      term: { type: String, required: true },
+      maxMarks: { type: Number, default: 100 },
+      isPublished: { type: Boolean, default: false },
+      publishedAt: Date,
+      createdBy: { type: String, required: true },
+      createdByName: { type: String },
+      createdAt: { type: Date, default: Date.now },
+      updatedAt: { type: Date, default: Date.now }
+    });
+    
+    return connection.model('Assignment', assignmentSchema);
+  }
 };
 
 // Create a new assignment

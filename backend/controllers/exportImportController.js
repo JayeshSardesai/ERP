@@ -907,19 +907,31 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
   console.log(`🔍 DEBUG: profileimage value:`, normalizedRow['profileimage']);
   
   if (normalizedRow['profileimage'] && normalizedRow['profileimage'].trim() !== '') {
-    console.log(`📸 Processing profile image for student ${userId}: ${normalizedRow['profileimage']}`);
-    try {
-      profileImagePath = await copyProfilePicture(normalizedRow['profileimage'], userId, schoolCode);
+    // Clean the image path - remove leading ? or other unwanted characters
+    let cleanImagePath = normalizedRow['profileimage'].trim();
+    if (cleanImagePath.startsWith('?')) {
+      cleanImagePath = cleanImagePath.substring(1);
+    }
+    
+    // Skip base64 data URLs for now (they need special handling)
+    if (cleanImagePath.startsWith('data:')) {
+      console.log(`⚠️ Skipping base64 data URL for student ${userId} (not supported yet)`);
+      profileImagePath = '';
+    } else {
+      console.log(`📸 Processing profile image for student ${userId}: ${cleanImagePath}`);
+      try {
+        profileImagePath = await copyProfilePicture(cleanImagePath, userId, schoolCode);
       console.log(`✅ Student profile image uploaded successfully: ${profileImagePath}`);
       
       // Verify the path is not empty
       if (!profileImagePath || profileImagePath.trim() === '') {
         console.error(`❌ copyProfilePicture returned empty path for student ${userId}`);
       }
-    } catch (imageError) {
-      console.error(`❌ Failed to upload student profile image: ${imageError.message}`);
-      console.error(`❌ Error stack:`, imageError.stack);
-      profileImagePath = ''; // Ensure empty string on failure
+      } catch (imageError) {
+        console.error(`❌ Failed to upload student profile image: ${imageError.message}`);
+        console.error(`❌ Error stack:`, imageError.stack);
+        profileImagePath = ''; // Ensure empty string on failure
+      }
     }
   } else {
     console.log(`ℹ️ No profile image provided for student ${userId} (value: "${normalizedRow['profileimage']}")`);
