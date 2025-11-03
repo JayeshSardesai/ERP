@@ -4,6 +4,7 @@ import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { resultsAPI } from '../../../../services/api';
 import { toast } from 'react-hot-toast';
+import api from '../../../../api/axios';
 
 const ViewResults: React.FC = () => {
   const { user, token } = useAuth();
@@ -119,39 +120,26 @@ const ViewResults: React.FC = () => {
 
         // Primary API
         try {
-          const resp = await fetch('/api/class-subjects/classes', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'x-school-code': schoolCode.toUpperCase()
-            }
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            const classData = data?.data?.classes?.find((c: any) => c.className === selectedClass && c.section === selectedSection);
-            const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
-            const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
-            setSubjects(subjectNames);
-            setSelectedSubject('');
-            return;
-          }
+          const response = await api.get('/class-subjects/classes');
+          const data = response.data;
+          const classData = data?.data?.classes?.find((c: any) => c.className === selectedClass && c.section === selectedSection);
+          const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
+          const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
+          setSubjects(subjectNames);
+          setSelectedSubject('');
+          return;
         } catch (_) {
           // fall through to fallback
         }
 
         // Fallback API
         try {
-          const resp2 = await fetch(`/api/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`, {
-            headers: {
-              'x-school-code': schoolCode.toUpperCase()
-            }
-          });
-          if (resp2.ok) {
-            const data2 = await resp2.json();
-            const subjectNames = (data2?.data?.subjects || []).map((s: any) => s.name).filter(Boolean);
-            setSubjects(subjectNames);
-            setSelectedSubject('');
-            return;
-          }
+          const response2 = await api.get(`/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`);
+          const data2 = response2.data;
+          const subjectNames = (data2?.data?.subjects || []).map((s: any) => s.name).filter(Boolean);
+          setSubjects(subjectNames);
+          setSelectedSubject('');
+          return;
         } catch (_) {
           // ignore
         }

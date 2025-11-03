@@ -3,6 +3,7 @@ import { X, Upload, Calendar, FileText, Users } from 'lucide-react';
 import * as assignmentAPI from '../../../api/assignment';
 import { useAuth } from '../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
+import api from '../../../api/axios';
 
 interface CreateAssignmentModalProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
   onClose,
   onSuccess
 }) => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const {
     classesData,
     getClassOptions,
@@ -64,71 +65,42 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
       console.log(`🔑 Auth token available: ${!!token}`);
       
       // Try the regular endpoint first
-      let response = await fetch(`/api/class-subjects/class/${encodeURIComponent(className)}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+      try {
+        const response = await api.get(`/class-subjects/class/${encodeURIComponent(className)}`);
+        console.log(`📡 Response status: ${response.status}`);
+        
+        const data = response.data;
+        if (data.success && data.data && data.data.subjects) {
+          const subjectNames = data.data.subjects
+            .filter((subject: any) => subject.isActive !== false)
+            .map((subject: any) => subject.name)
+            .filter(Boolean);
+          setAvailableSubjects(subjectNames);
+          return;
         }
-      });
-
-      console.log(`📡 Response status: ${response.status} ${response.statusText}`);
-      
-      // If the regular endpoint fails, try the direct endpoint
-      if (!response.ok) {
+      } catch (error) {
         console.log(`⚠️ Regular endpoint failed, trying direct endpoint...`);
         
-        // Get the user's school code from the auth context
-        let userSchoolCode = '';
+        // Try direct endpoint as fallback
         try {
-          const authData = localStorage.getItem('erp.auth');
-          if (authData) {
-            const parsedAuth = JSON.parse(authData);
-            userSchoolCode = parsedAuth.user?.schoolCode || '';
-            console.log(`🏫 Using school code from auth: "${userSchoolCode}"`);
+          const userSchoolCode = user?.schoolCode || '';
+          const response2 = await api.get(`/direct-test/class-subjects/${encodeURIComponent(className)}?schoolCode=${userSchoolCode}`);
+          const data2 = response2.data;
+          if (data2.success && data2.data && data2.data.subjects) {
+            const subjectNames = data2.data.subjects
+              .filter((subject: any) => subject.isActive !== false)
+              .map((subject: any) => subject.name)
+              .filter(Boolean);
+            setAvailableSubjects(subjectNames);
+            return;
           }
-        } catch (err) {
-          console.error('Error parsing auth data:', err);
+        } catch (fallbackError) {
+          console.error('❌ Both endpoints failed:', fallbackError);
         }
-        
-        // Try direct endpoint with the user's school code
-        response = await fetch(`/api/direct-test/class-subjects/${encodeURIComponent(className)}?schoolCode=${userSchoolCode}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-School-Code': userSchoolCode
-          }
-        });
-        
-        console.log(`📡 Direct endpoint response: ${response.status} ${response.statusText}`);
       }
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Class subjects response:', data);
-        
-        // Extract subjects from the response
-        const subjects = data.data?.subjects || [];
-        const subjectNames = subjects
-          .filter((subject: any) => subject.isActive)
-          .map((subject: any) => subject.name);
-        
-        console.log('📚 Available subjects:', subjectNames);
-        setAvailableSubjects(subjectNames);
-        
-        // If current subject is not available for selected class, reset it
-        if (formData.subject && !subjectNames.includes(formData.subject)) {
-          setFormData(prev => ({ ...prev, subject: '' }));
-        }
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Failed to fetch subjects:', response.status, response.statusText);
-        console.error('❌ Error details:', errorText);
-        setAvailableSubjects([]);
-      }
+      // Fallback to empty array if no subjects found
+      setAvailableSubjects([]);
     } catch (error) {
       console.error('❌ Error fetching subjects:', error);
       // Fallback to empty array if API fails

@@ -3,6 +3,7 @@ import { Search, Edit, Trash2, Calendar, X, Plus } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import * as assignmentAPI from '../../../../api/assignment';
+import api from '../../../../api/axios';
 
 interface Assignment {
   _id: string;
@@ -156,24 +157,14 @@ const ViewAssignments: React.FC = () => {
 
   const fetchSubjectsForClassSection = async () => {
     try {
-      const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      
-      const resp = await fetch('/api/class-subjects/classes', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('erp.token')}`,
-          'x-school-code': schoolCode.toUpperCase()
-        }
-      });
-      
-      if (resp.ok) {
-        const data = await resp.json();
-        const classData = data?.data?.classes?.find((c: any) => 
-          c.className === selectedClass && c.section === selectedSection
-        );
-        const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
-        const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
-        setAvailableSubjects(subjectNames);
-      }
+      const response = await api.get('/class-subjects/classes');
+      const data = response.data;
+      const classData = data?.data?.classes?.find((c: any) => 
+        c.className === selectedClass && c.section === selectedSection
+      );
+      const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
+      const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
+      setAvailableSubjects(subjectNames);
     } catch (err) {
       console.error('Error fetching subjects:', err);
       setAvailableSubjects([]);
@@ -466,24 +457,14 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, o
 
       setLoadingSubjects(true);
       try {
-        const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-        
-        const resp = await fetch('/api/class-subjects/classes', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('erp.token')}`,
-            'x-school-code': schoolCode.toUpperCase()
-          }
-        });
-        
-        if (resp.ok) {
-          const data = await resp.json();
-          const classData = data?.data?.classes?.find((c: any) => 
-            c.className === formData.class && c.section === formData.section
-          );
-          const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
-          const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
-          setAvailableSubjects(subjectNames);
-        }
+        const response = await api.get('/class-subjects/classes');
+        const data = response.data;
+        const classData = data?.data?.classes?.find((c: any) => 
+          c.className === formData.class && c.section === formData.section
+        );
+        const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
+        const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
+        setAvailableSubjects(subjectNames);
       } catch (err) {
         console.error('Error fetching subjects:', err);
         setAvailableSubjects([]);
