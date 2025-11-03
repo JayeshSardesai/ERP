@@ -551,6 +551,8 @@ exports.generateTemplate = async (req, res) => {
 // REPLACE THE ENTIRE 'copyProfilePicture' FUNCTION WITH THIS
 // REPLACE the old function with this
 async function copyProfilePicture(sourcePath, userId, schoolCode) {
+  console.log(`🔍 copyProfilePicture called with: sourcePath="${sourcePath}", userId="${userId}", schoolCode="${schoolCode}"`);
+  
   if (!sourcePath || String(sourcePath).trim() === '') {
     console.warn(`Empty profile image path provided. Skipping.`);
     return '';
@@ -565,18 +567,20 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
       console.log(`📸 Downloading image from URL: ${sourcePath}`);
       const response = await axios.get(sourcePath, { responseType: 'arraybuffer' });
       imageBuffer = Buffer.from(response.data);
+      console.log(`✅ Downloaded ${imageBuffer.length} bytes from URL`);
     } else {
       // Handle local file path
       console.log(`📁 Reading image from local path: ${sourcePath}`);
       
       // Check if file exists
       if (!fs.existsSync(sourcePath)) {
-        console.warn(`Local image file not found: ${sourcePath}. Skipping.`);
+        console.warn(`❌ Local image file not found: ${sourcePath}. Skipping.`);
         return '';
       }
       
       // Read the local file
       imageBuffer = fs.readFileSync(sourcePath);
+      console.log(`✅ Read ${imageBuffer.length} bytes from local file`);
     }
 
     console.log('🔄 Compressing image with Sharp...');
@@ -601,10 +605,13 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
     );
 
     console.log(`✅ Profile image uploaded successfully: ${uploadResult.secure_url}`);
+    console.log(`🔍 DEBUG: Upload result object:`, JSON.stringify(uploadResult, null, 2));
     return uploadResult.secure_url;
 
   } catch (error) {
-    console.error(`Error processing profile picture from ${sourcePath}:`, error.message);
+    console.error(`❌ Error processing profile picture from ${sourcePath}:`, error.message);
+    console.error(`❌ Error stack:`, error.stack);
+    console.error(`❌ Error details:`, error);
     return ''; // Return empty string on failure
   }
 }
@@ -895,10 +902,33 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
 
   // Handle profile image if provided
   let profileImagePath = '';
-  if (normalizedRow['profileimage']) {
-    profileImagePath = await copyProfilePicture(normalizedRow['profileimage'], userId, schoolCode);
-    console.log(`🔍 DEBUG: Profile image path returned: ${profileImagePath}`);
+  console.log(`🔍 DEBUG: Checking profile image for student ${userId}`);
+  console.log(`🔍 DEBUG: normalizedRow keys:`, Object.keys(normalizedRow));
+  console.log(`🔍 DEBUG: profileimage value:`, normalizedRow['profileimage']);
+  
+  if (normalizedRow['profileimage'] && normalizedRow['profileimage'].trim() !== '') {
+    console.log(`📸 Processing profile image for student ${userId}: ${normalizedRow['profileimage']}`);
+    try {
+      profileImagePath = await copyProfilePicture(normalizedRow['profileimage'], userId, schoolCode);
+      console.log(`✅ Student profile image uploaded successfully: ${profileImagePath}`);
+      
+      // Verify the path is not empty
+      if (!profileImagePath || profileImagePath.trim() === '') {
+        console.error(`❌ copyProfilePicture returned empty path for student ${userId}`);
+      }
+    } catch (imageError) {
+      console.error(`❌ Failed to upload student profile image: ${imageError.message}`);
+      console.error(`❌ Error stack:`, imageError.stack);
+      profileImagePath = ''; // Ensure empty string on failure
+    }
+  } else {
+    console.log(`ℹ️ No profile image provided for student ${userId} (value: "${normalizedRow['profileimage']}")`);
   }
+
+  // Debug final profileImagePath before creating student object
+  console.log(`🔍 DEBUG: Final profileImagePath for student ${userId}: "${profileImagePath}"`);
+  console.log(`🔍 DEBUG: profileImagePath type:`, typeof profileImagePath);
+  console.log(`🔍 DEBUG: profileImagePath length:`, profileImagePath ? profileImagePath.length : 'null/undefined');
 
   const newStudent = {
     _id: new ObjectId(), userId, schoolCode: schoolCode.toUpperCase(), schoolId: schoolIdAsObjectId,
@@ -910,7 +940,7 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
       current: undefined, sameAsPermanent: true // Assuming sameAsPermanent=true for student import simplicity
     },
     identity: { aadharNumber: normalizedRow['aadharnumber'] || '', panNumber: normalizedRow['pannumber'] || '' },
-    profileImage: profileImagePath,
+    profileImage: profileImagePath || null, // Ensure null instead of empty string
     isActive: isActive, createdAt: new Date(), updatedAt: new Date(),
     schoolAccess: { joinedDate: finalAdmissionDate, assignedBy: creatingUserIdAsObjectId, status: 'active', accessLevel: 'full' },
     auditTrail: { createdBy: creatingUserIdAsObjectId, createdAt: new Date() },

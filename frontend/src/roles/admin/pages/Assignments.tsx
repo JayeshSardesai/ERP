@@ -367,11 +367,9 @@ const Assignments: React.FC = () => {
       title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       subject.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Status filter - match exact status or show all
-    const matchesFilter = selectedFilter === 'all' || 
-      status === selectedFilter.toLowerCase() ||
-      (selectedFilter === 'active' && (status === 'active' || status === '')) ||
-      (selectedFilter === 'overdue' && status === 'overdue');
+    // Status filter - simplified to show all assignments unless specific status selected
+    const matchesFilter = selectedFilter === 'all' || !selectedFilter || 
+      status === selectedFilter.toLowerCase();
     
     // Class filter - exact match or show all
     const matchesClass = !selectedClass || selectedClass === '' || 
