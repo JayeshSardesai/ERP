@@ -32,7 +32,6 @@ const Assignments: React.FC = () => {
   } = useSchoolClasses();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('all');
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
@@ -84,7 +83,7 @@ const Assignments: React.FC = () => {
     // This effect doesn't need to do anything, it just triggers re-render when filters change
     // The filteredAssignments computed property will handle the actual filtering
     console.log('🔍 Filters changed, triggering local filter update');
-  }, [selectedClass, selectedSection, selectedSubject, selectedFilter, searchTerm]);
+  }, [selectedClass, selectedSection, selectedSubject, searchTerm]);
 
   const fetchAssignments = async () => {
     try {
@@ -357,7 +356,6 @@ const Assignments: React.FC = () => {
         selectedClass,
         selectedSection,
         selectedSubject,
-        selectedFilter,
         searchTerm
       });
     }
@@ -367,9 +365,7 @@ const Assignments: React.FC = () => {
       title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       subject.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Status filter - simplified to show all assignments unless specific status selected
-    const matchesFilter = selectedFilter === 'all' || !selectedFilter || 
-      status === selectedFilter.toLowerCase();
+    // No status filter - show all assignments (like teacher portal)
     
     // Class filter - exact match or show all
     const matchesClass = !selectedClass || selectedClass === '' || 
@@ -386,13 +382,12 @@ const Assignments: React.FC = () => {
       subject === selectedSubject ||
       subject.toLowerCase() === selectedSubject.toLowerCase();
     
-    const result = matchesSearch && matchesFilter && matchesClass && matchesSection && matchesSubject;
+    const result = matchesSearch && matchesClass && matchesSection && matchesSubject;
     
     // Debug logging for first few assignments
     if (assignments.indexOf(assignment) < 3) {
       console.log(`🔍 Filter results:`, {
         matchesSearch,
-        matchesFilter,
         matchesClass,
         matchesSection,
         matchesSubject,
@@ -410,7 +405,6 @@ const Assignments: React.FC = () => {
       selectedClass,
       selectedSection,
       selectedSubject,
-      selectedFilter,
       searchTerm
     });
   }
@@ -530,17 +524,6 @@ const Assignments: React.FC = () => {
                 <option key={subject} value={subject}>{subject}</option>
               ))}
             </select>
-            <select
-              value={selectedFilter}
-              onChange={(e) => setSelectedFilter(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-              <option value="draft">Draft</option>
-              <option value="overdue">Overdue</option>
-            </select>
           </div>
         </div>
       </div>
@@ -567,7 +550,7 @@ const Assignments: React.FC = () => {
                       <FileText className="h-12 w-12 text-gray-400 mb-3" />
                       <p className="text-gray-500 text-lg font-medium">No assignments found</p>
                       <p className="text-gray-400 text-sm mt-1">
-                        {searchTerm || selectedClass || selectedSection || selectedSubject || selectedFilter !== 'all'
+                        {searchTerm || selectedClass || selectedSection || selectedSubject
                           ? 'Try adjusting your filters'
                           : 'Create your first assignment to get started'}
                       </p>

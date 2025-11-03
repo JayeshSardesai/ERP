@@ -574,8 +574,8 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
       
       // Check if file exists
       if (!fs.existsSync(sourcePath)) {
-        console.warn(`❌ Local image file not found: ${sourcePath}. Skipping.`);
-        return '';
+        console.error(`❌ Local image file not found: ${sourcePath}. Skipping.`);
+        throw new Error(`Local image file not found: ${sourcePath}`);
       }
       
       // Read the local file
