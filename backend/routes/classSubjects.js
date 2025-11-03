@@ -101,11 +101,21 @@ router.put(
 /**
  * Bulk Add Subjects to Class
  * POST /api/class-subjects/bulk-add
- * Body: { className, grade, section?, subjects: [{ name, type? }] }
+ * Body: { className, grade, section?, subjects: [{ name }] }
  */
 router.post(
   '/bulk-add',
   classSubjectsController.bulkAddSubjectsToClass
+);
+
+/**
+ * Initialize Basic Subjects for a Class
+ * POST /api/class-subjects/initialize
+ * Body: { className, grade, section? }
+ */
+router.post(
+  '/initialize',
+  classSubjectsController.initializeBasicSubjects
 );
 
 module.exports = router;

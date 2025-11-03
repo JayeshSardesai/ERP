@@ -356,6 +356,42 @@ const AcademicDetails: React.FC = () => {
     }
   };
 
+  // Initialize basic subjects for selected class
+  const initializeBasicSubjects = async () => {
+    if (!selectedClass || !selectedSection) {
+      toast.error('Please select a class and section first');
+      return;
+    }
+
+    if (!confirm(`Initialize Class ${selectedClass} Section ${selectedSection} with basic subjects?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
+      
+      const response = await api.post('/class-subjects/initialize', {
+        className: selectedClass,
+        grade: selectedClass,
+        section: selectedSection
+      }, {
+        headers: {
+          'x-school-code': schoolCode.toUpperCase()
+        }
+      });
+
+      const data = response.data;
+      toast.success(data.message);
+      fetchAllClassSubjects(); // Refresh the list
+    } catch (error) {
+      console.error('Error initializing basic subjects:', error);
+      toast.error('Error initializing basic subjects');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Get subjects for a specific class and section
   const getClassSectionSubjects = (className: string, section: string): Subject[] => {
     const classData = classSubjects.find(cs => cs.className === className && cs.section === section);
@@ -482,45 +518,45 @@ const AcademicDetails: React.FC = () => {
           c.className === hallTicketClass && c.section === hallTicketSection
         );
 
-          if (classData && classData.subjects) {
-            // Filter only active subjects
-            const activeSubjects = classData.subjects.filter((subject: any) => subject.isActive !== false);
-            console.log('🔍 Total subjects:', classData.subjects.length, 'Active subjects:', activeSubjects.length);
+        if (classData && classData.subjects) {
+          // Filter only active subjects
+          const activeSubjects = classData.subjects.filter((subject: any) => subject.isActive !== false);
+          console.log('🔍 Total subjects:', classData.subjects.length, 'Active subjects:', activeSubjects.length);
 
-            const subjectExamsList: SubjectExam[] = activeSubjects.map((subject: any) => ({
-              id: `${hallTicketClass}-${hallTicketSection}-${subject.name}-${selectedTest}`,
-              name: subject.name,
-              className: hallTicketClass,
-              section: hallTicketSection,
-              testName: availableTests.find(test => test.id === selectedTest)?.name || 'Test'
-            }));
+          const subjectExamsList: SubjectExam[] = activeSubjects.map((subject: any) => ({
+            id: `${hallTicketClass}-${hallTicketSection}-${subject.name}-${selectedTest}`,
+            name: subject.name,
+            className: hallTicketClass,
+            section: hallTicketSection,
+            testName: availableTests.find(test => test.id === selectedTest)?.name || 'Test'
+          }));
 
-            setSubjectExams(subjectExamsList);
+          setSubjectExams(subjectExamsList);
 
-            // Initialize hall ticket data for each subject
-            const initialData: { [key: string]: HallTicketData } = {};
-            subjectExamsList.forEach(subject => {
-              initialData[subject.id] = {
-                subjectId: subject.id,
-                examDate: '',
-                examTime: '',
-                examHour: '00',
-                examMinute: '00',
-                examAmPm: 'AM',
-                roomNumber: ''
-              };
-            });
-            setHallTicketData(initialData);
+          // Initialize hall ticket data for each subject
+          const initialData: { [key: string]: HallTicketData } = {};
+          subjectExamsList.forEach(subject => {
+            initialData[subject.id] = {
+              subjectId: subject.id,
+              examDate: '',
+              examTime: '',
+              examHour: '00',
+              examMinute: '00',
+              examAmPm: 'AM',
+              roomNumber: ''
+            };
+          });
+          setHallTicketData(initialData);
 
-            // Also fetch students for this class and section
-            await fetchStudentsForClass();
+          // Also fetch students for this class and section
+          await fetchStudentsForClass();
 
-            toast.success(`Found ${subjectExamsList.length} subjects`);
-            return; // Success, exit the function
-          } else {
-            console.log('❌ No subjects found for class-section combination in primary API');
-            // Don't throw error, let it fall through to fallback
-          }
+          toast.success(`Found ${subjectExamsList.length} subjects`);
+          return; // Success, exit the function
+        } else {
+          console.log('❌ No subjects found for class-section combination in primary API');
+          // Don't throw error, let it fall through to fallback
+        }
       } catch (apiError) {
         console.log('🔄 Primary API failed, using fallback method...', apiError);
       }
@@ -538,39 +574,39 @@ const AcademicDetails: React.FC = () => {
         console.log('📥 Fallback API response:', data);
 
         if (data.data && data.data.subjects && data.data.subjects.length > 0) {
-            const subjectExamsList: SubjectExam[] = data.data.subjects.map((subject: any) => ({
-              id: `${hallTicketClass}-${hallTicketSection}-${subject.name}-${selectedTest}`,
-              name: subject.name,
-              className: hallTicketClass,
-              section: hallTicketSection,
-              testName: availableTests.find(test => test.id === selectedTest)?.name || 'Test'
-            }));
+          const subjectExamsList: SubjectExam[] = data.data.subjects.map((subject: any) => ({
+            id: `${hallTicketClass}-${hallTicketSection}-${subject.name}-${selectedTest}`,
+            name: subject.name,
+            className: hallTicketClass,
+            section: hallTicketSection,
+            testName: availableTests.find(test => test.id === selectedTest)?.name || 'Test'
+          }));
 
-            setSubjectExams(subjectExamsList);
+          setSubjectExams(subjectExamsList);
 
-            // Initialize hall ticket data for each subject
-            const initialData: { [key: string]: HallTicketData } = {};
-            subjectExamsList.forEach(subject => {
-              initialData[subject.id] = {
-                subjectId: subject.id,
-                examDate: '',
-                examTime: '',
-                examHour: '00',
-                examMinute: '00',
-                examAmPm: 'AM',
-                roomNumber: ''
-              };
-            });
-            setHallTicketData(initialData);
+          // Initialize hall ticket data for each subject
+          const initialData: { [key: string]: HallTicketData } = {};
+          subjectExamsList.forEach(subject => {
+            initialData[subject.id] = {
+              subjectId: subject.id,
+              examDate: '',
+              examTime: '',
+              examHour: '00',
+              examMinute: '00',
+              examAmPm: 'AM',
+              roomNumber: ''
+            };
+          });
+          setHallTicketData(initialData);
 
-            // Also fetch students for this class and section
-            await fetchStudentsForClass();
+          // Also fetch students for this class and section
+          await fetchStudentsForClass();
 
-            toast.success(`Found ${subjectExamsList.length} subjects via fallback`);
-            return; // Success
-          } else {
-            console.log('❌ Fallback API returned no subjects');
-          }
+          toast.success(`Found ${subjectExamsList.length} subjects via fallback`);
+          return; // Success
+        } else {
+          console.log('❌ Fallback API returned no subjects');
+        }
       } catch (fallbackError) {
         console.error('❌ Fallback API also failed:', fallbackError);
       }
@@ -1454,7 +1490,16 @@ const AcademicDetails: React.FC = () => {
 
             {/* Add Subject Section */}
             <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Add New Subject</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">Add New Subject</h2>
+                <button
+                  onClick={initializeBasicSubjects}
+                  disabled={loading || !selectedClass || !selectedSection}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                >
+                  Initialize Basic Subjects
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Class Selection */}
                 <div>

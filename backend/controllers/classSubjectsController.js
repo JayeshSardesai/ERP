@@ -275,7 +275,7 @@ const removeSubjectFromClass = async (req, res) => {
 
 /**
  * Get All Classes with Subjects
- * GET /api/subjects/classes
+ * GET /api/class-subjects/classes
  */
 const getAllClassesWithSubjects = async (req, res) => {
   try {
@@ -417,6 +417,7 @@ const getSubjectsForClass = async (req, res) => {
 
           if (!classSubjects) {
             // Return empty subjects array instead of 404 to allow frontend to work
+            console.log(`[GET CLASS SUBJECTS] Class "${className}" not found, returning empty subjects`);
             return res.status(200).json({
               success: true,
               message: `Class "${className}" exists but has no subjects configured yet`,
@@ -430,6 +431,8 @@ const getSubjectsForClass = async (req, res) => {
               }
             });
           }
+
+          console.log(`[GET CLASS SUBJECTS] Found class "${className}" with ${classSubjects.totalSubjects} subjects`);
 
           res.status(200).json({
             success: true,
@@ -711,6 +714,154 @@ const bulkAddSubjectsToClass = async (req, res) => {
   }
 };
 
+/**
+ * Initialize basic subjects for a class if none exist
+ * POST /api/class-subjects/initialize
+ */
+const initializeBasicSubjects = async (req, res) => {
+  try {
+    console.log('[INITIALIZE BASIC] Request received:', {
+      body: req.body,
+      user: { userId: req.user?.userId, role: req.user?.role, schoolCode: req.user?.schoolCode }
+    });
+    
+    if (!req.user || !req.user.schoolCode || !req.user.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication error: missing user data'
+      });
+    }
+    
+    const { className, grade, section = 'A' } = req.body;
+    const schoolCode = req.user.schoolCode;
+    const userId = req.user.userId;
+
+    if (!className || !grade) {
+      return res.status(400).json({
+        success: false,
+        message: 'Class name and grade are required'
+      });
+    }
+
+    try {
+      // Get schoolId
+      const School = require('../models/School');
+      const school = await School.findOne({ code: schoolCode.toUpperCase() });
+      
+      if (!school) {
+        return res.status(400).json({
+          success: false,
+          message: `School not found with code: ${schoolCode}`
+        });
+      }
+      
+      const schoolId = school._id;
+      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+      const SchoolClassSubjects = ClassSubjectsSimple.getModelForConnection(schoolConn);
+
+      // Check if class already has subjects
+      const existingClass = await SchoolClassSubjects.findOne({
+        schoolCode,
+        className,
+        section,
+        academicYear: '2024-25',
+        isActive: true
+      });
+
+      if (existingClass && existingClass.subjects && existingClass.subjects.length > 0) {
+        return res.status(200).json({
+          success: true,
+          message: `Class "${className}" already has ${existingClass.subjects.length} subjects`,
+          data: {
+            classId: existingClass._id,
+            className: existingClass.className,
+            totalSubjects: existingClass.totalSubjects,
+            subjects: existingClass.getActiveSubjects()
+          }
+        });
+      }
+
+      // Basic subjects based on grade
+      const gradeNum = parseInt(grade);
+      let basicSubjects = [];
+      
+      if (gradeNum >= 1 && gradeNum <= 5) {
+        basicSubjects = ['English', 'Mathematics', 'Hindi', 'Science', 'Social Studies'];
+      } else if (gradeNum >= 6 && gradeNum <= 10) {
+        basicSubjects = ['English', 'Mathematics', 'Hindi', 'Science', 'Social Studies', 'Computer Science'];
+      } else {
+        basicSubjects = ['English', 'Mathematics', 'Physics', 'Chemistry', 'Biology'];
+      }
+
+      // Create or update class with basic subjects
+      const classSubjects = await SchoolClassSubjects.findOneAndUpdate(
+        {
+          schoolCode,
+          className,
+          section,
+          academicYear: '2024-25'
+        },
+        {
+          $setOnInsert: {
+            schoolCode,
+            className,
+            grade,
+            section,
+            schoolId,
+            academicYear: '2024-25',
+            isActive: true,
+            createdBy: userId,
+            createdAt: new Date()
+          },
+          $set: {
+            subjects: basicSubjects.map(name => ({
+              name,
+              code: name.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
+              isActive: true,
+              addedDate: new Date()
+            })),
+            totalSubjects: basicSubjects.length,
+            lastModifiedBy: userId,
+            updatedAt: new Date()
+          }
+        },
+        {
+          upsert: true,
+          new: true
+        }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Initialized Class "${className}" with ${basicSubjects.length} basic subjects`,
+        data: {
+          classId: classSubjects._id,
+          className: classSubjects.className,
+          grade: classSubjects.grade,
+          section: classSubjects.section,
+          totalSubjects: classSubjects.totalSubjects,
+          subjects: classSubjects.getActiveSubjects()
+        }
+      });
+
+    } catch (error) {
+      console.error(`[INITIALIZE BASIC] Error:`, error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error initializing basic subjects',
+        error: error.message
+      });
+    }
+  } catch (error) {
+    console.error('[INITIALIZE BASIC] Unhandled error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   addSubjectToClass,
   removeSubjectFromClass,
@@ -718,5 +869,6 @@ module.exports = {
   getSubjectsForClass,
   getSubjectsByGradeSection,
   updateSubjectInClass,
-  bulkAddSubjectsToClass
+  bulkAddSubjectsToClass,
+  initializeBasicSubjects
 };
