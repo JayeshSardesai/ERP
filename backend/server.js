@@ -259,6 +259,23 @@ app.get('/api/export-import/:schoolCode/export',
 // --- End Export/Import Routes ---
 
 
+// Root path handler - return API info instead of 404
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'ERP Backend API',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      users: '/api/users',
+      schools: '/api/schools'
+    }
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
@@ -392,23 +409,36 @@ function startTempFolderCleanup() {
   }, 1000); // 60 seconds
 }
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('❌ Unhandled error:', err);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
+// 404 handler - MUST come before error handler
+app.use('*', (req, res, next) => {
   console.log('❌ 404 - Route not found:', req.originalUrl);
+  // Always return JSON, never HTML
   res.status(404).json({
     success: false,
     message: 'Route not found',
-    path: req.originalUrl
+    path: req.originalUrl,
+    availableEndpoints: '/api/health, /api/auth, /api/users, /api/schools'
+  });
+});
+
+// Global error handler - MUST come after 404 handler
+app.use((err, req, res, next) => {
+  console.error('❌ Unhandled error:', err);
+  
+  // CORS error handling
+  if (err.message && err.message.includes('CORS')) {
+    return res.status(403).json({
+      success: false,
+      message: 'CORS policy error',
+      error: 'Origin not allowed'
+    });
+  }
+  
+  // Always return JSON, never HTML
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.stack : 'Something went wrong'
   });
 });
 

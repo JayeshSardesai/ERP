@@ -419,8 +419,17 @@ exports.getMessageDetails = async (req, res) => {
     const db = connection.db;
     const messagesCollection = db.collection('messages');
     
-    // Convert string ID to ObjectId if needed
+    // Convert string ID to ObjectId with validation
     const { ObjectId } = require('mongodb');
+    
+    // Validate ObjectId format before conversion
+    if (!ObjectId.isValid(messageId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid message ID format'
+      });
+    }
+    
     const message = await messagesCollection.findOne({ _id: new ObjectId(messageId) });
     
     if (!message) {
@@ -634,8 +643,16 @@ exports.deleteMessage = async (req, res) => {
     const db = connection.db;
     const messagesCollection = db.collection('messages');
     
-    // Convert string ID to ObjectId
+    // Convert string ID to ObjectId with validation
     const { ObjectId } = require('mongodb');
+    
+    // Validate ObjectId format before conversion
+    if (!ObjectId.isValid(messageId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid message ID format'
+      });
+    }
     
     // Find the message first to verify ownership
     const message = await messagesCollection.findOne({ 

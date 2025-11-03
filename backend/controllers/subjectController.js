@@ -90,8 +90,12 @@ const createSubject = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error creating subject:', error);
-    res.status(500).json({ message: 'Error creating subject', error: error.message });
+    console.error('❌ Error creating subject:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error creating subject', 
+      error: error.message 
+    });
   }
 };
 
@@ -247,8 +251,12 @@ const assignTeacherToSubject = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error assigning teacher to subject:', error);
-    res.status(500).json({ message: 'Error assigning teacher to subject', error: error.message });
+    console.error('❌ Error assigning teacher to subject:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error assigning teacher to subject', 
+      error: error.message 
+    });
   }
 };
 
@@ -294,8 +302,12 @@ const removeTeacherFromSubject = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error removing teacher from subject:', error);
-    res.status(500).json({ message: 'Error removing teacher from subject', error: error.message });
+    console.error('❌ Error removing teacher from subject:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error removing teacher from subject', 
+      error: error.message 
+    });
   }
 };
 
@@ -380,8 +392,12 @@ const getSubjectsByGrade = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching subjects by grade:', error);
-    res.status(500).json({ message: 'Error fetching subjects by grade', error: error.message });
+    console.error('❌ Error fetching subjects by grade:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error fetching subjects by grade', 
+      error: error.message 
+    });
   }
 };
 
@@ -479,8 +495,12 @@ const getSubjectsByTeacher = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching subjects by teacher:', error);
-    res.status(500).json({ message: 'Error fetching subjects by teacher', error: error.message });
+    console.error('❌ Error fetching subjects by teacher:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error fetching subjects by teacher', 
+      error: error.message 
+    });
   }
 };
 
@@ -535,8 +555,12 @@ const getTeacherWorkloadSummary = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching teacher workload summary:', error);
-    res.status(500).json({ message: 'Error fetching teacher workload summary', error: error.message });
+    console.error('❌ Error fetching teacher workload summary:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error fetching teacher workload summary', 
+      error: error.message 
+    });
   }
 };
 
@@ -580,8 +604,12 @@ const updateTeacherSubjectAssignment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error updating teacher subject assignment:', error);
-    res.status(500).json({ message: 'Error updating teacher assignment', error: error.message });
+    console.error('❌ Error updating teacher subject assignment:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error updating teacher assignment', 
+      error: error.message 
+    });
   }
 };
 

@@ -1714,15 +1714,23 @@ exports.getUsersByRole = async (req, res) => {
     });
 
     res.json({
-      users,
+      success: true,
+      data: users, // Also include as 'data' for frontend compatibility
+      users, // Keep for backward compatibility
       totalPages: Math.ceil(total / limitNum),
       currentPage: pageNum,
       total
     });
 
   } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ message: 'Error fetching users', error: error.message });
+    console.error('❌ Error fetching users:', error);
+    // Always return JSON, never HTML
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error fetching users', 
+      error: error.message,
+      data: [] // Return empty array on error for frontend compatibility
+    });
   }
 };
 
