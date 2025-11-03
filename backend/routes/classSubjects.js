@@ -7,14 +7,11 @@ const { setSchoolContext } = require('../middleware/schoolContext');
 // Apply authentication middleware to all routes
 router.use(authMiddleware.auth);
 
-// Debug middleware
+// Minimal logging for class-subjects routes
 router.use((req, res, next) => {
-  console.log('[CLASS-SUBJECTS DEBUG] Request URL:', req.originalUrl);
-  console.log('[CLASS-SUBJECTS DEBUG] User:', {
-    userId: req.user?.userId,
-    role: req.user?.role,
-    schoolCode: req.user?.schoolCode
-  });
+  if (!req.originalUrl.includes('/classes')) {
+    console.log('[CLASS-SUBJECTS]', req.method, req.originalUrl);
+  }
   next();
 });
 
@@ -60,13 +57,6 @@ router.get(
  */
 router.get(
   '/class/:className',
-  (req, res, next) => {
-    console.log(`[ROUTE DEBUG] GET /class/${req.params.className} - Route hit`);
-    console.log(`[ROUTE DEBUG] Params:`, req.params);
-    console.log(`[ROUTE DEBUG] Query:`, req.query);
-    console.log(`[ROUTE DEBUG] User:`, { userId: req.user?.userId, schoolCode: req.user?.schoolCode });
-    next();
-  },
   classSubjectsController.getSubjectsForClass
 );
 

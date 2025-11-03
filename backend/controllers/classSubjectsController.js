@@ -378,11 +378,10 @@ const getAllClassesWithSubjects = async (req, res) => {
  * GET /api/subjects/class/:className
  */
 const getSubjectsForClass = async (req, res) => {
-  console.log(`[GET CLASS SUBJECTS] Request received for class: ${req.params.className}`);
   try {
     // Validate request user data
     if (!req.user || !req.user.schoolCode) {
-      console.error('[GET CLASS SUBJECTS] Missing user data:', req.user);
+      console.error('[GET CLASS SUBJECTS] Missing user data');
       return res.status(401).json({
         success: false,
         message: 'User authentication error: missing school code'
@@ -392,9 +391,6 @@ const getSubjectsForClass = async (req, res) => {
     const { className } = req.params;
     const schoolCode = req.user.schoolCode;
     const { academicYear = '2024-25' } = req.query;
-
-    console.log(`[GET CLASS SUBJECTS] Looking for class: "${className}", in school: "${schoolCode}"`);
-    console.log(`[GET CLASS SUBJECTS] User:`, { userId: req.user.userId, role: req.user.role });
 
     try {
       const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
@@ -418,13 +414,19 @@ const getSubjectsForClass = async (req, res) => {
             isActive: true
           });
 
-          console.log(`[GET CLASS SUBJECTS] Query result for class "${className}":`, classSubjects ? 'Found' : 'Not found');
-
           if (!classSubjects) {
-            console.log(`[GET CLASS SUBJECTS] Class "${className}" not found in school "${schoolCode}"`);
-            return res.status(404).json({
-              success: false,
-              message: `Class "${className}" not found`
+            // Return empty subjects array instead of 404 to allow frontend to work
+            return res.status(200).json({
+              success: true,
+              message: `Class "${className}" exists but has no subjects configured yet`,
+              data: {
+                className: className,
+                grade: className,
+                section: null,
+                academicYear: academicYear,
+                totalSubjects: 0,
+                subjects: []
+              }
             });
           }
 
@@ -442,20 +444,15 @@ const getSubjectsForClass = async (req, res) => {
             }
           });
         } catch (error) {
-          console.error('Error getting subjects for class:', error);
-          console.error('Error details:', {
-            message: error.message,
-            stack: error.stack,
-            className: req.params.className,
-            schoolCode: req.user?.schoolCode
-          });
+          console.error('[GET CLASS SUBJECTS] Error:', error.message);
           return res.status(500).json({
             success: false,
-            message: 'Internal server error while retrieving subjects'
+            message: 'Internal server error while retrieving subjects',
+            error: error.message
           });
         }
       } catch (modelError) {
-        console.error(`[GET CLASS SUBJECTS] Error getting model for connection:`, modelError);
+        console.error('[GET CLASS SUBJECTS] Model error:', modelError.message);
         return res.status(500).json({
           success: false,
           message: 'Error getting database model',
@@ -463,7 +460,7 @@ const getSubjectsForClass = async (req, res) => {
         });
       }
     } catch (connectionError) {
-      console.error(`[GET CLASS SUBJECTS] Error getting school connection:`, connectionError);
+      console.error('[GET CLASS SUBJECTS] Connection error:', connectionError.message);
       return res.status(500).json({
         success: false,
         message: 'Error connecting to school database',

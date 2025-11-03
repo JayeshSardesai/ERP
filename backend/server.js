@@ -134,6 +134,47 @@ app.get('/api/test-endpoint', (req, res) => {
   });
 });
 
+// Populate subjects endpoint (admin only)
+app.post('/api/admin/populate-subjects', auth, async (req, res) => {
+  try {
+    // Check if user is admin or superadmin
+    if (!['admin', 'superadmin'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can populate subjects'
+      });
+    }
+
+    const schoolCode = req.user.schoolCode || req.body.schoolCode;
+    if (!schoolCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'School code is required'
+      });
+    }
+
+    // Import the populate function
+    const { populateSubjectsForSchool } = require('./scripts/populateClassSubjects');
+    
+    // Populate subjects
+    const result = await populateSubjectsForSchool(schoolCode, req.body.academicYear || '2024-25');
+    
+    res.json({
+      success: true,
+      message: `Successfully populated subjects for school ${schoolCode}`,
+      data: result
+    });
+    
+  } catch (error) {
+    console.error('Error populating subjects:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error populating subjects',
+      error: error.message
+    });
+  }
+});
+
 // Direct test endpoint for class subjects
 app.get('/api/direct-test/class-subjects/:className', async (req, res) => {
   try {
