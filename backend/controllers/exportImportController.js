@@ -571,8 +571,44 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
     // Check if it's a URL or local file path
     if (cleanSourcePath.startsWith('http://') || cleanSourcePath.startsWith('https://')) {
       // Handle URL - download the image
-      console.log(`📸 Downloading image from URL: ${cleanSourcePath}`);
-      const response = await axios.get(cleanSourcePath, { responseType: 'arraybuffer' });
+      let downloadUrl = cleanSourcePath;
+      
+      // Convert Google Drive sharing links to direct download links
+      if (cleanSourcePath.includes('drive.google.com')) {
+        console.log(`🔄 Converting Google Drive sharing link to direct download URL`);
+        
+        // Extract file ID from different Google Drive URL formats
+        let fileId = null;
+        
+        // Format 1: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+        const match1 = cleanSourcePath.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (match1) {
+          fileId = match1[1];
+        }
+        
+        // Format 2: https://drive.google.com/open?id=FILE_ID
+        const match2 = cleanSourcePath.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (match2) {
+          fileId = match2[1];
+        }
+        
+        if (fileId) {
+          downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+          console.log(`✅ Converted to direct download URL: ${downloadUrl}`);
+        } else {
+          console.warn(`⚠️ Could not extract file ID from Google Drive URL: ${cleanSourcePath}`);
+          console.warn(`💡 Tip: Make sure the Google Drive file is publicly accessible`);
+        }
+      }
+      
+      console.log(`📸 Downloading image from URL: ${downloadUrl}`);
+      const response = await axios.get(downloadUrl, { 
+        responseType: 'arraybuffer',
+        timeout: 30000, // 30 second timeout
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
       imageBuffer = Buffer.from(response.data);
       console.log(`✅ Downloaded ${imageBuffer.length} bytes from URL`);
     } else {

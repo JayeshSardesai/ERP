@@ -142,21 +142,31 @@ const Assignments: React.FC = () => {
       
       console.log(`📊 Total assignments before filtering: ${assignmentsArray.length}`);
       
-      // Validate each assignment has required fields exactly like teacher portal
+      // Validate each assignment has required fields - more lenient validation
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') {
           console.log('❌ Invalid assignment (not an object):', assignment);
           return false;
         }
-        const hasTitle = assignment.title && assignment.title.trim() !== '';
-        const hasClass = assignment.class && assignment.class.trim() !== '';
-        const hasSubject = assignment.subject && assignment.subject.trim() !== '';
         
-        if (!hasTitle || !hasClass || !hasSubject) {
-          console.log('❌ Invalid assignment (missing fields):', {
+        // Check for assignment ID (required for operations)
+        const hasId = assignment._id || assignment.id;
+        if (!hasId) {
+          console.log('❌ Invalid assignment (missing ID):', assignment);
+          return false;
+        }
+        
+        // More lenient field checking - at least one identifying field should exist
+        const hasTitle = assignment.title && String(assignment.title).trim() !== '';
+        const hasDescription = assignment.description && String(assignment.description).trim() !== '';
+        const hasSubject = assignment.subject && String(assignment.subject).trim() !== '';
+        
+        if (!hasTitle && !hasDescription && !hasSubject) {
+          console.log('❌ Invalid assignment (no identifying content):', {
             title: assignment.title,
-            class: assignment.class,
-            subject: assignment.subject
+            description: assignment.description,
+            subject: assignment.subject,
+            _id: assignment._id
           });
           return false;
         }
