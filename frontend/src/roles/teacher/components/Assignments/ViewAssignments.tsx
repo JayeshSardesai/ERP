@@ -179,25 +179,35 @@ const ViewAssignments: React.FC = () => {
   };
 
   const filterAssignments = () => {
-    let filtered = [...assignments];
+    // Filter assignments - empty filters mean "show all"
+    let filtered = assignments.filter(assignment => {
+      if (!assignment || typeof assignment !== 'object') return false;
 
-    if (searchTerm) {
-      filtered = filtered.filter(a => 
-        a.title.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
+      // Normalize data with null checks
+      const title = (assignment?.title || '').toString().trim();
+      const subject = (assignment?.subject || '').toString().trim();
+      const assignmentClass = (assignment?.class || '').toString().trim();
+      const assignmentSection = (assignment?.section || '').toString().trim();
 
-    if (selectedClass) {
-      filtered = filtered.filter(a => a.class === selectedClass);
-    }
+      // Search filter - search in title and subject (empty = show all)
+      const matchesSearch = !searchTerm || searchTerm.trim() === '' ||
+        title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        subject.toLowerCase().includes(searchTerm.toLowerCase());
 
-    if (selectedSection) {
-      filtered = filtered.filter(a => a.section === selectedSection);
-    }
+      // Class filter - empty selectedClass means "All Classes" (show all)
+      const matchesClass = !selectedClass || selectedClass === '' ||
+        assignmentClass === selectedClass;
 
-    if (selectedSubject) {
-      filtered = filtered.filter(a => a.subject === selectedSubject);
-    }
+      // Section filter - empty selectedSection means "All Sections" (show all)
+      const matchesSection = !selectedSection || selectedSection === '' ||
+        assignmentSection === selectedSection;
+
+      // Subject filter - empty selectedSubject means "All Subjects" (show all)
+      const matchesSubject = !selectedSubject || selectedSubject === '' ||
+        subject === selectedSubject;
+
+      return matchesSearch && matchesClass && matchesSection && matchesSubject;
+    });
 
     setFilteredAssignments(filtered);
   };

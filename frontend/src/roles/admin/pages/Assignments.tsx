@@ -24,7 +24,7 @@ interface Assignment {
 
 const Assignments: React.FC = () => {
   const { user } = useAuth();
-  
+
   // Use the useSchoolClasses hook to fetch classes configured by superadmin
   const {
     classesData,
@@ -81,25 +81,34 @@ const Assignments: React.FC = () => {
     fetchAssignments();
   }, []);
 
-  // Note: No need to refetch when filters change since we filter locally
+  // Refetch assignments when filters change (like teacher portal)
+  useEffect(() => {
+    fetchAssignments();
+  }, [selectedClass, selectedSection, selectedSubject, searchTerm]);
 
   const fetchAssignments = async () => {
     try {
       setLoading(true);
       setError('');
       console.log('🔍 Admin fetching assignments...');
-      
+
       let data;
       let assignmentsArray = [];
-      
+
       try {
-        // Fetch all assignments without filters for local filtering
-        console.log('🔍 Admin fetching all assignments for local filtering');
-        
-        // Try the regular endpoint first without filters
-        data = await assignmentAPI.fetchAssignments();
+        // Build filter parameters for admin - similar to teacher portal
+        const filterParams: any = {};
+        if (selectedClass) filterParams.class = selectedClass;
+        if (selectedSection) filterParams.section = selectedSection;
+        if (selectedSubject) filterParams.subject = selectedSubject;
+        if (searchTerm) filterParams.search = searchTerm;
+
+        console.log('🔍 Admin applying filters:', filterParams);
+
+        // Try the regular endpoint first with filters
+        data = await assignmentAPI.fetchAssignments(filterParams);
         console.log('✅ Raw API response:', data);
-        
+
         // Handle different response structures exactly like teacher portal
         if (data.data && Array.isArray(data.data)) {
           assignmentsArray = data.data;
@@ -108,19 +117,19 @@ const Assignments: React.FC = () => {
         } else if (Array.isArray(data)) {
           assignmentsArray = data;
         }
-        
+
         console.log('✅ Extracted assignments array:', assignmentsArray);
       } catch (regularError) {
         console.error('❌ Error with regular endpoint:', regularError);
-        
+
         // If the regular endpoint fails, try the direct endpoint
         const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
         console.log('🔍 Trying direct endpoint with schoolCode:', schoolCode);
-        
+
         const response = await api.get(`/direct-test/assignments?schoolCode=${schoolCode}`);
         data = response.data;
         console.log('✅ Direct endpoint response:', data);
-        
+
         // Handle different response structures exactly like teacher portal
         if (data.data && Array.isArray(data.data)) {
           assignmentsArray = data.data;
@@ -130,28 +139,28 @@ const Assignments: React.FC = () => {
           assignmentsArray = data;
         }
       }
-      
+
       console.log(`📊 Total assignments before filtering: ${assignmentsArray.length}`);
-      
+
       // Validate each assignment has required fields - more lenient validation
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') {
           console.log('❌ Invalid assignment (not an object):', assignment);
           return false;
         }
-        
+
         // Check for assignment ID (required for operations)
         const hasId = assignment._id || assignment.id;
         if (!hasId) {
           console.log('❌ Invalid assignment (missing ID):', assignment);
           return false;
         }
-        
+
         // More lenient field checking - at least one identifying field should exist
         const hasTitle = assignment.title && String(assignment.title).trim() !== '';
         const hasDescription = assignment.description && String(assignment.description).trim() !== '';
         const hasSubject = assignment.subject && String(assignment.subject).trim() !== '';
-        
+
         if (!hasTitle && !hasDescription && !hasSubject) {
           console.log('❌ Invalid assignment (no identifying content):', {
             title: assignment.title,
@@ -161,10 +170,10 @@ const Assignments: React.FC = () => {
           });
           return false;
         }
-        
+
         return true;
       });
-      
+
       console.log(`✅ Loaded ${validAssignments.length} valid assignments out of ${assignmentsArray.length} total`);
       console.log('📋 Valid assignments:', validAssignments);
       setAssignments(validAssignments);
@@ -216,12 +225,12 @@ const Assignments: React.FC = () => {
 
     assignments.forEach(assignment => {
       const dueDate = new Date(assignment.dueDate);
-      
+
       // Count by status
       if (assignment.status === 'active') calculatedStats.active++;
       if (assignment.status === 'completed') calculatedStats.completed++;
       if (assignment.status === 'overdue') calculatedStats.overdue++;
-      
+
       // Count due this week
       if (dueDate >= now && dueDate <= weekFromNow) {
         calculatedStats.dueThisWeek++;
@@ -234,20 +243,20 @@ const Assignments: React.FC = () => {
   const fetchSubjectsForClass = async (className: string) => {
     try {
       console.log(`🔍 Fetching subjects for class: ${className}`);
-      
+
       // Get school code from localStorage or auth
       const schoolCode = localStorage.getItem('erp.schoolCode') || '';
       const authData = localStorage.getItem('erp.auth');
       let token = '';
-      
+
       if (authData) {
         const parsedAuth = JSON.parse(authData);
         token = parsedAuth.token || '';
       }
-      
+
       // Try the class-subjects API - use api instance instead of fetch to use smart interceptor
       const response = await api.get(`/class-subjects/class/${encodeURIComponent(className)}`);
-      
+
       // Axios response structure is different from fetch
       const data = response.data;
       const subjectNames = (data?.data?.subjects || [])
@@ -292,12 +301,12 @@ const Assignments: React.FC = () => {
     try {
       console.log('🗑️ Deleting assignment:', assignmentId);
       await assignmentAPI.deleteAssignment(assignmentId);
-      
+
       console.log('✅ Assignment deleted successfully');
-      
+
       // Show success message
       alert('Assignment deleted successfully!');
-      
+
       // Refresh the assignments list
       fetchAssignments();
     } catch (error: any) {
@@ -324,71 +333,79 @@ const Assignments: React.FC = () => {
     }
   };
 
-  // Local filtering function with enhanced logic
+  // Local filtering function - shows all assignments initially, filters when criteria are applied
   const filteredAssignments = assignments.filter(assignment => {
     if (!assignment || typeof assignment !== 'object') return false;
-    
-    // Add null checks and normalize data
+
+    // Normalize data with null checks
     const title = (assignment?.title || '').toString().trim();
     const subject = (assignment?.subject || '').toString().trim();
-    const status = (assignment?.status || '').toString().toLowerCase();
     const assignmentClass = (assignment?.class || '').toString().trim();
     const assignmentSection = (assignment?.section || '').toString().trim();
-    
-    // Debug logging for first few assignments
-    if (assignments.indexOf(assignment) < 3) {
-      console.log(`🔍 Assignment ${assignments.indexOf(assignment) + 1}:`, {
-        title,
-        class: assignmentClass,
-        section: assignmentSection,
-        subject,
-        status
-      });
-      console.log(`🔍 Filters:`, {
-        selectedClass,
-        selectedSection,
-        selectedSubject,
-        searchTerm
-      });
-    }
-    
-    // Search filter - search in title and subject
+
+    // Search filter - search in title and subject (empty = show all)
     const matchesSearch = !searchTerm || searchTerm.trim() === '' ||
       title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       subject.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // No status filter - show all assignments (like teacher portal)
-    
-    // Class filter - exact match or show all
-    const matchesClass = !selectedClass || selectedClass === '' || 
-      assignmentClass === selectedClass ||
-      assignmentClass.toLowerCase() === selectedClass.toLowerCase();
-    
-    // Section filter - exact match or show all
-    const matchesSection = !selectedSection || selectedSection === '' || 
-      assignmentSection === selectedSection ||
-      assignmentSection.toLowerCase() === selectedSection.toLowerCase();
-    
-    // Subject filter - exact match or show all
-    const matchesSubject = !selectedSubject || selectedSubject === '' || 
-      subject === selectedSubject ||
-      subject.toLowerCase() === selectedSubject.toLowerCase();
-    
-    const result = matchesSearch && matchesClass && matchesSection && matchesSubject;
-    
-    // Debug logging for first few assignments
-    if (assignments.indexOf(assignment) < 3) {
-      console.log(`🔍 Filter results:`, {
-        matchesSearch,
-        matchesClass,
-        matchesSection,
-        matchesSubject,
-        finalResult: result
-      });
-    }
-    
-    return result;
+
+    // Class filter - empty selectedClass means "All Classes" (show all)
+    const matchesClass = !selectedClass || selectedClass === '' ||
+      assignmentClass === selectedClass;
+
+    // Section filter - empty selectedSection means "All Sections" (show all)  
+    const matchesSection = !selectedSection || selectedSection === '' ||
+      assignmentSection === selectedSection;
+
+    // Subject filter - empty selectedSubject means "All Subjects" (show all)
+    const matchesSubject = !selectedSubject || selectedSubject === '' ||
+      subject === selectedSubject;
+
+    return matchesSearch && matchesClass && matchesSection && matchesSubject;
   });
+
+  // Calculate stats from filtered assignments (updates based on current filters)
+  const calculateFilteredStats = () => {
+    if (!filteredAssignments || filteredAssignments.length === 0) {
+      return {
+        total: 0,
+        active: 0,
+        completed: 0,
+        overdue: 0,
+        dueThisWeek: 0
+      };
+    }
+
+    const now = new Date();
+    const weekFromNow = new Date();
+    weekFromNow.setDate(weekFromNow.getDate() + 7);
+
+    const calculatedStats = {
+      total: filteredAssignments.length,
+      active: 0,
+      completed: 0,
+      overdue: 0,
+      dueThisWeek: 0
+    };
+
+    filteredAssignments.forEach(assignment => {
+      const dueDate = new Date(assignment.dueDate);
+
+      // Count by status
+      if (assignment.status === 'active') calculatedStats.active++;
+      if (assignment.status === 'completed') calculatedStats.completed++;
+      if (assignment.status === 'overdue') calculatedStats.overdue++;
+
+      // Count due this week
+      if (dueDate >= now && dueDate <= weekFromNow) {
+        calculatedStats.dueThisWeek++;
+      }
+    });
+
+    return calculatedStats;
+  };
+
+  // Get current stats based on filtered assignments
+  const currentStats = calculateFilteredStats();
 
   // Log filtering results
   console.log(`🔍 Total assignments: ${assignments.length}, Filtered: ${filteredAssignments.length}`);
@@ -444,7 +461,7 @@ const Assignments: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Assignments</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-2xl font-bold text-gray-900">{currentStats.total}</p>
             </div>
           </div>
         </div>
@@ -455,7 +472,7 @@ const Assignments: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Due This Week</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.dueThisWeek}</p>
+              <p className="text-2xl font-bold text-gray-900">{currentStats.dueThisWeek}</p>
             </div>
           </div>
         </div>
@@ -584,14 +601,14 @@ const Assignments: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
-                        <button 
+                        <button
                           onClick={() => handleEditAssignment(assignment._id)}
                           className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                           title="Edit assignment"
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleDeleteAssignment(assignment._id, assignment.title)}
                           className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
                           title="Delete assignment"
