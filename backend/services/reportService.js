@@ -125,7 +125,8 @@ class ReportService {
           { 
             $match: { 
               ...matchQuery,
-              subjects: { $exists: true, $ne: [] }
+              subjects: { $exists: true, $ne: [] },
+              className: { $exists: true, $ne: null, $ne: '' }  
             } 
           },
           {
@@ -294,11 +295,12 @@ class ReportService {
           
           console.log(` [getSchoolSummary] Processing result for class: ${result.class}, section: ${result.section}`);
           
-          // Always aggregate attendance from all sections of the class for class-level average
+          // Match attendance by both class AND section for accurate section-wise data
           const classAttendance = attendanceData.filter(att => {
-            const matches = att.class === result.class;
-            console.log(`   Comparing attendance class '${att.class}' with result class '${result.class}': ${matches}`);
-            return matches;
+            const classMatches = att.class === result.class;
+            const sectionMatches = att.section === result.section;
+            console.log(`   Comparing attendance (${att.class}, ${att.section}) with result (${result.class}, ${result.section}): class=${classMatches}, section=${sectionMatches}`);
+            return classMatches && sectionMatches;
           });
           
           console.log(`   Found ${classAttendance.length} attendance records for class ${result.class}`);

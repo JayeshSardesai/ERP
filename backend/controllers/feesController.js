@@ -1053,12 +1053,28 @@ exports.recordOfflinePayment = async (req, res) => {
     
     console.log(`✅ Payment recorded: ${receiptNumber}`);
     
-    // Auto-generate challan for remaining amount
+    // Auto-generate challan for next installment
+    console.log('\n🔍 === AUTO-CHALLAN GENERATION CHECK ===');
     const chalansCol = db.collection('chalans');
     const paidInstallment = installments.find(i => i.name === installmentName);
     
+    console.log('Payment details:', {
+      installmentName,
+      paymentAmount: amount,
+      allInstallments: installments.map(i => ({
+        name: i.name,
+        amount: i.amount,
+        paidAmount: i.paidAmount,
+        status: i.status
+      }))
+    });
+    
     if (paidInstallment) {
       const remainingAmount = paidInstallment.amount - paidInstallment.paidAmount;
+      console.log(`Paid installment: ${paidInstallment.name}`);
+      console.log(`Installment amount: ${paidInstallment.amount}`);
+      console.log(`Paid amount: ${paidInstallment.paidAmount}`);
+      console.log(`Remaining amount: ${remainingAmount}`);
       
       // If installment is not fully paid, generate challan for remaining amount
       if (remainingAmount > 0) {
@@ -1110,11 +1126,33 @@ exports.recordOfflinePayment = async (req, res) => {
         );
         
         console.log(`✅ Auto-generated challan ${chalanNumber} for remaining amount: ${remainingAmount}`);
-      } else if (remainingAmount === 0) {
-        // Installment fully paid, check if there's a next installment
-        const nextPendingInstallment = installments.find(i => 
-          i.status === 'pending' && i.name !== installmentName
-        );
+      } else if (Math.abs(remainingAmount) < 0.01) {  // Handle floating point precision
+        console.log(`✅ Installment ${installmentName} is FULLY PAID!`);
+        console.log('Looking for next pending installment...');
+        
+        // Find all pending installments (excluding current one)
+        const pendingInstallments = installments.filter(i => {
+          const isPending = i.status === 'pending' || i.status === 'overdue';
+          const isDifferent = i.name !== installmentName;
+          const hasUnpaidAmount = !i.paidAmount || i.paidAmount < i.amount;
+          
+          console.log(`Checking installment ${i.name}:`, {
+            status: i.status,
+            isPending,
+            isDifferent,
+            hasUnpaidAmount,
+            willInclude: isPending && isDifferent && hasUnpaidAmount
+          });
+          
+          return isPending && isDifferent && hasUnpaidAmount;
+        });
+        
+        console.log(`Found ${pendingInstallments.length} pending installments`);
+        
+        // Get the next one by due date
+        const nextPendingInstallment = pendingInstallments.length > 0
+          ? pendingInstallments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0]
+          : null;
         
         if (nextPendingInstallment) {
           console.log(`📋 Generating challan for next installment: ${nextPendingInstallment.name}`);
@@ -1162,10 +1200,16 @@ exports.recordOfflinePayment = async (req, res) => {
           
           console.log(`✅ Auto-generated challan ${chalanNumber} for next installment: ${nextPendingInstallment.name}`);
         } else {
-          console.log(`✅ All fees paid! No more challans to generate.`);
+          console.log(`ℹ️ No more pending installments found. All fees paid!`);
         }
+      } else {
+        console.log(`⚠️ Unexpected remaining amount: ${remainingAmount}`);
       }
+    } else {
+      console.log(`❌ Could not find paid installment: ${installmentName}`);
     }
+    
+    console.log('=== AUTO-CHALLAN GENERATION CHECK COMPLETE ===\n');
     
     res.json({
       success: true,

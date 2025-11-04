@@ -36,14 +36,11 @@ import FeesPage from './pages/FeesPage'
 
 import ReportsPage from './pages/ReportsPage'
 
-import LeaveManagement from './pages/LeaveManagement'
-
 import ErrorBoundary from '../../components/ErrorBoundary'
 
 import { PermissionGuard } from '../../components/PermissionGuard'
 
 import { PermissionProvider } from '../../hooks/usePermissions'
-import StudentAttendanceStats from './pages/StudentAttendanceStats';
 
 export function AdminApp() {
 
@@ -60,7 +57,7 @@ export function AdminApp() {
             </PermissionGuard>
 
           } />
-
+          
           <Route path="manage-users" element={
             <PermissionGuard permission="manageUsers" permissionName="User Management">
               <ManageUsers />
@@ -68,7 +65,7 @@ export function AdminApp() {
 
           } />
 
-
+          
 
           {/* School Settings - Requires manageSchoolSettings permission */}
           <Route path="settings" element={
@@ -172,14 +169,6 @@ export function AdminApp() {
           <Route path="reports" element={
             <PermissionGuard permission="viewReports" permissionName="Reports">
               <ReportsPage />
-            </PermissionGuard>
-
-          } />
-
-          {/* Leave Management - Requires viewLeaves permission */}
-          <Route path="leave-management" element={
-            <PermissionGuard permission="viewLeaves" permissionName="Leave Management">
-              <LeaveManagement />
             </PermissionGuard>
 
           } />
