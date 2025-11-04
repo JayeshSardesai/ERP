@@ -488,29 +488,52 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
     if (updateData.secondaryPhone !== undefined) setField('contact.secondaryPhone', updateData.secondaryPhone || '');
     if (updateData.whatsappNumber !== undefined) setField('contact.whatsappNumber', updateData.whatsappNumber || '');
 
-    // Update Permanent Address
-    if (updateData.permanentStreet !== undefined) setField('address.permanent.street', updateData.permanentStreet);
-    if (updateData.permanentArea !== undefined) setField('address.permanent.area', updateData.permanentArea);
-    if (updateData.permanentCity !== undefined) setField('address.permanent.city', updateData.permanentCity);
-    if (updateData.permanentState !== undefined) setField('address.permanent.state', updateData.permanentState);
-    if (updateData.permanentPincode !== undefined) setField('address.permanent.pincode', updateData.permanentPincode);
-    if (updateData.permanentCountry !== undefined) setField('address.permanent.country', updateData.permanentCountry || 'India');
-    if (updateData.permanentLandmark !== undefined) setField('address.permanent.landmark', updateData.permanentLandmark);
+    // Handle address structure conversion and updates
+    const hasAddressUpdates = updateData.permanentStreet !== undefined || updateData.permanentArea !== undefined || 
+                              updateData.permanentCity !== undefined || updateData.permanentState !== undefined ||
+                              updateData.permanentPincode !== undefined || updateData.permanentCountry !== undefined ||
+                              updateData.permanentLandmark !== undefined || updateData.sameAsPermanent !== undefined;
 
-    // Update Current Address & sameAsPermanent flag
-    if (updateData.sameAsPermanent !== undefined) setField('address.sameAsPermanent', updateData.sameAsPermanent);
-    if (updateData.sameAsPermanent === false) {
-      if (updateData.currentStreet !== undefined) setField('address.current.street', updateData.currentStreet);
-      if (updateData.currentArea !== undefined) setField('address.current.area', updateData.currentArea);
-      if (updateData.currentCity !== undefined) setField('address.current.city', updateData.currentCity);
-      if (updateData.currentState !== undefined) setField('address.current.state', updateData.currentState);
-      if (updateData.currentPincode !== undefined) setField('address.current.pincode', updateData.currentPincode);
-      if (updateData.currentCountry !== undefined) setField('address.current.country', updateData.currentCountry || 'India');
-      if (updateData.currentLandmark !== undefined) setField('address.current.landmark', updateData.currentLandmark);
-    } else if (updateData.sameAsPermanent === true && user.address?.current) {
-      updateFields['address.current'] = undefined;
-      changesMade = true;
+    if (hasAddressUpdates) {
+      // Check if current address is a string - if so, convert to object structure first
+      if (typeof user.address === 'string') {
+        console.log('🔄 Converting string address to object structure');
+        // Convert string address to object structure
+        updateFields['address'] = {
+          permanent: {
+            street: updateData.permanentStreet || user.address || '',
+            area: updateData.permanentArea || '',
+            city: updateData.permanentCity || '',
+            state: updateData.permanentState || '',
+            country: updateData.permanentCountry || 'India',
+            pincode: updateData.permanentPincode || '',
+            landmark: updateData.permanentLandmark || ''
+          },
+          current: updateData.sameAsPermanent === false ? {
+            street: updateData.currentStreet || '',
+            area: updateData.currentArea || '',
+            city: updateData.currentCity || '',
+            state: updateData.currentState || '',
+            country: updateData.currentCountry || 'India',
+            pincode: updateData.currentPincode || '',
+            landmark: updateData.currentLandmark || ''
+          } : null,
+          sameAsPermanent: updateData.sameAsPermanent !== false
+        };
+        changesMade = true;
+      } else {
+        // Address is already an object, update nested fields
+        if (updateData.permanentStreet !== undefined) setField('address.permanent.street', updateData.permanentStreet);
+        if (updateData.permanentArea !== undefined) setField('address.permanent.area', updateData.permanentArea);
+        if (updateData.permanentCity !== undefined) setField('address.permanent.city', updateData.permanentCity);
+        if (updateData.permanentState !== undefined) setField('address.permanent.state', updateData.permanentState);
+        if (updateData.permanentPincode !== undefined) setField('address.permanent.pincode', updateData.permanentPincode);
+        if (updateData.permanentCountry !== undefined) setField('address.permanent.country', updateData.permanentCountry || 'India');
+        if (updateData.permanentLandmark !== undefined) setField('address.permanent.landmark', updateData.permanentLandmark);
+      }
     }
+
+    // Current address handling is now included in the address structure conversion above
 
     // Handle profile image upload with Cloudinary
     if (req.file) {

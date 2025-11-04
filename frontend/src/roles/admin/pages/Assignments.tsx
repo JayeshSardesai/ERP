@@ -81,10 +81,7 @@ const Assignments: React.FC = () => {
     fetchAssignments();
   }, []);
 
-  // Refetch assignments when filters change (like teacher portal)
-  useEffect(() => {
-    fetchAssignments();
-  }, [selectedClass, selectedSection, selectedSubject, searchTerm]);
+  // Note: No need to refetch when filters change since we filter locally
 
   const fetchAssignments = async () => {
     try {
@@ -96,17 +93,11 @@ const Assignments: React.FC = () => {
       let assignmentsArray = [];
       
       try {
-        // Build filter parameters for admin - similar to teacher portal
-        const filterParams: any = {};
-        if (selectedClass) filterParams.class = selectedClass;
-        if (selectedSection) filterParams.section = selectedSection;
-        if (selectedSubject) filterParams.subject = selectedSubject;
-        if (searchTerm) filterParams.search = searchTerm;
+        // Fetch all assignments without filters for local filtering
+        console.log('🔍 Admin fetching all assignments for local filtering');
         
-        console.log('🔍 Admin applying filters:', filterParams);
-        
-        // Try the regular endpoint first with filters
-        data = await assignmentAPI.fetchAssignments(filterParams);
+        // Try the regular endpoint first without filters
+        data = await assignmentAPI.fetchAssignments();
         console.log('✅ Raw API response:', data);
         
         // Handle different response structures exactly like teacher portal
@@ -531,6 +522,18 @@ const Assignments: React.FC = () => {
 
       {/* Assignments Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* Table Header with Total Count */}
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Assignments</h3>
+            <div className="flex items-center space-x-4 text-sm text-gray-600">
+              <span>Total: <span className="font-semibold text-gray-900">{assignments.length}</span></span>
+              {(searchTerm || selectedClass || selectedSection || selectedSubject) && (
+                <span>Filtered: <span className="font-semibold text-blue-600">{filteredAssignments.length}</span></span>
+              )}
+            </div>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
