@@ -4,6 +4,7 @@ import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import EditAssignmentModal from '../components/EditAssignmentModal';
 import * as assignmentAPI from '../../../api/assignment';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
+import { useAuth } from '../../../auth/AuthContext';
 import api from '../../../api/axios';
 
 interface Assignment {
@@ -22,6 +23,8 @@ interface Assignment {
 }
 
 const Assignments: React.FC = () => {
+  const { user } = useAuth();
+  
   // Use the useSchoolClasses hook to fetch classes configured by superadmin
   const {
     classesData,
@@ -78,34 +81,35 @@ const Assignments: React.FC = () => {
     fetchAssignments();
   }, []);
 
-  // Add effect to trigger re-render when filters change (for local filtering)
+  // Refetch assignments when filters change (like teacher portal)
   useEffect(() => {
-    // This effect doesn't need to do anything, it just triggers re-render when filters change
-    // The filteredAssignments computed property will handle the actual filtering
-    console.log('🔍 Filters changed, triggering local filter update');
+    fetchAssignments();
   }, [selectedClass, selectedSection, selectedSubject, searchTerm]);
 
   const fetchAssignments = async () => {
     try {
       setLoading(true);
       setError('');
-      console.log('🔍 Fetching assignments...');
+      console.log('🔍 Admin fetching assignments...');
       
       let data;
       let assignmentsArray = [];
       
       try {
-        // Build filter parameters - don't send filters to API, handle locally like teacher portal
+        // Build filter parameters for admin - similar to teacher portal
         const filterParams: any = {};
-        // Only send basic params to API, handle filtering locally
+        if (selectedClass) filterParams.class = selectedClass;
+        if (selectedSection) filterParams.section = selectedSection;
+        if (selectedSubject) filterParams.subject = selectedSubject;
+        if (searchTerm) filterParams.search = searchTerm;
         
-        console.log('🔍 Admin fetching all assignments for local filtering');
+        console.log('🔍 Admin applying filters:', filterParams);
         
-        // Try the regular endpoint first
-        data = await assignmentAPI.fetchAssignments();
+        // Try the regular endpoint first with filters
+        data = await assignmentAPI.fetchAssignments(filterParams);
         console.log('✅ Raw API response:', data);
         
-        // Handle different response structures like teacher portal
+        // Handle different response structures exactly like teacher portal
         if (data.data && Array.isArray(data.data)) {
           assignmentsArray = data.data;
         } else if (data.assignments && Array.isArray(data.assignments)) {
@@ -119,27 +123,14 @@ const Assignments: React.FC = () => {
         console.error('❌ Error with regular endpoint:', regularError);
         
         // If the regular endpoint fails, try the direct endpoint
-        console.log('🔍 Trying direct test endpoint...');
+        const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
+        console.log('🔍 Trying direct endpoint with schoolCode:', schoolCode);
         
-        // Get the user's school code from the auth context
-        let userSchoolCode = '';
-        try {
-          const authData = localStorage.getItem('erp.auth');
-          if (authData) {
-            const parsedAuth = JSON.parse(authData);
-            userSchoolCode = parsedAuth.user?.schoolCode || '';
-            console.log(`🏫 Using school code from auth: "${userSchoolCode}"`);
-          }
-        } catch (err) {
-          console.error('Error parsing auth data:', err);
-        }
-        
-        // Try direct endpoint with the user's school code
-        const response = await api.get(`/direct-test/assignments?schoolCode=${userSchoolCode}`);
+        const response = await api.get(`/direct-test/assignments?schoolCode=${schoolCode}`);
         data = response.data;
         console.log('✅ Direct endpoint response:', data);
         
-        // Handle different response structures like teacher portal
+        // Handle different response structures exactly like teacher portal
         if (data.data && Array.isArray(data.data)) {
           assignmentsArray = data.data;
         } else if (data.assignments && Array.isArray(data.assignments)) {
@@ -151,7 +142,7 @@ const Assignments: React.FC = () => {
       
       console.log(`📊 Total assignments before filtering: ${assignmentsArray.length}`);
       
-      // Validate each assignment has required fields like teacher portal
+      // Validate each assignment has required fields exactly like teacher portal
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') {
           console.log('❌ Invalid assignment (not an object):', assignment);

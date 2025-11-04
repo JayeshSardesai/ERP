@@ -576,7 +576,18 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
       imageBuffer = Buffer.from(response.data);
       console.log(`✅ Downloaded ${imageBuffer.length} bytes from URL`);
     } else {
-      // Handle local file path
+      // Handle local file path - but check if we're in production/cloud environment
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
+      
+      if (isProduction) {
+        console.warn(`⚠️ Local file path provided in production environment: ${cleanSourcePath}`);
+        console.warn(`⚠️ Skipping image upload - local paths not accessible in cloud deployment`);
+        console.warn(`💡 Tip: Use URLs instead of local paths for cloud deployment`);
+        console.warn(`💡 Alternative: Upload images to a public URL first, then use those URLs in CSV`);
+        console.warn(`💡 Example: Upload to imgur, Google Drive (public), or your own server`);
+        return ''; // Skip image upload in production for local paths
+      }
+      
       console.log(`📁 Reading image from local path: ${cleanSourcePath}`);
       
       // Check if file exists
