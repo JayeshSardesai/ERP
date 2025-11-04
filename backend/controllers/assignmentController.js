@@ -494,12 +494,24 @@ exports.getAssignments = async (req, res) => {
       console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in main database`);
     }
 
-    res.json({
-      assignments,
+    // Ensure consistent response structure for admin portal
+    const response = {
+      success: true,
+      data: assignments,
+      assignments: assignments, // Include both for compatibility
+      pagination: {
+        totalPages: Math.ceil(total / limit),
+        currentPage: parseInt(page),
+        total: total,
+        limit: parseInt(limit)
+      },
       totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total
-    });
+      currentPage: parseInt(page),
+      total: total
+    };
+
+    console.log(`[GET ASSIGNMENTS] Returning ${assignments.length} assignments for ${req.user.role}`);
+    res.json(response);
 
   } catch (error) {
     console.error('Error fetching assignments:', error);

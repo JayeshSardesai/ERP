@@ -561,26 +561,45 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
   try {
     let imageBuffer;
     
+    // Clean the source path - remove leading ? or other unwanted characters
+    let cleanSourcePath = sourcePath.trim();
+    if (cleanSourcePath.startsWith('?')) {
+      cleanSourcePath = cleanSourcePath.substring(1);
+      console.log(`🧹 Cleaned path: "${sourcePath}" -> "${cleanSourcePath}"`);
+    }
+    
     // Check if it's a URL or local file path
-    if (sourcePath.startsWith('http://') || sourcePath.startsWith('https://')) {
+    if (cleanSourcePath.startsWith('http://') || cleanSourcePath.startsWith('https://')) {
       // Handle URL - download the image
-      console.log(`📸 Downloading image from URL: ${sourcePath}`);
-      const response = await axios.get(sourcePath, { responseType: 'arraybuffer' });
+      console.log(`📸 Downloading image from URL: ${cleanSourcePath}`);
+      const response = await axios.get(cleanSourcePath, { responseType: 'arraybuffer' });
       imageBuffer = Buffer.from(response.data);
       console.log(`✅ Downloaded ${imageBuffer.length} bytes from URL`);
     } else {
       // Handle local file path
-      console.log(`📁 Reading image from local path: ${sourcePath}`);
+      console.log(`📁 Reading image from local path: ${cleanSourcePath}`);
       
       // Check if file exists
-      if (!fs.existsSync(sourcePath)) {
-        console.error(`❌ Local image file not found: ${sourcePath}. Skipping.`);
-        throw new Error(`Local image file not found: ${sourcePath}`);
+      if (!fs.existsSync(cleanSourcePath)) {
+        console.error(`❌ Local image file not found: ${cleanSourcePath}`);
+        console.error(`❌ Original path was: ${sourcePath}`);
+        throw new Error(`Local image file not found: ${cleanSourcePath}`);
+      }
+      
+      // Check if it's actually a file (not a directory)
+      const stats = fs.statSync(cleanSourcePath);
+      if (!stats.isFile()) {
+        throw new Error(`Path is not a file: ${cleanSourcePath}`);
       }
       
       // Read the local file
-      imageBuffer = fs.readFileSync(sourcePath);
+      imageBuffer = fs.readFileSync(cleanSourcePath);
       console.log(`✅ Read ${imageBuffer.length} bytes from local file`);
+      
+      // Validate that we have a valid image buffer
+      if (!imageBuffer || imageBuffer.length === 0) {
+        throw new Error(`Empty or invalid image file: ${cleanSourcePath}`);
+      }
     }
 
     console.log('🔄 Compressing image with Sharp...');
@@ -591,6 +610,11 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
       .toBuffer();
 
     console.log(`✅ Compressed image in memory: ${(compressedImageBuffer.length / 1024).toFixed(2)}KB`);
+
+    // Validate Cloudinary configuration
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      throw new Error('Cloudinary configuration missing. Please check environment variables.');
+    }
 
     // Upload the compressed buffer to Cloudinary
     const timestamp = Date.now();
@@ -604,6 +628,10 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
       publicId
     );
 
+    if (!uploadResult || !uploadResult.secure_url) {
+      throw new Error('Cloudinary upload failed - no secure_url returned');
+    }
+
     console.log(`✅ Profile image uploaded successfully: ${uploadResult.secure_url}`);
     console.log(`🔍 DEBUG: Upload result object:`, JSON.stringify(uploadResult, null, 2));
     return uploadResult.secure_url;
@@ -611,7 +639,17 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
   } catch (error) {
     console.error(`❌ Error processing profile picture from ${sourcePath}:`, error.message);
     console.error(`❌ Error stack:`, error.stack);
-    console.error(`❌ Error details:`, error);
+    console.error(`❌ Full error details:`, error);
+    
+    // Provide more specific error messages
+    if (error.message.includes('ENOENT')) {
+      console.error(`❌ File not found error - check if the path exists and is accessible`);
+    } else if (error.message.includes('Cloudinary')) {
+      console.error(`❌ Cloudinary error - check API credentials and network connection`);
+    } else if (error.message.includes('Sharp')) {
+      console.error(`❌ Image processing error - file might be corrupted or not a valid image`);
+    }
+    
     return ''; // Return empty string on failure
   }
 }

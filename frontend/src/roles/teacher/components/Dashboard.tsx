@@ -60,7 +60,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     setLoading(true);
     try {
       console.log('📊 Fetching dashboard data...');
-      
+
       // Fetch assignments (the /api/assignments endpoint already filters by teacher role)
       let assignmentsData: any = { assignments: [] };
       try {
@@ -70,7 +70,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       } catch (error) {
         console.warn('⚠️ Assignments API failed:', error);
       }
-      
+
       // Fetch leave requests
       let leaveData: any = { success: false, data: { leaveRequests: [] } };
       try {
@@ -96,14 +96,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       // Calculate stats
       const assignmentsArray = assignmentsData.assignments || [];
       const leaveRequestsArray = leaveData.data?.leaveRequests || [];
-      
+
       console.log('📦 Extracted assignments:', assignmentsArray.length);
       console.log('📦 Extracted leave requests:', leaveRequestsArray.length);
-      
+
       // Store in state for widgets
       setAssignments(assignmentsArray);
       setLeaveRequests(leaveRequestsArray);
-      
+
       const totalAssignments = assignmentsArray.length;
       const activeAssignments = assignmentsArray.filter((a: any) => {
         const dueDate = new Date(a.dueDate);
@@ -111,7 +111,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         today.setHours(0, 0, 0, 0);
         return dueDate >= today;
       }).length;
-      
+
       // Filter leave requests for current year
       const currentYear = new Date().getFullYear();
       const yearlyLeaveRequests = leaveRequestsArray.filter((l: any) => {
@@ -196,17 +196,55 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     }
   ];
 
-  // Calculate days until next deadline
+  // Calculate days until next deadline with enhanced information
   const getDeadlineStatus = (dueDate: string) => {
     const due = new Date(dueDate);
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
+    due.setHours(23, 59, 59, 999); // Set to end of due date
+
     const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 0) return { text: 'Overdue', color: 'text-red-600', bgColor: 'bg-red-50' };
-    if (diffDays === 0) return { text: 'Due Today', color: 'text-orange-600', bgColor: 'bg-orange-50' };
-    if (diffDays === 1) return { text: 'Due Tomorrow', color: 'text-yellow-600', bgColor: 'bg-yellow-50' };
-    return { text: `${diffDays} days left`, color: 'text-blue-600', bgColor: 'bg-blue-50' };
+
+    if (diffDays < 0) {
+      const overdueDays = Math.abs(diffDays);
+      return {
+        text: `${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue`,
+        color: 'text-red-700',
+        bgColor: 'bg-red-100',
+        priority: 'urgent'
+      };
+    }
+    if (diffDays === 0) return {
+      text: 'Due Today',
+      color: 'text-orange-700',
+      bgColor: 'bg-orange-100',
+      priority: 'high'
+    };
+    if (diffDays === 1) return {
+      text: 'Due Tomorrow',
+      color: 'text-yellow-700',
+      bgColor: 'bg-yellow-100',
+      priority: 'medium'
+    };
+    if (diffDays <= 3) return {
+      text: `${diffDays} days left`,
+      color: 'text-amber-700',
+      bgColor: 'bg-amber-50',
+      priority: 'medium'
+    };
+    if (diffDays <= 7) return {
+      text: `${diffDays} days left`,
+      color: 'text-blue-700',
+      bgColor: 'bg-blue-50',
+      priority: 'normal'
+    };
+    return {
+      text: `${diffDays} days left`,
+      color: 'text-green-700',
+      bgColor: 'bg-green-50',
+      priority: 'low'
+    };
   };
 
   return (
@@ -226,10 +264,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="flex items-center bg-white bg-opacity-20 rounded-lg px-4 py-2">
             <Clock className="h-5 w-5 mr-2" />
             <span className="font-medium">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                month: 'short', 
-                day: 'numeric' 
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric'
               })}
             </span>
           </div>
@@ -276,7 +314,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Upcoming Deadlines</h2>
-            <button 
+            <button
               onClick={() => onNavigate('assignments')}
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
@@ -297,174 +335,207 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {assignments.slice(0, 4).map((assignment: any, index: number) => {
-                  const deadline = getDeadlineStatus(assignment.dueDate);
-                  return (
-                    <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900 text-sm mb-1">
-                            {assignment.title}
-                          </h4>
-                          <div className="flex items-center space-x-3 text-xs text-gray-500">
-                            <span className="flex items-center">
-                              <BookOpen className="h-3 w-3 mr-1" />
-                              {assignment.subject}
+                {assignments
+                  .slice(0, 6) // Show more assignments
+                  .sort((a: any, b: any) => {
+                    // Sort by priority: urgent -> high -> medium -> normal -> low
+                    const priorityOrder = { urgent: 0, high: 1, medium: 2, normal: 3, low: 4 };
+                    const aPriority = getDeadlineStatus(a.dueDate).priority;
+                    const bPriority = getDeadlineStatus(b.dueDate).priority;
+                    return priorityOrder[aPriority] - priorityOrder[bPriority];
+                  })
+                  .map((assignment: any, index: number) => {
+                    const deadline = getDeadlineStatus(assignment.dueDate);
+                    const isUrgent = deadline.priority === 'urgent' || deadline.priority === 'high';
+
+                    return (
+                      <div
+                        key={index}
+                        className={`p-4 hover:bg-gray-50 transition-colors ${isUrgent ? 'border-l-4 border-red-400 bg-red-50' : ''
+                          }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-medium text-gray-900 text-sm">
+                                {assignment.title}
+                              </h4>
+                              {isUrgent && (
+                                <AlertCircle className="h-4 w-4 text-red-500" />
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-3 text-xs text-gray-500 mb-2">
+                              <span className="flex items-center">
+                                <BookOpen className="h-3 w-3 mr-1" />
+                                {assignment.subject}
+                              </span>
+                              <span className="flex items-center">
+                                <Users className="h-3 w-3 mr-1" />
+                                Class {assignment.class}-{assignment.section}
+                              </span>
+                              <span className="flex items-center">
+                                <Calendar className="h-3 w-3 mr-1" />
+                                {new Date(assignment.dueDate).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${deadline.bgColor} ${deadline.color}`}>
+                              {deadline.text}
                             </span>
-                            <span className="flex items-center">
-                              <Users className="h-3 w-3 mr-1" />
-                              Class {assignment.class}-{assignment.section}
-                            </span>
+                            {isUrgent && (
+                              <span className="text-xs text-red-600 font-medium">
+                                Action Required
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${deadline.bgColor} ${deadline.color}`}>
-                          {deadline.text}
-                        </span>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             )}
-          </div>
-
-          {/* Recent Messages */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Recent Messages</h2>
-              <button 
-                onClick={() => onNavigate('messages')}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                View All →
-              </button>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-              {!latestMessage ? (
-                <div className="p-6 text-center">
-                  <MessageSquare className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                  <p className="text-gray-500 text-xs">No messages yet</p>
-                  <button
-                    onClick={() => onNavigate('messages')}
-                    className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    Send a message
-                  </button>
-                </div>
-              ) : (
-                <div className="p-4 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onNavigate('messages')}>
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                        <span className="text-white font-semibold text-sm">
-                          {latestMessage.senderName?.charAt(0).toUpperCase() || 'U'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
-                          {latestMessage.senderName || 'Unknown Sender'}
-                        </p>
-                        <span className="text-xs text-gray-500">
-                          {new Date(latestMessage.createdAt).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-700 mb-1">
-                        {latestMessage.subject}
-                      </p>
-                      <p className="text-xs text-gray-500 line-clamp-2">
-                        {latestMessage.message}
-                      </p>
-                      {latestMessage.recipientType && (
-                        <span className="inline-block mt-2 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">
-                          To: {latestMessage.recipientType}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
-        {/* Leave Status & Quick Info */}
+        {/* Recent Messages */}
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Leave Status</h2>
-          <div className="space-y-4">
-            {/* Pending Leaves */}
-            {stats.leaveRequests.pending > 0 && (
-              <div className="bg-yellow-50 rounded-xl p-4 border-2 border-yellow-200">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Recent Messages</h2>
+            <button
+              onClick={() => onNavigate('messages')}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              View All →
+            </button>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+            {!latestMessage ? (
+              <div className="p-6 text-center">
+                <MessageSquare className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-500 text-xs">No messages yet</p>
+                <button
+                  onClick={() => onNavigate('messages')}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Send a message
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onNavigate('messages')}>
                 <div className="flex items-start space-x-3">
-                  <div className="p-2 rounded-lg bg-yellow-100">
-                    <Clock className="h-5 w-5 text-yellow-600" />
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                      <span className="text-white font-semibold text-sm">
+                        {latestMessage.senderName?.charAt(0).toUpperCase() || 'U'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-yellow-900 text-sm">
-                      {stats.leaveRequests.pending} Pending Leave Request{stats.leaveRequests.pending > 1 ? 's' : ''}
-                    </h3>
-                    <p className="text-xs text-yellow-700 mt-1">
-                      Awaiting admin approval
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        {latestMessage.senderName || 'Unknown Sender'}
+                      </p>
+                      <span className="text-xs text-gray-500">
+                        {new Date(latestMessage.createdAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-700 mb-1">
+                      {latestMessage.subject}
                     </p>
-                    <button
-                      onClick={() => onNavigate('leave-request')}
-                      className="mt-2 text-xs text-yellow-800 hover:text-yellow-900 font-medium"
-                    >
-                      View Details →
-                    </button>
+                    <p className="text-xs text-gray-500 line-clamp-2">
+                      {latestMessage.message}
+                    </p>
+                    {latestMessage.recipientType && (
+                      <span className="inline-block mt-2 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">
+                        To: {latestMessage.recipientType}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      </div>
 
-            {/* Recent Leave Requests */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-              <div className="p-4 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-900 text-sm">Recent Leave Requests</h3>
-              </div>
-              {leaveRequests.length === 0 ? (
-                <div className="p-6 text-center">
-                  <Calendar className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                  <p className="text-gray-500 text-xs">No leave requests</p>
+      {/* Leave Status & Quick Info */}
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Leave Status</h2>
+        <div className="space-y-4">
+          {/* Pending Leaves */}
+          {stats.leaveRequests.pending > 0 && (
+            <div className="bg-yellow-50 rounded-xl p-4 border-2 border-yellow-200">
+              <div className="flex items-start space-x-3">
+                <div className="p-2 rounded-lg bg-yellow-100">
+                  <Clock className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-yellow-900 text-sm">
+                    {stats.leaveRequests.pending} Pending Leave Request{stats.leaveRequests.pending > 1 ? 's' : ''}
+                  </h3>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Awaiting admin approval
+                  </p>
                   <button
                     onClick={() => onNavigate('leave-request')}
-                    className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    className="mt-2 text-xs text-yellow-800 hover:text-yellow-900 font-medium"
                   >
-                    Apply for leave
+                    View Details →
                   </button>
                 </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {leaveRequests.slice(0, 3).map((leave: any, index: number) => (
-                    <div key={index} className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{leave.subjectLine}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {new Date(leave.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(leave.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            <span className="mx-1">•</span>
-                            {leave.numberOfDays} day{leave.numberOfDays > 1 ? 's' : ''}
-                          </p>
-                        </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          leave.status === 'approved' ? 'bg-green-100 text-green-700' :
-                          leave.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              </div>
             </div>
+          )}
+
+          {/* Recent Leave Requests */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+            <div className="p-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 text-sm">Recent Leave Requests</h3>
+            </div>
+            {leaveRequests.length === 0 ? (
+              <div className="p-6 text-center">
+                <Calendar className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-500 text-xs">No leave requests</p>
+                <button
+                  onClick={() => onNavigate('leave-request')}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Apply for leave
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {leaveRequests.slice(0, 3).map((leave: any, index: number) => (
+                  <div key={index} className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{leave.subjectLine}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(leave.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(leave.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          <span className="mx-1">•</span>
+                          {leave.numberOfDays} day{leave.numberOfDays > 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${leave.status === 'approved' ? 'bg-green-100 text-green-700' :
+                          leave.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                            'bg-yellow-100 text-yellow-700'
+                        }`}>
+                        {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
