@@ -34,19 +34,19 @@ const FeesPage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <CreditCard className="h-8 w-8 text-blue-600" />
-          <h1 className="text-3xl font-bold text-gray-900">Fees Management</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <CreditCard className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Fees Management</h1>
         </div>
       </div>
 
       {/* Tab Navigation */}
       <div className="bg-white rounded-lg shadow">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8 px-6">
+          <nav className="-mb-px flex flex-col sm:flex-row sm:space-x-8 px-4 sm:px-6">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -58,14 +58,14 @@ const FeesPage: React.FC = () => {
                     setActiveTab(tab.id);
                     window.history.pushState({}, '', tab.href);
                   }}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto text-left ${
                     isActive
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
                   <div className="flex items-center space-x-2">
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span>{tab.name}</span>
                   </div>
                 </button>
@@ -75,7 +75,7 @@ const FeesPage: React.FC = () => {
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {activeTab === 'structure' && <FeeStructureTab />}
           {activeTab === 'payments' && <FeePaymentsTab />}
         </div>

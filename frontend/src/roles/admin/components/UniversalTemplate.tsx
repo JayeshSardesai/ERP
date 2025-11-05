@@ -562,20 +562,20 @@ const UniversalTemplate: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-gray-900">Universal Template Settings</h3>
-        <div className="flex space-x-3">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h3 className="text-base sm:text-lg font-medium text-gray-900">Universal Template Settings</h3>
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
           <button
             onClick={() => setPreviewMode(true)}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center"
+            className="px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center justify-center text-sm sm:text-base w-full sm:w-auto"
           >
             <Eye className="h-4 w-4 mr-2" />
             Preview
           </button>
           <button
             onClick={handleSaveTemplate}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+            className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center text-sm sm:text-base w-full sm:w-auto"
           >
             <Save className="h-4 w-4 mr-2" />
             Save Template
@@ -583,34 +583,34 @@ const UniversalTemplate: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-start">
-          <FileText className="h-5 w-5 text-blue-600 mt-0.5 mr-3" />
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+          <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
           <div>
             <h4 className="text-sm font-medium text-blue-900">Universal Template System</h4>
-            <p className="text-sm text-blue-700 mt-1">
+            <p className="text-xs sm:text-sm text-blue-700 mt-1">
               Configure your school&apos;s universal template for all documents including invoices, admit cards, certificates, and more. This template will be used across the entire system.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h4 className="text-lg font-medium text-gray-900 mb-4">
+      <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
+        <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
           School Information
           {loading && (
-            <span className="ml-2 text-sm text-blue-600">
+            <span className="ml-2 text-xs sm:text-sm text-blue-600">
               <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
               Loading...
             </span>
           )}
         </h4>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <p className="text-sm text-blue-800">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4">
+          <p className="text-xs sm:text-sm text-blue-800">
             <strong>Note:</strong> School information is automatically fetched from your database. Contact your administrator to update school details.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">School Name</label>
             <input

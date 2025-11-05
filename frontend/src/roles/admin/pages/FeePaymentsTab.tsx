@@ -1370,29 +1370,31 @@ const FeePaymentsTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Fee Payments Management</h2>
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Fee Payments Management</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <ClassSectionSelect
-            schoolCode={user?.schoolCode}
-            valueClass={selectedClass}
-            valueSection={selectedSection}
-            onClassChange={setSelectedClass}
-            onSectionChange={setSelectedSection}
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+          <div className="sm:col-span-2 lg:col-span-1">
+            <ClassSectionSelect
+              schoolCode={user?.schoolCode}
+              valueClass={selectedClass}
+              valueSection={selectedSection}
+              onClassChange={setSelectedClass}
+              onSectionChange={setSelectedSection}
+            />
+          </div>
 
-          <div className="relative">
+          <div className="relative sm:col-span-2 lg:col-span-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
             </div>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              className="block w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
               placeholder="Search students..."
             />
           </div>

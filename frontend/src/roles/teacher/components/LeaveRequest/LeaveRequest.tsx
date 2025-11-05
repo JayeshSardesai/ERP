@@ -102,17 +102,17 @@ const LeaveRequest: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       {/* Leave Request Form */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Submit Leave Request</h2>
-          <p className="text-sm text-gray-600 mt-1">Fill in the details below to request leave</p>
+      <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+        <div className="mb-4 sm:mb-6">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900">Submit Leave Request</h2>
+          <p className="text-xs sm:text-sm text-gray-600 mt-1">Fill in the details below to request leave</p>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Teacher Name and Teacher ID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Teacher Name *</label>
                 <input
@@ -120,7 +120,7 @@ const LeaveRequest: React.FC = () => {
                   name="teacherName"
                   value={leaveRequest.teacherName}
                   readOnly
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed text-sm"
                 />
               </div>
               <div>
@@ -130,7 +130,7 @@ const LeaveRequest: React.FC = () => {
                   name="teacherId"
                   value={leaveRequest.teacherId}
                   readOnly
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed text-sm"
                 />
               </div>
             </div>
@@ -144,13 +144,13 @@ const LeaveRequest: React.FC = () => {
                 value={leaveRequest.subjectLine}
                 onChange={handleChange}
                 placeholder="e.g., Medical Leave, Personal Leave"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 required
               />
             </div>
 
             {/* Leave Dates */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Leave Start Date *</label>
                 <input
@@ -158,7 +158,7 @@ const LeaveRequest: React.FC = () => {
                   name="startDate"
                   value={leaveRequest.startDate}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   required
                 />
               </div>
@@ -169,7 +169,7 @@ const LeaveRequest: React.FC = () => {
                   name="endDate"
                   value={leaveRequest.endDate}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   required
                 />
               </div>
@@ -184,13 +184,13 @@ const LeaveRequest: React.FC = () => {
                 onChange={handleChange}
                 rows={4}
                 placeholder="Provide details about your leave request..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
                 required
               />
             </div>
 
             {/* Action Buttons */}
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4 border-t border-gray-200">
               <button
                 type="button"
                 onClick={() => {
@@ -203,7 +203,7 @@ const LeaveRequest: React.FC = () => {
                     description: ''
                   });
                 }}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-4 sm:px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base w-full sm:w-auto"
               >
                 Cancel
               </button>
@@ -211,7 +211,7 @@ const LeaveRequest: React.FC = () => {
                 type="submit"
                 onClick={handleSubmit}
                 disabled={saving}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base w-full sm:w-auto"
               >
                 {saving ? (
                   <>

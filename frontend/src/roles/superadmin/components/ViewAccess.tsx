@@ -113,18 +113,18 @@ export function ViewAccess() {
 
     return (
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="p-4 sm:p-6 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 capitalize">{role} Access Matrix</h2>
-              <p className="text-sm text-gray-600 mt-1">Configure access permissions for {role} role</p>
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 capitalize">{role} Access Matrix</h2>
+              <p className="text-xs sm:text-sm text-gray-600 mt-1">Configure access permissions for {role} role</p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
+              <div className="text-left sm:text-right">
+                <p className="text-xs sm:text-sm font-medium text-gray-900">
                   {activePermissions} of {permissions.length} permissions enabled
                 </p>
-                <div className="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                <div className="w-24 sm:w-32 bg-gray-200 rounded-full h-2 mt-1">
                   <div
                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(activePermissions / permissions.length) * 100}%` }}
@@ -139,10 +139,10 @@ export function ViewAccess() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 min-w-[300px]">
+                <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-900 min-w-[250px] sm:min-w-[300px]">
                   Permissions
                 </th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 min-w-[120px]">
+                <th className="px-3 sm:px-6 py-3 sm:py-4 text-center text-xs sm:text-sm font-semibold text-gray-900 min-w-[80px] sm:min-w-[120px]">
                   Access
                 </th>
               </tr>
@@ -150,25 +150,25 @@ export function ViewAccess() {
             <tbody className="divide-y divide-gray-200">
               {permissions.map((permission) => (
                 <tr key={permission.key} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4">
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium text-gray-900">
+                      <span className="text-xs sm:text-sm font-medium text-gray-900">
                         {permission.label}
                       </span>
                       {'description' in permission && (
-                        <span className="text-xs text-gray-500 mt-0.5">
+                        <span className="text-xs text-gray-500 mt-0.5 hidden sm:block">
                           {permission.description}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-center">
                     <label className="inline-flex items-center">
                       <input
                         type="checkbox"
                         checked={!!accessMatrix[role][permission.key as keyof RolePermissions]}
                         onChange={() => handlePermissionChange(role, permission.key as keyof RolePermissions)}
-                        className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                        className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                       />
                     </label>
                   </td>
@@ -182,17 +182,17 @@ export function ViewAccess() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Access Control - {school.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Access Control - {school.name}</h1>
           </div>
           <button
             onClick={handleSave}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200"
+            className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200 w-full sm:w-auto text-sm sm:text-base"
           >
-            <Save className="h-5 w-5" />
+            <Save className="h-4 w-4 sm:h-5 sm:w-5" />
             <span>Save Changes</span>
           </button>
         </div>

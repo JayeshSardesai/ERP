@@ -194,24 +194,24 @@ const FeeStructureTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">Create Fee Structure</h2>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6">Create Fee Structure</h2>
 
         {/* Alerts */}
         {error && (
-          <div className="mb-4 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded flex items-center">
-            <AlertCircle className="h-5 w-5 mr-2" />
-            {error}
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-800 px-3 sm:px-4 py-3 rounded flex items-center text-sm">
+            <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />
+            <span className="break-words">{error}</span>
           </div>
         )}
         {success && (
-          <div className="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded">
-            {success}
+          <div className="mb-4 bg-green-50 border border-green-200 text-green-800 px-3 sm:px-4 py-3 rounded text-sm">
+            <span className="break-words">{success}</span>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Basic Information */}
           <div className="space-y-4">
             <div>

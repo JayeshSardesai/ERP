@@ -187,25 +187,25 @@ const AddAssignments: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Add Assignments</h1>
-          <p className="text-gray-600">Create and manage assignments for your students</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Add Assignments</h1>
+          <p className="text-sm sm:text-base text-gray-600">Create and manage assignments for your students</p>
         </div>
       </div>
 
       {/* Add Assignment Form */}
       {showAddForm && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">Create New Assignment</h2>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <div className="mb-4 sm:mb-6">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Create New Assignment</h2>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Assignment Title */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 text-center">Assignment Title *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Assignment Title *</label>
               <input
                 type="text"
                 value={newAssignment.title}

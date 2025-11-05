@@ -513,28 +513,28 @@ const MessagesPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-6 bg-white rounded-lg shadow">
-      <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-        <MessageSquare className="mr-3 h-8 w-8 text-blue-600" /> Messages
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 bg-white rounded-lg shadow">
+      <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 flex items-center">
+        <MessageSquare className="mr-2 sm:mr-3 h-6 w-6 sm:h-8 sm:w-8 text-blue-600" /> Messages
       </h1>
 
       {/* Alerts */}
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> {error}</span>
+        <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold text-sm sm:text-base">Error!</strong>
+          <span className="block sm:inline text-sm sm:text-base"> {error}</span>
         </div>
       )}
       {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Success!</strong>
-          <span className="block sm:inline"> {success}</span>
+        <div className="bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold text-sm sm:text-base">Success!</strong>
+          <span className="block sm:inline text-sm sm:text-base"> {success}</span>
         </div>
       )}
 
       {/* Send New Message Section */}
       <div className="border-b pb-4 mb-4">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-4">Send New Message</h2>
+        <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800 mb-4">Send New Message</h2>
 
         {/* Class and Section Selection */}
         <div className="mb-6">

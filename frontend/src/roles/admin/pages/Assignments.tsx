@@ -273,25 +273,22 @@ const Assignments: React.FC = () => {
     try {
       console.log(`🔍 Fetching subjects for class: ${className}`);
 
-      // Get school code from localStorage or auth
-      const schoolCode = localStorage.getItem('erp.schoolCode') || '';
-      const authData = localStorage.getItem('erp.auth');
-      let token = '';
-
-      if (authData) {
-        const parsedAuth = JSON.parse(authData);
-        token = parsedAuth.token || '';
-      }
-
-      // Try the class-subjects API - use api instance instead of fetch to use smart interceptor
-      const response = await api.get(`/class-subjects/class/${encodeURIComponent(className)}`);
-
-      // Axios response structure is different from fetch
+      // Use the same approach as teacher page - fetch all classes and find the specific one
+      const response = await api.get('/class-subjects/classes');
       const data = response.data;
-      const subjectNames = (data?.data?.subjects || [])
-        .filter((s: any) => s.isActive !== false)
-        .map((s: any) => s.name)
-        .filter(Boolean);
+      
+      // Get all subjects for this class (regardless of section initially)
+      const classesForThisName = data?.data?.classes?.filter((c: any) => c.className === className) || [];
+      const allSubjects = new Set();
+      
+      classesForThisName.forEach((classData: any) => {
+        const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
+        activeSubjects.forEach((s: any) => {
+          if (s.name) allSubjects.add(s.name);
+        });
+      });
+      
+      const subjectNames = Array.from(allSubjects) as string[];
       setSubjects(subjectNames);
       console.log('✅ Subjects loaded:', subjectNames);
     } catch (err) {

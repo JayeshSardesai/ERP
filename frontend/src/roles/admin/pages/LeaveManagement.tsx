@@ -255,62 +255,62 @@ const LeaveManagement: React.FC = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Leave Management</h1>
-        <p className="text-gray-600">Review and manage teacher leave requests</p>
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Leave Management</h1>
+        <p className="text-sm sm:text-base text-gray-600">Review and manage teacher leave requests</p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Requests</p>
-              <p className="text-2xl font-bold text-gray-900">{leaveRequests.length}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Total Requests</p>
+              <p className="text-lg sm:text-2xl font-bold text-gray-900">{leaveRequests.length}</p>
             </div>
-            <Calendar className="h-8 w-8 text-gray-400" />
+            <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-yellow-600">
+              <p className="text-xs sm:text-sm text-gray-600">Pending</p>
+              <p className="text-lg sm:text-2xl font-bold text-yellow-600">
                 {leaveRequests.filter(r => r.status === 'pending').length}
               </p>
             </div>
-            <Clock className="h-8 w-8 text-yellow-400" />
+            <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-400" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Approved</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-xs sm:text-sm text-gray-600">Approved</p>
+              <p className="text-lg sm:text-2xl font-bold text-green-600">
                 {leaveRequests.filter(r => r.status === 'approved').length}
               </p>
             </div>
-            <Check className="h-8 w-8 text-green-400" />
+            <Check className="h-6 w-6 sm:h-8 sm:w-8 text-green-400" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Rejected</p>
-              <p className="text-2xl font-bold text-red-600">
+              <p className="text-xs sm:text-sm text-gray-600">Rejected</p>
+              <p className="text-lg sm:text-2xl font-bold text-red-600">
                 {leaveRequests.filter(r => r.status === 'rejected').length}
               </p>
             </div>
-            <X className="h-8 w-8 text-red-400" />
+            <X className="h-6 w-6 sm:h-8 sm:w-8 text-red-400" />
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
+      <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           {/* Search */}
           <div className="flex-1">
             <div className="relative">
@@ -348,19 +348,19 @@ const LeaveManagement: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Teacher
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                   Duration
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                   Applied On
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>

@@ -355,7 +355,7 @@ const AcademicDetails: React.FC = () => {
     setLoading(true);
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      
+
       const response = await api.post('/class-subjects/initialize', {
         className: selectedClass,
         grade: selectedClass,
@@ -1392,55 +1392,58 @@ const AcademicDetails: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <BookOpen className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-800">Academic Management</h1>
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4">
+            <BookOpen className="h-6 w-6 text-blue-600 flex-shrink-0" />
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Academic Management</h1>
           </div>
-          <p className="text-gray-600">Manage subjects and generate hall tickets for your school</p>
+          <p className="text-sm sm:text-base text-gray-600">Manage subjects and generate hall tickets for your school</p>
         </div>
 
         {/* Tab Navigation */}
-        <div className="bg-white rounded-lg shadow-md mb-6">
+        <div className="bg-white rounded-lg shadow-md mb-4 sm:mb-6">
           <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6">
+            <nav className="flex flex-col sm:flex-row sm:space-x-8 px-4 sm:px-6 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('subjects')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'subjects'
+                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto text-center sm:text-left ${activeTab === 'subjects'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
                   <BookOpen className="h-4 w-4" />
-                  Class Subjects Management
+                  <span className="hidden sm:inline">Class Subjects Management</span>
+                  <span className="sm:hidden">Subjects</span>
                 </div>
               </button>
               <button
                 onClick={() => setActiveTab('hallticket')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'hallticket'
+                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto text-center sm:text-left ${activeTab === 'hallticket'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
                   <FileText className="h-4 w-4" />
-                  Hall Ticket Generation
+                  <span className="hidden sm:inline">Hall Ticket Generation</span>
+                  <span className="sm:hidden">Hall Tickets</span>
                 </div>
               </button>
               <button
                 onClick={() => setActiveTab('idcard')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'idcard'
+                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto text-center sm:text-left ${activeTab === 'idcard'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
                   <CreditCard className="h-4 w-4" />
-                  School ID Card Generation
+                  <span className="hidden sm:inline">School ID Card Generation</span>
+                  <span className="sm:hidden">ID Cards</span>
                 </div>
               </button>
             </nav>

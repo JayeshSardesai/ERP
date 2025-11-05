@@ -420,19 +420,19 @@ const AcademicNavigation: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Academic Management</h1>
-          <p className="text-gray-600">Manage classes, sections, and tests for {school.name}</p>
-          <div className="mt-2 text-sm text-gray-500">
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Academic Management</h1>
+          <p className="text-sm sm:text-base text-gray-600">Manage classes, sections, and tests for {school.name}</p>
+          <div className="mt-2 text-xs sm:text-sm text-gray-500">
             School Code: {school.code} | Total Classes: {classes.length}
           </div>
         </div>
 
         {/* Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
           {navigationCards.map((card) => {
             const Icon = card.icon;
             const isActive = activeView === card.id;
@@ -441,20 +441,20 @@ const AcademicNavigation: React.FC = () => {
               <div
                 key={card.id}
                 onClick={() => setActiveView(card.id as any)}
-                className={`bg-white rounded-lg shadow-md p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${isActive ? 'ring-2 ring-blue-500' : ''
+                className={`bg-white rounded-lg shadow-md p-4 sm:p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${isActive ? 'ring-2 ring-blue-500' : ''
                   }`}
               >
-                <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-lg ${card.color === 'blue' ? 'bg-blue-100 text-blue-600' :
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className={`p-2 sm:p-3 rounded-lg ${card.color === 'blue' ? 'bg-blue-100 text-blue-600' :
                     card.color === 'green' ? 'bg-green-100 text-green-600' :
                       'bg-purple-100 text-purple-600'
                     }`}>
-                    <Icon className="h-6 w-6" />
+                    <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-800">{card.title}</h3>
-                    <p className="text-sm text-gray-600">{card.description}</p>
-                    <div className="mt-2 text-2xl font-bold text-gray-900">{card.count}</div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 truncate">{card.title}</h3>
+                    <p className="text-xs sm:text-sm text-gray-600">{card.description}</p>
+                    <div className="mt-1 sm:mt-2 text-xl sm:text-2xl font-bold text-gray-900">{card.count}</div>
                   </div>
                 </div>
               </div>
@@ -463,21 +463,21 @@ const AcademicNavigation: React.FC = () => {
         </div>
 
         {/* Content Area */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
           {activeView === 'classes' && (
             <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">Classes Management</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Classes Management</h2>
               </div>
 
               {/* Add Class Form */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <h3 className="text-md font-medium text-gray-800 mb-3">Add New Class</h3>
-                <div className="flex gap-3 items-center">
+              <div className="mb-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm sm:text-md font-medium text-gray-800 mb-3">Add New Class</h3>
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                   <select
                     value={newClassName}
                     onChange={(e) => setNewClassName(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                   >
                     <option value="">Select class...</option>
                     <option value="LKG">LKG</option>
@@ -489,10 +489,11 @@ const AcademicNavigation: React.FC = () => {
                   <button
                     onClick={addClass}
                     disabled={!newClassName.trim() || loading}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base w-full sm:w-auto"
                   >
                     <Plus className="h-4 w-4" />
-                    Add Class
+                    <span className="hidden sm:inline">Add Class</span>
+                    <span className="sm:hidden">Add</span>
                   </button>
                 </div>
               </div>
@@ -554,18 +555,18 @@ const AcademicNavigation: React.FC = () => {
 
           {activeView === 'sections' && (
             <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">Sections Management</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Sections Management</h2>
               </div>
 
               {/* Add Section Form */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <h3 className="text-md font-medium text-gray-800 mb-3">Add New Section</h3>
-                <div className="flex gap-3">
+              <div className="mb-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm sm:text-md font-medium text-gray-800 mb-3">Add New Section</h3>
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                   <select
                     value={selectedClass}
                     onChange={(e) => setSelectedClass(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
                   >
                     <option value="">Select a class...</option>
                     {classes.map(cls => (
@@ -577,15 +578,16 @@ const AcademicNavigation: React.FC = () => {
                     value={newSection}
                     onChange={(e) => setNewSection(e.target.value.toUpperCase())}
                     placeholder="Section (e.g., A, B, C)"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
                   />
                   <button
                     onClick={addSection}
                     disabled={!selectedClass || !newSection.trim() || loading}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 sm:px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base w-full sm:w-auto"
                   >
                     <Plus className="h-4 w-4" />
-                    Add Section
+                    <span className="hidden sm:inline">Add Section</span>
+                    <span className="sm:hidden">Add</span>
                   </button>
                 </div>
               </div>
@@ -624,19 +626,19 @@ const AcademicNavigation: React.FC = () => {
 
           {activeView === 'tests' && (
             <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">Tests Management</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Tests Management</h2>
               </div>
 
               {/* Add Test Form */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <h3 className="text-md font-medium text-gray-800 mb-3">Add New Test</h3>
-                <div className="flex gap-3 mb-3">
+              <div className="mb-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm sm:text-md font-medium text-gray-800 mb-3">Add New Test</h3>
+                <div className="flex flex-col sm:flex-row gap-3 mb-3 items-stretch sm:items-center">
                   <select
                     value={selectedClass}
                     onChange={(e) => setSelectedClass(e.target.value)}
                     disabled={allClasses}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 disabled:bg-gray-200"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 disabled:bg-gray-200 text-sm"
                   >
                     <option value="">Select a class...</option>
                     {classes.map(cls => (
@@ -648,15 +650,16 @@ const AcademicNavigation: React.FC = () => {
                     value={newTestName}
                     onChange={(e) => setNewTestName(e.target.value)}
                     placeholder="Test name (e.g., Midterm, Unit Test 1)"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                   />
                   <button
                     onClick={addTest}
                     disabled={(!allClasses && !selectedClass) || !newTestName.trim() || loading}
-                    className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 sm:px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base w-full sm:w-auto"
                   >
                     <Plus className="h-4 w-4" />
-                    Add Test
+                    <span className="hidden sm:inline">Add Test</span>
+                    <span className="sm:hidden">Add</span>
                   </button>
                 </div>
                 <div className="flex gap-4 text-sm">

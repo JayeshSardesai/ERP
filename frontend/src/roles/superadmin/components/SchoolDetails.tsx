@@ -723,17 +723,17 @@ function SchoolDetailsContent() {
 
   // Case 5: Success - basic view
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">{school.name}</h1>
-          <p className="text-sm text-gray-600 mt-1">School Code: {schoolCode || 'N/A'}</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{school.name}</h1>
+          <p className="text-xs sm:text-sm text-gray-600 mt-1">School Code: {schoolCode || 'N/A'}</p>
         </div>
 
       {/* DEBUG Panel - visible to help diagnose issues */}
-      <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
-        <h2 className="font-bold text-blue-800 mb-2">Debug Information</h2>
-        <div className="grid grid-cols-2 gap-4 text-sm">
+      <div className="bg-blue-50 border border-blue-200 p-3 sm:p-4 rounded-lg mb-4 sm:mb-6">
+        <h2 className="font-bold text-blue-800 mb-2 text-sm sm:text-base">Debug Information</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
           <div>
             <p><span className="font-medium">School ID:</span> {selectedSchoolId}</p>
             <p><span className="font-medium">School Name:</span> {school.name}</p>
@@ -748,10 +748,10 @@ function SchoolDetailsContent() {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 p-2">
-        <nav className="flex space-x-2">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-4 sm:mb-6 p-1 sm:p-2">
+        <nav className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-2">
           <button
-            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 ${
+            className={`flex items-center justify-center space-x-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 ${
               activeTab === 'overview'
                 ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
@@ -763,7 +763,7 @@ function SchoolDetailsContent() {
           </button>
 
           <button
-            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 ${
+            className={`flex items-center justify-center space-x-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 ${
               activeTab === 'users'
                 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md'
                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
@@ -775,7 +775,7 @@ function SchoolDetailsContent() {
           </button>
 
           <button
-            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 ${
+            className={`flex items-center justify-center space-x-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 ${
               activeTab === 'academics'
                 ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-md'
                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
