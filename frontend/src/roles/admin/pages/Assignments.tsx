@@ -420,16 +420,16 @@ const Assignments: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Assignments</h1>
-        <div className="flex space-x-3">
-          <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Assignments</h1>
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <button className="bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center transition-colors text-sm">
             <Download className="h-4 w-4 mr-2" />
             Export Data
           </button>
           <button
             onClick={handleAddAssignment}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Assignment
@@ -453,8 +453,8 @@ const Assignments: React.FC = () => {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center">
             <div className="bg-blue-500 p-3 rounded-lg">
               <FileText className="h-6 w-6 text-white" />
@@ -465,7 +465,7 @@ const Assignments: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center">
             <div className="bg-purple-500 p-3 rounded-lg">
               <Calendar className="h-6 w-6 text-white" />
@@ -479,19 +479,19 @@ const Assignments: React.FC = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative w-full md:w-64">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="flex flex-col gap-4">
+          <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
             <input
               type="text"
               placeholder="Search assignments..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
-          <div className="flex flex-1 gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <select
               value={selectedClass}
               onChange={(e) => {
@@ -500,7 +500,7 @@ const Assignments: React.FC = () => {
                 setSelectedSection('');
                 setSelectedSubject('');
               }}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             >
               <option value="">All Classes</option>
               {getClassOptions().map((cls) => (
@@ -516,7 +516,7 @@ const Assignments: React.FC = () => {
                   setSelectedSubject('');
                 }
               }}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             >
               <option value="">All Sections</option>
               {(selectedClass ? getSectionsByClass(selectedClass) : []).map((section) => (
@@ -526,7 +526,7 @@ const Assignments: React.FC = () => {
             <select
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             >
               <option value="">All Subjects</option>
               {subjects.map((subject) => (
@@ -540,10 +540,10 @@ const Assignments: React.FC = () => {
       {/* Assignments Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {/* Table Header with Total Count */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Assignments</h3>
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Assignments</h3>
+            <div className="flex items-center space-x-3 sm:space-x-4 text-xs sm:text-sm text-gray-600">
               <span>Total: <span className="font-semibold text-gray-900">{assignments.length}</span></span>
               {(searchTerm || selectedClass || selectedSection || selectedSubject) && (
                 <span>Filtered: <span className="font-semibold text-blue-600">{filteredAssignments.length}</span></span>
@@ -555,22 +555,22 @@ const Assignments: React.FC = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignment</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignment</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Class</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Section</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Subject</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAssignments.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-3 sm:px-6 py-8 sm:py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
-                      <FileText className="h-12 w-12 text-gray-400 mb-3" />
-                      <p className="text-gray-500 text-lg font-medium">No assignments found</p>
-                      <p className="text-gray-400 text-sm mt-1">
+                      <FileText className="h-8 sm:h-12 w-8 sm:w-12 text-gray-400 mb-3" />
+                      <p className="text-gray-500 text-base sm:text-lg font-medium">No assignments found</p>
+                      <p className="text-gray-400 text-xs sm:text-sm mt-1">
                         {searchTerm || selectedClass || selectedSection || selectedSubject
                           ? 'Try adjusting your filters'
                           : 'Create your first assignment to get started'}
@@ -581,39 +581,44 @@ const Assignments: React.FC = () => {
               ) : (
                 filteredAssignments.map((assignment) => (
                   <tr key={assignment._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{assignment.title || 'Untitled Assignment'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {assignment.class || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {assignment.section || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {assignment.subject || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-1 text-gray-400" />
-                        {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'No due date'}
+                    <td className="px-3 sm:px-6 py-4">
+                      <div className="text-xs sm:text-sm font-medium text-gray-900">{assignment.title || 'Untitled Assignment'}</div>
+                      <div className="text-xs text-gray-500 sm:hidden mt-1">
+                        {assignment.class && `Class ${assignment.class}`}
+                        {assignment.section && ` • Section ${assignment.section}`}
+                        {assignment.subject && ` • ${assignment.subject}`}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden sm:table-cell">
+                      {assignment.class || 'N/A'}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden md:table-cell">
+                      {assignment.section || 'N/A'}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden lg:table-cell">
+                      {assignment.subject || 'N/A'}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <Calendar className="h-3 sm:h-4 w-3 sm:w-4 mr-1 text-gray-400" />
+                        <span className="truncate">{assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'No due date'}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-1 sm:space-x-2">
                         <button
                           onClick={() => handleEditAssignment(assignment._id)}
                           className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                           title="Edit assignment"
                         >
-                          <Edit2 className="h-4 w-4" />
+                          <Edit2 className="h-3 sm:h-4 w-3 sm:w-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteAssignment(assignment._id, assignment.title)}
                           className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
                           title="Delete assignment"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3 sm:h-4 w-3 sm:w-4" />
                         </button>
                       </div>
                     </td>

@@ -198,13 +198,40 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   // Calculate days until next deadline with enhanced information
   const getDeadlineStatus = (dueDate: string) => {
+    // Add debugging to identify NaN issues
+    console.log('🔍 DEBUG: Processing dueDate:', dueDate, 'Type:', typeof dueDate);
+    
+    if (!dueDate) {
+      console.warn('⚠️ WARNING: dueDate is null, undefined, or empty');
+      return {
+        text: 'No due date',
+        color: 'text-gray-700',
+        bgColor: 'bg-gray-100',
+        priority: 'low'
+      };
+    }
+
     const due = new Date(dueDate);
     const today = new Date();
+    
+    // Check if date is valid
+    if (isNaN(due.getTime())) {
+      console.error('❌ ERROR: Invalid date format:', dueDate);
+      return {
+        text: 'Invalid date',
+        color: 'text-red-700',
+        bgColor: 'bg-red-100',
+        priority: 'urgent'
+      };
+    }
+    
     today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
     due.setHours(23, 59, 59, 999); // Set to end of due date
 
     const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    console.log('🔍 DEBUG: Calculated diffDays:', diffDays, 'for assignment due:', due.toDateString());
 
     if (diffDays < 0) {
       const overdueDays = Math.abs(diffDays);

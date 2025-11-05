@@ -81,7 +81,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
       {currentView !== 'school-login' && <Navigation />}
       <main className={`flex-1 overflow-y-auto ${currentView === 'school-login' ? 'w-full' : ''}`}>
         {renderCurrentView()}

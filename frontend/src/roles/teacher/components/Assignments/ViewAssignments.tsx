@@ -272,7 +272,7 @@ const ViewAssignments: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
@@ -280,7 +280,7 @@ const ViewAssignments: React.FC = () => {
             placeholder="Search assignments..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           />
         </div>
 
@@ -291,7 +291,7 @@ const ViewAssignments: React.FC = () => {
             setSelectedSection('');
             setSelectedSubject('');
           }}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
         >
           <option value="">All Classes</option>
           {classList.map((cls) => (
@@ -306,7 +306,7 @@ const ViewAssignments: React.FC = () => {
             setSelectedSubject('');
           }}
           disabled={!selectedClass}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
         >
           <option value="">All Sections</option>
           {availableSections.map((section) => (
@@ -318,7 +318,7 @@ const ViewAssignments: React.FC = () => {
           value={selectedSubject}
           onChange={(e) => setSelectedSubject(e.target.value)}
           disabled={!selectedSection}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
         >
           <option value="">All Subjects</option>
           {availableSubjects.map((subject) => (
@@ -330,10 +330,10 @@ const ViewAssignments: React.FC = () => {
       {/* Assignments Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {/* Table Header with Total Count */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Assignments</h3>
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Assignments</h3>
+            <div className="flex items-center space-x-3 sm:space-x-4 text-xs sm:text-sm text-gray-600">
               <span>Total: <span className="font-semibold text-gray-900">{assignments.length}</span></span>
               {(searchTerm || selectedClass || selectedSection || selectedSubject) && (
                 <span>Filtered: <span className="font-semibold text-blue-600">{filteredAssignments.length}</span></span>
@@ -344,22 +344,22 @@ const ViewAssignments: React.FC = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Assignment
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                 Class
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                 Section
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                 Subject
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Due Date
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -367,52 +367,57 @@ const ViewAssignments: React.FC = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-3 sm:px-6 py-6 sm:py-8 text-center text-xs sm:text-sm text-gray-500">
                   Loading assignments...
                 </td>
               </tr>
             ) : filteredAssignments.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-3 sm:px-6 py-6 sm:py-8 text-center text-xs sm:text-sm text-gray-500">
                   No assignments found
                 </td>
               </tr>
             ) : (
               filteredAssignments.map((assignment) => (
                 <tr key={assignment._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{assignment.title}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{assignment.class}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{assignment.section || 'N/A'}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{assignment.subject}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm text-gray-900">
-                      <Calendar className="h-4 w-4 mr-1 text-gray-400" />
-                      {formatDate(assignment.dueDate)}
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <div className="text-xs sm:text-sm font-medium text-gray-900">{assignment.title}</div>
+                    <div className="text-xs text-gray-500 sm:hidden mt-1">
+                      {assignment.class && `Class ${assignment.class}`}
+                      {assignment.section && ` • Section ${assignment.section}`}
+                      {assignment.subject && ` • ${assignment.subject}`}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center space-x-3">
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden sm:table-cell">
+                    <div className="text-xs sm:text-sm text-gray-900">{assignment.class}</div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden md:table-cell">
+                    <div className="text-xs sm:text-sm text-gray-900">{assignment.section || 'N/A'}</div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+                    <div className="text-xs sm:text-sm text-gray-900">{assignment.subject}</div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center text-xs sm:text-sm text-gray-900">
+                      <Calendar className="h-3 sm:h-4 w-3 sm:w-4 mr-1 text-gray-400" />
+                      <span className="truncate">{formatDate(assignment.dueDate)}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center space-x-2 sm:space-x-3">
                       <button
                         onClick={() => handleEdit(assignment)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                         title="Edit"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3 sm:h-4 w-3 sm:w-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(assignment._id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
                         title="Delete"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 sm:h-4 w-3 sm:w-4" />
                       </button>
                     </div>
                   </td>

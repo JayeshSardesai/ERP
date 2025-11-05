@@ -652,10 +652,10 @@ const Dashboard: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
             <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-500">
+              <div className="text-xs sm:text-sm text-gray-500">
                 Last updated: {new Date().toLocaleDateString()}
               </div>
             </div>
@@ -663,11 +663,11 @@ const Dashboard: React.FC = () => {
 
           {/* School Info Header */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="p-6">
-              <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col md:flex-row items-center md:items-start gap-4 sm:gap-6">
                 {/* School Logo */}
                 {school?.logoUrl && (
-                  <div className="w-24 h-24 border border-gray-200 rounded-lg p-2 flex-shrink-0">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 border border-gray-200 rounded-lg p-2 flex-shrink-0">
                     <img
                       src={getLogoUrl(school.logoUrl)}
                       alt={`${school.name} logo`}
@@ -678,8 +678,8 @@ const Dashboard: React.FC = () => {
 
                 {/* School Info */}
                 <div className="flex-grow text-center md:text-left">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">{school?.name || user?.schoolName || 'Your School'}</h2>
-                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-3">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{school?.name || user?.schoolName || 'Your School'}</h2>
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-3 mb-3">
                     <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300">
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
                         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -712,7 +712,7 @@ const Dashboard: React.FC = () => {
                   )}
 
                   {/* Contact Info */}
-                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-gray-600 text-sm">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 sm:gap-4 text-gray-600 text-xs sm:text-sm">
                     {(school?.contact?.phone || school?.mobile) && (
                       <div className="flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
@@ -749,9 +749,9 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {stats.map((stat) => (
-              <div key={stat.name} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <div key={stat.name} className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
                 <div className="flex items-center">
                   <div className={`${stat.color} p-3 rounded-lg`}>
                     <stat.icon className="h-6 w-6 text-white" />
@@ -766,25 +766,25 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Users Section */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
               Associated Users
-              <span className="text-sm font-normal text-gray-500 ml-2">({users.length} total)</span>
+              <span className="text-xs sm:text-sm font-normal text-gray-500 ml-2">({users.length} total)</span>
             </h3>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Name
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                       Email
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Role
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                   </tr>
@@ -793,17 +793,18 @@ const Dashboard: React.FC = () => {
                   {users.length > 0 ? (
                     users.slice(0, 5).map((user) => (
                       <tr key={user._id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-xs sm:text-sm font-medium text-gray-900">
                             {typeof (user as any).name === 'string'
                               ? (user as any).name
                               : ((user as any).name?.displayName || (((user as any).name?.firstName || '') + ' ' + ((user as any).name?.lastName || '')).trim() || user.email || 'Unknown User')}
                           </div>
+                          <div className="text-xs text-gray-500 sm:hidden">{user.email}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden sm:table-cell">
                           <div className="text-sm text-gray-500">{user.email}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
                             user.role === 'teacher' ? 'bg-blue-100 text-blue-800' :
                               user.role === 'student' ? 'bg-green-100 text-green-800' :
@@ -812,7 +813,7 @@ const Dashboard: React.FC = () => {
                             {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                             }`}>
                             {user.isActive ? 'Active' : 'Inactive'}
@@ -822,7 +823,7 @@ const Dashboard: React.FC = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
+                      <td colSpan={4} className="px-3 sm:px-6 py-4 text-center text-xs sm:text-sm text-gray-500">
                         No users found for this school
                       </td>
                     </tr>
@@ -830,8 +831,8 @@ const Dashboard: React.FC = () => {
                 </tbody>
               </table>
               {users.length > 5 && (
-                <div className="px-6 py-4 text-center">
-                  <Link to="/admin/users" className="text-sm text-blue-600 hover:text-blue-800">
+                <div className="px-3 sm:px-6 py-4 text-center">
+                  <Link to="/admin/users" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800">
                     View all {users.length} users
                   </Link>
                 </div>
@@ -840,10 +841,10 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Class Performance */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Class Performance</h3>
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">Class Performance</h3>
             {classPerformance.length > 0 ? (
-              <ResponsiveContainer width="100%" height={350}>
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={classPerformance}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
@@ -872,9 +873,9 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Today's Attendance - Morning and Afternoon Sessions */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Morning Session */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
               <div className="flex items-center justify-center mb-4">
                 <div className="bg-yellow-100 p-2 rounded-full mr-2">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-600">
@@ -889,9 +890,9 @@ const Dashboard: React.FC = () => {
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Morning Session</h3>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Morning Session</h3>
               </div>
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
                     data={morningPieData}
@@ -932,16 +933,16 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Afternoon Session */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
               <div className="flex items-center justify-center mb-4">
                 <div className="bg-orange-100 p-2 rounded-full mr-2">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-600">
                     <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Afternoon Session</h3>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Afternoon Session</h3>
               </div>
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
                     data={afternoonPieData}
@@ -984,9 +985,9 @@ const Dashboard: React.FC = () => {
 
           {/* Weekly Attendance - Centered */}
           <div className="flex justify-center">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 w-full lg:w-1/2">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">Weekly Attendance</h3>
-              <ResponsiveContainer width="100%" height={300}>
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 w-full lg:w-3/4 xl:w-1/2">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 text-center">Weekly Attendance</h3>
+              <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={attendanceData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />

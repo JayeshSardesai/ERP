@@ -83,7 +83,7 @@ export default function Login() {
             type="button"
             onClick={() => onPickRole(rk)}
             className={[
-              "flex-1 min-w-[160px] p-4 rounded-xl border transition shadow-sm text-left",
+              "flex-1 min-w-[120px] sm:min-w-[160px] p-3 sm:p-4 rounded-xl border transition shadow-sm text-left",
               active
                 ? "border-violet-500 bg-white ring-2 ring-violet-200"
                 : "border-slate-200 bg-white/80 hover:border-slate-300",
@@ -98,13 +98,13 @@ export default function Login() {
             >
               {m.icon}
             </div>
-            <div className="font-medium text-slate-800 flex items-center gap-2">
+            <div className="text-sm sm:font-medium text-slate-800 flex items-center gap-2">
               {m.title}
               {rk === "superadmin" && <span></span>}
               {rk === "admin" && <span></span>}
               {rk === "teacher" && <span></span>}
             </div>
-            <div className="text-xs text-slate-500">{m.subtitle}</div>
+            <div className="text-xs text-slate-500 hidden sm:block">{m.subtitle}</div>
           </button>
         );
       }),
@@ -141,27 +141,27 @@ export default function Login() {
         <div className="floating-emoji left-[96%] top-[75%]">💚</div>
       </div>
 
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-5xl mx-auto bg-white/90 backdrop-blur shadow-2xl rounded-3xl px-6 md:px-12 py-10">
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+      <div className="container mx-auto px-4 py-6 sm:py-12">
+        <div className="max-w-5xl mx-auto bg-white/90 backdrop-blur shadow-2xl rounded-2xl sm:rounded-3xl px-4 sm:px-6 md:px-12 py-6 sm:py-10">
+          <div className="grid md:grid-cols-2 gap-6 sm:gap-10 items-center">
             {/* Left: Brand / Greeting */}
-            <div className="space-y-4 flex flex-col items-center text-center">
-              <div className="w-40 h-40 rounded-3xl bg-violet-100 flex items-center justify-center overflow-hidden shadow-lg">
-                <img src="/logo.png" alt="School Logo" className="w-36 h-36 object-contain" />
+            <div className="space-y-3 sm:space-y-4 flex flex-col items-center text-center">
+              <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl sm:rounded-3xl bg-violet-100 flex items-center justify-center overflow-hidden shadow-lg">
+                <img src="/logo.png" alt="School Logo" className="w-28 h-28 sm:w-36 sm:h-36 object-contain" />
               </div>
-              <h1 className="text-3xl md:text-4xl font-extrabold">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold">
                 <span className="bg-gradient-to-r from-fuchsia-500 via-violet-500 to-blue-500 bg-clip-text text-transparent">
                   EduLogix
                 </span>
               </h1>
-              <p className="text-slate-500 text-xl md:text-2xl font-semibold">Welcome back, superstar! ✨</p>
+              <p className="text-slate-500 text-lg sm:text-xl md:text-2xl font-semibold">Welcome back, superstar! ✨</p>
             </div>
 
             {/* Right: Form */}
-            <form onSubmit={onSubmit} className="space-y-5">
+            <form onSubmit={onSubmit} className="space-y-4 sm:space-y-5">
               <div>
-                <div className="text-sm font-medium text-slate-700 mb-3">Choose your adventure </div>
-                <div className="flex flex-wrap gap-3">{roleCards}</div>
+                <div className="text-sm font-medium text-slate-700 mb-2 sm:mb-3">Choose your adventure </div>
+                <div className="flex flex-wrap gap-2 sm:gap-3">{roleCards}</div>
               </div>
 
               <div className="space-y-1">
@@ -169,7 +169,7 @@ export default function Login() {
                 <div className="relative">
                   <input
                     type="email"
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400"
+                    className="w-full border border-slate-200 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 text-sm sm:text-base"
                     placeholder="your.email@school.com "
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -185,7 +185,7 @@ export default function Login() {
                 <div className="relative">
                   <input
                     type={showPass ? "text" : "password"}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400"
+                    className="w-full border border-slate-200 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 text-sm sm:text-base"
                     placeholder="Your super secret password "
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -211,7 +211,7 @@ export default function Login() {
                   </label>
                   <input
                     type="text"
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400"
+                    className="w-full border border-slate-200 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 text-sm sm:text-base"
                     placeholder="Enter school code (e.g., 'p')"
                     value={schoolCode}
                     onChange={(e) => setSchoolCode(e.target.value)}
@@ -220,8 +220,8 @@ export default function Login() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm text-slate-600">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
+                <label className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
                   <input
                     type="checkbox"
                     className="w-4 h-4 rounded border-slate-300"
@@ -233,7 +233,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => alert("Hook this to your /auth/forgot-password route")}
-                  className="text-sm text-slate-600 hover:text-slate-900"
+                  className="text-xs sm:text-sm text-slate-600 hover:text-slate-900 text-left sm:text-right"
                 >
                   Forgot your password?
                 </button>
@@ -243,14 +243,14 @@ export default function Login() {
 
               <button
                 disabled={loading}
-                className="w-full h-12 rounded-xl text-white font-medium shadow-lg disabled:opacity-60
+                className="w-full h-10 sm:h-12 rounded-xl text-white text-sm sm:text-base font-medium shadow-lg disabled:opacity-60
                   bg-gradient-to-r from-violet-600 via-fuchsia-500 to-blue-500 hover:opacity-95 transition"
               >
                 {loading ? "Signing you in…" : "Let's Go!"}
               </button>
 
               {/* hint for testers */}
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 text-center sm:text-left">
                 Tip: Only SuperAdmin has auto-filled demo credentials. Admin and Teacher require manual entry.
               </p>
             </form>

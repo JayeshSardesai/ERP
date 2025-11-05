@@ -5975,31 +5975,31 @@ const ManageUsers: React.FC = () => {
     return (
       <div className="space-y-6">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-4">
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <div className="flex items-center space-x-3">
-              <Building className="h-8 w-8 text-blue-600" />
+              <Building className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Manage Users</h1>
-                <p className="text-gray-600">Add, edit, and manage system users</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Manage Users</h1>
+                <p className="text-sm sm:text-base text-gray-600">Add, edit, and manage system users</p>
               </div>
             </div>
             {school && (
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3">
                 {school.logoUrl && (
-                  <img src={school.logoUrl} alt={school.name} className="h-12 w-12 rounded-lg object-cover" />
+                  <img src={school.logoUrl} alt={school.name} className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg object-cover" />
                 )}
-                <div className="text-right">
-                  <h3 className="font-semibold text-gray-900">{school.name}</h3>
-                  <p className="text-sm text-gray-500">School Code: {school.code}</p>
+                <div className="text-left sm:text-right">
+                  <h3 className="text-sm sm:text-base font-semibold text-gray-900">{school.name}</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">School Code: {school.code}</p>
                 </div>
               </div>
             )}
           </div>
 
           {/* Role Tabs */}
-          <div className="border-b border-gray-200 mb-6">
-            <nav className="-mb-px flex space-x-8">
+          <div className="border-b border-gray-200 mb-4 sm:mb-6">
+            <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto">
               <button
                 onClick={() => {
                   console.log('🔄 Switching to Student tab');
@@ -6009,7 +6009,7 @@ const ManageUsers: React.FC = () => {
                     handleRoleChange('student');
                   }
                 }}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'student'
+                className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === 'student'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
@@ -6025,7 +6025,7 @@ const ManageUsers: React.FC = () => {
                     handleRoleChange('teacher');
                   }
                 }}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'teacher'
+                className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === 'teacher'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
@@ -6041,7 +6041,7 @@ const ManageUsers: React.FC = () => {
                     handleRoleChange('admin');
                   }
                 }}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'admin'
+                className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === 'admin'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
@@ -6052,26 +6052,26 @@ const ManageUsers: React.FC = () => {
           </div>
 
           {/* Controls */}
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-4">
-            <div className="flex flex-col md:flex-row gap-4 flex-1">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <div className="flex flex-col gap-3 sm:gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 flex-1">
+              <div className="relative flex-1 max-w-full sm:max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 sm:h-5 sm:w-5" />
                 <input
                   type="text"
                   placeholder="Search by name, email, or ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-9 sm:pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
               </div>
               {activeTab === 'student' && (
-                <div className="flex items-center space-x-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
                   <div className="flex items-center space-x-2">
-                    <Filter className="h-5 w-5 text-gray-400" />
+                    <Filter className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                     <select
                       value={selectedGrade}
                       onChange={(e) => handleGradeChange(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="border border-gray-300 rounded-lg px-2 sm:px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                       disabled={classesLoading}
                     >
                       <option value="all">All Classes</option>
@@ -6087,7 +6087,7 @@ const ManageUsers: React.FC = () => {
                       <select
                         value={selectedSection}
                         onChange={(e) => setSelectedSection(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="border border-gray-300 rounded-lg px-2 sm:px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         disabled={classesLoading}
                       >
                         <option value="all">All Sections</option>
