@@ -55,6 +55,15 @@ const getAssignmentModelForConnection = (connection) => {
 // Create a new assignment
 exports.createAssignment = async (req, res) => {
   try {
+    console.log('🔍 [CREATE ASSIGNMENT] Request received');
+    console.log('🔍 [CREATE ASSIGNMENT] Request body:', req.body);
+    console.log('🔍 [CREATE ASSIGNMENT] User info:', {
+      userId: req.user?.userId,
+      role: req.user?.role,
+      schoolCode: req.user?.schoolCode,
+      name: req.user?.name
+    });
+    
     const {
       title,
       description,
@@ -69,11 +78,31 @@ exports.createAssignment = async (req, res) => {
       attachments = []
     } = req.body;
 
+    console.log('🔍 [CREATE ASSIGNMENT] Extracted fields:', {
+      title,
+      subject,
+      className,
+      section,
+      startDate,
+      dueDate,
+      hasInstructions: !!instructions,
+      hasDescription: !!description
+    });
+
     // Validate required fields
     if (!title || !subject || !className || !section || !startDate || !dueDate) {
+      console.error('❌ [CREATE ASSIGNMENT] Missing required fields:', {
+        title: !!title,
+        subject: !!subject,
+        className: !!className,
+        section: !!section,
+        startDate: !!startDate,
+        dueDate: !!dueDate
+      });
       return res.status(400).json({
         message: 'Missing required fields',
-        requiredFields: ['title', 'subject', 'class', 'section', 'startDate', 'dueDate']
+        requiredFields: ['title', 'subject', 'class', 'section', 'startDate', 'dueDate'],
+        received: { title, subject, className, section, startDate, dueDate }
       });
     }
 
@@ -234,10 +263,21 @@ exports.createAssignment = async (req, res) => {
         createdByName: teacherName
       });
 
-      console.log(`[ASSIGNMENT] Created assignment in school_${schoolCode}.assignments`);
+      console.log(`[ASSIGNMENT] Created assignment object for school_${schoolCode}.assignments`);
+      console.log(`[ASSIGNMENT] Assignment data before save:`, {
+        _id: assignment._id,
+        title: assignment.title,
+        subject: assignment.subject,
+        class: assignment.class,
+        section: assignment.section,
+        schoolCode: assignment.schoolCode,
+        teacher: assignment.teacher,
+        status: assignment.status
+      });
 
-      await assignment.save();
-      console.log(`[ASSIGNMENT] Saved assignment to school_${schoolCode}.assignments successfully`);
+      const savedAssignment = await assignment.save();
+      console.log(`[ASSIGNMENT] ✅ Successfully saved assignment to school_${schoolCode}.assignments`);
+      console.log(`[ASSIGNMENT] Saved assignment ID: ${savedAssignment._id}`);
     } catch (error) {
       console.error(`[ASSIGNMENT] Error saving to school database: ${error.message}`);
       console.log('[ASSIGNMENT] Falling back to main database');
@@ -263,11 +303,13 @@ exports.createAssignment = async (req, res) => {
         status: 'active',
         isPublished: true,
         publishedAt: new Date(),
-        createdBy: teacherId, // Use userId instead of _id
+        createdBy: teacherId,
         createdByName: teacherName
       });
 
-      await assignment.save();
+      const savedMainAssignment = await assignment.save();
+      console.log(`[ASSIGNMENT] ✅ Successfully saved assignment to main database`);
+      console.log(`[ASSIGNMENT] Main DB assignment ID: ${savedMainAssignment._id}`);
     }
 
     // Send notifications to students and parents
@@ -569,9 +611,9 @@ exports.getAssignmentById = async (req, res) => {
       console.log(`[GET ASSIGNMENT] Falling back to main database`);
       assignment = await Assignment.findById(assignmentId);
 
-      if (assignment) {
-        console.log(`[GET ASSIGNMENT] Found assignment in main database`);
-      }
+      const savedMainAssignment = await assignment.save();
+      console.log(`[ASSIGNMENT] ✅ Successfully saved assignment to main database`);
+      console.log(`[ASSIGNMENT] Main DB assignment ID: ${savedMainAssignment._id}`);
     }
 
     if (!assignment) {

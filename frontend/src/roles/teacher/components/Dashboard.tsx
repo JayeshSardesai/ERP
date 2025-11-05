@@ -67,8 +67,28 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         const assignmentsRes = await api.get('/assignments?limit=100');
         assignmentsData = assignmentsRes.data;
         console.log('✅ Assignments data:', assignmentsData);
+        
+        // Also try direct endpoint if main endpoint fails or returns empty
+        if (!assignmentsData || (!assignmentsData.data && !assignmentsData.assignments && !Array.isArray(assignmentsData))) {
+          console.log('🔄 Trying direct assignments endpoint...');
+          const directRes = await api.get('/assignments');
+          const directData = directRes.data;
+          console.log('✅ Direct assignments data:', directData);
+          if (directData) {
+            assignmentsData = directData;
+          }
+        }
       } catch (error) {
         console.warn('⚠️ Assignments API failed:', error);
+        // Try fallback endpoint
+        try {
+          console.log('🔄 Trying fallback assignments endpoint...');
+          const fallbackRes = await api.get('/assignments');
+          assignmentsData = fallbackRes.data;
+          console.log('✅ Fallback assignments data:', assignmentsData);
+        } catch (fallbackError) {
+          console.error('❌ All assignment endpoints failed:', fallbackError);
+        }
       }
 
       // Fetch leave requests
@@ -93,8 +113,51 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         console.warn('⚠️ Messages API failed:', error);
       }
 
-      // Calculate stats
-      const assignmentsArray = assignmentsData.assignments || [];
+      // Calculate stats - handle different response structures
+      let assignmentsArray = [];
+      console.log('🔍 DEBUG: Raw assignmentsData structure:', {
+        hasData: !!assignmentsData.data,
+        hasAssignments: !!assignmentsData.assignments,
+        isArray: Array.isArray(assignmentsData),
+        keys: Object.keys(assignmentsData || {}),
+        type: typeof assignmentsData
+      });
+      
+      if (assignmentsData.data && Array.isArray(assignmentsData.data)) {
+        assignmentsArray = assignmentsData.data;
+        console.log('📦 Using assignmentsData.data:', assignmentsArray.length);
+      } else if (assignmentsData.assignments && Array.isArray(assignmentsData.assignments)) {
+        assignmentsArray = assignmentsData.assignments;
+        console.log('📦 Using assignmentsData.assignments:', assignmentsArray.length);
+      } else if (Array.isArray(assignmentsData)) {
+        assignmentsArray = assignmentsData;
+        console.log('📦 Using direct array:', assignmentsArray.length);
+      } else if (assignmentsData && typeof assignmentsData === 'object') {
+        // Try to find any array property
+        const arrayProps = Object.keys(assignmentsData).filter(key => Array.isArray(assignmentsData[key]));
+        if (arrayProps.length > 0) {
+          assignmentsArray = assignmentsData[arrayProps[0]];
+          console.log(`📦 Using ${arrayProps[0]}:`, assignmentsArray.length);
+        }
+      }
+      
+      // Filter out placeholder and invalid assignments
+      const validAssignments = assignmentsArray.filter((assignment: any) => {
+        if (!assignment || typeof assignment !== 'object') return false;
+        if (assignment._placeholder === true) {
+          console.log('⏭️ Skipping placeholder assignment in dashboard:', assignment._id);
+          return false;
+        }
+        if (!assignment.title && !assignment.subject && !assignment.class) {
+          console.log('⏭️ Skipping incomplete assignment in dashboard:', assignment._id);
+          return false;
+        }
+        return true;
+      });
+      
+      console.log('📊 Valid assignments for dashboard:', validAssignments.length);
+      assignmentsArray = validAssignments;
+      
       const leaveRequestsArray = leaveData.data?.leaveRequests || [];
 
       console.log('📦 Extracted assignments:', assignmentsArray.length);

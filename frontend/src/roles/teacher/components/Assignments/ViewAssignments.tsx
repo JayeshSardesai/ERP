@@ -17,6 +17,7 @@ interface Assignment {
   description?: string;
   teacher?: any;
   status?: string;
+  _placeholder?: boolean;
 }
 
 const ViewAssignments: React.FC = () => {
@@ -81,14 +82,32 @@ const ViewAssignments: React.FC = () => {
         // Try the regular endpoint first without filters
         data = await assignmentAPI.fetchAssignments();
         console.log('✅ Raw API response:', data);
+        console.log('🔍 API response structure:', {
+          hasData: !!data.data,
+          hasAssignments: !!data.assignments,
+          isArray: Array.isArray(data),
+          keys: Object.keys(data || {}),
+          dataLength: Array.isArray(data.data) ? data.data.length : 'not array',
+          assignmentsLength: Array.isArray(data.assignments) ? data.assignments.length : 'not array'
+        });
         
         // Handle different response structures
         if (data.data && Array.isArray(data.data)) {
           assignmentsArray = data.data;
+          console.log('📦 Using data.data:', assignmentsArray.length);
         } else if (data.assignments && Array.isArray(data.assignments)) {
           assignmentsArray = data.assignments;
+          console.log('📦 Using data.assignments:', assignmentsArray.length);
         } else if (Array.isArray(data)) {
           assignmentsArray = data;
+          console.log('📦 Using direct array:', assignmentsArray.length);
+        } else if (data && typeof data === 'object') {
+          // Try to find any array property
+          const arrayProps = Object.keys(data).filter(key => Array.isArray(data[key]));
+          if (arrayProps.length > 0) {
+            assignmentsArray = data[arrayProps[0]];
+            console.log(`📦 Using ${arrayProps[0]}:`, assignmentsArray.length);
+          }
         }
         
         console.log('✅ Extracted assignments array:', assignmentsArray);
@@ -118,7 +137,7 @@ const ViewAssignments: React.FC = () => {
       // Log all assignments to debug the data structure
       console.log('🔍 Raw assignments data:', assignmentsArray);
       
-      // Very lenient validation - only check for basic object structure and ID
+      // Filter out placeholder assignments and validate real assignments
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') {
           console.log('❌ Invalid assignment (not an object):', assignment);
@@ -132,6 +151,18 @@ const ViewAssignments: React.FC = () => {
           return false;
         }
         
+        // Skip placeholder assignments - they don't have real data
+        if (assignment._placeholder === true) {
+          console.log('⏭️ Skipping placeholder assignment:', assignment._id);
+          return false;
+        }
+        
+        // Skip assignments with missing essential fields
+        if (!assignment.title && !assignment.subject && !assignment.class) {
+          console.log('⏭️ Skipping assignment with missing essential fields:', assignment._id);
+          return false;
+        }
+        
         // Log assignment details for debugging
         console.log('✅ Valid assignment found:', {
           _id: assignment._id,
@@ -140,14 +171,21 @@ const ViewAssignments: React.FC = () => {
           class: assignment.class,
           section: assignment.section,
           dueDate: assignment.dueDate,
+          isPlaceholder: assignment._placeholder,
           allFields: Object.keys(assignment)
         });
         
-        return true; // Accept all assignments with valid ID
+        return true; // Accept all non-placeholder assignments with valid ID
       });
       
       console.log(`✅ Loaded ${validAssignments.length} valid assignments out of ${assignmentsArray.length} total`);
       console.log('📋 Valid assignments:', validAssignments);
+      
+      // If we have assignments but they're all placeholders, inform the user
+      if (assignmentsArray.length > 0 && validAssignments.length === 0) {
+        console.log('ℹ️ INFO: All assignments are placeholders - no real assignments found');
+      }
+      
       setAssignments(validAssignments);
     } catch (err: any) {
       console.error('❌ Error fetching assignments:', err);
@@ -191,20 +229,39 @@ const ViewAssignments: React.FC = () => {
         subject.toLowerCase().includes(searchTerm.toLowerCase());
 
       // Class filter - empty selectedClass means "All Classes" (show all)
+      // Also show assignments with no class data when "All Classes" is selected
       const matchesClass = !selectedClass || selectedClass === '' ||
-        assignmentClass === selectedClass;
+        assignmentClass === selectedClass ||
+        (assignmentClass === '' && (!selectedClass || selectedClass === ''));
 
       // Section filter - empty selectedSection means "All Sections" (show all)
+      // Also show assignments with no section data when "All Sections" is selected
       const matchesSection = !selectedSection || selectedSection === '' ||
-        assignmentSection === selectedSection;
+        assignmentSection === selectedSection ||
+        (assignmentSection === '' && (!selectedSection || selectedSection === ''));
 
       // Subject filter - empty selectedSubject means "All Subjects" (show all)
+      // Also show assignments with no subject data when "All Subjects" is selected
       const matchesSubject = !selectedSubject || selectedSubject === '' ||
-        subject === selectedSubject;
+        subject === selectedSubject ||
+        (subject === '' && (!selectedSubject || selectedSubject === ''));
 
       return matchesSearch && matchesClass && matchesSection && matchesSubject;
     });
 
+    console.log('🔍 FILTERING DEBUG:', {
+      totalAssignments: assignments.length,
+      filteredCount: filtered.length,
+      filters: { searchTerm, selectedClass, selectedSection, selectedSubject },
+      sampleAssignment: assignments[0] ? {
+        title: assignments[0].title,
+        class: assignments[0].class,
+        section: assignments[0].section,
+        subject: assignments[0].subject,
+        _placeholder: assignments[0]._placeholder
+      } : null
+    });
+    
     setFilteredAssignments(filtered);
   };
 
@@ -441,7 +498,9 @@ const ViewAssignments: React.FC = () => {
             ) : filteredAssignments.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-3 sm:px-6 py-6 sm:py-8 text-center text-xs sm:text-sm text-gray-500">
-                  No assignments found
+                  {assignments.length === 0 
+                    ? "No assignments created yet. Create your first assignment to get started!" 
+                    : "No assignments match your current filters. Try adjusting your search criteria."}
                 </td>
               </tr>
             ) : (
