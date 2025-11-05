@@ -218,99 +218,42 @@ exports.createAssignment = async (req, res) => {
       }
     };
 
-    // Create assignment either in school-specific database or main database
-    let assignment;
-
-    // Get teacher name and ID from req.user (already populated by auth middleware)
+    // Get teacher info
     const teacherName = req.user.name?.firstName
       ? `${req.user.name.firstName} ${req.user.name.lastName || ''}`.trim()
       : req.user.name || req.user.email || 'Unknown Teacher';
-
     const teacherId = req.user.userId || req.user._id.toString();
 
-    console.log(`[ASSIGNMENT] Teacher info - Name: ${teacherName}, ID: ${teacherId}`);
+    // Assignment data object
+    const assignmentData = {
+      schoolId,
+      schoolCode,
+      title,
+      description: description || instructions || '',
+      subject,
+      class: className,
+      section,
+      teacher: teacherId,
+      teacherName,
+      startDate: new Date(startDate),
+      dueDate: new Date(dueDate),
+      instructions: instructions || description || '',
+      attachments: processedAttachments,
+      academicYear: academicYear || getCurrentAcademicYear(),
+      term: term || 'Term 1',
+      totalStudents,
+      status: 'active',
+      isPublished: true,
+      publishedAt: new Date(),
+      createdBy: teacherId,
+      createdByName: teacherName
+    };
 
-    try {
-      // Connect to school-specific database
-      console.log(`[ASSIGNMENT] Connecting to school database for ${schoolCode}`);
-      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    let assignment;
 
-      // Get the Assignment model for this connection
-      const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
-
-      // Create the assignment in the school-specific database
-      assignment = new SchoolAssignment({
-        schoolId,
-        schoolCode,
-        title,
-        description: description || instructions || '',
-        subject,
-        class: className,
-        section,
-        teacher: teacherId, // Use userId instead of _id
-        teacherName,
-        startDate: new Date(startDate),
-        dueDate: new Date(dueDate),
-        instructions: instructions || description || '',
-        attachments: processedAttachments,
-        academicYear: academicYear || getCurrentAcademicYear(),
-        term: term || 'Term 1',
-        totalStudents,
-        status: 'active',
-        isPublished: true,
-        publishedAt: new Date(),
-        createdBy: teacherId, // Use userId instead of _id
-        createdByName: teacherName
-      });
-
-      console.log(`[ASSIGNMENT] Created assignment object for school_${schoolCode}.assignments`);
-      console.log(`[ASSIGNMENT] Assignment data before save:`, {
-        _id: assignment._id,
-        title: assignment.title,
-        subject: assignment.subject,
-        class: assignment.class,
-        section: assignment.section,
-        schoolCode: assignment.schoolCode,
-        teacher: assignment.teacher,
-        status: assignment.status
-      });
-
-      const savedAssignment = await assignment.save();
-      console.log(`[ASSIGNMENT] ✅ Successfully saved assignment to school_${schoolCode}.assignments`);
-      console.log(`[ASSIGNMENT] Saved assignment ID: ${savedAssignment._id}`);
-    } catch (error) {
-      console.error(`[ASSIGNMENT] Error saving to school database: ${error.message}`);
-      console.log('[ASSIGNMENT] Falling back to main database');
-
-      // Fallback to main database if school-specific fails
-      assignment = new Assignment({
-        schoolId,
-        schoolCode,
-        title,
-        description: description || instructions || '',
-        subject,
-        class: className,
-        section,
-        teacher: teacherId, // Use userId instead of _id
-        teacherName,
-        startDate: new Date(startDate),
-        dueDate: new Date(dueDate),
-        instructions: instructions || description || '',
-        attachments: processedAttachments,
-        academicYear: academicYear || getCurrentAcademicYear(),
-        term: term || 'Term 1',
-        totalStudents,
-        status: 'active',
-        isPublished: true,
-        publishedAt: new Date(),
-        createdBy: teacherId,
-        createdByName: teacherName
-      });
-
-      const savedMainAssignment = await assignment.save();
-      console.log(`[ASSIGNMENT] ✅ Successfully saved assignment to main database`);
-      console.log(`[ASSIGNMENT] Main DB assignment ID: ${savedMainAssignment._id}`);
-    }
+    // Always save to main database for now to ensure it gets stored
+    assignment = new Assignment(assignmentData);
+    assignment = await assignment.save();
 
     // Send notifications to students and parents
     try {
