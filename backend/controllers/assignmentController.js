@@ -447,36 +447,14 @@ exports.getAssignments = async (req, res) => {
     let assignments = [];
     let total = 0;
 
-    // Try to get assignments from school-specific database first
-    if (schoolCode) {
-      try {
-        console.log(`[GET ASSIGNMENTS] Trying school-specific database for ${schoolCode}`);
-        const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
-
-        assignments = await SchoolAssignment.find(query)
-          .limit(limit * 1)
-          .skip((page - 1) * limit)
-          .sort({ createdAt: -1 });
-
-        total = await SchoolAssignment.countDocuments(query);
-
-        console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in school-specific database`);
-      } catch (error) {
-        console.error(`[GET ASSIGNMENTS] Error accessing school-specific database: ${error.message}`);
-      }
-    }
-
-    // If no assignments found in school-specific database or no schoolCode, try main database
-    if (assignments.length === 0 && schoolId) {
-      console.log(`[GET ASSIGNMENTS] Falling back to main database`);
+    // Get assignments from main database
+    if (schoolId) {
       assignments = await Assignment.find(query)
         .limit(limit * 1)
         .skip((page - 1) * limit)
         .sort({ createdAt: -1 });
 
       total = await Assignment.countDocuments(query);
-      console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in main database`);
     }
 
     // Ensure consistent response structure for admin portal
