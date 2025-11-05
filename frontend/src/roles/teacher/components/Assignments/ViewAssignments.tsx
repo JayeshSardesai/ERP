@@ -115,7 +115,10 @@ const ViewAssignments: React.FC = () => {
       
       console.log(`📊 Total assignments before filtering: ${assignmentsArray.length}`);
       
-      // Validate each assignment has required fields - more lenient validation
+      // Log all assignments to debug the data structure
+      console.log('🔍 Raw assignments data:', assignmentsArray);
+      
+      // Very lenient validation - only check for basic object structure and ID
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') {
           console.log('❌ Invalid assignment (not an object):', assignment);
@@ -129,22 +132,18 @@ const ViewAssignments: React.FC = () => {
           return false;
         }
         
-        // More lenient field checking - at least one identifying field should exist
-        const hasTitle = assignment.title && String(assignment.title).trim() !== '';
-        const hasDescription = assignment.description && String(assignment.description).trim() !== '';
-        const hasSubject = assignment.subject && String(assignment.subject).trim() !== '';
+        // Log assignment details for debugging
+        console.log('✅ Valid assignment found:', {
+          _id: assignment._id,
+          title: assignment.title,
+          subject: assignment.subject,
+          class: assignment.class,
+          section: assignment.section,
+          dueDate: assignment.dueDate,
+          allFields: Object.keys(assignment)
+        });
         
-        if (!hasTitle && !hasDescription && !hasSubject) {
-          console.log('❌ Invalid assignment (no identifying content):', {
-            title: assignment.title,
-            description: assignment.description,
-            subject: assignment.subject,
-            _id: assignment._id
-          });
-          return false;
-        }
-        
-        return true;
+        return true; // Accept all assignments with valid ID
       });
       
       console.log(`✅ Loaded ${validAssignments.length} valid assignments out of ${assignmentsArray.length} total`);
@@ -449,7 +448,7 @@ const ViewAssignments: React.FC = () => {
               filteredAssignments.map((assignment) => (
                 <tr key={assignment._id} className="hover:bg-gray-50">
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                    <div className="text-xs sm:text-sm font-medium text-gray-900">{assignment.title}</div>
+                    <div className="text-xs sm:text-sm font-medium text-gray-900">{assignment.title || assignment.subject || 'Untitled Assignment'}</div>
                     <div className="text-xs text-gray-500 sm:hidden mt-1">
                       {assignment.class && `Class ${assignment.class}`}
                       {assignment.section && ` • Section ${assignment.section}`}
@@ -457,13 +456,13 @@ const ViewAssignments: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden sm:table-cell">
-                    <div className="text-xs sm:text-sm text-gray-900">{assignment.class}</div>
+                    <div className="text-xs sm:text-sm text-gray-900">{assignment.class || 'N/A'}</div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden md:table-cell">
                     <div className="text-xs sm:text-sm text-gray-900">{assignment.section || 'N/A'}</div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
-                    <div className="text-xs sm:text-sm text-gray-900">{assignment.subject}</div>
+                    <div className="text-xs sm:text-sm text-gray-900">{assignment.subject || 'N/A'}</div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col space-y-1">

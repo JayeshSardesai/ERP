@@ -385,27 +385,33 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="font-medium text-gray-900 text-sm">
-                                {assignment.title}
+                                {assignment.title || assignment.subject || 'Untitled Assignment'}
                               </h4>
                               {isUrgent && (
                                 <AlertCircle className="h-4 w-4 text-red-500" />
                               )}
                             </div>
                             <div className="flex items-center space-x-3 text-xs text-gray-500 mb-2">
-                              <span className="flex items-center">
-                                <BookOpen className="h-3 w-3 mr-1" />
-                                {assignment.subject}
-                              </span>
-                              <span className="flex items-center">
-                                <Users className="h-3 w-3 mr-1" />
-                                Class {assignment.class}-{assignment.section}
-                              </span>
+                              {assignment.subject && (
+                                <span className="flex items-center">
+                                  <BookOpen className="h-3 w-3 mr-1" />
+                                  {assignment.subject}
+                                </span>
+                              )}
+                              {(assignment.class || assignment.section) && (
+                                <span className="flex items-center">
+                                  <Users className="h-3 w-3 mr-1" />
+                                  {assignment.class ? `Class ${assignment.class}` : ''}
+                                  {assignment.class && assignment.section ? '-' : ''}
+                                  {assignment.section || ''}
+                                </span>
+                              )}
                               <span className="flex items-center">
                                 <Calendar className="h-3 w-3 mr-1" />
-                                {new Date(assignment.dueDate).toLocaleDateString('en-US', {
+                                {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString('en-US', {
                                   month: 'short',
                                   day: 'numeric'
-                                })}
+                                }) : 'No due date'}
                               </span>
                             </div>
                           </div>
