@@ -416,8 +416,38 @@ const getSubjectsForClass = async (req, res) => {
           });
 
           if (!classSubjects) {
-            // Return empty subjects array instead of 404 to allow frontend to work
-            console.log(`[GET CLASS SUBJECTS] Class "${className}" not found, returning empty subjects`);
+            // Try main database as fallback
+            console.log(`[GET CLASS SUBJECTS] Class "${className}" not found in school DB, trying main database`);
+            try {
+              const mainClassSubjects = await ClassSubjectsSimple.findOne({
+                schoolCode,
+                className,
+                academicYear,
+                isActive: true
+              });
+
+              if (mainClassSubjects) {
+                console.log(`[GET CLASS SUBJECTS] Found class "${className}" in main database with ${mainClassSubjects.totalSubjects} subjects`);
+                return res.status(200).json({
+                  success: true,
+                  message: 'Subjects retrieved successfully from main database',
+                  data: {
+                    classId: mainClassSubjects._id,
+                    className: mainClassSubjects.className,
+                    grade: mainClassSubjects.grade,
+                    section: mainClassSubjects.section,
+                    academicYear: mainClassSubjects.academicYear,
+                    totalSubjects: mainClassSubjects.totalSubjects,
+                    subjects: mainClassSubjects.getActiveSubjects()
+                  }
+                });
+              }
+            } catch (mainDbError) {
+              console.error('[GET CLASS SUBJECTS] Main database error:', mainDbError.message);
+            }
+
+            // Return empty subjects array if not found in either database
+            console.log(`[GET CLASS SUBJECTS] Class "${className}" not found in either database, returning empty subjects`);
             return res.status(200).json({
               success: true,
               message: `Class "${className}" exists but has no subjects configured yet`,
