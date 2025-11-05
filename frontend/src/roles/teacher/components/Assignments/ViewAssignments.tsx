@@ -64,10 +64,7 @@ const ViewAssignments: React.FC = () => {
     }
   }, [selectedClass, selectedSection]);
 
-  // Refetch assignments when filters change
-  useEffect(() => {
-    fetchAssignments();
-  }, [selectedClass, selectedSection, selectedSubject, searchTerm]);
+  // Remove the effect that refetches on filter changes - we'll filter locally instead
 
   const fetchAssignments = async () => {
     try {
@@ -269,6 +266,77 @@ const ViewAssignments: React.FC = () => {
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
+  // Calculate days until deadline
+  const getDeadlineStatus = (dueDate: string) => {
+    if (!dueDate) {
+      return {
+        text: 'No due date',
+        color: 'text-gray-700',
+        bgColor: 'bg-gray-100',
+        priority: 'low'
+      };
+    }
+
+    const due = new Date(dueDate);
+    const today = new Date();
+    
+    // Check if date is valid
+    if (isNaN(due.getTime())) {
+      return {
+        text: 'Invalid date',
+        color: 'text-red-700',
+        bgColor: 'bg-red-100',
+        priority: 'urgent'
+      };
+    }
+    
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
+    due.setHours(23, 59, 59, 999); // Set to end of due date
+
+    const diffTime = due.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      const overdueDays = Math.abs(diffDays);
+      return {
+        text: `${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue`,
+        color: 'text-red-700',
+        bgColor: 'bg-red-100',
+        priority: 'urgent'
+      };
+    }
+    if (diffDays === 0) return {
+      text: 'Due Today',
+      color: 'text-orange-700',
+      bgColor: 'bg-orange-100',
+      priority: 'high'
+    };
+    if (diffDays === 1) return {
+      text: 'Due Tomorrow',
+      color: 'text-yellow-700',
+      bgColor: 'bg-yellow-100',
+      priority: 'medium'
+    };
+    if (diffDays <= 3) return {
+      text: `${diffDays} days left`,
+      color: 'text-amber-700',
+      bgColor: 'bg-amber-50',
+      priority: 'medium'
+    };
+    if (diffDays <= 7) return {
+      text: `${diffDays} days left`,
+      color: 'text-blue-700',
+      bgColor: 'bg-blue-50',
+      priority: 'normal'
+    };
+    return {
+      text: `${diffDays} days left`,
+      color: 'text-green-700',
+      bgColor: 'bg-green-50',
+      priority: 'low'
+    };
+  };
+
   return (
     <div className="space-y-6">
       {/* Filters */}
@@ -398,9 +466,16 @@ const ViewAssignments: React.FC = () => {
                     <div className="text-xs sm:text-sm text-gray-900">{assignment.subject}</div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-xs sm:text-sm text-gray-900">
-                      <Calendar className="h-3 sm:h-4 w-3 sm:w-4 mr-1 text-gray-400" />
-                      <span className="truncate">{formatDate(assignment.dueDate)}</span>
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex items-center text-xs sm:text-sm text-gray-900">
+                        <Calendar className="h-3 sm:h-4 w-3 sm:w-4 mr-1 text-gray-400" />
+                        <span className="truncate">{formatDate(assignment.dueDate)}</span>
+                      </div>
+                      {assignment.dueDate && (
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getDeadlineStatus(assignment.dueDate).bgColor} ${getDeadlineStatus(assignment.dueDate).color}`}>
+                          {getDeadlineStatus(assignment.dueDate).text}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
