@@ -1392,13 +1392,13 @@ const AcademicDetails: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4">
-            <BookOpen className="h-6 w-6 text-blue-600 flex-shrink-0" />
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Academic Management</h1>
+        <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 lg:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+            <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-800">Academic Management</h1>
           </div>
           <p className="text-sm sm:text-base text-gray-600">Manage subjects and generate hall tickets for your school</p>
         </div>
@@ -1406,44 +1406,41 @@ const AcademicDetails: React.FC = () => {
         {/* Tab Navigation */}
         <div className="bg-white rounded-lg shadow-md mb-4 sm:mb-6">
           <div className="border-b border-gray-200">
-            <nav className="flex flex-col sm:flex-row sm:space-x-8 px-4 sm:px-6 overflow-x-auto">
+            <nav className="flex flex-col sm:flex-row sm:space-x-8 px-3 sm:px-6 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('subjects')}
-                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto text-center sm:text-left ${activeTab === 'subjects'
+                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto ${activeTab === 'subjects'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <BookOpen className="h-4 w-4" />
-                  <span className="hidden sm:inline">Class Subjects Management</span>
-                  <span className="sm:hidden">Subjects</span>
+                  <span className="truncate">Class Subjects Management</span>
                 </div>
               </button>
               <button
                 onClick={() => setActiveTab('hallticket')}
-                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto text-center sm:text-left ${activeTab === 'hallticket'
+                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto ${activeTab === 'hallticket'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <FileText className="h-4 w-4" />
-                  <span className="hidden sm:inline">Hall Ticket Generation</span>
-                  <span className="sm:hidden">Hall Tickets</span>
+                  <span className="truncate">Hall Ticket Generation</span>
                 </div>
               </button>
               <button
                 onClick={() => setActiveTab('idcard')}
-                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto text-center sm:text-left ${activeTab === 'idcard'
+                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm w-full sm:w-auto ${activeTab === 'idcard'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <CreditCard className="h-4 w-4" />
-                  <span className="hidden sm:inline">School ID Card Generation</span>
-                  <span className="sm:hidden">ID Cards</span>
+                  <span className="truncate">School ID Card Generation</span>
                 </div>
               </button>
             </nav>

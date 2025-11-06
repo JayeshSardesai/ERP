@@ -5997,58 +5997,131 @@ const ManageUsers: React.FC = () => {
             )}
           </div>
 
-          {/* Role Tabs */}
-          <div className="border-b border-gray-200 mb-4 sm:mb-6">
-            <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto">
+          {/* Role Tabs - Mobile Bottom Navigation Style */}
+          <div className="mb-4 sm:mb-6">
+            {/* Desktop Tabs */}
+            <div className="hidden sm:block border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => {
+                    console.log('🔄 Switching to Student tab');
+                    setActiveTab('student');
+                    if (showAddModal) {
+                      handleRoleChange('student');
+                    }
+                  }}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'student'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <GraduationCap className="h-4 w-4" />
+                    <span>Students ({users.filter(u => u.role === 'student').length})</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('🔄 Switching to Teacher tab');
+                    setActiveTab('teacher');
+                    if (showAddModal) {
+                      handleRoleChange('teacher');
+                    }
+                  }}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'teacher'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <Users className="h-4 w-4" />
+                    <span>Teachers ({users.filter(u => u.role === 'teacher').length})</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('🔄 Switching to Admin tab');
+                    setActiveTab('admin');
+                    if (showAddModal) {
+                      handleRoleChange('admin');
+                    }
+                  }}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'admin'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <Shield className="h-4 w-4" />
+                    <span>Admins ({users.filter(u => u.role === 'admin').length})</span>
+                  </div>
+                </button>
+              </nav>
+            </div>
+
+            {/* Mobile Tabs - Card Style */}
+            <div className="sm:hidden grid grid-cols-3 gap-2 mb-4">
               <button
                 onClick={() => {
-                  console.log('🔄 Switching to Student tab');
                   setActiveTab('student');
-                  // If modal is open, update the role immediately
                   if (showAddModal) {
                     handleRoleChange('student');
                   }
                 }}
-                className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === 'student'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                className={`p-3 rounded-lg border-2 transition-all ${activeTab === 'student'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                   }`}
               >
-                Students ({users.filter(u => u.role === 'student').length})
+                <div className="flex flex-col items-center space-y-1">
+                  <GraduationCap className="h-5 w-5" />
+                  <span className="text-xs font-medium">Students</span>
+                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">
+                    {users.filter(u => u.role === 'student').length}
+                  </span>
+                </div>
               </button>
               <button
                 onClick={() => {
-                  console.log('🔄 Switching to Teacher tab');
                   setActiveTab('teacher');
-                  // If modal is open, update the role immediately
                   if (showAddModal) {
                     handleRoleChange('teacher');
                   }
                 }}
-                className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === 'teacher'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                className={`p-3 rounded-lg border-2 transition-all ${activeTab === 'teacher'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                   }`}
               >
-                Teachers ({users.filter(u => u.role === 'teacher').length})
+                <div className="flex flex-col items-center space-y-1">
+                  <Users className="h-5 w-5" />
+                  <span className="text-xs font-medium">Teachers</span>
+                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">
+                    {users.filter(u => u.role === 'teacher').length}
+                  </span>
+                </div>
               </button>
               <button
                 onClick={() => {
-                  console.log('🔄 Switching to Admin tab');
                   setActiveTab('admin');
-                  // If modal is open, update the role immediately
                   if (showAddModal) {
                     handleRoleChange('admin');
                   }
                 }}
-                className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === 'admin'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                className={`p-3 rounded-lg border-2 transition-all ${activeTab === 'admin'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                   }`}
               >
-                Admins ({users.filter(u => u.role === 'admin').length})
+                <div className="flex flex-col items-center space-y-1">
+                  <Shield className="h-5 w-5" />
+                  <span className="text-xs font-medium">Admins</span>
+                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">
+                    {users.filter(u => u.role === 'admin').length}
+                  </span>
+                </div>
               </button>
-            </nav>
+            </div>
           </div>
 
           {/* Controls */}
@@ -6124,10 +6197,11 @@ const ManageUsers: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex space-x-2">
+            {/* Desktop Action Buttons */}
+            <div className="hidden sm:flex flex-row gap-2">
               <button
                 onClick={exportUsers}
-                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
               >
                 <Download className="h-4 w-4" />
                 <span>Export</span>
@@ -6142,14 +6216,14 @@ const ManageUsers: React.FC = () => {
                     toast.error('Failed to open import dialog');
                   }
                 }}
-                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
               >
                 <Upload className="h-4 w-4" />
                 <span>Import</span>
               </button>
               <button
                 onClick={() => generateTemplate(activeTab)}
-                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
                 title={`Download ${activeTab} import template`}
               >
                 <FileText className="h-4 w-4" />
@@ -6158,7 +6232,7 @@ const ManageUsers: React.FC = () => {
               {activeTab === 'teacher' && (
                 <button
                   onClick={handleShowAllPasswords}
-                  className={`flex items-center space-x-2 px-4 py-2 border rounded-lg ${allPasswordsVisible
+                  className={`flex items-center space-x-2 px-4 py-2 border rounded-lg text-sm ${allPasswordsVisible
                     ? 'border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100'
                     : 'border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100'
                     }`}
@@ -6180,15 +6254,12 @@ const ManageUsers: React.FC = () => {
               <button
                 onClick={async () => {
                   setShowAddModal(true);
-                  // Set role based on active tab and generate credentials
                   setFormData(prev => ({
                     ...prev,
                     role: activeTab
                   }));
-                  // Generate credentials automatically
                   const schoolCode = user?.schoolCode || 'P';
                   const userId = await generateUserId(activeTab, schoolCode);
-                  // For students, don't generate password until DOB is entered
                   const password = activeTab === 'student' ? '' : generatePassword();
                   setFormData(prev => ({
                     ...prev,
@@ -6196,11 +6267,83 @@ const ManageUsers: React.FC = () => {
                     generatedPassword: password
                   }));
                 }}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
               >
                 <Plus className="h-4 w-4" />
                 <span>Add {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
               </button>
+            </div>
+
+            {/* Mobile Action Menu */}
+            <div className="sm:hidden">
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={exportUsers}
+                    className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    title="Export Users"
+                  >
+                    <Download className="h-4 w-4 text-gray-600" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      try {
+                        setShowImportModal(true);
+                      } catch (error) {
+                        toast.error('Failed to open import dialog');
+                      }
+                    }}
+                    className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    title="Import Users"
+                  >
+                    <Upload className="h-4 w-4 text-gray-600" />
+                  </button>
+                  <button
+                    onClick={() => generateTemplate(activeTab)}
+                    className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    title="Download Template"
+                  >
+                    <FileText className="h-4 w-4 text-gray-600" />
+                  </button>
+                  {activeTab === 'teacher' && (
+                    <button
+                      onClick={handleShowAllPasswords}
+                      className={`p-2 border rounded-lg ${allPasswordsVisible
+                        ? 'border-gray-300 bg-gray-50 hover:bg-gray-100'
+                        : 'border-purple-300 bg-purple-50 hover:bg-purple-100'
+                        }`}
+                      title={allPasswordsVisible ? "Hide passwords" : "Show passwords"}
+                    >
+                      {allPasswordsVisible ? (
+                        <EyeOff className="h-4 w-4 text-gray-600" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-purple-600" />
+                      )}
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={async () => {
+                    setShowAddModal(true);
+                    setFormData(prev => ({
+                      ...prev,
+                      role: activeTab
+                    }));
+                    const schoolCode = user?.schoolCode || 'P';
+                    const userId = await generateUserId(activeTab, schoolCode);
+                    const password = activeTab === 'student' ? '' : generatePassword();
+                    setFormData(prev => ({
+                      ...prev,
+                      userId: userId,
+                      generatedPassword: password
+                    }));
+                  }}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm shadow-lg"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -6209,28 +6352,28 @@ const ManageUsers: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           {activeTab === 'student' && viewMode === 'hierarchy' ? (
             /* Hierarchical Student View */
-            <div className="p-6">
+            <div className="p-3 sm:p-6">
               {Object.keys(organizeStudentsByClass()).length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-gray-500">No students found</p>
+                  <p className="text-sm sm:text-base text-gray-500">No students found</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {Object.entries(organizeStudentsByClass()).map(([className, sections]) => (
                     <div key={className} className="border border-gray-200 rounded-lg">
                       {/* Class Header */}
                       <div
-                        className="bg-gray-50 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between"
+                        className="bg-gray-50 px-3 sm:px-4 py-2 sm:py-3 cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between"
                         onClick={() => toggleClassExpansion(className)}
                       >
                         <div className="flex items-center space-x-2">
                           <div className={`transform transition-transform ${expandedClasses.has(className) ? 'rotate-90' : ''}`}>
                             ▶️
                           </div>
-                          <h3 className="text-lg font-semibold text-gray-800">
+                          <h3 className="text-sm sm:text-lg font-semibold text-gray-800">
                             Class {className}
                           </h3>
-                          <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded">
+                          <span className="bg-blue-100 text-blue-800 text-xs sm:text-sm font-medium px-1.5 sm:px-2.5 py-0.5 rounded">
                             {Object.values(sections).reduce((total, students) => total + students.length, 0)} students
                           </span>
                         </div>
@@ -6314,8 +6457,10 @@ const ManageUsers: React.FC = () => {
             </div>
           ) : (
             /* Table View */
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
@@ -6549,8 +6694,160 @@ const ManageUsers: React.FC = () => {
                     })
                   )}
                 </tbody>
-              </table>
-            </div>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden">
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span className="ml-3 text-gray-600">Loading users...</span>
+                  </div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No users found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 p-4">
+                    {filteredUsers.map((user) => {
+                      const envBase = (import.meta.env.VITE_API_BASE_URL as string) || '';
+                      const originBase = envBase ? envBase.replace(/\/api\/?$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
+                      const photoUrl = (user as any).profileImage || (user as any).profilePicture;
+                      const fullPhotoUrl = photoUrl
+                        ? (photoUrl.startsWith('http') ? photoUrl : `${originBase}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`)
+                        : null;
+
+                      const firstName = (user as any).name?.firstName || '';
+                      const lastName = (user as any).name?.lastName || '';
+                      const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
+
+                      return (
+                        <div key={user._id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                          <div className="flex items-start space-x-3">
+                            {/* Profile Photo */}
+                            <div className="flex-shrink-0">
+                              {fullPhotoUrl ? (
+                                <img
+                                  src={fullPhotoUrl}
+                                  alt={`${fullPhotoUrl}`}
+                                  className="h-12 w-12 rounded-full object-cover border border-gray-200"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    const parent = target.parentElement;
+                                    if (parent) {
+                                      parent.innerHTML = `<div class="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center"><span class="text-sm font-medium text-blue-700">${initials}</span></div>`;
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                                  <span className="text-sm font-medium text-blue-700">{initials}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* User Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-medium text-gray-900 truncate">
+                                  {(user as any).name?.displayName ||
+                                    ((user as any).name?.firstName && (user as any).name?.lastName
+                                      ? `${(user as any).name.firstName} ${(user as any).name.lastName}`
+                                      : (user as any).name?.firstName || user.name || 'No name')}
+                                </h3>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  user.isActive
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {user.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                              
+                              <p className="text-xs text-gray-500 mt-1">
+                                ID: {(user as any).userId || user._id}
+                              </p>
+                              
+                              <div className="mt-2 space-y-1">
+                                <p className="text-xs text-gray-600 truncate">
+                                  📧 {user.email}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  📱 {(user as any).contact?.primaryPhone || user.phone || 'No phone'}
+                                </p>
+                                
+                                {activeTab === 'student' && (
+                                  <div className="flex space-x-4 text-xs text-gray-600">
+                                    <span>Class: {user.studentDetails?.currentClass || 'N/A'}</span>
+                                    <span>Section: {user.studentDetails?.currentSection || 'N/A'}</span>
+                                  </div>
+                                )}
+                                
+                                {activeTab === 'teacher' && (
+                                  <div className="flex items-center space-x-2 text-xs text-gray-600">
+                                    <span>ID: {user.teacherDetails?.employeeId || 'N/A'}</span>
+                                    {(user as any).temporaryPassword && (
+                                      <div className="flex items-center space-x-1">
+                                        <span className="font-mono">
+                                          {passwordVisibility[user.userId] ? (user as any).temporaryPassword : '••••••'}
+                                        </span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            togglePasswordVisibility(user.userId, (user as any).name?.displayName || 'this user');
+                                          }}
+                                          className="text-gray-400 hover:text-gray-600"
+                                        >
+                                          {passwordVisibility[user.userId] ? <EyeOff size={12} /> : <Eye size={12} />}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex justify-end space-x-2 mt-3">
+                                <button
+                                  onClick={() => handleEditUser(user)}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                  title="Edit User"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setUserToDelete(user);
+                                    setShowDeleteModal(true);
+                                  }}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                  title="Delete User"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleToggleStatus(user)}
+                                  className={`p-1.5 rounded ${user.isActive 
+                                    ? 'text-red-600 hover:bg-red-50' 
+                                    : 'text-green-600 hover:bg-green-50'
+                                  }`}
+                                  title={user.isActive ? 'Deactivate User' : 'Activate User'}
+                                >
+                                  {user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
 

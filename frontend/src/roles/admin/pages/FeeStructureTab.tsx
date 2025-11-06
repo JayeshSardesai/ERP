@@ -426,25 +426,27 @@ const FeeStructureTab: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                  
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Installments</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applied</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
+                  <th className="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Name</th>
+                  <th className="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Class</th>
+                  <th className="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Section</th>
+                  <th className="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Total Amount</th>
+                  <th className="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Academic Year</th>
+                  <th className="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {existingStructures.map((s: any) => (
-                  <tr key={s.id}>
-                    <td className="px-4 py-2 text-sm text-gray-900">{s.name}</td>
-                    <td className="px-4 py-2 text-sm text-gray-900">{s.class}</td>
-                    
-                    <td className="px-4 py-2 text-sm text-gray-900">₹{(s.totalAmount || 0).toLocaleString()}</td>
-                    <td className="px-4 py-2 text-sm text-gray-900">{s.installmentsCount}</td>
-                    <td className="px-4 py-2 text-sm text-gray-900">{s.appliedToStudents || 0}</td>
-                    <td className="px-4 py-2 text-sm text-gray-900">{s.academicYear}</td>
+                {existingStructures.map((s, index) => (
+                  <tr key={index}>
+                    <td className="px-3 sm:px-4 py-2 text-sm text-gray-900">{s.name}</td>
+                    <td className="px-3 sm:px-4 py-2 text-sm text-gray-900">{s.class}</td>
+                    <td className="px-3 sm:px-4 py-2 text-sm text-gray-900">{s.section}</td>
+                    <td className="px-3 sm:px-4 py-2 text-sm text-gray-900">₹{(s.totalAmount || 0).toLocaleString()}</td>
+                    <td className="px-3 sm:px-4 py-2 text-sm text-gray-900">{s.academicYear}</td>
+                    <td className="px-3 sm:px-4 py-2 text-sm text-gray-900">
+                      <button className="text-red-600 hover:text-red-800">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

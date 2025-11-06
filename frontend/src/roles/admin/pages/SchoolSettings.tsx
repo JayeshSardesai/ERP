@@ -541,7 +541,13 @@ const SchoolSettings: React.FC = () => {
         </div>
 
         {/* Tab Content */}
-        <div className="p-4 sm:p-6">
+        <div className={`${activeTab === 'templates' ? 'p-0' : 'p-4 sm:p-6'}`}>
+          {activeTab === 'templates' && (
+            <div className="h-[calc(100vh-300px)] overflow-y-auto">
+              <UniversalTemplate />
+            </div>
+          )}
+          
           {activeTab === 'academic' && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Academic Year Configuration</h3>
@@ -816,12 +822,6 @@ const SchoolSettings: React.FC = () => {
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {activeTab === 'templates' && (
-            <div className="h-full max-h-[calc(100vh-300px)] overflow-y-auto sm:overflow-visible sm:max-h-none">
-              <UniversalTemplate />
             </div>
           )}
 

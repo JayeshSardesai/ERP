@@ -84,42 +84,40 @@ const Reports: React.FC = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Reports & Analytics</h1>
-        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-          <button className="bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center transition-colors text-sm sm:text-base">
-            <Download className="h-4 w-4 mr-2" />
-            Export All Reports
-          </button>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Reports & Analytics</h2>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Comprehensive insights and data analysis</p>
         </div>
       </div>
 
-      {/* Report Type Selection */}
-      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-4 mb-4">
+      {/* Report Type Selection and Filters */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-2 sm:gap-4 w-full sm:w-auto">
           {reportTypes.map((type) => (
             <button
               key={type.id}
               onClick={() => setSelectedReport(type.id)}
-              className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+              className={`flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm ${
                 selectedReport === type.id
                   ? 'bg-blue-100 text-blue-700 border border-blue-200'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
               <type.icon className="h-4 w-4 mr-2" />
-              {type.name}
+              <span className="truncate">{type.name}</span>
             </button>
           ))}
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-gray-500" />
+        <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 sm:flex-initial px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="week">This Week</option>
               <option value="month">This Month</option>
@@ -183,10 +181,10 @@ const Reports: React.FC = () => {
           </div>
 
           {/* Attendance Trend Chart */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Attendance Trends</h3>
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center text-sm">
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4">
+              <h3 className="text-base sm:text-lg font-medium text-gray-900">Attendance Trends</h3>
+              <button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center text-xs sm:text-sm">
                 <Download className="h-4 w-4 mr-2" />
                 Export Chart
               </button>
@@ -203,29 +201,29 @@ const Reports: React.FC = () => {
           </div>
 
           {/* Class-wise Attendance */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Class-wise Attendance Summary</h3>
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Class-wise Attendance Summary</h3>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Students</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Present Today</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance Rate</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Average</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Class</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Total Students</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Present Today</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Attendance Rate</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Monthly Average</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {['Grade 8A', 'Grade 8B', 'Grade 9A', 'Grade 9B', 'Grade 10A'].map((className, index) => (
                     <tr key={className}>
-                      <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{className}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-900">{30 + index * 2}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-900">{28 + index}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-green-600 font-medium">{(93.5 + index * 0.8).toFixed(1)}%</span>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap font-medium text-gray-900 text-sm">{className}</td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-gray-900 text-sm">{30 + index * 2}</td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-gray-900 text-sm">{28 + index}</td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <span className="text-green-600 font-medium text-sm">{(93.5 + index * 0.8).toFixed(1)}%</span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-900">{(92.1 + index * 0.6).toFixed(1)}%</td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-gray-900 text-sm">{(92.1 + index * 0.6).toFixed(1)}%</td>
                     </tr>
                   ))}
                 </tbody>

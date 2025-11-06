@@ -389,10 +389,10 @@ const MessagesPage: React.FC = () => {
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           {/* Class Selection */}
           <div>
-            <label htmlFor="class-select" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="class-select" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
               Class <span className="text-red-500">*</span>
             </label>
             <select
@@ -470,9 +470,9 @@ const MessagesPage: React.FC = () => {
     }
 
     return (
-      <div className="flex space-x-4 mb-4">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
         {/* Class Filter */}
-        <div className="w-1/3">
+        <div className="flex-1 sm:w-1/3">
           <label htmlFor="filter-class" className="block text-xs font-medium text-gray-500 mb-1">
             Filter by Class
           </label>
@@ -492,7 +492,7 @@ const MessagesPage: React.FC = () => {
         </div>
 
         {/* Section Filter */}
-        <div className="w-1/3">
+        <div className="flex-1 sm:w-1/3">
           <label htmlFor="filter-section" className="block text-xs font-medium text-gray-500 mb-1">
             Filter by Section
           </label>
@@ -586,31 +586,31 @@ const MessagesPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex justify-end space-x-3">
+        <div className="flex flex-col sm:flex-row justify-end gap-3 sm:space-x-3">
           <button
             onClick={handlePreview}
             disabled={!hasClasses() || classList.length === 0 || !title || !message || !selectedClass || !selectedSection}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Eye className="h-5 w-5 mr-2" /> Preview
+            <Eye className="h-4 w-4 sm:h-5 sm:w-5 mr-2" /> Preview
           </button>
           <button
             onClick={handleSendMessage}
             disabled={loading || !hasClasses() || classList.length === 0 || !title || !message || !selectedClass || !selectedSection}
-            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${loading || !hasClasses() || classList.length === 0 || !title || !message || !selectedClass || !selectedSection
+            className={`w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm text-white ${loading || !hasClasses() || classList.length === 0 || !title || !message || !selectedClass || !selectedSection
               ? 'bg-blue-400 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700'
               } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors`}
           >
-            {loading ? 'Sending...' : <><Send className="h-5 w-5 mr-2" />Send Message</>}
+            {loading ? 'Sending...' : <><Send className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />Send Message</>}
           </button>
         </div>
       </div>
 
       {/* Preview Modal */}
       {showPreviewModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
-          <div className="relative p-8 border w-full max-w-md md:max-w-lg lg:max-w-xl shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex justify-center items-center p-4">
+          <div className="relative p-4 sm:p-6 lg:p-8 border w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl shadow-lg rounded-md bg-white">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Message Preview</h3>
             <div className="mb-4">
               <p className="text-sm font-medium text-gray-700">Title:</p>
@@ -689,22 +689,22 @@ const MessagesPage: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Title & Subject
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Class & Section
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Sent
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Message
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Age
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Actions
                     </th>
                   </tr>
@@ -726,8 +726,8 @@ const MessagesPage: React.FC = () => {
 
                     return (
                       <tr key={message.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900">
+                        <td className="px-3 sm:px-6 py-4">
+                          <div className="text-xs sm:text-sm font-medium text-gray-900">
                             {truncateText(title, 20)}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -744,17 +744,17 @@ const MessagesPage: React.FC = () => {
                             </button>
                           )} */}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                           <div className="font-semibold text-gray-700">Class {messageClass}</div>
                           <div className="text-xs text-gray-500">Section {messageSection}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                           <div className="flex items-center text-xs text-gray-600">
                             <Clock className="h-3 w-3 mr-1" /> {formatDateTime(createdAt)}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-700 max-w-xs truncate">
+                        <td className="px-3 sm:px-6 py-4">
+                          <div className="text-xs sm:text-sm text-gray-700 max-w-xs truncate">
                             {truncateText(messageText, 20)}
                           </div>
                           {messageLength > 30 && (
@@ -768,7 +768,7 @@ const MessagesPage: React.FC = () => {
                             </button>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span
                             className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${urgencyIndicator === 'urgent' ? 'bg-red-100 text-red-800' :
                               urgencyIndicator === 'high' ? 'bg-orange-100 text-orange-800' :
@@ -778,14 +778,14 @@ const MessagesPage: React.FC = () => {
                             {messageAge}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center space-x-2">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
+                          <div className="flex items-center space-x-1 sm:space-x-2">
                             <button
                               onClick={() => previewMessageDetails(message)}
                               className="text-blue-600 hover:text-blue-900 transition-colors p-1 rounded hover:bg-blue-50"
                               title="Preview message"
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
                             </button>
                             <button
                               onClick={() => confirmDelete(message)}
@@ -794,9 +794,9 @@ const MessagesPage: React.FC = () => {
                               title="Delete message"
                             >
                               {deleteLoading === message.id ? (
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                                <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-red-600"></div>
                               ) : (
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                               )}
                             </button>
                           </div>
@@ -810,21 +810,21 @@ const MessagesPage: React.FC = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex justify-between items-center mt-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-3 sm:gap-0">
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className="px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto px-4 py-2 border rounded-md text-xs sm:text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
-                <span className="text-sm text-gray-700">
+                <span className="text-xs sm:text-sm text-gray-700">
                   Page {currentPage} of {totalPages}
                 </span>
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto px-4 py-2 border rounded-md text-xs sm:text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>

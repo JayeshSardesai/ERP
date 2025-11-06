@@ -285,9 +285,9 @@ const Attendance: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mx-2 sm:mx-0">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Attendance Management</h2>
@@ -302,29 +302,32 @@ const Attendance: React.FC = () => {
         {/* Date and Class Selection */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Date</label>
             <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 sm:h-5 sm:w-5" />
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-sm"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+              Select Class
+            </label>
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              disabled={classesLoading || !hasClasses()}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-sm"
             >
-              <option value="">{classesLoading ? 'Loading...' : 'Select Class'}</option>
+              <option value="">Choose Class</option>
               {classList.map(cls => (
-                <option key={cls} value={cls}>Class {cls}</option>
+                <option key={cls} value={cls}>
+                  Class {cls}
+                </option>
               ))}
             </select>
             {!classesLoading && !hasClasses() && (
@@ -333,11 +336,11 @@ const Attendance: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Section</label>
             <select
               value={selectedSection}
               onChange={(e) => setSelectedSection(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-sm"
               disabled={!selectedClass || availableSections.length === 0}
             >
               <option value="">{!selectedClass ? 'Select Class First' : 'Select Section'}</option>
@@ -348,11 +351,11 @@ const Attendance: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Session</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Session</label>
             <div className="flex bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => setActiveSession('morning')}
-                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${activeSession === 'morning'
+                className={`flex-1 px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-medium transition-colors ${activeSession === 'morning'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-800'
                   }`}
@@ -361,7 +364,7 @@ const Attendance: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveSession('afternoon')}
-                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${activeSession === 'afternoon'
+                className={`flex-1 px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-medium transition-colors ${activeSession === 'afternoon'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-800'
                   }`}
@@ -386,17 +389,18 @@ const Attendance: React.FC = () => {
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
+            {/* Desktop Action Buttons */}
+            <div className="hidden sm:flex flex-row gap-2">
               <button
                 onClick={() => markAllStudents(activeSession, 'present')}
-                className="flex items-center justify-center space-x-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
               >
                 <Check className="h-4 w-4" />
                 <span>Mark All Present</span>
               </button>
               <button
                 onClick={() => markAllStudents(activeSession, 'absent')}
-                className="flex items-center justify-center space-x-2 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
               >
                 <X className="h-4 w-4" />
                 <span>Mark All Absent</span>
@@ -404,7 +408,35 @@ const Attendance: React.FC = () => {
               <button
                 onClick={saveAttendance}
                 disabled={saving}
-                className="flex items-center justify-center space-x-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+              >
+                <Save className="h-4 w-4" />
+                <span>{saving ? 'Saving...' : 'Save Attendance'}</span>
+              </button>
+            </div>
+
+            {/* Mobile Action Buttons */}
+            <div className="sm:hidden space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => markAllStudents(activeSession, 'present')}
+                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs"
+                >
+                  <Check className="h-4 w-4" />
+                  <span>All Present</span>
+                </button>
+                <button
+                  onClick={() => markAllStudents(activeSession, 'absent')}
+                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs"
+                >
+                  <X className="h-4 w-4" />
+                  <span>All Absent</span>
+                </button>
+              </div>
+              <button
+                onClick={saveAttendance}
+                disabled={saving}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium shadow-lg"
               >
                 <Save className="h-4 w-4" />
                 <span>{saving ? 'Saving...' : 'Save Attendance'}</span>
@@ -418,9 +450,12 @@ const Attendance: React.FC = () => {
       {selectedClass && selectedSection && (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900">
-              Class {selectedClass} - Section {selectedSection} | {new Date(selectedDate).toLocaleDateString()} | {activeSession.charAt(0).toUpperCase() + activeSession.slice(1)} Session
+            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 break-words">
+              Class {selectedClass} - Section {selectedSection}
             </h3>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
+              {new Date(selectedDate).toLocaleDateString()} | {activeSession.charAt(0).toUpperCase() + activeSession.slice(1)} Session
+            </p>
           </div>
 
           {loading ? (
@@ -438,19 +473,19 @@ const Attendance: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Student Details
                     </th>
-                    <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                    <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Morning Status
                     </th>
-                    <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                    <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Afternoon Status
                     </th>
-                    <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       {activeSession.charAt(0).toUpperCase() + activeSession.slice(1)} Actions
                     </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Remarks
                     </th>
                   </tr>
@@ -458,68 +493,68 @@ const Attendance: React.FC = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredRecords.map((record) => (
                     <tr key={record.studentId} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col">
                           <div className="text-sm font-medium text-gray-900">{record.name}</div>
-                          <div className="text-sm text-gray-500">
-                            {record.userId} | Class {record.class} - {record.section}
+                          <div className="text-xs sm:text-sm text-gray-500">
+                            {record.userId} | Class {record.class}-{record.section}
                             {record.rollNumber && ` | Roll: ${record.rollNumber}`}
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(record.morningStatus)}`}>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(record.morningStatus)}`}>
                           {getStatusIcon(record.morningStatus)}
                           <span className="ml-1 capitalize">{record.morningStatus}</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(record.afternoonStatus)}`}>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(record.afternoonStatus)}`}>
                           {getStatusIcon(record.afternoonStatus)}
                           <span className="ml-1 capitalize">{record.afternoonStatus}</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex justify-center space-x-1">
                           <button
                             onClick={() => updateAttendanceStatus(record.studentId, activeSession, 'present')}
-                            className={`p-1 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'present'
+                            className={`p-1 sm:p-2 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'present'
                               ? 'bg-green-100 text-green-600'
                               : 'bg-gray-100 text-gray-400 hover:bg-green-100 hover:text-green-600'
                               }`}
                             title="Present"
                           >
-                            <Check className="h-4 w-4" />
+                            <Check className="h-3 w-3 sm:h-4 sm:w-4" />
                           </button>
                           <button
                             onClick={() => updateAttendanceStatus(record.studentId, activeSession, 'half-day')}
-                            className={`p-1 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'half-day'
+                            className={`p-1 sm:p-2 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'half-day'
                               ? 'bg-yellow-100 text-yellow-600'
                               : 'bg-gray-100 text-gray-400 hover:bg-yellow-100 hover:text-yellow-600'
                               }`}
                             title="Half Day"
                           >
-                            <Minus className="h-4 w-4" />
+                            <Minus className="h-3 w-3 sm:h-4 sm:w-4" />
                           </button>
                           <button
                             onClick={() => updateAttendanceStatus(record.studentId, activeSession, 'absent')}
-                            className={`p-1 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'absent'
+                            className={`p-1 sm:p-2 rounded ${record[activeSession === 'morning' ? 'morningStatus' : 'afternoonStatus'] === 'absent'
                               ? 'bg-red-100 text-red-600'
                               : 'bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-600'
                               }`}
                             title="Absent"
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-3 w-3 sm:h-4 sm:w-4" />
                           </button>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                         <input
                           type="text"
                           value={record.remarks || ''}
                           onChange={(e) => updateRemarks(record.studentId, e.target.value)}
                           placeholder="Add remarks..."
-                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full min-w-[120px] text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                         />
                       </td>
                     </tr>
