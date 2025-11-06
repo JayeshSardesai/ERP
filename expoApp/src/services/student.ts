@@ -1,6 +1,15 @@
 import api from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export interface AssignmentAttachment {
+  filename?: string;
+  originalName: string;
+  path: string;
+  cloudinaryPublicId?: string;
+  size?: number;
+  uploadedAt?: string;
+}
+
 export interface Assignment {
   _id: string;
   title: string;
@@ -14,6 +23,7 @@ export interface Assignment {
   instructions?: string;
   class: string;
   section: string;
+  attachments?: AssignmentAttachment[];
 }
 
 export interface AttendanceRecord {
@@ -21,15 +31,17 @@ export interface AttendanceRecord {
   date: string;
   dateString?: string;
   dayOfWeek?: string;
-  status: 'present' | 'absent' | 'half_day';
+  status: 'present' | 'absent' | 'half_day' | 'no-class';
   sessions: {
     morning: {
       status: 'present' | 'absent';
       markedAt?: string;
+      sessionTime?: string;
     } | null;
     afternoon: {
       status: 'present' | 'absent';
       markedAt?: string;
+      sessionTime?: string;
     } | null;
   };
 }
@@ -67,6 +79,39 @@ export interface Message {
   urgencyIndicator?: string;
 }
 
+export interface SchoolInfo {
+  schoolName: string;
+  schoolCode: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  logo?: string;
+  principalName?: string;
+  establishedYear?: string;
+  affiliation?: string;
+}
+
+export interface FeeRecord {
+  _id: string;
+  studentId: string;
+  academicYear: string;
+  totalFees: number;
+  paidAmount: number;
+  pendingAmount: number;
+  dueDate?: string;
+  status: 'paid' | 'partial' | 'pending' | 'overdue';
+  payments: Array<{
+    amount: number;
+    paymentDate: string;
+    paymentMode: string;
+    receiptNumber: string;
+  }>;
+}
+
 export async function getStudentAssignments(): Promise<Assignment[]> {
   try {
     console.log('[STUDENT SERVICE] Fetching assignments...');
@@ -100,7 +145,18 @@ export async function getStudentAssignments(): Promise<Assignment[]> {
 
 export async function getStudentAttendance(startDate?: string, endDate?: string): Promise<{
   records: AttendanceRecord[];
-  stats: { totalDays: number; presentDays: number; absentDays: number; lateDays: number; halfDays: number; leaveDays: number; attendancePercentage: number };
+  stats: { 
+    totalDays: number; 
+    presentDays: number; 
+    absentDays: number; 
+    lateDays: number; 
+    halfDays: number; 
+    leaveDays: number; 
+    attendancePercentage: number;
+    totalSessions?: number;
+    presentSessions?: number;
+    sessionAttendanceRate?: number;
+  };
 }> {
   try {
     console.log('[STUDENT SERVICE] Fetching attendance...');
@@ -124,14 +180,28 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           lateDays: 0,
           halfDays: 0,
           leaveDays: 0,
-          attendancePercentage: 0 
+          attendancePercentage: 0,
+          totalSessions: 0,
+          presentSessions: 0,
+          sessionAttendanceRate: 0
         }
       };
     }
     
     return {
       records: [],
-      stats: { totalDays: 0, presentDays: 0, absentDays: 0, lateDays: 0, halfDays: 0, leaveDays: 0, attendancePercentage: 0 }
+      stats: { 
+        totalDays: 0, 
+        presentDays: 0, 
+        absentDays: 0, 
+        lateDays: 0, 
+        halfDays: 0, 
+        leaveDays: 0, 
+        attendancePercentage: 0,
+        totalSessions: 0,
+        presentSessions: 0,
+        sessionAttendanceRate: 0
+      }
     };
   } catch (error: any) {
     console.error('[STUDENT SERVICE] Error fetching attendance:', error);
@@ -207,5 +277,103 @@ export async function submitAssignment(assignmentId: string, attachments: any[])
   } catch (error) {
     console.error('Error submitting assignment:', error);
     return false;
+  }
+}
+
+export async function getSchoolInfo(): Promise<SchoolInfo | null> {
+  try {
+    const response = await api.get('/schools/database/school-info');
+    return response.data.data || response.data || null;
+  } catch (error) {
+    console.error('Error fetching school info:', error);
+    return null;
+  }
+}
+
+export async function getStudentFees(): Promise<FeeRecord | null> {
+  try {
+    const response = await api.get('/fees/my-fees');
+    return response.data.data || response.data || null;
+  } catch (error) {
+    console.error('Error fetching student fees:', error);
+    return null;
+  }
+}
+
+export interface StudentProfile {
+  _id: string;
+  userId: string;
+  name: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    displayName?: string;
+  };
+  email: string;
+  schoolCode: string;
+  profileImage?: string;
+  contact?: {
+    primaryPhone?: string;
+    secondaryPhone?: string;
+    whatsappNumber?: string;
+  };
+  address?: {
+    permanent?: {
+      street?: string;
+      area?: string;
+      city?: string;
+      state?: string;
+      country?: string;
+      pincode?: string;
+      landmark?: string;
+    };
+    current?: any;
+  };
+  identity?: {
+    aadharNumber?: string;
+    panNumber?: string;
+  };
+  studentDetails?: any;
+  isActive?: boolean;
+  lastLogin?: string;
+}
+
+/**
+ * Fetch student profile from students collection in school database
+ * This fetches the complete student data from the school's students collection
+ * Uses the reports endpoint which queries the students collection
+ */
+export async function getStudentProfile(): Promise<StudentProfile | null> {
+  try {
+    const userData = await AsyncStorage.getItem('userData');
+    if (!userData) throw new Error('No user data found');
+    
+    const user = JSON.parse(userData);
+    const userId = user.userId || user._id;
+    
+    if (!userId) {
+      throw new Error('Missing userId');
+    }
+    
+    console.log('[STUDENT SERVICE] Fetching student profile from students collection...');
+    console.log('[STUDENT SERVICE] userId:', userId);
+    
+    // Fetch from students collection using student-specific endpoint
+    // This endpoint queries the students collection in the school database
+    // Path: /api/users/my-profile (student-specific, no userId needed)
+    const response = await api.get('/users/my-profile');
+    
+    console.log('[STUDENT SERVICE] Student profile response:', response.data);
+    
+    if (response.data?.success && response.data?.data) {
+      return response.data.data;
+    }
+    
+    return response.data || null;
+  } catch (error: any) {
+    console.error('[STUDENT SERVICE] Error fetching student profile:', error);
+    console.error('[STUDENT SERVICE] Error response:', error?.response?.data);
+    console.error('[STUDENT SERVICE] Error status:', error?.response?.status);
+    return null;
   }
 }

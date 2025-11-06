@@ -28,12 +28,12 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      console.log(`Attempting login with: ${email}, school code: ${schoolCode}`);
-      // Use identifier (email or userId) for login
+      console.log(`Attempting login with: ${email} (email or userId), school code: ${schoolCode}`);
+      // Use identifier (email or userId) for login - backend supports both
       const res = await loginSchool({ identifier: email, password, schoolCode });
 
       if (!res || !res.success) {
-        Alert.alert(res?.message || 'Invalid credentials. Please check your email, password, and school code.');
+        Alert.alert(res?.message || 'Invalid credentials. Please check your email/user ID, password, and school code.');
         setLoading(false);
         return;
       }
@@ -79,15 +79,15 @@ export default function LoginScreen() {
 
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email</Text>
+              <Text style={styles.inputLabel}>Email or User ID</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email"
+                placeholder="Enter your email or user ID"
                 placeholderTextColor={isDark ? '#6B7280' : '#93C5FD'}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
-                keyboardType="email-address"
+                keyboardType="default"
               />
             </View>
 

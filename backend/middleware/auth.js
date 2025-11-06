@@ -100,15 +100,28 @@ const auth = async (req, res, next) => {
     console.log('[AUTH] User keys:', Object.keys(user));
     console.log('[AUTH] User object type:', user.constructor.name);
     
-    // For students, log class/section info for debugging
+    // For students, extract class/section from multiple possible locations
+    let studentClass = user.class;
+    let studentSection = user.section;
+    
     if (user.role === 'student') {
+      // Try to get class/section from various possible locations
+      studentClass = user.class || 
+                    user.studentDetails?.currentClass || 
+                    user.studentDetails?.academic?.currentClass;
+      studentSection = user.section || 
+                      user.studentDetails?.currentSection || 
+                      user.studentDetails?.academic?.currentSection;
+      
       console.log('[AUTH] Student class/section info:', {
         class: user.class,
         section: user.section,
         currentClass: user.studentDetails?.currentClass,
         currentSection: user.studentDetails?.currentSection,
         academicClass: user.studentDetails?.academic?.currentClass,
-        academicSection: user.studentDetails?.academic?.currentSection
+        academicSection: user.studentDetails?.academic?.currentSection,
+        resolvedClass: studentClass,
+        resolvedSection: studentSection
       });
     }
     
@@ -122,8 +135,9 @@ const auth = async (req, res, next) => {
       schoolCode: user.schoolCode,
       // Preserve student details for filtering
       studentDetails: user.studentDetails,
-      class: user.class,
-      section: user.section
+      // Set class/section at the root level for easy access
+      class: studentClass,
+      section: studentSection
     };
     console.log('[AUTH] req.user.role after assignment:', req.user.role);
     next();
