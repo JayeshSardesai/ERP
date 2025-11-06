@@ -20,9 +20,34 @@ router.use((req, res, next) => {
   next();
 });
 
+// Student-accessible routes - students can view messages for their class/section
+router.get('/student/messages', 
+  roleCheck(['student']),
+  messagesController.getMessages
+);
+
 // Teacher-accessible routes (read-only, no permission check)
 router.get('/teacher/messages', 
   roleCheck(['teacher']),
+  messagesController.getMessages
+);
+
+// Main GET route - accessible by all authenticated users (students, teachers, admin)
+// Students and teachers will see filtered messages based on their class/section
+// Admins need messageStudentsParents permission
+router.get('/', 
+  (req, res, next) => {
+    // Students and teachers can access without permission check
+    if (req.user.role === 'student' || req.user.role === 'teacher') {
+      return next();
+    }
+    // Admins need permission check
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+      return checkPermission('messageStudentsParents')(req, res, next);
+    }
+    // Other roles denied
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  },
   messagesController.getMessages
 );
 
@@ -39,11 +64,6 @@ router.post('/send',
 router.post('/preview', 
   checkPermission('messageStudentsParents'),
   messagesController.previewMessage
-);
-
-router.get('/', 
-  checkPermission('messageStudentsParents'),
-  messagesController.getMessages
 );
 
 router.get('/stats', 

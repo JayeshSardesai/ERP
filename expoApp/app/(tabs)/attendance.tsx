@@ -55,7 +55,7 @@ export default function AttendanceScreen() {
 
     const prevMonthLastDay = new Date(year, month, 0).getDate();
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      days.push({ day: prevMonthLastDay - i, month: 'prev', status: null });
+      days.push({ day: prevMonthLastDay - i, month: 'prev', status: null, sessions: null });
     }
 
     for (let i = 1; i <= daysInMonth; i++) {
@@ -64,13 +64,14 @@ export default function AttendanceScreen() {
       days.push({
         day: i,
         month: 'current',
-        status: record ? record.status : 'no-class'
+        status: record ? record.status : 'no-class',
+        sessions: record?.sessions || null
       });
     }
 
     const remainingDays = 42 - days.length;
     for (let i = 1; i <= remainingDays; i++) {
-      days.push({ day: i, month: 'next', status: null });
+      days.push({ day: i, month: 'next', status: null, sessions: null });
     }
 
     return days;
@@ -151,14 +152,22 @@ export default function AttendanceScreen() {
                   onPress={() => day.month === 'current' && setSelectedDate(day.day)}
                 >
                   <Text style={getDateStyle(day)}>{day.day}</Text>
-                  {day.status === 'present' && day.month === 'current' && (
-                    <View style={calendarStyles.statusDot}>
-                      <View style={[calendarStyles.dot, { backgroundColor: '#4ADE80' }]} />
-                    </View>
-                  )}
-                  {day.status === 'absent' && day.month === 'current' && (
-                    <View style={calendarStyles.statusDot}>
-                      <View style={[calendarStyles.dot, { backgroundColor: '#EF4444' }]} />
+                  {day.month === 'current' && day.sessions && (
+                    <View style={calendarStyles.sessionDotsContainer}>
+                      {/* Morning session dot */}
+                      {day.sessions.morning && (
+                        <View style={[
+                          calendarStyles.sessionDot, 
+                          { backgroundColor: day.sessions.morning.status === 'present' ? '#4ADE80' : '#EF4444' }
+                        ]} />
+                      )}
+                      {/* Afternoon session dot */}
+                      {day.sessions.afternoon && (
+                        <View style={[
+                          calendarStyles.sessionDot, 
+                          { backgroundColor: day.sessions.afternoon.status === 'present' ? '#4ADE80' : '#EF4444' }
+                        ]} />
+                      )}
                     </View>
                   )}
                 </TouchableOpacity>
@@ -181,7 +190,7 @@ export default function AttendanceScreen() {
             </View>
 
             <View style={styles.divider} />
-            <Text style={styles.sessionInfo}>Attendance tracking for {monthYear}</Text>
+            <Text style={styles.sessionInfo}>Two dots per day: Morning (left) • Afternoon (right)</Text>
           </View>
         </View>
 
@@ -192,7 +201,7 @@ export default function AttendanceScreen() {
               <View style={styles.attendanceCircle}>
                 <View style={styles.circleInner}>
                   <Text style={styles.attendancePercentage}>
-                    {stats.attendanceRate.toFixed(0)}%
+                    {(stats.attendancePercentage || 0).toFixed(0)}%
                   </Text>
                 </View>
               </View>
@@ -205,6 +214,11 @@ export default function AttendanceScreen() {
                   <Text style={styles.attendanceStatValue}>
                     {stats.presentDays}/{stats.totalDays} days
                   </Text>
+                  {stats.totalSessions !== undefined && (
+                    <Text style={styles.attendanceStatValue}>
+                      {stats.presentSessions}/{stats.totalSessions} sessions
+                    </Text>
+                  )}
                 </View>
               </View>
             </View>
@@ -263,7 +277,7 @@ function getCalendarStyles(isDark: boolean) {
     presentText: { color: '#16A34A' },
     absentText: { color: '#DC2626' },
     noClassText: { color: '#9CA3AF' },
-    statusDot: { position: 'absolute', bottom: 4, flexDirection: 'row', gap: 2 },
-    dot: { width: 4, height: 4, borderRadius: 2 },
+    sessionDotsContainer: { position: 'absolute', bottom: 2, flexDirection: 'row', gap: 3 },
+    sessionDot: { width: 5, height: 5, borderRadius: 2.5 },
   });
 }

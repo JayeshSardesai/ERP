@@ -1203,7 +1203,7 @@ exports.lockAttendance = async (req, res) => {
 // Get student's own attendance (for student role)
 exports.getMyAttendance = async (req, res) => {
   try {
-    const { startDate, endDate, limit = 30 } = req.query;
+    const { startDate, endDate } = req.query;
 
     // Only students can access this endpoint
     if (req.user.role !== 'student') {
@@ -1243,66 +1243,131 @@ exports.getMyAttendance = async (req, res) => {
       });
     }
 
-    // Build query to find attendance records
+    // Use school-specific database to fetch session_attendance documents
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const attendanceCollection = schoolConnection.collection('attendances');
+
+    // Build query for session_attendance documents
     const query = {
-      studentId: studentUserId,
+      documentType: 'session_attendance',
       class: studentClass,
-      section: studentSection
+      section: studentSection,
+      'students.studentId': studentUserId
     };
 
     // Add date range if provided
     if (startDate && endDate) {
-      query.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
+      query.dateString = {
+        $gte: startDate.split('T')[0],
+        $lte: endDate.split('T')[0]
       };
     } else {
       // Default to last 30 days
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      query.date = { $gte: thirtyDaysAgo };
+      const today = new Date();
+      query.dateString = {
+        $gte: thirtyDaysAgo.toISOString().split('T')[0],
+        $lte: today.toISOString().split('T')[0]
+      };
     }
 
     console.log(`[GET MY ATTENDANCE] Query:`, JSON.stringify(query));
 
-    // Try school-specific database first
-    let attendanceRecords = [];
-    try {
-      const DatabaseManager = require('../utils/databaseManager');
-      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-      const attendanceCollection = schoolConn.collection('attendances');
+    // Fetch all session documents for the student
+    const sessionDocuments = await attendanceCollection
+      .find(query)
+      .sort({ dateString: -1 })
+      .toArray();
+    
+    console.log(`[GET MY ATTENDANCE] Found ${sessionDocuments.length} session documents`);
+
+    // Group sessions by date and extract student's attendance
+    const attendanceByDate = new Map();
+
+    sessionDocuments.forEach(doc => {
+      const dateKey = doc.dateString;
+      const session = doc.session; // 'morning' or 'afternoon'
       
-      attendanceRecords = await attendanceCollection
-        .find(query)
-        .sort({ date: -1 })
-        .limit(parseInt(limit))
-        .toArray();
+      // Find this student's record in the students array
+      const studentRecord = doc.students?.find(s => s.studentId === studentUserId);
       
-      console.log(`[GET MY ATTENDANCE] Found ${attendanceRecords.length} records in school database`);
-    } catch (error) {
-      console.error(`[GET MY ATTENDANCE] Error accessing school database:`, error.message);
+      if (studentRecord) {
+        if (!attendanceByDate.has(dateKey)) {
+          attendanceByDate.set(dateKey, {
+            date: doc.date,
+            dateString: doc.dateString,
+            dayOfWeek: doc.dayOfWeek,
+            sessions: {
+              morning: null,
+              afternoon: null
+            }
+          });
+        }
+        
+        const dayRecord = attendanceByDate.get(dateKey);
+        dayRecord.sessions[session] = {
+          status: studentRecord.status,
+          markedAt: studentRecord.markedAt,
+          sessionTime: doc.sessionTime
+        };
+      }
+    });
+
+    // Convert map to array and calculate overall status for each day
+    const processedRecords = Array.from(attendanceByDate.values()).map(record => {
+      const morning = record.sessions.morning;
+      const afternoon = record.sessions.afternoon;
       
-      // Fallback to main database
-      const Attendance = require('../models/Attendance');
-      attendanceRecords = await Attendance.find(query)
-        .sort({ date: -1 })
-        .limit(parseInt(limit))
-        .lean();
+      // Determine overall status for the day
+      let status = 'no-class';
+      if (morning && afternoon) {
+        if (morning.status === 'present' && afternoon.status === 'present') {
+          status = 'present';
+        } else if (morning.status === 'absent' && afternoon.status === 'absent') {
+          status = 'absent';
+        } else {
+          status = 'half_day';
+        }
+      } else if (morning) {
+        status = morning.status;
+      } else if (afternoon) {
+        status = afternoon.status;
+      }
       
-      console.log(`[GET MY ATTENDANCE] Found ${attendanceRecords.length} records in main database`);
-    }
+      return {
+        _id: `${record.dateString}_${studentUserId}`,
+        date: record.date,
+        dateString: record.dateString,
+        dayOfWeek: record.dayOfWeek,
+        status: status,
+        sessions: record.sessions
+      };
+    });
 
     // Calculate statistics
-    let totalDays = attendanceRecords.length;
+    let totalDays = 0;
     let presentDays = 0;
     let absentDays = 0;
-    let lateDays = 0;
     let halfDays = 0;
-    let leaveDays = 0;
+    let totalSessions = 0;
+    let presentSessions = 0;
 
-    // Process records and extract session-wise data
-    const processedRecords = attendanceRecords.map(record => {
-      // Count status
+    processedRecords.forEach(record => {
+      totalDays++;
+      
+      // Count sessions
+      if (record.sessions.morning) {
+        totalSessions++;
+        if (record.sessions.morning.status === 'present') presentSessions++;
+      }
+      if (record.sessions.afternoon) {
+        totalSessions++;
+        if (record.sessions.afternoon.status === 'present') presentSessions++;
+      }
+      
+      // Count overall day status
       switch (record.status) {
         case 'present':
           presentDays++;
@@ -1310,69 +1375,20 @@ exports.getMyAttendance = async (req, res) => {
         case 'absent':
           absentDays++;
           break;
-        case 'late':
-          lateDays++;
-          break;
         case 'half_day':
           halfDays++;
           break;
-        case 'medical_leave':
-        case 'authorized_leave':
-          leaveDays++;
-          break;
       }
-
-      // Extract session information from periods
-      const sessions = {
-        morning: null,
-        afternoon: null
-      };
-
-      if (record.timeTracking?.periods && record.timeTracking.periods.length > 0) {
-        // Assuming periods 1-4 are morning, 5-8 are afternoon
-        const morningPeriods = record.timeTracking.periods.filter(p => p.periodNumber <= 4);
-        const afternoonPeriods = record.timeTracking.periods.filter(p => p.periodNumber > 4);
-
-        if (morningPeriods.length > 0) {
-          const presentCount = morningPeriods.filter(p => p.status === 'present').length;
-          sessions.morning = {
-            status: presentCount === morningPeriods.length ? 'present' : 
-                   presentCount > 0 ? 'partial' : 'absent',
-            periodsPresent: presentCount,
-            totalPeriods: morningPeriods.length
-          };
-        }
-
-        if (afternoonPeriods.length > 0) {
-          const presentCount = afternoonPeriods.filter(p => p.status === 'present').length;
-          sessions.afternoon = {
-            status: presentCount === afternoonPeriods.length ? 'present' : 
-                   presentCount > 0 ? 'partial' : 'absent',
-            periodsPresent: presentCount,
-            totalPeriods: afternoonPeriods.length
-          };
-        }
-      }
-
-      return {
-        _id: record._id,
-        date: record.date,
-        dayOfWeek: record.dayOfWeek,
-        status: record.status,
-        sessions: sessions,
-        checkIn: record.timeTracking?.checkIn?.time,
-        checkOut: record.timeTracking?.checkOut?.time,
-        totalPeriodsPresent: record.timeTracking?.totalPeriodsPresent || 0,
-        totalPeriodsScheduled: record.timeTracking?.totalPeriodsScheduled || 0,
-        attendancePercentage: record.timeTracking?.attendancePercentage || 0,
-        teacherNotes: record.teacherNotes || [],
-        leaveDetails: record.leaveDetails
-      };
     });
 
-    // Calculate attendance percentage
-    const attendancePercentage = totalDays > 0 
-      ? Math.round(((presentDays + (halfDays * 0.5)) / totalDays) * 100) 
+    // Calculate attendance percentage based on sessions
+    const attendancePercentage = totalSessions > 0 
+      ? Math.round((presentSessions / totalSessions) * 100) 
+      : 0;
+
+    // Also calculate day-based attendance rate
+    const attendanceRate = totalDays > 0
+      ? Math.round(((presentDays + (halfDays * 0.5)) / totalDays) * 100)
       : 0;
 
     res.json({
@@ -1387,10 +1403,13 @@ exports.getMyAttendance = async (req, res) => {
           totalDays,
           presentDays,
           absentDays,
-          lateDays,
+          lateDays: 0,
           halfDays,
-          leaveDays,
-          attendancePercentage
+          leaveDays: 0,
+          attendancePercentage: attendanceRate,
+          totalSessions,
+          presentSessions,
+          sessionAttendanceRate: attendancePercentage
         },
         records: processedRecords
       }

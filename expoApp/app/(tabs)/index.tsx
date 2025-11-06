@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getStudentMessages, getStudentAssignments } from '@/src/services/student';
+import { getStudentMessages, getStudentAssignments, getStudentAttendance } from '@/src/services/student';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -15,6 +15,7 @@ export default function HomeScreen() {
   const [studentName, setStudentName] = useState('Student');
   const [messages, setMessages] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState({ presentDays: 0, absentDays: 0, totalDays: 0, attendancePercentage: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -33,14 +34,16 @@ export default function HomeScreen() {
       const displayName = user.name?.displayName || user.name?.firstName || 'Student';
       setStudentName(displayName);
 
-      // Fetch messages and assignments (now authenticated)
-      const [messagesData, assignmentsData] = await Promise.all([
+      // Fetch messages, assignments, and attendance (now authenticated)
+      const [messagesData, assignmentsData, attendanceData] = await Promise.all([
         getStudentMessages(),
-        getStudentAssignments()
+        getStudentAssignments(),
+        getStudentAttendance()
       ]);
 
       setMessages(messagesData.slice(0, 3));
-      setAssignments(assignmentsData.slice(0, 3));
+      setAssignments(assignmentsData.slice(0, 5));
+      setAttendanceStats(attendanceData.stats);
     } catch (error) {
       console.error('Error loading home data:', error);
     } finally {
@@ -144,58 +147,6 @@ export default function HomeScreen() {
           )}
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Result Analytics</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/results')}>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.resultAnalyticsCard}>
-            <Text style={styles.overallPerformanceTitle}>Overall Performance</Text>
-            <View style={styles.performanceCircleContainer}>
-              <View style={styles.performanceCircle}>
-                <Text style={styles.performancePercentage}>80%</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.subjectScoresCard}>
-            <Text style={styles.subjectScoresTitle}>Subject-wise Scores</Text>
-            <Text style={styles.subjectName}>Mathematics</Text>
-
-            <View style={styles.testResultItem}>
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBar, { width: '85%', backgroundColor: '#4ADE80' }]} />
-              </View>
-              <View style={styles.testResultInfo}>
-                <Text style={styles.testResultTitle}>Formative Assessment 1</Text>
-                <Text style={styles.testResultScore}>17/20</Text>
-              </View>
-            </View>
-
-            <View style={styles.testResultItem}>
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBar, { width: '80%', backgroundColor: '#60A5FA' }]} />
-              </View>
-              <View style={styles.testResultInfo}>
-                <Text style={styles.testResultTitle}>Mid Term Examination</Text>
-                <Text style={styles.testResultScore}>40/50</Text>
-              </View>
-            </View>
-
-            <View style={styles.testResultItem}>
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBar, { width: '80%', backgroundColor: '#F87171' }]} />
-              </View>
-              <View style={styles.testResultInfo}>
-                <Text style={styles.testResultTitle}>Formative Assessment 2</Text>
-                <Text style={styles.testResultScore}>16/20</Text>
-              </View>
-            </View>
-          </View>
-        </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -207,20 +158,95 @@ export default function HomeScreen() {
 
           <View style={styles.attendanceCard}>
             <View style={styles.attendanceCircleContainer}>
-              <View style={styles.attendanceCircle}>
-                <Text style={styles.attendancePercentage}>80%</Text>
+              <View style={[
+                styles.attendanceCircle,
+                { 
+                  borderColor: attendanceStats.totalDays > 0 && attendanceStats.attendancePercentage >= 75 
+                    ? '#4ADE80' 
+                    : attendanceStats.attendancePercentage >= 50 
+                    ? '#F59E0B' 
+                    : '#EF4444'
+                }
+              ]}>
+                <Text style={styles.attendancePercentage}>
+                  {attendanceStats.totalDays > 0 
+                    ? `${Math.round(attendanceStats.attendancePercentage)}%` 
+                    : '0%'}
+                </Text>
+                <Text style={styles.attendanceCircleLabel}>Attendance</Text>
               </View>
             </View>
             <View style={styles.attendanceStats}>
               <View style={styles.attendanceStat}>
                 <View style={[styles.statusDot, { backgroundColor: '#4ADE80' }]} />
                 <View>
-                  <Text style={styles.attendanceStatLabel}>Attended</Text>
-                  <Text style={styles.attendanceStatValue}>160/200 days</Text>
+                  <Text style={styles.attendanceStatLabel}>Present</Text>
+                  <Text style={styles.attendanceStatValue}>
+                    {attendanceStats.presentDays}/{attendanceStats.totalDays} days
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.attendanceStat}>
+                <View style={[styles.statusDot, { backgroundColor: '#EF4444' }]} />
+                <View>
+                  <Text style={styles.attendanceStatLabel}>Absent</Text>
+                  <Text style={styles.attendanceStatValue}>
+                    {attendanceStats.absentDays}/{attendanceStats.totalDays} days
+                  </Text>
                 </View>
               </View>
             </View>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Assignments</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/assignments')}>
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+
+          {assignments.length === 0 ? (
+            <View style={styles.announcementCard}>
+              <View style={[styles.announcementIcon, { backgroundColor: '#E0F2FE' }]}>
+                <Text style={styles.announcementIconText}>📄</Text>
+              </View>
+              <View style={styles.announcementContent}>
+                <Text style={styles.announcementTitle}>No Assignments</Text>
+                <Text style={styles.announcementText}>You don't have any assignments yet</Text>
+              </View>
+            </View>
+          ) : (
+            assignments.map((assignment, index) => (
+              <TouchableOpacity 
+                key={assignment._id || index} 
+                style={styles.announcementCard}
+                onPress={() => router.push('/(tabs)/assignments')}
+              >
+                <View style={[styles.announcementIcon, { backgroundColor: '#DBEAFE' }]}>
+                  <Text style={styles.announcementIconText}>📄</Text>
+                </View>
+                <View style={styles.announcementContent}>
+                  <Text style={styles.announcementTitle} numberOfLines={1}>
+                    {assignment.subject} - {assignment.title}
+                  </Text>
+                  <Text style={styles.announcementText} numberOfLines={1}>
+                    Due: {new Date(assignment.dueDate).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                  <Text style={[styles.announcementText, { marginTop: 4, fontSize: 11 }]}>
+                    Status: {assignment.status === 'pending' ? 'To Do' : 
+                             assignment.status === 'submitted' ? 'Complete' : 
+                             assignment.status === 'graded' ? 'Graded' : assignment.status}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
         </View>
 
         <View style={{ height: 20 }} />
@@ -449,10 +475,7 @@ function getStyles(isDark: boolean) {
       width: 100,
       height: 100,
       borderRadius: 50,
-      borderWidth: 8,
-      borderColor: '#4ADE80',
-      borderRightColor: '#EF4444',
-      borderBottomColor: '#EF4444',
+      borderWidth: 10,
       justifyContent: 'center',
       alignItems: 'center',
       backgroundColor: isDark ? '#111827' : '#FFFFFF',
@@ -461,6 +484,11 @@ function getStyles(isDark: boolean) {
       fontSize: 24,
       fontWeight: '700',
       color: isDark ? '#E5E7EB' : '#1F2937',
+    },
+    attendanceCircleLabel: {
+      fontSize: 10,
+      color: isDark ? '#9CA3AF' : '#6B7280',
+      marginTop: 2,
     },
     attendanceStats: {
       flex: 1,

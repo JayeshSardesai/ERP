@@ -57,8 +57,9 @@ router.use((req, res, next) => {
 });
 
 // Assignment management routes - require viewAssignments permission
+// Students can view assignments for their class/section
 router.get('/', 
-  authorize(['admin', 'teacher']),
+  authorize(['admin', 'teacher', 'student']),
   checkPermission('viewAssignments'),
   assignmentController.getAssignments
 );
