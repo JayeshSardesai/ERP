@@ -21,8 +21,8 @@ module.exports = (upload) => {
   });
 
   // Assignment management routes - require viewAssignments permission
+  // Students should also be able to view assignments assigned to them
   router.get('/',
-    authorize(['admin', 'teacher']),
     checkPermission('viewAssignments'),
     assignmentController.getAssignments
   );
@@ -75,7 +75,10 @@ module.exports = (upload) => {
     authorize(['student']),
     assignmentController.submitAssignment
   );
-  router.get('/:assignmentId/submission', assignmentController.getStudentSubmission);
+  router.get('/:assignmentId/submission', 
+    authorize(['student', 'admin', 'teacher']), 
+    assignmentController.getStudentSubmission
+  );
   router.get('/:assignmentId/submissions', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.getAssignmentSubmissions);
   router.put('/submissions/:submissionId/grade', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.gradeSubmission);
 

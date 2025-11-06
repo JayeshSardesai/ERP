@@ -254,7 +254,7 @@ function getDefaultPermissions(role) {
     student: {
       manageUsers: false,
       manageSchoolSettings: false,
-      viewAttendance: false,
+      viewAttendance: true, // Students should be able to view their own attendance
       viewResults: true,
       viewLeaves: false,
       messageStudentsParents: false,

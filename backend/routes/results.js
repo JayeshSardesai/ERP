@@ -59,6 +59,7 @@ router.get('/teacher/view',
   resultController.getResultsForTeacher
 );
 
+
 // Get class performance statistics for dashboard - requires viewResults permission
 router.get('/class-performance-stats',
   checkPermission('viewResults'),

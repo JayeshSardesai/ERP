@@ -61,7 +61,8 @@ const accessMatrix = {
     createTimetable: false,
     viewTimetable: true,
     markAttendance: false,
-    viewAttendance: 'self',
+    viewAttendance: true, // Students can view their own attendance
+    viewAssignments: true, // Students can view assignments assigned to them
     addAssignments: false,
     submitAssignments: true,
     viewResults: true,
