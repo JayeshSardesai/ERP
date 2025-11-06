@@ -11,7 +11,7 @@ export default function AttendanceScreen() {
   const calendarStyles = getCalendarStyles(isDark);
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [stats, setStats] = useState({ totalDays: 0, presentDays: 0, absentDays: 0, attendanceRate: 0 });
+  const [stats, setStats] = useState({ totalDays: 0, presentDays: 0, absentDays: 0, attendancePercentage: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -192,7 +192,7 @@ export default function AttendanceScreen() {
               <View style={styles.attendanceCircle}>
                 <View style={styles.circleInner}>
                   <Text style={styles.attendancePercentage}>
-                    {stats.attendanceRate.toFixed(0)}%
+                    {(stats.attendancePercentage || 0).toFixed(0)}%
                   </Text>
                 </View>
               </View>

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function MenuScreen() {
   const colorScheme = useColorScheme();
@@ -21,8 +22,18 @@ export default function MenuScreen() {
     console.log(`Navigate to ${route}`);
   };
 
-  const handleLogout = () => {
-    router.back();
+  const handleLogout = async () => {
+    try {
+      // Clear all stored authentication data
+      await AsyncStorage.multiRemove(['authToken', 'userData', 'schoolCode']);
+      
+      // Navigate to the role selection screen (first page) and reset the navigation stack
+      router.replace('/role');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Even if there's an error clearing storage, still navigate to role selection
+      router.replace('/role');
+    }
   };
 
   return (

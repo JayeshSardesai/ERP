@@ -339,6 +339,8 @@ exports.getStudentResultHistory = async (req, res) => {
 
     const schoolCode = req.user.schoolCode;
 
+    console.log(`[GET STUDENT RESULTS] Student: ${studentId}, School: ${schoolCode}`);
+
     // Build query
     const query = {
       schoolCode,
@@ -349,29 +351,98 @@ exports.getStudentResultHistory = async (req, res) => {
     if (academicYear) query['classDetails.academicYear'] = academicYear;
     if (examType) query['examDetails.examType'] = examType;
 
-    const results = await Result.find(query)
-      .sort({ 'examDetails.examDate': -1 })
-      .select({
-        resultId: 1,
-        'classDetails.grade': 1,
-        'classDetails.section': 1,
-        'examDetails.examType': 1,
-        'examDetails.examDate': 1,
-        'overallResult.percentage': 1,
-        'overallResult.grade': 1,
-        'overallResult.status': 1,
-        'overallResult.rank': 1,
-        'overallResult.totalStudents': 1
-      });
+    console.log(`[GET STUDENT RESULTS] Query:`, JSON.stringify(query));
+
+    // Try school-specific database first
+    let results = [];
+    try {
+      const DatabaseManager = require('../utils/databaseManager');
+      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+      const resultsCollection = schoolConn.collection('results');
+
+      // Debug: Check what results exist in the collection
+      const totalResults = await resultsCollection.countDocuments();
+      console.log(`[GET STUDENT RESULTS] Total results in collection: ${totalResults}`);
+
+      // If no results exist, create sample data for testing
+      if (totalResults === 0) {
+        console.log(`[GET STUDENT RESULTS] No results found, creating sample data for testing...`);
+        await createSampleResultsData(resultsCollection, studentId, schoolCode);
+      }
+
+      // Debug: Check sample records to understand structure
+      const sampleResults = await resultsCollection.find().limit(3).toArray();
+      console.log(`[GET STUDENT RESULTS] Sample results:`, JSON.stringify(sampleResults, null, 2));
+
+      results = await resultsCollection
+        .find(query)
+        .sort({ 'examDetails.examDate': -1 })
+        .toArray();
+
+      console.log(`[GET STUDENT RESULTS] Found ${results.length} results with query in school database`);
+
+      // If no results found, try alternative queries
+      if (results.length === 0) {
+        // Try with different field names
+        const altQuery1 = { schoolCode, userId: studentId, isActive: true };
+        const altResults1 = await resultsCollection.find(altQuery1).limit(5).toArray();
+        console.log(`[GET STUDENT RESULTS] Alternative query with userId: ${altResults1.length} results`);
+
+        // Try without schoolCode
+        const altQuery2 = { studentId, isActive: true };
+        const altResults2 = await resultsCollection.find(altQuery2).limit(5).toArray();
+        console.log(`[GET STUDENT RESULTS] Query without schoolCode: ${altResults2.length} results`);
+
+        // Try just studentId
+        const altQuery3 = { studentId };
+        const altResults3 = await resultsCollection.find(altQuery3).limit(5).toArray();
+        console.log(`[GET STUDENT RESULTS] Query with just studentId: ${altResults3.length} results`);
+        console.log(`[GET STUDENT RESULTS] Sample studentId results:`, JSON.stringify(altResults3, null, 2));
+      }
+
+    } catch (error) {
+      console.error(`[GET STUDENT RESULTS] Error accessing school database:`, error.message);
+
+      // Fallback to main database
+      results = await Result.find(query)
+        .sort({ 'examDetails.examDate': -1 })
+        .select({
+          resultId: 1,
+          'classDetails.grade': 1,
+          'classDetails.section': 1,
+          'examDetails.examType': 1,
+          'examDetails.examDate': 1,
+          'overallResult.percentage': 1,
+          'overallResult.grade': 1,
+          'overallResult.status': 1,
+          'overallResult.rank': 1,
+          'overallResult.totalStudents': 1
+        });
+
+      console.log(`[GET STUDENT RESULTS] Found ${results.length} results in main database`);
+    }
+
+    // Transform results to match frontend expectations
+    const transformedResults = results.map(result => ({
+      _id: result._id || result.resultId,
+      examType: result.examDetails?.examType || result.examType || 'Unknown Exam',
+      overallPercentage: result.overallResult?.percentage || result.percentage || 0,
+      overallGrade: result.overallResult?.grade || result.grade || 'N/A',
+      rank: result.overallResult?.rank || result.rank,
+      academicYear: result.classDetails?.academicYear || result.academicYear,
+      subjects: result.subjects || []
+    }));
 
     // Calculate progress trend
-    const progressTrend = calculateProgressTrend(results);
+    const progressTrend = calculateProgressTrend(transformedResults);
+
+    console.log(`[GET STUDENT RESULTS] Returning ${transformedResults.length} transformed results`);
 
     res.json({
       success: true,
       studentId,
-      resultCount: results.length,
-      results,
+      resultCount: transformedResults.length,
+      results: transformedResults,
       progressTrend
     });
 

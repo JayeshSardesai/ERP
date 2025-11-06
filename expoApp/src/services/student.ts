@@ -145,15 +145,25 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
 
 export async function getStudentResults(): Promise<Result[]> {
   try {
+    console.log('[STUDENT SERVICE] Fetching results...');
+    
     const userData = await AsyncStorage.getItem('userData');
     if (!userData) throw new Error('No user data found');
     
     const user = JSON.parse(userData);
-    const response = await api.get(`/results/student/${user.userId || user._id}/history`);
+    console.log('[STUDENT SERVICE] User ID for results:', user.userId || user._id);
     
-    return response.data.results || response.data.data || [];
-  } catch (error) {
-    console.error('Error fetching results:', error);
+    const response = await api.get(`/results/student/${user.userId || user._id}/history`);
+    console.log('[STUDENT SERVICE] Results response:', response.data);
+    
+    const results = response.data.results || response.data.data || [];
+    console.log('[STUDENT SERVICE] Parsed results count:', results.length);
+    
+    return results;
+  } catch (error: any) {
+    console.error('[STUDENT SERVICE] Error fetching results:', error);
+    console.error('[STUDENT SERVICE] Error response:', error?.response?.data);
+    console.error('[STUDENT SERVICE] Error status:', error?.response?.status);
     return [];
   }
 }

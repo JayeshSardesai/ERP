@@ -12,6 +12,7 @@ export default function ResultsScreen() {
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [expandedResult, setExpandedResult] = useState<string | null>(null);
 
   const fetchResults = async () => {
     try {
@@ -75,25 +76,62 @@ export default function ResultsScreen() {
           ) : (
             results.map((result) => {
               const iconData = getIconForExamType(result.examType);
+              const isExpanded = expandedResult === result._id;
               return (
                 <View key={result._id} style={styles.resultCard}>
-                  <View style={styles.resultLeft}>
-                    <View style={[styles.iconContainer, { backgroundColor: iconData.bg }]}>
-                      <Text style={styles.iconText}>{iconData.icon}</Text>
+                  <View style={styles.resultHeader}>
+                    <View style={styles.resultLeft}>
+                      <View style={[styles.iconContainer, { backgroundColor: iconData.bg }]}>
+                        <Text style={styles.iconText}>{iconData.icon}</Text>
+                      </View>
+                      <View style={styles.resultInfo}>
+                        <Text style={styles.resultTitle}>{result.examType}</Text>
+                        <Text style={styles.resultDate}>
+                          {result.overallPercentage.toFixed(1)}% • {result.overallGrade || 'N/A'}
+                        </Text>
+                        <Text style={styles.resultSubjects}>
+                          {result.subjects.length} subjects
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.resultInfo}>
-                      <Text style={styles.resultTitle}>{result.examType}</Text>
-                      <Text style={styles.resultDate}>
-                        {result.overallPercentage.toFixed(1)}% • {result.overallGrade || 'N/A'}
+                    <TouchableOpacity 
+                      style={styles.viewDetailsButton}
+                      onPress={() => setExpandedResult(isExpanded ? null : result._id)}
+                    >
+                      <Text style={styles.viewDetailsText}>
+                        {isExpanded ? 'Hide Details' : 'View Details'}
                       </Text>
-                      <Text style={styles.resultSubjects}>
-                        {result.subjects.length} subjects
-                      </Text>
-                    </View>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity style={styles.viewDetailsButton}>
-                    <Text style={styles.viewDetailsText}>View Details</Text>
-                  </TouchableOpacity>
+                  
+                  {isExpanded && (
+                    <View style={styles.subjectDetails}>
+                      <Text style={styles.subjectDetailsTitle}>Subject-wise Marks</Text>
+                      {result.subjects.map((subject, index) => (
+                        <View key={index} style={styles.subjectRow}>
+                          <View style={styles.subjectInfo}>
+                            <Text style={styles.subjectName}>{subject.subjectName}</Text>
+                            <Text style={styles.subjectMarks}>
+                              {subject.marksObtained}/{subject.totalMarks}
+                            </Text>
+                          </View>
+                          <View style={styles.subjectGrade}>
+                            <Text style={styles.subjectPercentage}>
+                              {subject.percentage.toFixed(1)}%
+                            </Text>
+                            {subject.grade && (
+                              <Text style={styles.subjectGradeText}>{subject.grade}</Text>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                      {result.rank && (
+                        <View style={styles.rankContainer}>
+                          <Text style={styles.rankText}>Class Rank: {result.rank}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
               );
             })
@@ -114,7 +152,8 @@ function getStyles(isDark: boolean) {
     headerTitle: { fontSize: 24, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', textAlign: 'center' },
     section: { paddingHorizontal: 20, marginBottom: 20 },
     sectionTitle: { fontSize: 18, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', marginBottom: 12 },
-    resultCard: { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 2, borderColor: isDark ? '#1F2937' : '#93C5FD' },
+    resultCard: { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 2, borderColor: isDark ? '#1F2937' : '#93C5FD' },
+    resultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     resultLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
     iconContainer: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     iconText: { fontSize: 24 },
@@ -126,5 +165,16 @@ function getStyles(isDark: boolean) {
     viewDetailsText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
     noDataContainer: { alignItems: 'center', marginTop: 40, paddingVertical: 40 },
     noDataText: { fontSize: 16, color: isDark ? '#93C5FD' : '#1E3A8A', fontWeight: '600' },
+    subjectDetails: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: isDark ? '#1F2937' : '#E5E7EB' },
+    subjectDetailsTitle: { fontSize: 14, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', marginBottom: 12 },
+    subjectRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: isDark ? '#1F2937' : '#F3F4F6' },
+    subjectInfo: { flex: 1 },
+    subjectName: { fontSize: 14, fontWeight: '600', color: isDark ? '#E5E7EB' : '#1F2937', marginBottom: 2 },
+    subjectMarks: { fontSize: 12, color: isDark ? '#9CA3AF' : '#6B7280' },
+    subjectGrade: { alignItems: 'flex-end' },
+    subjectPercentage: { fontSize: 14, fontWeight: '600', color: isDark ? '#93C5FD' : '#1E3A8A' },
+    subjectGradeText: { fontSize: 12, color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 2 },
+    rankContainer: { marginTop: 12, padding: 12, backgroundColor: isDark ? '#1F2937' : '#F3F4F6', borderRadius: 8 },
+    rankText: { fontSize: 14, fontWeight: '600', color: isDark ? '#93C5FD' : '#1E3A8A', textAlign: 'center' },
   });
 }
