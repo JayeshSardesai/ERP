@@ -619,8 +619,8 @@ exports.getStudentMessages = async (req, res) => {
     }
     
     // Get student's class and section from user profile
-    const studentClass = req.user.studentDetails?.class;
-    const studentSection = req.user.studentDetails?.section;
+    const studentClass = req.user.studentDetails?.currentClass || req.user.studentDetails?.class;
+    const studentSection = req.user.studentDetails?.currentSection || req.user.studentDetails?.section;
     
     if (!studentClass || !studentSection) {
       return res.status(400).json({
