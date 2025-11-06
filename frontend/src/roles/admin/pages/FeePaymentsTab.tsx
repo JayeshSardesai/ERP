@@ -1603,7 +1603,7 @@ return (
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {student.installments?.length > 0 && (
+                    {student.installments?.length > 0 && student.installments.some((inst: any) => inst.status !== 'paid') && (
                       <button
                         onClick={() => {
                           console.log('=== DEBUG: Student Object ===', student);
@@ -1625,8 +1625,9 @@ return (
                               console.log('student.studentDetails.admissionNumber:', student.studentDetails.admissionNumber);
                             }
                             
-                            // Find the first installment with chalan info, or use the first installment
-                            const chalanInstallment = student.installments.find((i: any) => i.chalanNumber) || student.installments[0];
+                            // Find the first unpaid installment with chalan info, or use the first unpaid installment
+                            const unpaidInstallments = student.installments.filter((i: any) => i.status !== 'paid');
+                            const chalanInstallment = unpaidInstallments.find((i: any) => i.chalanNumber) || unpaidInstallments[0];
                             console.log('Selected installment for chalan:', chalanInstallment);
                             
                             if (chalanInstallment) {

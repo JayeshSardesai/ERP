@@ -38,6 +38,12 @@ const FeeStructureTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ isOpen: boolean; id: string; name: string }>({
+    isOpen: false,
+    id: '',
+    name: ''
+  });
 
   console.log('FeeStructureTab render');
 
@@ -142,6 +148,18 @@ const FeeStructureTab: React.FC = () => {
       return;
     }
 
+    // Check if fee structure already exists for this class and academic year
+    const duplicateStructure = existingStructures.find(
+      s => s.class === selectedClass && s.academicYear === academicYear
+    );
+    
+    if (duplicateStructure) {
+      setError(
+        `A fee structure "${duplicateStructure.name}" already exists for class ${selectedClass} in academic year ${academicYear}. Please delete it first or choose a different class.`
+      );
+      return;
+    }
+
     try {
       setLoading(true);
       const payload = {
@@ -190,6 +208,54 @@ const FeeStructureTab: React.FC = () => {
       setError(error?.response?.data?.message || 'Failed to save fee structure');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Open delete confirmation modal
+  const openDeleteConfirmation = (id: string, name: string) => {
+    setDeleteConfirmModal({ isOpen: true, id, name });
+  };
+
+  // Close delete confirmation modal
+  const closeDeleteConfirmation = () => {
+    setDeleteConfirmModal({ isOpen: false, id: '', name: '' });
+  };
+
+  // Delete fee structure
+  const handleDeleteStructure = async () => {
+    const { id, name } = deleteConfirmModal;
+    
+    try {
+      setDeletingId(id);
+      setError(null);
+      setSuccess(null);
+      closeDeleteConfirmation();
+      
+      const response = await feesAPI.deleteFeeStructure(id);
+      
+      const deletedCount = response.data?.deletedStudentRecords || 0;
+      setSuccess(
+        deletedCount > 0
+          ? `Fee structure deleted successfully. Removed from ${deletedCount} student(s).`
+          : 'Fee structure deleted successfully.'
+      );
+      
+      // Refresh the list
+      const res = await feesAPI.getFeeStructures({
+        class: selectedClass,
+        section: selectedSection,
+      });
+      if (res.data?.success) {
+        setExistingStructures(res.data.data || []);
+      } else if (Array.isArray(res)) {
+        setExistingStructures(res || []);
+      } else {
+        setExistingStructures([]);
+      }
+    } catch (error: any) {
+      setError(error?.response?.data?.message || 'Failed to delete fee structure');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -433,6 +499,7 @@ const FeeStructureTab: React.FC = () => {
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Installments</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applied</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -445,6 +512,19 @@ const FeeStructureTab: React.FC = () => {
                     <td className="px-4 py-2 text-sm text-gray-900">{s.installmentsCount}</td>
                     <td className="px-4 py-2 text-sm text-gray-900">{s.appliedToStudents || 0}</td>
                     <td className="px-4 py-2 text-sm text-gray-900">{s.academicYear}</td>
+                    <td className="px-4 py-2 text-sm text-right">
+                      <button
+                        onClick={() => openDeleteConfirmation(s.id, s.name)}
+                        disabled={deletingId === s.id}
+                        className={`text-red-600 hover:text-red-900 inline-flex items-center ${
+                          deletingId === s.id ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        title="Delete fee structure"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        {deletingId === s.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -452,6 +532,44 @@ const FeeStructureTab: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-semibold text-gray-900">Delete Fee Structure</h3>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to delete the fee structure{' '}
+                <span className="font-semibold text-gray-900">"{deleteConfirmModal.name}"</span>?
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={closeDeleteConfirmation}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteStructure}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

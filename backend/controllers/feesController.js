@@ -289,6 +289,26 @@ exports.createFeeStructure = async (req, res) => {
     const db = conn.db || conn;
     const feeStructuresCol = db.collection('feestructures');
 
+    // Check if fee structure already exists for this class and academic year
+    const existingStructure = await feeStructuresCol.findOne({
+      schoolId: new ObjectId(req.user.schoolId),
+      class: targetClass,
+      academicYear: resolvedAcademicYear,
+      isActive: true
+    });
+
+    if (existingStructure) {
+      return res.status(400).json({
+        success: false,
+        message: `A fee structure already exists for class ${targetClass} in academic year ${resolvedAcademicYear}. Please delete the existing structure or modify it instead.`,
+        existingStructure: {
+          name: existingStructure.name,
+          totalAmount: existingStructure.totalAmount,
+          createdAt: existingStructure.createdAt
+        }
+      });
+    }
+
     // Create fee structure in school DB
     const feeStructureData = {
       schoolId: new ObjectId(req.user.schoolId),
@@ -739,6 +759,88 @@ exports.getFeeStructures = async (req, res) => {
   }
 };
 
+// Delete fee structure (per-school DB)
+exports.deleteFeeStructure = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const schoolCode = req.user.schoolCode;
+    
+    console.log('🗑️ Deleting fee structure:', id);
+    
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid fee structure ID'
+      });
+    }
+    
+    const conn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const db = conn.db || conn;
+    const feeStructuresCol = db.collection('feestructures');
+    
+    // Check if fee structure exists
+    const feeStructure = await feeStructuresCol.findOne({
+      _id: new ObjectId(id),
+      schoolId: new ObjectId(req.user.schoolId)
+    });
+    
+    if (!feeStructure) {
+      return res.status(404).json({
+        success: false,
+        message: 'Fee structure not found'
+      });
+    }
+    
+    // Remove this fee structure from all student fee records first
+    const studentFeeCol = db.collection('studentfeerecords');
+    
+    // Find all students who have this fee structure applied
+    const studentsWithStructure = await studentFeeCol.find({
+      schoolId: new ObjectId(req.user.schoolId),
+      feeStructureId: new ObjectId(id)
+    }).toArray();
+    
+    console.log(`📋 Found ${studentsWithStructure.length} students with this fee structure`);
+    
+    // Delete the fee records for these students
+    const deleteStudentRecordsResult = await studentFeeCol.deleteMany({
+      schoolId: new ObjectId(req.user.schoolId),
+      feeStructureId: new ObjectId(id)
+    });
+    
+    console.log(`🗑️ Removed fee structure from ${deleteStudentRecordsResult.deletedCount} student records.`);
+    
+    // Hard delete - permanently remove from feestructures collection
+    const result = await feeStructuresCol.deleteOne({
+      _id: new ObjectId(id),
+      schoolId: new ObjectId(req.user.schoolId)
+    });
+    
+    if (result.deletedCount === 0) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to delete fee structure'
+      });
+    }
+    
+    console.log(`✅ Fee structure permanently deleted from database.`);
+    
+    res.json({
+      success: true,
+      message: `Fee structure deleted successfully. Removed from ${deleteStudentRecordsResult.deletedCount} student(s).`,
+      deletedStudentRecords: deleteStudentRecordsResult.deletedCount
+    });
+    
+  } catch (error) {
+    console.error('❌ Error deleting fee structure:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete fee structure',
+      error: error.message
+    });
+  }
+};
+
 // Get student fee records (per-school DB)
 exports.getStudentFeeRecords = async (req, res) => {
   try {
@@ -1053,8 +1155,8 @@ exports.recordOfflinePayment = async (req, res) => {
     
     console.log(`✅ Payment recorded: ${receiptNumber}`);
     
-    // Auto-generate challan for next installment
-    console.log('\n🔍 === AUTO-CHALLAN GENERATION CHECK ===');
+    // Handle challan generation and updates
+    console.log('\n🔍 === CHALLAN MANAGEMENT ===');
     const chalansCol = db.collection('chalans');
     const paidInstallment = installments.find(i => i.name === installmentName);
     
@@ -1065,7 +1167,8 @@ exports.recordOfflinePayment = async (req, res) => {
         name: i.name,
         amount: i.amount,
         paidAmount: i.paidAmount,
-        status: i.status
+        status: i.status,
+        dueDate: i.dueDate
       }))
     });
     
@@ -1076,15 +1179,45 @@ exports.recordOfflinePayment = async (req, res) => {
       console.log(`Paid amount: ${paidInstallment.paidAmount}`);
       console.log(`Remaining amount: ${remainingAmount}`);
       
-      // If installment is not fully paid, generate challan for remaining amount
-      if (remainingAmount > 0) {
-        console.log(`💰 Generating challan for remaining amount: ${remainingAmount}`);
-        
-        // Generate challan number
+      // Check if there's an existing challan for this installment
+      const existingChalan = await chalansCol.findOne({
+        feeRecordId: feeRecord._id,
+        installmentName: paidInstallment.name,
+        status: 'unpaid'
+      });
+      
+      if (existingChalan) {
+        // Update existing challan with remaining amount or mark as paid
+        if (remainingAmount > 0) {
+          console.log(`� Updating existing challan for ${paidInstallment.name} with remaining amount: ${remainingAmount}`);
+          await chalansCol.updateOne(
+            { _id: existingChalan._id },
+            {
+              $set: {
+                amount: remainingAmount,
+                updatedAt: new Date()
+              }
+            }
+          );
+        } else {
+          console.log(`✅ Marking challan for ${paidInstallment.name} as paid`);
+          await chalansCol.updateOne(
+            { _id: existingChalan._id },
+            {
+              $set: {
+                status: 'paid',
+                paidDate: new Date(),
+                updatedAt: new Date()
+              }
+            }
+          );
+        }
+      } else if (remainingAmount > 0) {
+        // If no existing challan and still remaining amount, create a new one
+        console.log(`💰 Generating new challan for remaining amount: ${remainingAmount}`);
         const Chalan = require('../models/Chalan');
         const chalanNumber = await generateChalanNumber(schoolCode, db);
         
-        // Create challan document
         const chalanDoc = {
           chalanNumber,
           schoolId: new ObjectId(req.user.schoolId),
@@ -1096,7 +1229,7 @@ exports.recordOfflinePayment = async (req, res) => {
           paidAmount: 0,
           dueDate: paidInstallment.dueDate,
           status: 'unpaid',
-          installmentName,
+          installmentName: paidInstallment.name,
           academicYear: feeRecord.academicYear,
           createdAt: new Date(),
           updatedAt: new Date()
