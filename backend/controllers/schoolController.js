@@ -1700,7 +1700,30 @@ exports.getSchoolInfoFromDatabase = async (req, res) => {
     const schoolInfoCollection = schoolConnection.collection('school_info');
     
     // Fetch school info document
-    const schoolInfo = await schoolInfoCollection.findOne({});
+    let schoolInfo = await schoolInfoCollection.findOne({});
+    
+    // If school_info doesn't exist or doesn't have bank details, try to sync from main database
+    if (!schoolInfo || !schoolInfo.bankDetails) {
+      console.log(`[getSchoolInfoFromDatabase] School info missing or no bank details, syncing from main database...`);
+      
+      // Get school from main database
+      const School = require('../models/School');
+      const mainSchool = await School.findOne({ code: schoolCode });
+      
+      if (mainSchool) {
+        console.log(`[getSchoolInfoFromDatabase] Found school in main DB, syncing...`);
+        console.log(`[getSchoolInfoFromDatabase] Main school bank details:`, JSON.stringify(mainSchool.bankDetails, null, 2));
+        
+        // Sync to dedicated database
+        await syncSchoolInfoToDatabase(mainSchool);
+        
+        // Fetch again after sync
+        schoolInfo = await schoolInfoCollection.findOne({});
+        console.log(`[getSchoolInfoFromDatabase] After sync, bank details:`, JSON.stringify(schoolInfo?.bankDetails, null, 2));
+      } else {
+        console.warn(`[getSchoolInfoFromDatabase] School not found in main database: ${schoolCode}`);
+      }
+    }
     
     if (!schoolInfo) {
       return res.status(404).json({ 
@@ -1710,6 +1733,7 @@ exports.getSchoolInfoFromDatabase = async (req, res) => {
     }
 
     console.log(`[getSchoolInfoFromDatabase] Found school: ${schoolInfo.name} (${schoolInfo.code})`);
+    console.log(`[getSchoolInfoFromDatabase] Bank details present:`, !!schoolInfo.bankDetails);
     
     // Return school info from school's database
     res.json({

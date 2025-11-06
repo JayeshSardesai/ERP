@@ -85,8 +85,8 @@ router.post('/', upload.array('attachments', 5),
   assignmentController.createAssignment
 );
 
-// Assignment-specific routes
-router.get('/:assignmentId', assignmentController.getAssignmentById);
+// Assignment-specific routes - all require viewAssignments permission
+router.get('/:assignmentId', checkPermission('viewAssignments'), assignmentController.getAssignmentById);
 router.put('/:assignmentId', 
   (req, res, next) => {
     console.log('[UPDATE ROUTE] User role:', req.user?.role);
@@ -94,14 +94,10 @@ router.put('/:assignmentId',
     next();
   },
   upload.array('attachments', 5), 
+  authorize(['admin', 'teacher']), 
+  checkPermission('viewAssignments'), 
   assignmentController.updateAssignment
 );
-router.patch('/:assignmentId/publish', authorize(['admin', 'teacher']), assignmentController.publishAssignment);
-router.delete('/:assignmentId', assignmentController.deleteAssignment);
-
-// Assignment-specific routes - all require viewAssignments permission
-router.get('/:assignmentId', checkPermission('viewAssignments'), assignmentController.getAssignmentById);
-router.put('/:assignmentId', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.updateAssignment);
 router.patch('/:assignmentId/publish', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.publishAssignment);
 router.delete('/:assignmentId', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.deleteAssignment);
 
