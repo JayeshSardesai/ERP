@@ -28,6 +28,7 @@ app.use(cors({
 
     const allowedOrigins = [
       'http://localhost:3000',
+      'http://localhost:8081', // Expo web development server
       'https://erp-host-1.web.app',
       'https://erp-host-1.firebaseapp.com',
       'https://erpedulogix.web.app',
