@@ -424,6 +424,13 @@ exports.getAssignments = async (req, res) => {
         req.user.studentDetails?.academic?.currentSection ||
         req.user.section;
 
+      console.log(`[GET ASSIGNMENTS] Student details:`, {
+        userId: req.user.userId,
+        studentDetails: req.user.studentDetails,
+        extractedClass: studentClass,
+        extractedSection: studentSection
+      });
+
       if (studentClass) {
         query.class = studentClass;
         console.log(`[GET ASSIGNMENTS] Filtering for student class: ${studentClass}`);
@@ -436,6 +443,8 @@ exports.getAssignments = async (req, res) => {
       if (!studentClass || !studentSection) {
         console.warn(`[GET ASSIGNMENTS] Student ${req.user.userId} missing class/section data`);
       }
+      
+      console.log(`[GET ASSIGNMENTS] Final student query:`, query);
     }
 
     // Parents can only see published assignments
@@ -449,6 +458,12 @@ exports.getAssignments = async (req, res) => {
 
     // Get assignments from main database
     if (schoolId) {
+      // Debug: Check what assignments exist for this school
+      if (req.user.role === 'student') {
+        const allSchoolAssignments = await Assignment.find({ schoolId }).select('title class section isPublished status');
+        console.log(`[GET ASSIGNMENTS] All assignments in school:`, allSchoolAssignments);
+      }
+      
       assignments = await Assignment.find(query)
         .limit(limit * 1)
         .skip((page - 1) * limit)

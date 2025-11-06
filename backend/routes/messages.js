@@ -26,6 +26,22 @@ router.get('/teacher/messages',
   messagesController.getTeacherMessages
 );
 
+// Student-accessible routes - students can view messages sent to them
+router.get('/student',
+  roleCheck(['student']),
+  messagesController.getStudentMessages
+);
+
+// Main messages route - handle different roles
+router.get('/', (req, res, next) => {
+  // If user is a student, redirect to student messages
+  if (req.user && req.user.role === 'student') {
+    return messagesController.getStudentMessages(req, res);
+  }
+  // Otherwise, continue with admin/superadmin flow
+  next();
+}, roleCheck(['admin', 'superadmin']), checkPermission('messageStudentsParents'), messagesController.getMessages);
+
 // Apply role check - only ADMIN and SUPER_ADMIN can access below routes
 router.use(roleCheck(['admin', 'superadmin']));
 
@@ -39,11 +55,6 @@ router.post('/send',
 router.post('/preview',
   checkPermission('messageStudentsParents'),
   messagesController.previewMessage
-);
-
-router.get('/',
-  checkPermission('messageStudentsParents'),
-  messagesController.getMessages
 );
 
 router.get('/stats',
