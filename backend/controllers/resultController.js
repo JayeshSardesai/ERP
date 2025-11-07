@@ -453,22 +453,34 @@ exports.getStudentResultHistory = async (req, res) => {
       console.log(`[GET STUDENT RESULTS] Found ${results.length} results in main database`);
     }
 
-    // Transform results to match frontend expectations using actual Result model fields
-    const transformedResults = results.map(result => ({
-      _id: result._id,
-      examType: result.term || 'Unknown Exam', // Use term field as examType
-      overallPercentage: result.percentage || 0,
-      overallGrade: result.grade || 'N/A',
-      rank: result.rank,
-      academicYear: result.academicYear,
-      subjects: result.subjects ? result.subjects.map(subject => ({
-        subjectName: subject.name,
-        marksObtained: subject.totalMarks,
-        totalMarks: subject.maxMarks,
-        grade: subject.grade,
-        percentage: subject.percentage
-      })) : []
-    }));
+    // Transform results to match frontend expectations using actual database structure
+    const transformedResults = results.map(result => {
+      // Extract exam type from subjects array or fallback to term
+      let examType = 'Unknown Exam';
+      if (result.subjects && result.subjects.length > 0 && result.subjects[0].testType) {
+        examType = result.subjects[0].testType;
+      } else if (result.term) {
+        examType = result.term;
+      } else if (result.examType) {
+        examType = result.examType;
+      }
+
+      return {
+        _id: result._id,
+        examType: examType,
+        overallPercentage: result.percentage || 0,
+        overallGrade: result.grade || 'N/A',
+        rank: result.rank,
+        academicYear: result.academicYear,
+        subjects: result.subjects ? result.subjects.map(subject => ({
+          subjectName: subject.subjectName || subject.name,
+          marksObtained: subject.obtainedMarks || subject.totalMarks,
+          totalMarks: subject.maxMarks || subject.totalMarks,
+          grade: subject.grade,
+          percentage: subject.percentage
+        })) : []
+      };
+    });
 
     // Calculate progress trend
     const progressTrend = calculateProgressTrend(transformedResults);

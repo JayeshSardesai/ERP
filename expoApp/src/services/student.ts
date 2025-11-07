@@ -384,7 +384,10 @@ export async function getStudentResults(): Promise<Result[]> {
         examType = result.term;
       } else if (result.examDetails?.examType) {
         examType = result.examDetails.examType;
+      } else {
+        examType = 'Exam'; // Default fallback
       }
+      
       
       // Extract subjects
       if (result.subjects && Array.isArray(result.subjects)) {
@@ -414,6 +417,7 @@ export async function getStudentResults(): Promise<Result[]> {
           if (percentage === 0 && totalMarks > 0) {
             percentage = (marksObtained / totalMarks) * 100;
           }
+          
           
           return {
             subjectName,
