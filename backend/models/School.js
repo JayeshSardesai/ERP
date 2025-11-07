@@ -16,13 +16,7 @@ const schoolSchema = new mongoose.Schema({
     }],
     customGradeNames: { 
       type: Map, 
-      of: String,
-      default: () => {
-        const map = new Map();
-        map.set('LKG', 'Lower Kindergarten');
-        map.set('UKG', 'Upper Kindergarten');
-        return map;
-      }
+      of: String
     },
     gradeLevels: {
       type: Map,
@@ -34,29 +28,7 @@ const schoolSchema = new mongoose.Schema({
           passingScore: Number,
           maxScore: Number
         }
-      }, { _id: false }),
-      default: () => {
-        const map = new Map();
-        map.set('kindergarten', { 
-          displayName: 'Kindergarten', 
-          description: 'Pre-primary education (LKG-UKG)',
-          gradingSystem: { 
-            type: 'grade', 
-            passingScore: 0, 
-            maxScore: 0 
-          }
-        });
-        map.set('primary', { 
-          displayName: 'Primary', 
-          description: 'Primary education (Classes 1-5)',
-          gradingSystem: { 
-            type: 'percentage', 
-            passingScore: 33, 
-            maxScore: 100 
-          }
-        });
-        return map;
-      }
+      }, { _id: false })
     }
   },
   
@@ -207,6 +179,47 @@ const schoolSchema = new mongoose.Schema({
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
+});
+
+// Helper function to normalize academicSettings
+function normalizeAcademicSettings(doc) {
+  // Ensure academicSettings exists and is an object
+  if (!doc.academicSettings || typeof doc.academicSettings === 'string') {
+    doc.academicSettings = {
+      schoolTypes: [],
+      customGradeNames: new Map(),
+      gradeLevels: new Map()
+    };
+  }
+  
+  // Ensure customGradeNames is a Map
+  if (doc.academicSettings.customGradeNames && !(doc.academicSettings.customGradeNames instanceof Map)) {
+    if (typeof doc.academicSettings.customGradeNames === 'object' && doc.academicSettings.customGradeNames !== null) {
+      doc.academicSettings.customGradeNames = new Map(Object.entries(doc.academicSettings.customGradeNames));
+    } else {
+      doc.academicSettings.customGradeNames = new Map();
+    }
+  }
+  
+  // Ensure gradeLevels is a Map
+  if (doc.academicSettings.gradeLevels && !(doc.academicSettings.gradeLevels instanceof Map)) {
+    if (typeof doc.academicSettings.gradeLevels === 'object' && doc.academicSettings.gradeLevels !== null) {
+      doc.academicSettings.gradeLevels = new Map(Object.entries(doc.academicSettings.gradeLevels));
+    } else {
+      doc.academicSettings.gradeLevels = new Map();
+    }
+  }
+}
+
+// Post-init hook to normalize academicSettings when reading from database
+schoolSchema.post('init', function(doc) {
+  normalizeAcademicSettings(doc);
+});
+
+// Pre-save hook to ensure academicSettings is properly initialized
+schoolSchema.pre('save', function(next) {
+  normalizeAcademicSettings(this);
+  next();
 });
 
 // Virtual for full address
