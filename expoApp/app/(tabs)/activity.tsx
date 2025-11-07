@@ -1,22 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getStudentMessages, Message } from '@/src/services/student';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getStudentMessages, Message as StudentMessage } from '@/src/services/student';
+import { getTeacherMessages, Message as TeacherMessage } from '@/src/services/teacher';
+
+type Message = StudentMessage | TeacherMessage;
 
 export default function ActivityScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const styles = getStyles(isDark);
 
+  const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<string>('all'); // 'all', 'assignment', 'grade', 'reminder', 'announcement'
+  const [filterSender, setFilterSender] = useState<string>('all'); // 'all', 'admin', 'teacher'
+
+  useEffect(() => {
+    checkRole();
+  }, []);
+
+  const checkRole = async () => {
+    try {
+      const storedRole = await AsyncStorage.getItem('role');
+      setRole(storedRole);
+    } catch (error) {
+      console.error('Error checking role:', error);
+    }
+  };
 
   const fetchMessages = async () => {
     try {
-      const data = await getStudentMessages();
-      setMessages(data);
+      let data: Message[] = [];
+      if (role === 'teacher') {
+        data = await getTeacherMessages();
+      } else {
+        data = await getStudentMessages();
+      }
+      setAllMessages(data);
+      applyFilters(data, filterType, filterSender);
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
@@ -24,6 +51,41 @@ export default function ActivityScreen() {
       setRefreshing(false);
     }
   };
+
+  const applyFilters = (data: Message[], typeFilter: string, senderFilter: string) => {
+    let filtered = [...data];
+
+    // Apply type filter
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter((msg) => {
+        const lowerSubject = msg.subject.toLowerCase();
+        if (typeFilter === 'assignment') return lowerSubject.includes('assignment');
+        if (typeFilter === 'grade') return lowerSubject.includes('grade') || lowerSubject.includes('result');
+        if (typeFilter === 'reminder') return lowerSubject.includes('reminder');
+        if (typeFilter === 'announcement') return lowerSubject.includes('announcement');
+        return true;
+      });
+    }
+
+    // Apply sender filter
+    if (senderFilter !== 'all') {
+      filtered = filtered.filter((msg) => {
+        const senderRole = (msg.senderRole || '').toLowerCase();
+        return senderRole === senderFilter.toLowerCase();
+      });
+    }
+
+    // Sort by date (newest first)
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    setMessages(filtered);
+  };
+
+  useEffect(() => {
+    if (allMessages.length > 0) {
+      applyFilters(allMessages, filterType, filterSender);
+    }
+  }, [filterType, filterSender]);
 
   useEffect(() => {
     fetchMessages();
@@ -75,6 +137,39 @@ export default function ActivityScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Activity</Text>
+        </View>
+
+        {/* Filter Section */}
+        <View style={styles.filtersContainer}>
+          <TouchableOpacity 
+            style={[styles.filterButton, filterType !== 'all' && styles.filterButtonActive]} 
+            onPress={() => {
+              const filters = ['all', 'assignment', 'grade', 'reminder', 'announcement'];
+              const currentIndex = filters.indexOf(filterType);
+              const nextIndex = (currentIndex + 1) % filters.length;
+              setFilterType(filters[nextIndex]);
+            }}
+          >
+            <Text style={styles.filterButtonText}>
+              {filterType === 'all' ? 'All Types' : filterType.charAt(0).toUpperCase() + filterType.slice(1)}
+            </Text>
+            <Text style={styles.filterIcon}>▼</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.filterButton, filterSender !== 'all' && styles.filterButtonActive]} 
+            onPress={() => {
+              const filters = ['all', 'admin', 'teacher'];
+              const currentIndex = filters.indexOf(filterSender);
+              const nextIndex = (currentIndex + 1) % filters.length;
+              setFilterSender(filters[nextIndex]);
+            }}
+          >
+            <Text style={styles.filterButtonText}>
+              {filterSender === 'all' ? 'All Senders' : filterSender.charAt(0).toUpperCase() + filterSender.slice(1)}
+            </Text>
+            <Text style={styles.filterIcon}>▼</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -134,5 +229,10 @@ function getStyles(isDark: boolean) {
     activitySender: { fontSize: 11, color: isDark ? '#6B7280' : '#9CA3AF', fontStyle: 'italic' },
     noDataContainer: { alignItems: 'center', marginTop: 40, paddingVertical: 40 },
     noDataText: { fontSize: 16, color: isDark ? '#93C5FD' : '#1E3A8A', fontWeight: '600' },
+    filtersContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 20, gap: 12 },
+    filterButton: { flex: 1, backgroundColor: isDark ? '#0F172A' : '#DBEAFE', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 2, borderColor: isDark ? '#1F2937' : '#93C5FD' },
+    filterButtonActive: { backgroundColor: isDark ? '#1E3A8A' : '#93C5FD', borderColor: isDark ? '#3B82F6' : '#1E3A8A' },
+    filterButtonText: { fontSize: 14, fontWeight: '600', color: isDark ? '#93C5FD' : '#1E3A8A' },
+    filterIcon: { fontSize: 12, color: isDark ? '#93C5FD' : '#1E3A8A' },
   });
 }

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getStudentMessages, getStudentAssignments, getStudentAttendance, getStudentResults } from '@/src/services/student';
 
@@ -41,9 +39,9 @@ export default function HomeScreen() {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
-      
+
       console.log('[HOME] Fetching attendance for range:', startOfMonth, 'to', endOfMonth);
-      
+
       const [messagesData, assignmentsData, attendanceData, resultsData] = await Promise.all([
         getStudentMessages(),
         getStudentAssignments(),
@@ -54,20 +52,20 @@ export default function HomeScreen() {
       setMessages(messagesData.slice(0, 3));
       setAssignments(assignmentsData.slice(0, 3));
       setAttendanceStats(attendanceData.stats);
-      
+
       // Get today's attendance using local date formatting
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       console.log('[HOME] Looking for today\'s attendance:', today);
-      
+
       const todayRecord = attendanceData.records.find(record => {
         const recordDateStr = record.dateString || record.date?.split('T')[0];
         console.log('[HOME] Comparing record date:', recordDateStr, 'with today:', today);
         return recordDateStr === today;
       });
-      
+
       console.log('[HOME] Today\'s attendance record:', todayRecord ? 'Found' : 'Not found');
       setTodayAttendance(todayRecord);
-      
+
       setResults(resultsData.slice(0, 3));
     } catch (error) {
       console.error('Error loading home data:', error);
@@ -78,42 +76,32 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    loadData();
+    checkRole();
   }, []);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadData();
-  };
-
-  const getCurrentDateTime = () => {
-    const now = new Date();
-    const options: Intl.DateTimeFormatOptions = {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    };
-    return now.toLocaleString('en-US', options);
+  const checkRole = async () => {
+    try {
+      const storedRole = await AsyncStorage.getItem('role');
+      setRole(storedRole);
+    } catch (error) {
+      console.error('Error checking role:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color="#60A5FA" />
-          <Text style={[styles.welcomeText, { marginTop: 12, fontSize: 16 }]}>Loading...</Text>
-        </View>
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} edges={['top']}>
+        <ActivityIndicator size="large" color="#60A5FA" />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView 
-        style={styles.scrollView} 
+      <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#60A5FA" />
@@ -121,8 +109,8 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Image 
-              source={require('@/assets/images/logo.png')} 
+            <Image
+              source={require('@/assets/images/logo.png')}
               style={styles.logoIcon}
               tintColor={isDark ? '#FFFFFF' : '#000000'}
               resizeMode="contain"
@@ -204,11 +192,11 @@ export default function HomeScreen() {
                   <View key={result._id || index} style={styles.testResultItem}>
                     <View style={styles.progressBarContainer}>
                       <View style={[
-                        styles.progressBar, 
-                        { 
-                          width: `${Math.min(result.overallPercentage || 0, 100)}%`, 
-                          backgroundColor: result.overallPercentage >= 80 ? '#4ADE80' : 
-                                         result.overallPercentage >= 60 ? '#60A5FA' : '#F87171'
+                        styles.progressBar,
+                        {
+                          width: `${Math.min(result.overallPercentage || 0, 100)}%`,
+                          backgroundColor: result.overallPercentage >= 80 ? '#4ADE80' :
+                            result.overallPercentage >= 60 ? '#60A5FA' : '#F87171'
                         }
                       ]} />
                     </View>
@@ -251,9 +239,9 @@ export default function HomeScreen() {
                     <Text style={styles.sessionLabel}>Morning</Text>
                     <Text style={styles.sessionTime}>8:00 AM - 12:00 PM</Text>
                   </View>
-                  <View style={[styles.sessionDot, { 
-                    backgroundColor: todayAttendance?.sessions?.morning?.status === 'present' ? '#4ADE80' : 
-                                   todayAttendance?.sessions?.morning?.status === 'absent' ? '#EF4444' : '#D1D5DB' 
+                  <View style={[styles.sessionDot, {
+                    backgroundColor: todayAttendance?.sessions?.morning?.status === 'present' ? '#4ADE80' :
+                      todayAttendance?.sessions?.morning?.status === 'absent' ? '#EF4444' : '#D1D5DB'
                   }]} />
                 </View>
                 <View style={styles.sessionItem}>
@@ -261,9 +249,9 @@ export default function HomeScreen() {
                     <Text style={styles.sessionLabel}>Afternoon</Text>
                     <Text style={styles.sessionTime}>1:00 PM - 4:00 PM</Text>
                   </View>
-                  <View style={[styles.sessionDot, { 
-                    backgroundColor: todayAttendance?.sessions?.afternoon?.status === 'present' ? '#4ADE80' : 
-                                   todayAttendance?.sessions?.afternoon?.status === 'absent' ? '#EF4444' : '#D1D5DB' 
+                  <View style={[styles.sessionDot, {
+                    backgroundColor: todayAttendance?.sessions?.afternoon?.status === 'present' ? '#4ADE80' :
+                      todayAttendance?.sessions?.afternoon?.status === 'absent' ? '#EF4444' : '#D1D5DB'
                   }]} />
                 </View>
               </View>
@@ -321,8 +309,8 @@ function getStyles(isDark: boolean) {
       paddingBottom: 16,
     },
     headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+      flexDirection: 'row',
+      alignItems: 'center',
     },
     logoIcon: {
       width: 24,
@@ -486,7 +474,7 @@ function getStyles(isDark: boolean) {
       height: 8,
       backgroundColor: isDark ? '#1F2937' : '#E5E7EB',
       borderRadius: 4,
-    marginBottom: 8,
+      marginBottom: 8,
       overflow: 'hidden',
     },
     progressBar: {
@@ -619,5 +607,5 @@ function getStyles(isDark: boolean) {
       color: isDark ? '#6B7280' : '#9CA3AF',
       textAlign: 'center',
     },
-});
+  });
 }

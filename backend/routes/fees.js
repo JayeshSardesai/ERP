@@ -8,7 +8,60 @@ const checkPermission = require('../middleware/permissionCheck');
 // Apply authentication middleware to all routes
 router.use(authMiddleware.auth);
 
-// Apply role check - only ADMIN and SUPER_ADMIN can access
+// Student-specific route - must come before role checks
+router.get('/my-fees', authMiddleware.auth, async (req, res) => {
+  try {
+    const studentId = req.user.userId || req.user._id;
+    const schoolCode = req.user.schoolCode;
+    
+    if (!schoolCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'School code not found'
+      });
+    }
+
+    // Get connection to the school's database
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    
+    if (!schoolConnection) {
+      return res.status(404).json({
+        success: false,
+        message: 'School database not found'
+      });
+    }
+
+    const StudentFeeRecord = schoolConnection.model('StudentFeeRecord');
+    
+    // Find the student's fee record
+    const feeRecord = await StudentFeeRecord.findOne({ studentId })
+      .populate('studentId', 'name email class section rollNumber')
+      .lean();
+
+    if (!feeRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'No fee record found',
+        data: null
+      });
+    }
+
+    res.json({
+      success: true,
+      data: feeRecord
+    });
+  } catch (error) {
+    console.error('Error fetching student fees:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching fee record',
+      error: error.message
+    });
+  }
+});
+
+// Apply role check - only ADMIN and SUPER_ADMIN can access routes below
 router.use(roleCheck(['admin', 'superadmin']));
 
 // Apply permission check - requires viewFees permission

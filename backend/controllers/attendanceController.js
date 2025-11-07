@@ -31,10 +31,10 @@ exports.markAttendance = async (req, res) => {
 
     const schoolCode = req.user.schoolCode;
     const schoolId = req.user.schoolId;
-    
+
     // Get student information
     const student = await UserGenerator.getUserByIdOrEmail(schoolCode, studentId);
-    
+
     if (!student || student.role !== 'student') {
       return res.status(404).json({ message: 'Student not found' });
     }
@@ -83,7 +83,7 @@ exports.markAttendance = async (req, res) => {
         markedAt: new Date(),
         markedBy: req.user._id
       }));
-      
+
       // Calculate totals
       attendanceData.timeTracking.totalPeriodsScheduled = periods.length;
       attendanceData.timeTracking.totalPeriodsPresent = periods.filter(p => p.status === 'present').length;
@@ -204,7 +204,7 @@ exports.markSessionAttendance = async (req, res) => {
 
     // Create the session attendance document ID
     const sessionDocumentId = `${date}_${className}_${section}_${session}`;
-    
+
     // Check if attendance is already marked (frozen) for this session
     const existingSession = await attendanceCollection.findOne({ _id: sessionDocumentId });
     if (existingSession) {
@@ -228,7 +228,7 @@ exports.markSessionAttendance = async (req, res) => {
         }
       });
     }
-    
+
     // Process all students and collect their data
     const processedStudents = [];
     let successCount = 0;
@@ -237,7 +237,7 @@ exports.markSessionAttendance = async (req, res) => {
     for (const studentData of students) {
       try {
         console.log(`🔍 Processing student: ${studentData.userId || studentData.studentId} with status: ${studentData.status}`);
-        
+
         // Validate required fields
         if (!studentData.studentId || !studentData.status) {
           console.log(`❌ Missing data for student: ${JSON.stringify(studentData)}`);
@@ -293,38 +293,38 @@ exports.markSessionAttendance = async (req, res) => {
       // Document Identification
       _id: sessionDocumentId,
       documentType: 'session_attendance',
-      
+
       // Session Information
       date: new Date(date),
       dateString: date, // "2025-09-07"
       session: session, // "morning" or "afternoon"
       dayOfWeek: new Date(date).toLocaleDateString('en-US', { weekday: 'long' }),
-      
+
       // Class Information
       class: className,
       section: section,
       classInfo: `${session.charAt(0).toUpperCase() + session.slice(1)} Attendance - Class ${className} Section ${section}`,
-      
+
       // Progress Information
       totalStudents: students.length,
       processedStudents: processedStudents.length,
       successCount: successCount,
       failCount: failCount,
       progress: `${successCount}/${students.length} marked`,
-      
+
       // All Students Data
       students: processedStudents,
-      
+
       // Academic Information
       academicYear: new Date().getFullYear().toString(),
       schoolCode: schoolCode,
-      
+
       // Metadata
       createdAt: new Date(),
       createdBy: req.user._id || req.user.userId,
       markedBy: markedBy,
       markedByRole: req.user.role,
-      
+
       // Session Timing
       sessionTime: sessionTime,
       markedAt: new Date()
@@ -381,10 +381,10 @@ exports.markSessionAttendance = async (req, res) => {
 
   } catch (error) {
     console.error('Error in markSessionAttendance:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: 'Server error while marking attendance',
-      error: error.message 
+      error: error.message
     });
   }
 };
@@ -412,10 +412,10 @@ exports.markBulkAttendance = async (req, res) => {
 
     for (const studentData of students) {
       try {
-        const student = await User.findOne({ 
-          _id: studentData.studentId, 
+        const student = await User.findOne({
+          _id: studentData.studentId,
           role: 'student',
-          schoolCode: schoolCode 
+          schoolCode: schoolCode
         });
 
         if (!student) {
@@ -582,15 +582,15 @@ exports.getAttendance = async (req, res) => {
       // Get recent attendance (last 30 days) if no specific filters
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
+
       const query = {
         documentType: 'session_attendance',
         date: { $gte: thirtyDaysAgo }
       };
-      
+
       if (className) query.class = className;
       if (section) query.section = section;
-      
+
       attendanceDocuments = await attendanceCollection.find(query)
         .sort({ date: -1 })
         .limit(50)
@@ -667,10 +667,10 @@ exports.getAttendance = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching attendance:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error fetching attendance', 
-      error: error.message 
+      message: 'Error fetching attendance',
+      error: error.message
     });
   }
 };
@@ -729,10 +729,10 @@ exports.checkSessionStatus = async (req, res) => {
 
   } catch (error) {
     console.error('Error checking session status:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error checking session status', 
-      error: error.message 
+      message: 'Error checking session status',
+      error: error.message
     });
   }
 };
@@ -750,9 +750,9 @@ exports.getDailyAttendanceStats = async (req, res) => {
     const userSchoolCode = schoolCode || req.user.schoolCode;
 
     if (!userSchoolCode) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'School code is required' 
+        message: 'School code is required'
       });
     }
 
@@ -785,7 +785,7 @@ exports.getDailyAttendanceStats = async (req, res) => {
 
     sessions.forEach(session => {
       const dateStr = session.dateString || new Date(session.date).toISOString().split('T')[0];
-      
+
       if (!dailyMap[dateStr]) {
         dailyMap[dateStr] = {
           date: dateStr,
@@ -818,7 +818,7 @@ exports.getDailyAttendanceStats = async (req, res) => {
     const dailyStats = Object.values(dailyMap).map(day => {
       const total = day.totalPresent + day.totalAbsent + day.totalHalfDay;
       const attendanceRate = total > 0 ? Math.round((day.totalPresent / total) * 100 * 10) / 10 : 0;
-      
+
       return {
         date: day.date,
         totalPresent: day.totalPresent,
@@ -842,10 +842,10 @@ exports.getDailyAttendanceStats = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching daily attendance stats:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error fetching daily attendance stats', 
-      error: error.message 
+      message: 'Error fetching daily attendance stats',
+      error: error.message
     });
   }
 };
@@ -861,12 +861,12 @@ exports.getAttendanceStats = async (req, res) => {
     }
 
     const schoolCode = req.user.schoolCode;
-    
+
     // Build match query
     const matchQuery = {};
     if (className && className !== 'all') matchQuery.class = className;
     if (section) matchQuery.section = section;
-    
+
     // Support single date query (for today's attendance)
     if (date) {
       const targetDate = new Date(date);
@@ -926,16 +926,16 @@ exports.getAttendanceStats = async (req, res) => {
             totalHalfDay++;
           }
         });
-        
+
         console.log(`[SESSION] ${doc.session || 'unknown'} on ${doc.dateString || doc.date}: ${doc.students.length} students - Present=${doc.students.filter(s => s.status?.toLowerCase() === 'present').length}, Absent=${doc.students.filter(s => s.status?.toLowerCase() === 'absent').length}`);
       } else {
         // Fallback to successCount/failCount if students array doesn't exist
         const present = doc.successCount || 0;
         const absent = doc.failCount || 0;
-        
+
         totalPresent += present;
         totalAbsent += absent;
-        
+
         console.log(`[SESSION FALLBACK] ${doc.session || 'unknown'} on ${doc.dateString || doc.date}: Present=${present}, Absent=${absent}`);
       }
     });
@@ -959,10 +959,10 @@ exports.getAttendanceStats = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching attendance stats:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error fetching attendance stats', 
-      error: error.message 
+      message: 'Error fetching attendance stats',
+      error: error.message
     });
   }
 };
@@ -978,21 +978,21 @@ exports.getSessionAttendanceData = async (req, res) => {
     }
 
     if (!date || !session) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Date and session parameters are required' 
+        message: 'Date and session parameters are required'
       });
     }
 
     if (!['morning', 'afternoon'].includes(session.toLowerCase())) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Session must be either "morning" or "afternoon"' 
+        message: 'Session must be either "morning" or "afternoon"'
       });
     }
 
     const schoolCode = req.user.schoolCode;
-    
+
     // Use school-specific database for attendance
     const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
     const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
@@ -1068,10 +1068,10 @@ exports.getSessionAttendanceData = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching session attendance data:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error fetching session attendance data', 
-      error: error.message 
+      message: 'Error fetching session attendance data',
+      error: error.message
     });
   }
 };
@@ -1085,7 +1085,7 @@ exports.getOverallAttendanceRate = async (req, res) => {
     }
 
     const schoolCode = req.user.schoolCode;
-    
+
     // Use school-specific database for attendance
     const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
     const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
@@ -1148,10 +1148,10 @@ exports.getOverallAttendanceRate = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching overall attendance rate:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error fetching overall attendance rate', 
-      error: error.message 
+      message: 'Error fetching overall attendance rate',
+      error: error.message
     });
   }
 };
@@ -1184,7 +1184,7 @@ exports.lockAttendance = async (req, res) => {
 
     await attendance.save();
 
-    res.json({ 
+    res.json({
       message: 'Attendance locked successfully',
       attendance: {
         id: attendance._id,
@@ -1203,43 +1203,43 @@ exports.lockAttendance = async (req, res) => {
 // Get student's own attendance (for student role)
 exports.getMyAttendance = async (req, res) => {
   try {
-    const { startDate, endDate, limit = 30 } = req.query;
+    const { startDate, endDate } = req.query;
 
     // Only students can access this endpoint
     if (req.user.role !== 'student') {
-      return res.status(403).json({ 
+      return res.status(403).json({
         success: false,
-        message: 'This endpoint is only for students' 
+        message: 'This endpoint is only for students'
       });
     }
 
     // Get student's userId from authenticated user
     const studentUserId = req.user.userId || req.user._id;
     const schoolCode = req.user.schoolCode;
-    
+
     console.log(`[GET MY ATTENDANCE] Student: ${studentUserId}, School: ${schoolCode}`);
 
     if (!schoolCode) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'School code not found' 
+        message: 'School code not found'
       });
     }
 
     // Get student's class and section
-    const studentClass = req.user.studentDetails?.currentClass || 
-                        req.user.studentDetails?.academic?.currentClass || 
-                        req.user.class;
-    const studentSection = req.user.studentDetails?.currentSection || 
-                          req.user.studentDetails?.academic?.currentSection || 
-                          req.user.section;
+    const studentClass = req.user.studentDetails?.currentClass ||
+      req.user.studentDetails?.academic?.currentClass ||
+      req.user.class;
+    const studentSection = req.user.studentDetails?.currentSection ||
+      req.user.studentDetails?.academic?.currentSection ||
+      req.user.section;
 
     console.log(`[GET MY ATTENDANCE] Class: ${studentClass}, Section: ${studentSection}`);
 
     if (!studentClass || !studentSection) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Student class/section information not found' 
+        message: 'Student class/section information not found'
       });
     }
 
@@ -1271,36 +1271,36 @@ exports.getMyAttendance = async (req, res) => {
       const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
       const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
       const attendanceCollection = schoolConn.collection('attendances');
-      
+
       // Debug: Check what attendance records exist in the collection
       const totalRecords = await attendanceCollection.countDocuments();
       console.log(`[GET MY ATTENDANCE] Total attendance records in collection: ${totalRecords}`);
-      
+
       // If no attendance records exist, create sample data for testing
       if (totalRecords === 0) {
         console.log(`[GET MY ATTENDANCE] No attendance records found, creating sample data for testing...`);
         await createSampleAttendanceData(attendanceCollection, studentClass, studentSection, studentUserId);
       }
-      
+
       // Find all session documents for the student's class and section
       const sessionDocuments = await attendanceCollection
         .find(sessionQuery)
         .sort({ date: -1 })
         .limit(parseInt(limit) * 2) // Get more sessions since each may have 2 sessions (morning/afternoon)
         .toArray();
-      
+
       console.log(`[GET MY ATTENDANCE] Found ${sessionDocuments.length} session documents`);
-      
+
       // Extract student's attendance from each session document
       for (const sessionDoc of sessionDocuments) {
         if (sessionDoc.students && Array.isArray(sessionDoc.students)) {
           // Find this student in the session's student list
-          const studentRecord = sessionDoc.students.find(s => 
-            s.studentId === studentUserId || 
+          const studentRecord = sessionDoc.students.find(s =>
+            s.studentId === studentUserId ||
             s.userId === studentUserId ||
             s.rollNumber === studentUserId
           );
-          
+
           if (studentRecord) {
             attendanceRecords.push({
               _id: `${sessionDoc.dateString || sessionDoc.date}_${sessionDoc.class}_${sessionDoc.section}_${sessionDoc.session}_${studentUserId}`,
@@ -1317,9 +1317,9 @@ exports.getMyAttendance = async (req, res) => {
           }
         }
       }
-      
+
       console.log(`[GET MY ATTENDANCE] Extracted ${attendanceRecords.length} attendance records for student ${studentUserId}`);
-      
+
       // If no records found, show debug info
       if (attendanceRecords.length === 0 && sessionDocuments.length > 0) {
         console.log(`[GET MY ATTENDANCE] Sample session document structure:`, JSON.stringify(sessionDocuments[0], null, 2));
@@ -1328,26 +1328,37 @@ exports.getMyAttendance = async (req, res) => {
           console.log(`[GET MY ATTENDANCE] Sample student in session:`, JSON.stringify(sessionDocuments[0].students[0], null, 2));
         }
       }
-      
+
     } catch (error) {
       console.error(`[GET MY ATTENDANCE] Error accessing school database:`, error.message);
-      
+
       // Fallback to main database (though attendance is typically in school-specific DB)
       console.log(`[GET MY ATTENDANCE] Falling back to main database`);
       attendanceRecords = [];
     }
 
     // Calculate statistics
-    let totalDays = attendanceRecords.length;
+    let totalDays = 0;
     let presentDays = 0;
     let absentDays = 0;
-    let lateDays = 0;
     let halfDays = 0;
-    let leaveDays = 0;
+    let totalSessions = 0;
+    let presentSessions = 0;
 
-    // Process records and extract session-wise data
-    const processedRecords = attendanceRecords.map(record => {
-      // Count status
+    processedRecords.forEach(record => {
+      totalDays++;
+
+      // Count sessions
+      if (record.sessions.morning) {
+        totalSessions++;
+        if (record.sessions.morning.status === 'present') presentSessions++;
+      }
+      if (record.sessions.afternoon) {
+        totalSessions++;
+        if (record.sessions.afternoon.status === 'present') presentSessions++;
+      }
+
+      // Count overall day status
       switch (record.status) {
         case 'present':
           presentDays++;
@@ -1355,69 +1366,20 @@ exports.getMyAttendance = async (req, res) => {
         case 'absent':
           absentDays++;
           break;
-        case 'late':
-          lateDays++;
-          break;
         case 'half_day':
           halfDays++;
           break;
-        case 'medical_leave':
-        case 'authorized_leave':
-          leaveDays++;
-          break;
       }
-
-      // Extract session information from periods
-      const sessions = {
-        morning: null,
-        afternoon: null
-      };
-
-      if (record.timeTracking?.periods && record.timeTracking.periods.length > 0) {
-        // Assuming periods 1-4 are morning, 5-8 are afternoon
-        const morningPeriods = record.timeTracking.periods.filter(p => p.periodNumber <= 4);
-        const afternoonPeriods = record.timeTracking.periods.filter(p => p.periodNumber > 4);
-
-        if (morningPeriods.length > 0) {
-          const presentCount = morningPeriods.filter(p => p.status === 'present').length;
-          sessions.morning = {
-            status: presentCount === morningPeriods.length ? 'present' : 
-                   presentCount > 0 ? 'partial' : 'absent',
-            periodsPresent: presentCount,
-            totalPeriods: morningPeriods.length
-          };
-        }
-
-        if (afternoonPeriods.length > 0) {
-          const presentCount = afternoonPeriods.filter(p => p.status === 'present').length;
-          sessions.afternoon = {
-            status: presentCount === afternoonPeriods.length ? 'present' : 
-                   presentCount > 0 ? 'partial' : 'absent',
-            periodsPresent: presentCount,
-            totalPeriods: afternoonPeriods.length
-          };
-        }
-      }
-
-      return {
-        _id: record._id,
-        date: record.date,
-        dayOfWeek: record.dayOfWeek,
-        status: record.status,
-        sessions: sessions,
-        checkIn: record.timeTracking?.checkIn?.time,
-        checkOut: record.timeTracking?.checkOut?.time,
-        totalPeriodsPresent: record.timeTracking?.totalPeriodsPresent || 0,
-        totalPeriodsScheduled: record.timeTracking?.totalPeriodsScheduled || 0,
-        attendancePercentage: record.timeTracking?.attendancePercentage || 0,
-        teacherNotes: record.teacherNotes || [],
-        leaveDetails: record.leaveDetails
-      };
     });
 
-    // Calculate attendance percentage
-    const attendancePercentage = totalDays > 0 
-      ? Math.round(((presentDays + (halfDays * 0.5)) / totalDays) * 100) 
+    // Calculate attendance percentage based on sessions
+    const attendancePercentage = totalSessions > 0
+      ? Math.round((presentSessions / totalSessions) * 100)
+      : 0;
+
+    // Also calculate day-based attendance rate
+    const attendanceRate = totalDays > 0
+      ? Math.round(((presentDays + (halfDays * 0.5)) / totalDays) * 100)
       : 0;
 
     res.json({
@@ -1432,10 +1394,13 @@ exports.getMyAttendance = async (req, res) => {
           totalDays,
           presentDays,
           absentDays,
-          lateDays,
+          lateDays: 0,
           halfDays,
-          leaveDays,
-          attendancePercentage
+          leaveDays: 0,
+          attendancePercentage: attendanceRate,
+          totalSessions,
+          presentSessions,
+          sessionAttendanceRate: attendancePercentage
         },
         records: processedRecords
       }
@@ -1443,10 +1408,10 @@ exports.getMyAttendance = async (req, res) => {
 
   } catch (error) {
     console.error('[GET MY ATTENDANCE] Error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error fetching attendance', 
-      error: error.message 
+      message: 'Error fetching attendance',
+      error: error.message
     });
   }
 };
@@ -1461,10 +1426,10 @@ exports.getStudentAttendanceReport = async (req, res) => {
     }
 
     const schoolId = req.user.schoolId;
-    
+
     // Determine which student to get report for
     let targetStudentId = studentId;
-    
+
     if (req.user.role === 'student') {
       targetStudentId = req.user._id;
     } else if (req.user.role === 'parent') {
@@ -1485,7 +1450,7 @@ exports.getStudentAttendanceReport = async (req, res) => {
       schoolId,
       'records.student': targetStudentId
     };
-    
+
     if (startDate && endDate) {
       query.date = {
         $gte: new Date(startDate),
@@ -1564,18 +1529,18 @@ const sendParentNotification = async (attendance, student) => {
 
     // Simulate SMS/Email notification (integrate with actual service)
     const message = `Dear Parent, Your child ${attendance.studentName} is ${attendance.status} today at ${new Date().toLocaleTimeString()}. - School`;
-    
+
     console.log(`Notification sent to ${parent.email}: ${message}`);
-    
+
     // Update attendance with notification status
     attendance.parentNotification = {
       sent: true,
       sentAt: new Date(),
       method: 'sms' // or 'email'
     };
-    
+
     await attendance.save();
-    
+
   } catch (error) {
     console.error('Error sending parent notification:', error);
   }
@@ -1584,13 +1549,13 @@ const sendParentNotification = async (attendance, student) => {
 // Get attendance analytics and reports
 exports.getAttendanceAnalytics = async (req, res) => {
   try {
-    const { 
-      class: className, 
-      section, 
-      startDate, 
-      endDate, 
+    const {
+      class: className,
+      section,
+      startDate,
+      endDate,
       studentId,
-      type = 'monthly' 
+      type = 'monthly'
     } = req.query;
 
     const schoolCode = req.user.schoolCode;
@@ -1876,10 +1841,10 @@ exports.getClassAttendance = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching class attendance:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: 'Server error while fetching attendance',
-      error: error.message 
+      error: error.message
     });
   }
 };
@@ -1889,13 +1854,13 @@ async function createSampleAttendanceData(attendanceCollection, studentClass, st
   try {
     const sampleData = [];
     const today = new Date();
-    
+
     // Create attendance records for the last 10 days
     for (let i = 0; i < 10; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const dateString = date.toISOString().split('T')[0];
-      
+
       // Create morning session
       const morningSessionId = `${dateString}_${studentClass}_${studentSection}_morning`;
       const morningSession = {
@@ -1928,7 +1893,7 @@ async function createSampleAttendanceData(attendanceCollection, studentClass, st
         markedByRole: 'system',
         sessionTime: '09:00 AM'
       };
-      
+
       // Create afternoon session
       const afternoonSessionId = `${dateString}_${studentClass}_${studentSection}_afternoon`;
       const afternoonSession = {
@@ -1961,14 +1926,14 @@ async function createSampleAttendanceData(attendanceCollection, studentClass, st
         markedByRole: 'system',
         sessionTime: '02:00 PM'
       };
-      
+
       sampleData.push(morningSession, afternoonSession);
     }
-    
+
     // Insert sample data
     await attendanceCollection.insertMany(sampleData);
     console.log(`[SAMPLE DATA] Created ${sampleData.length} sample attendance records`);
-    
+
   } catch (error) {
     console.error('[SAMPLE DATA] Error creating sample attendance data:', error);
   }

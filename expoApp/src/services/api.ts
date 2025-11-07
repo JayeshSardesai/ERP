@@ -8,6 +8,10 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Debug base URL once at startup
+// eslint-disable-next-line no-console
+console.log('[API] Base URL:', ENV.API_BASE_URL);
+
 api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   const token = await AsyncStorage.getItem('authToken');
   const schoolCode = await AsyncStorage.getItem('schoolCode');

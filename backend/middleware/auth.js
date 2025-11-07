@@ -90,7 +90,6 @@ const auth = async (req, res, next) => {
     }
 
     // User fetched successfully
-    
     // Ensure user object is a plain object with role property
     req.user = {
       ...user,
@@ -101,8 +100,9 @@ const auth = async (req, res, next) => {
       schoolCode: user.schoolCode,
       // Preserve student details for filtering
       studentDetails: user.studentDetails,
-      class: user.class,
-      section: user.section
+      // Set class/section at the root level for easy access
+      class: studentClass,
+      section: studentSection
     };
     next();
   } catch (error) {
@@ -121,7 +121,7 @@ const authorize = (...roles) => {
 
     // Flatten roles array in case it's passed as authorize(['admin', 'teacher'])
     const allowedRoles = roles.flat();
-    
+
     console.log(`[AUTHORIZE DEBUG] Checking if role "${req.user.role}" is in allowed roles:`, allowedRoles);
 
     if (!allowedRoles.includes(req.user.role)) {

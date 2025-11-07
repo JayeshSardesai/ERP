@@ -1,6 +1,15 @@
 import api from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export interface AssignmentAttachment {
+  filename?: string;
+  originalName: string;
+  path: string;
+  cloudinaryPublicId?: string;
+  size?: number;
+  uploadedAt?: string;
+}
+
 export interface Assignment {
   _id: string;
   title: string;
@@ -14,6 +23,7 @@ export interface Assignment {
   instructions?: string;
   class: string;
   section: string;
+  attachments?: AssignmentAttachment[];
 }
 
 export interface AttendanceRecord {
@@ -26,10 +36,12 @@ export interface AttendanceRecord {
     morning: {
       status: 'present' | 'absent';
       markedAt?: string;
+      sessionTime?: string;
     } | null;
     afternoon: {
       status: 'present' | 'absent';
       markedAt?: string;
+      sessionTime?: string;
     } | null;
   };
 }
@@ -67,19 +79,52 @@ export interface Message {
   urgencyIndicator?: string;
 }
 
+export interface SchoolInfo {
+  schoolName: string;
+  schoolCode: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  logo?: string;
+  principalName?: string;
+  establishedYear?: string;
+  affiliation?: string;
+}
+
+export interface FeeRecord {
+  _id: string;
+  studentId: string;
+  academicYear: string;
+  totalFees: number;
+  paidAmount: number;
+  pendingAmount: number;
+  dueDate?: string;
+  status: 'paid' | 'partial' | 'pending' | 'overdue';
+  payments: Array<{
+    amount: number;
+    paymentDate: string;
+    paymentMode: string;
+    receiptNumber: string;
+  }>;
+}
+
 export async function getStudentAssignments(): Promise<Assignment[]> {
   try {
     console.log('[STUDENT SERVICE] Fetching assignments...');
-    
+
     // Debug: Check if token exists
     const token = await AsyncStorage.getItem('authToken');
     const schoolCode = await AsyncStorage.getItem('schoolCode');
     console.log('[STUDENT SERVICE] Token exists:', !!token);
     console.log('[STUDENT SERVICE] School code:', schoolCode);
-    
+
     const userData = await AsyncStorage.getItem('userData');
     if (!userData) throw new Error('No user data found');
-    
+
     const user = JSON.parse(userData);
     const response = await api.get('/assignments', {
       params: {
@@ -87,7 +132,7 @@ export async function getStudentAssignments(): Promise<Assignment[]> {
       }
     });
     console.log('[STUDENT SERVICE] Assignments response:', response.data);
-    
+
     // Backend returns { assignments, totalPages, currentPage, total }
     return response.data.assignments || response.data.data || [];
   } catch (error: any) {
@@ -100,24 +145,35 @@ export async function getStudentAssignments(): Promise<Assignment[]> {
 
 export async function getStudentAttendance(startDate?: string, endDate?: string): Promise<{
   records: AttendanceRecord[];
-  stats: { totalDays: number; presentDays: number; absentDays: number; lateDays: number; halfDays: number; leaveDays: number; attendancePercentage: number };
+  stats: {
+    totalDays: number;
+    presentDays: number;
+    absentDays: number;
+    lateDays: number;
+    halfDays: number;
+    leaveDays: number;
+    attendancePercentage: number;
+    totalSessions?: number;
+    presentSessions?: number;
+    sessionAttendanceRate?: number;
+  };
 }> {
   try {
     console.log('[STUDENT SERVICE] Fetching attendance...');
-    
+
     const params: any = {};
     if (startDate) params.startDate = startDate;
     if (endDate) params.endDate = endDate;
-    
+
     // Use the new my-attendance endpoint which filters by student's class/section
     const response = await api.get('/attendance/my-attendance', { params });
-    
+
     console.log('[STUDENT SERVICE] Attendance response:', response.data);
-    
+
     if (response.data?.success && response.data?.data) {
       // Handle different response structures
       let rawRecords = [];
-      
+
       if (response.data.data.records && Array.isArray(response.data.data.records)) {
         rawRecords = response.data.data.records;
       } else if (Array.isArray(response.data.data)) {
@@ -126,15 +182,15 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
         console.warn('[STUDENT SERVICE] Unexpected data structure:', response.data.data);
         rawRecords = [];
       }
-      
-      
+
+
       // Transform session-based records to day-based records
       const dayRecordsMap = new Map<string, AttendanceRecord>();
-      
+
       // Get user data once before processing records
       const userData = JSON.parse(await AsyncStorage.getItem('userData') || '{}');
       const studentUserId = userData.userId || userData._id;
-      
+
       rawRecords.forEach((sessionRecord: any) => {
         // Use dateString if available, otherwise extract from date
         let dateStr: string;
@@ -152,11 +208,11 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           console.warn('[STUDENT SERVICE] No date found in record:', sessionRecord);
           return;
         }
-        
+
         // Extract session and student's status from the record
         let session: string | null = null;
         let sessionStatus: string = 'no-class';
-        
+
         // Check if this is already an individual student record (has _id with student ID)
         if (sessionRecord._id && sessionRecord._id.includes(studentUserId)) {
           // Extract session from _id: "2025-11-08_7_C_morning_AB-S-0006"
@@ -174,20 +230,20 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
         // Handle session documents with students array (fallback)
         else if (sessionRecord.students && Array.isArray(sessionRecord.students)) {
           session = sessionRecord.session; // 'morning' or 'afternoon'
-          
+
           // Find this student in the session's student list
-          const studentRecord = sessionRecord.students.find((s: any) => 
-            s.studentId === studentUserId || 
+          const studentRecord = sessionRecord.students.find((s: any) =>
+            s.studentId === studentUserId ||
             s.userId === studentUserId ||
             s.rollNumber === studentUserId
           );
-          
+
           if (studentRecord) {
             sessionStatus = studentRecord.status || 'no-class';
           }
         }
-        
-        
+
+
         if (!dayRecordsMap.has(dateStr)) {
           dayRecordsMap.set(dateStr, {
             _id: dateStr,
@@ -200,19 +256,19 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
             }
           });
         }
-        
+
         const dayRecord = dayRecordsMap.get(dateStr)!;
-        
+
         if (session === 'morning') {
           dayRecord.sessions.morning = { status: sessionStatus as 'present' | 'absent' };
         } else if (session === 'afternoon') {
           dayRecord.sessions.afternoon = { status: sessionStatus as 'present' | 'absent' };
         }
-        
+
         // Update overall day status based on sessions
         const morningStatus = dayRecord.sessions.morning?.status;
         const afternoonStatus = dayRecord.sessions.afternoon?.status;
-        
+
         if (morningStatus === 'present' || afternoonStatus === 'present') {
           dayRecord.status = 'present';
         } else if (morningStatus === 'absent' || afternoonStatus === 'absent') {
@@ -221,44 +277,44 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           dayRecord.status = 'no-class';
         }
       });
-      
+
       const transformedRecords = Array.from(dayRecordsMap.values());
-      
-      
-      
+
+
+
       // Sort records by date for proper display (most recent first)
       transformedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
+
       // STRICT filtering - only return records within the exact requested date range
       let filteredRecords: AttendanceRecord[] = [];
       if (startDate && endDate) {
         const start = new Date(startDate);
         const end = new Date(endDate);
-        
+
         // Set time boundaries
         start.setHours(0, 0, 0, 0);
         end.setHours(23, 59, 59, 999);
-        
+
         console.log('[STUDENT SERVICE] STRICT filtering for range:', start.toDateString(), 'to', end.toDateString());
-        
+
         filteredRecords = transformedRecords.filter(record => {
           const recordDate = new Date(record.date);
           recordDate.setHours(0, 0, 0, 0);
-          
+
           const isInRange = recordDate >= start && recordDate <= end;
-          
+
           console.log('[STUDENT SERVICE] Record:', record.dateString, 'In range:', isInRange);
-          
+
           return isInRange;
         });
-        
+
         console.log('[STUDENT SERVICE] FINAL filtered records:', filteredRecords.length, 'from', transformedRecords.length);
       } else {
         // If no date range specified, return empty array to prevent showing old data
         console.log('[STUDENT SERVICE] No date range specified - returning empty array');
         filteredRecords = [];
       }
-      
+
       // Calculate stats from transformed records
       const stats = {
         totalDays: transformedRecords.length,
@@ -269,17 +325,17 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
         leaveDays: 0,
         attendancePercentage: 0
       };
-      
+
       if (stats.totalDays > 0) {
         stats.attendancePercentage = Math.round((stats.presentDays / stats.totalDays) * 100);
       }
-      
+
       return {
         records: filteredRecords,
         stats: response.data.data.summary || stats
       };
     }
-    
+
     return { records: [], stats: { totalDays: 0, presentDays: 0, absentDays: 0, lateDays: 0, halfDays: 0, leaveDays: 0, attendancePercentage: 0 } };
   } catch (error) {
     console.error('[STUDENT SERVICE] Error fetching attendance:', error);
@@ -290,27 +346,27 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
 export async function getStudentResults(): Promise<Result[]> {
   try {
     console.log('[STUDENT SERVICE] Fetching results...');
-    
+
     const userData = await AsyncStorage.getItem('userData');
     if (!userData) throw new Error('No user data found');
-    
+
     const user = JSON.parse(userData);
     const studentId = user.userId || user._id;
     // Try multiple endpoints to get results
     let response;
     let rawResults = [];
-    
+
     try {
       // Use the same approach as the website - /results endpoint with params
       const userData = JSON.parse(await AsyncStorage.getItem('userData') || '{}');
       const schoolCode = await AsyncStorage.getItem('schoolCode') || '';
-      
+
       // First try the general results endpoint like the website does
-      response = await api.get('/results', { 
-        params: { 
+      response = await api.get('/results', {
+        params: {
           schoolCode: schoolCode.toUpperCase(),
           studentId: studentId
-        } 
+        }
       });
       if (response.data?.success && response.data?.data) {
         rawResults = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
@@ -319,12 +375,12 @@ export async function getStudentResults(): Promise<Result[]> {
       } else if (Array.isArray(response.data)) {
         rawResults = response.data;
       }
-      
+
       // If no results found, try the student-specific endpoint as fallback
       if (rawResults.length === 0) {
         try {
           response = await api.get(`/results/student/${studentId}/history`);
-          
+
           if (response.data?.success && response.data?.results) {
             rawResults = response.data.results;
           } else if (response.data?.success && Array.isArray(response.data?.data)) {
@@ -338,11 +394,11 @@ export async function getStudentResults(): Promise<Result[]> {
       console.log('[STUDENT SERVICE] Results fetching failed:', error);
       return [];
     }
-    
+
     if (!Array.isArray(rawResults) || rawResults.length === 0) {
       return [];
     }
-    
+
     // Filter out placeholder records and invalid results
     const validResults = rawResults.filter((result: any) => {
       // Skip placeholder records by flag
@@ -350,33 +406,33 @@ export async function getStudentResults(): Promise<Result[]> {
         console.log('[STUDENT SERVICE] Skipping placeholder result:', result._id);
         return false;
       }
-      
+
       // Skip placeholder records by description
       if (result.note && result.note.includes('Placeholder for results collection')) {
         console.log('[STUDENT SERVICE] Skipping placeholder result by description:', result._id);
         return false;
       }
-      
+
       // Skip results without proper structure
       if (!result.subjects || !Array.isArray(result.subjects) || result.subjects.length === 0) {
         console.log('[STUDENT SERVICE] Skipping result without subjects:', result._id);
         return false;
       }
-      
+
       // Skip frozen placeholder results (additional check)
       if (result.frozen && result.note && result.note.includes('Placeholder')) {
         console.log('[STUDENT SERVICE] Skipping frozen placeholder result:', result._id);
         return false;
       }
-      
+
       return true;
     });
-    
+
     console.log('[STUDENT SERVICE] Filtered results count:', validResults.length, 'from', rawResults.length);
-    
+
     // Transform the results to match the expected format
     const transformedResults = validResults.map((result: any) => {
-      
+
       // Handle different result structures
       let subjects = [];
       let examType = 'Exam';
@@ -384,7 +440,7 @@ export async function getStudentResults(): Promise<Result[]> {
       let overallGrade = 'N/A';
       let rank = null;
       let academicYear = '2024-25';
-      
+
       // Extract exam type - prioritize testType from subjects
       if (result.subjects?.[0]?.testType) {
         examType = result.subjects[0].testType;
@@ -397,8 +453,8 @@ export async function getStudentResults(): Promise<Result[]> {
       } else {
         examType = 'Exam'; // Default fallback
       }
-      
-      
+
+
       // Extract subjects
       if (result.subjects && Array.isArray(result.subjects)) {
         subjects = result.subjects.map((subject: any) => {
@@ -408,13 +464,13 @@ export async function getStudentResults(): Promise<Result[]> {
           let totalMarks = 100;
           let grade = subject.grade || '';
           let percentage = 0;
-          
+
           // Extract marks - handle the exact database structure
           marksObtained = subject.obtainedMarks || subject.marksObtained || 0;
           totalMarks = subject.maxMarks || subject.totalMarks || 100;
           percentage = subject.percentage || 0;
           grade = subject.grade || '';
-          
+
           // Handle nested structure if exists
           if (subject.total) {
             marksObtained = subject.total.marksObtained || subject.total.obtainedMarks || marksObtained;
@@ -422,13 +478,13 @@ export async function getStudentResults(): Promise<Result[]> {
             percentage = subject.total.percentage || percentage;
             grade = subject.total.grade || grade;
           }
-          
+
           // Calculate percentage if not provided
           if (percentage === 0 && totalMarks > 0) {
             percentage = (marksObtained / totalMarks) * 100;
           }
-          
-          
+
+
           return {
             subjectName,
             marksObtained,
@@ -438,7 +494,7 @@ export async function getStudentResults(): Promise<Result[]> {
           };
         });
       }
-      
+
       // Calculate overall statistics - use result's direct values first
       if (result.percentage !== undefined) {
         overallPercentage = result.percentage;
@@ -449,7 +505,7 @@ export async function getStudentResults(): Promise<Result[]> {
         const obtainedMarks = subjects.reduce((sum: number, s: any) => sum + s.marksObtained, 0);
         overallPercentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
       }
-      
+
       // Extract grade
       if (result.grade) {
         overallGrade = result.grade;
@@ -458,21 +514,21 @@ export async function getStudentResults(): Promise<Result[]> {
       } else if (subjects.length > 0 && subjects[0]?.grade) {
         overallGrade = subjects[0].grade;
       }
-      
+
       // Extract rank
       if (result.rank !== undefined) {
         rank = result.rank;
       } else if (result.overallResult?.rank) {
         rank = result.overallResult.rank;
       }
-      
+
       // Extract academic year
       if (result.academicYear) {
         academicYear = result.academicYear;
       } else if (result.classDetails?.academicYear) {
         academicYear = result.classDetails.academicYear;
       }
-      
+
       const transformedResult = {
         _id: result._id || result.resultId || `result_${Date.now()}`,
         examType,
@@ -482,7 +538,7 @@ export async function getStudentResults(): Promise<Result[]> {
         rank,
         academicYear
       };
-      
+
       console.log('[STUDENT SERVICE] Transformed result:', {
         id: transformedResult._id,
         examType: transformedResult.examType,
@@ -493,9 +549,9 @@ export async function getStudentResults(): Promise<Result[]> {
       });
       return transformedResult;
     });
-    
+
     console.log('[STUDENT SERVICE] Final transformed results count:', transformedResults.length);
-    
+
     return transformedResults;
   } catch (error: any) {
     console.error('[STUDENT SERVICE] Error fetching results:', error);
@@ -508,10 +564,10 @@ export async function getStudentResults(): Promise<Result[]> {
 export async function getStudentMessages(): Promise<Message[]> {
   try {
     const response = await api.get('/messages');
-    
+
     // Backend returns { success: true, data: { messages: [...], pagination: {...} } }
     const messages = response.data?.data?.messages || response.data?.messages || response.data?.data || [];
-    
+
     // Map backend format to frontend format
     return messages.map((msg: any) => ({
       _id: msg.id || msg._id,
@@ -539,20 +595,118 @@ export async function submitAssignment(assignmentId: string, attachments: any[])
   try {
     const formData = new FormData();
     formData.append('assignmentId', assignmentId);
-    
+
     attachments.forEach((attachment, index) => {
       formData.append('attachments', attachment);
     });
-    
+
     const response = await api.post(`/assignments/${assignmentId}/submit`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       }
     });
-    
+
     return response.data.success || false;
   } catch (error) {
     console.error('Error submitting assignment:', error);
     return false;
+  }
+}
+
+export async function getSchoolInfo(): Promise<SchoolInfo | null> {
+  try {
+    const response = await api.get('/schools/database/school-info');
+    return response.data.data || response.data || null;
+  } catch (error) {
+    console.error('Error fetching school info:', error);
+    return null;
+  }
+}
+
+export async function getStudentFees(): Promise<FeeRecord | null> {
+  try {
+    const response = await api.get('/fees/my-fees');
+    return response.data.data || response.data || null;
+  } catch (error) {
+    console.error('Error fetching student fees:', error);
+    return null;
+  }
+}
+
+export interface StudentProfile {
+  _id: string;
+  userId: string;
+  name: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    displayName?: string;
+  };
+  email: string;
+  schoolCode: string;
+  profileImage?: string;
+  contact?: {
+    primaryPhone?: string;
+    secondaryPhone?: string;
+    whatsappNumber?: string;
+  };
+  address?: {
+    permanent?: {
+      street?: string;
+      area?: string;
+      city?: string;
+      state?: string;
+      country?: string;
+      pincode?: string;
+      landmark?: string;
+    };
+    current?: any;
+  };
+  identity?: {
+    aadharNumber?: string;
+    panNumber?: string;
+  };
+  studentDetails?: any;
+  isActive?: boolean;
+  lastLogin?: string;
+}
+
+/**
+ * Fetch student profile from students collection in school database
+ * This fetches the complete student data from the school's students collection
+ * Uses the reports endpoint which queries the students collection
+ */
+export async function getStudentProfile(): Promise<StudentProfile | null> {
+  try {
+    const userData = await AsyncStorage.getItem('userData');
+    if (!userData) throw new Error('No user data found');
+
+    const user = JSON.parse(userData);
+    const userId = user.userId || user._id;
+
+    if (!userId) {
+      throw new Error('Missing userId');
+    }
+
+    console.log('[STUDENT SERVICE] Fetching student profile from students collection...');
+    console.log('[STUDENT SERVICE] userId:', userId);
+
+    // Fetch from students collection using student-specific endpoint
+    // This endpoint queries the students collection in the school database
+    // Path: /api/users/my-profile (student-specific, no userId needed)
+    const response = await api.get('/users/my-profile');
+
+    console.log('[STUDENT SERVICE] Student profile response:', response.data);
+
+    if (response.data?.success && response.data?.data) {
+      return response.data.data;
+    }
+
+    return response.data || null;
+  } catch (error: any) {
+    console.error('[STUDENT SERVICE] Error fetching student profile:', error);
+    console.error('[STUDENT SERVICE] Error response:', error?.response?.data);
+    console.error('[STUDENT SERVICE] Error status:', error?.response?.status);
+    return null;
   }
 }

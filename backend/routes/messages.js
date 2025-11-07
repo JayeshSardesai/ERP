@@ -20,6 +20,12 @@ router.use((req, res, next) => {
   next();
 });
 
+// Student-accessible routes - students can view messages for their class/section
+router.get('/student/messages',
+  roleCheck(['student']),
+  messagesController.getMessages
+);
+
 // Teacher-accessible routes (read-only, no permission check)
 router.get('/teacher/messages',
   roleCheck(['teacher']),

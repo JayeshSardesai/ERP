@@ -75,8 +75,8 @@ module.exports = (upload) => {
     authorize(['student']),
     assignmentController.submitAssignment
   );
-  router.get('/:assignmentId/submission', 
-    authorize(['student', 'admin', 'teacher']), 
+  router.get('/:assignmentId/submission',
+    authorize(['student', 'admin', 'teacher']),
     assignmentController.getStudentSubmission
   );
   router.get('/:assignmentId/submissions', authorize(['admin', 'teacher']), checkPermission('viewAssignments'), assignmentController.getAssignmentSubmissions);

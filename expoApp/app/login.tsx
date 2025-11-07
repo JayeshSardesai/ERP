@@ -28,12 +28,12 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      console.log(`Attempting login with: ${email}, school code: ${schoolCode}`);
-      // Use identifier (email or userId) for login
+      console.log(`Attempting login with: ${email} (email or userId), school code: ${schoolCode}`);
+      // Use identifier (email or userId) for login - backend supports both
       const res = await loginSchool({ identifier: email, password, schoolCode });
 
       if (!res || !res.success) {
-        Alert.alert(res?.message || 'Invalid credentials. Please check your email, password, and school code.');
+        Alert.alert(res?.message || 'Invalid credentials. Please check your email/user ID, password, and school code.');
         setLoading(false);
         return;
       }
@@ -54,8 +54,8 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.logoContainer}>
             <View style={styles.logoPlaceholder}>
-              <Image 
-                source={require('@/assets/images/logo.png')} 
+              <Image
+                source={require('@/assets/images/logo.png')}
                 style={styles.logoImage}
                 tintColor={isDark ? '#FFFFFF' : '#000000'}
                 resizeMode="contain"
