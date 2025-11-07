@@ -82,23 +82,29 @@ export default function TabLayout() {
         }}
       />
 
-      {/* STUDENT-ONLY TABS */}
+      {/* ATTENDANCE TAB - Available for both students and teachers */}
       <Tabs.Screen
         name="attendance"
         options={{
           title: 'Attendance',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.badge.checkmark" color={color} />,
-          href: !isTeacher ? '/attendance' : null,
+          tabBarIcon: ({ color }) => isTeacher ? 
+            <Ionicons name="calendar" size={28} color={color} /> :
+            <IconSymbol size={28} name="calendar.badge.checkmark" color={color} />,
         }}
       />
+
+      {/* RESULTS TAB - Available for both students and teachers */}
       <Tabs.Screen
         name="results"
         options={{
           title: 'Results',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
-          href: !isTeacher ? '/results' : null,
+          tabBarIcon: ({ color }) => isTeacher ? 
+            <Ionicons name="bar-chart" size={28} color={color} /> :
+            <IconSymbol size={28} name="chart.bar.fill" color={color} />,
         }}
       />
+
+      {/* STUDENT-ONLY TABS */}
       <Tabs.Screen
         name="activity"
         options={{

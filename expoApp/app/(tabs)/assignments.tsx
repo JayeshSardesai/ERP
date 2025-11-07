@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getStudentAssignments, Assignment } from '@/src/services/student';
+import { getStudentAssignments, Assignment as StudentAssignment } from '@/src/services/student';
+import { getTeacherAssignments, Assignment as TeacherAssignment } from '@/src/services/teacher';
+
+type Assignment = StudentAssignment | TeacherAssignment;
 import { downloadFile, formatFileSize } from '@/src/utils/fileDownload';
 
 export default function AssignmentsScreen() {
@@ -18,10 +22,30 @@ export default function AssignmentsScreen() {
   const [sortBy, setSortBy] = useState<'Due Date' | 'Subject'>('Due Date');
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [downloadingAttachment, setDownloadingAttachment] = useState<string | null>(null);
+  const [isTeacher, setIsTeacher] = useState<boolean>(false);
+  const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+
+  const checkRole = async () => {
+    try {
+      const role = await AsyncStorage.getItem('role');
+      setIsTeacher(role === 'teacher');
+    } catch (error) {
+      console.error('Error checking role:', error);
+    }
+  };
 
   const fetchAssignments = async () => {
     try {
-      const data = await getStudentAssignments();
+      const role = await AsyncStorage.getItem('role');
+      const isTeacherRole = role === 'teacher';
+      
+      let data: Assignment[];
+      if (isTeacherRole) {
+        data = await getTeacherAssignments() as Assignment[];
+      } else {
+        data = await getStudentAssignments() as Assignment[];
+      }
+      
       setAllAssignments(data);
       setAssignments(data);
     } catch (error) {
@@ -33,6 +57,7 @@ export default function AssignmentsScreen() {
   };
 
   useEffect(() => {
+    checkRole();
     fetchAssignments();
   }, []);
 
@@ -67,7 +92,9 @@ export default function AssignmentsScreen() {
   }, [selectedStatus, sortBy, allAssignments]);
 
   const toggleStatusFilter = () => {
-    const statuses = ['All Status', 'To Do', 'Complete', 'Graded'];
+    const statuses = isTeacher 
+      ? ['All Status', 'Draft', 'Published', 'Graded']
+      : ['All Status', 'To Do', 'Complete', 'Graded'];
     const currentIndex = statuses.indexOf(selectedStatus);
     const nextIndex = (currentIndex + 1) % statuses.length;
     setSelectedStatus(statuses[nextIndex]);
@@ -186,6 +213,14 @@ export default function AssignmentsScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Assignments</Text>
+          {isTeacher && (
+            <TouchableOpacity 
+              style={styles.createButton}
+              onPress={() => setShowCreateModal(true)}
+            >
+              <Text style={styles.createButtonText}>+ Create</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.filtersContainer}>
@@ -340,8 +375,20 @@ function getStyles(isDark: boolean) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: isDark ? '#0B0F14' : '#E0F2FE' },
     scrollView: { flex: 1 },
-    header: { padding: 20, paddingTop: 10 },
-    headerTitle: { fontSize: 24, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', textAlign: 'center' },
+    header: { padding: 20, paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    headerTitle: { fontSize: 24, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', flex: 1, textAlign: 'center' },
+    createButton: { 
+      backgroundColor: isDark ? '#1E40AF' : '#3B82F6', 
+      paddingHorizontal: 16, 
+      paddingVertical: 8, 
+      borderRadius: 8,
+      marginLeft: 12
+    },
+    createButtonText: { 
+      color: '#FFFFFF', 
+      fontSize: 14, 
+      fontWeight: '600' 
+    },
     filtersContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 20, gap: 12 },
     filterButton: { flex: 1, backgroundColor: isDark ? '#0F172A' : '#DBEAFE', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 2, borderColor: isDark ? '#1F2937' : '#93C5FD' },
     filterButtonText: { fontSize: 14, fontWeight: '600', color: isDark ? '#93C5FD' : '#1E3A8A' },

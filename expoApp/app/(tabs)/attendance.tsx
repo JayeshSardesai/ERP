@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getStudentAttendance, AttendanceRecord } from '@/src/services/student';
+import { getClassAttendance, getClasses, getStudentsByClassSection, markSessionAttendance, AttendanceRecord as TeacherAttendanceRecord } from '@/src/services/teacher';
 
 export default function AttendanceScreen() {
   const colorScheme = useColorScheme();
@@ -24,8 +26,36 @@ export default function AttendanceScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
+  const [isTeacher, setIsTeacher] = useState<boolean>(false);
+  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedSection, setSelectedSection] = useState<string>('');
+  const [classes, setClasses] = useState<any[]>([]);
+  const [showClassSelector, setShowClassSelector] = useState<boolean>(false);
 
   const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  const checkRole = async () => {
+    try {
+      const role = await AsyncStorage.getItem('role');
+      setIsTeacher(role === 'teacher');
+      
+      if (role === 'teacher') {
+        // Fetch classes for teacher
+        const classData = await getClasses();
+        setClasses(classData);
+        
+        // Set default class if available
+        if (classData.length > 0 && !selectedClass) {
+          setSelectedClass(classData[0].className);
+          if (classData[0].sections && classData[0].sections.length > 0) {
+            setSelectedSection(classData[0].sections[0].sectionName);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking role:', error);
+    }
+  };
 
   const fetchAttendance = async () => {
     try {
@@ -41,39 +71,63 @@ export default function AttendanceScreen() {
         sessionAttendanceRate: 0
       });
 
-      const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString();
-      const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString();
+      const role = await AsyncStorage.getItem('role');
+      const isTeacherRole = role === 'teacher';
 
-      console.log('[ATTENDANCE] Fetching FRESH data for month:', selectedMonth.toLocaleDateString(), 'Range:', startDate, 'to', endDate);
+      if (isTeacherRole) {
+        // Teacher: fetch class attendance
+        if (!selectedClass || !selectedSection) {
+          console.log('[ATTENDANCE] No class/section selected for teacher');
+          return;
+        }
 
-      const { records, stats: attendanceStats } = await getStudentAttendance(startDate, endDate);
+        const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString().split('T')[0];
+        const records = await getClassAttendance(selectedClass, selectedSection, startDate);
+        
+        setAttendanceRecords(records as AttendanceRecord[]);
+        // Calculate stats for teacher view
+        const totalDays = records.length;
+        const presentDays = records.filter(r => r.status === 'present').length;
+        setStats({
+          totalDays,
+          presentDays,
+          absentDays: totalDays - presentDays,
+          attendancePercentage: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0,
+          totalSessions: 0,
+          presentSessions: 0,
+          sessionAttendanceRate: 0
+        });
+      } else {
+        // Student: fetch own attendance
+        const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString();
+        const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString();
 
-      console.log('[ATTENDANCE] Backend returned:', records.length, 'records');
+        console.log('[ATTENDANCE] Fetching FRESH data for month:', selectedMonth.toLocaleDateString(), 'Range:', startDate, 'to', endDate);
 
-      // Only use the exact records returned from backend - no additional filtering
-      // The backend should already filter by date range
-      const validRecords = records.filter(record => {
-        // Only basic validation - ensure record has required fields
-        return record && record.date && record.dateString;
-      });
+        const { records, stats: attendanceStats } = await getStudentAttendance(startDate, endDate);
 
-      console.log('[ATTENDANCE] Using', validRecords.length, 'valid records from backend');
+        console.log('[ATTENDANCE] Backend returned:', records.length, 'records');
 
-      // Log each record for debugging
-      validRecords.forEach((record, index) => {
-        console.log(`[ATTENDANCE] Record ${index + 1}:`, record.dateString, record.status, 'Sessions:', record.sessions);
-      });
+        // Only use the exact records returned from backend - no additional filtering
+        // The backend should already filter by date range
+        const validRecords = records.filter(record => {
+          // Only basic validation - ensure record has required fields
+          return record && record.date && record.dateString;
+        });
 
-      setAttendanceRecords(validRecords);
-      setStats({
-        totalDays: attendanceStats.totalDays,
-        presentDays: attendanceStats.presentDays,
-        absentDays: attendanceStats.absentDays,
-        attendancePercentage: attendanceStats.attendancePercentage,
-        totalSessions: attendanceStats.totalSessions || 0,
-        presentSessions: attendanceStats.presentSessions || 0,
-        sessionAttendanceRate: attendanceStats.sessionAttendanceRate || 0
-      });
+        console.log('[ATTENDANCE] Valid records after filtering:', validRecords.length);
+
+        setAttendanceRecords(validRecords);
+        setStats({
+          totalDays: attendanceStats.totalDays,
+          presentDays: attendanceStats.presentDays,
+          absentDays: attendanceStats.absentDays,
+          attendancePercentage: attendanceStats.attendancePercentage,
+          totalSessions: attendanceStats.totalSessions || 0,
+          presentSessions: attendanceStats.presentSessions || 0,
+          sessionAttendanceRate: attendanceStats.sessionAttendanceRate || 0
+        });
+      }
     } catch (error) {
       console.error('Error fetching attendance:', error);
       // Ensure we clear data on error too
@@ -92,6 +146,10 @@ export default function AttendanceScreen() {
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    checkRole();
+  }, []);
 
   useEffect(() => {
     // FORCE clear all data when month changes
@@ -113,7 +171,7 @@ export default function AttendanceScreen() {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [selectedMonth]);
+  }, [selectedMonth, selectedClass, selectedSection]);
 
   const onRefresh = () => {
     setRefreshing(true);

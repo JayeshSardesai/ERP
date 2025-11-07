@@ -45,13 +45,20 @@ export interface Assignment {
   title: string;
   subject: string;
   description?: string;
+  instructions?: string;
   dueDate: string;
   startDate: string;
   class: string;
   section: string;
+  status?: 'pending' | 'submitted' | 'graded' | 'published' | 'draft';
   totalSubmissions?: number;
   pendingSubmissions?: number;
   gradedSubmissions?: number;
+  attachments?: Array<{
+    path: string;
+    originalName: string;
+    size?: number;
+  }>;
 }
 
 export interface Message {
@@ -94,6 +101,59 @@ export interface TeacherProfile {
   };
   isActive?: boolean;
   lastLogin?: string;
+}
+
+export interface AttendanceRecord {
+  _id: string;
+  date: string;
+  dateString: string;
+  status: 'present' | 'absent' | 'no-class';
+  sessions: {
+    morning: { status: 'present' | 'absent' } | null;
+    afternoon: { status: 'present' | 'absent' } | null;
+  };
+  studentId: string;
+  class: string;
+  section: string;
+}
+
+export interface ClassAttendance {
+  date: string;
+  session: 'morning' | 'afternoon';
+  class: string;
+  section: string;
+  students: Array<{
+    studentId: string;
+    name: string;
+    status: 'present' | 'absent';
+  }>;
+}
+
+export interface StudentResult {
+  _id: string;
+  studentId: string;
+  studentName: string;
+  class: string;
+  section: string;
+  subject: string;
+  testName: string;
+  marks: number;
+  totalMarks: number;
+  percentage: number;
+  grade: string;
+  date: string;
+}
+
+export interface CreateAssignmentData {
+  title: string;
+  subject: string;
+  description?: string;
+  instructions?: string;
+  dueDate: string;
+  startDate: string;
+  class: string;
+  section: string;
+  attachments?: File[];
 }
 
 /**
@@ -239,6 +299,194 @@ export async function getTeacherSubjects(): Promise<any[]> {
   } catch (error: any) {
     console.error('[TEACHER SERVICE] Error fetching subjects:', error);
     return [];
+  }
+}
+
+/**
+ * Get class attendance for teacher
+ */
+export async function getClassAttendance(className: string, section: string, date?: string): Promise<AttendanceRecord[]> {
+  try {
+    const params: any = { className, section };
+    if (date) {
+      params.date = date;
+    }
+
+    const response = await api.get('/attendance', { params });
+    
+    if (response.data?.success && response.data?.data?.records) {
+      return response.data.data.records;
+    }
+    
+    return response.data?.records || response.data?.data || [];
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error fetching class attendance:', error);
+    return [];
+  }
+}
+
+/**
+ * Mark session attendance for a class
+ */
+export async function markSessionAttendance(attendanceData: ClassAttendance): Promise<boolean> {
+  try {
+    const response = await api.post('/attendance/mark-session', attendanceData);
+    return response.data?.success || false;
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error marking attendance:', error);
+    return false;
+  }
+}
+
+/**
+ * Get results for teacher's classes
+ */
+export async function getTeacherResults(className?: string, section?: string, subject?: string): Promise<StudentResult[]> {
+  try {
+    const params: any = {};
+    if (className) params.className = className;
+    if (section) params.section = section;
+    if (subject) params.subject = subject;
+
+    const response = await api.get('/results/teacher/view', { params });
+    
+    if (response.data?.success && response.data?.data) {
+      return response.data.data;
+    }
+    
+    return response.data?.results || response.data?.data || [];
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error fetching results:', error);
+    return [];
+  }
+}
+
+/**
+ * Save/update student results
+ */
+export async function saveStudentResults(results: Partial<StudentResult>[]): Promise<boolean> {
+  try {
+    const response = await api.post('/results/save', { results });
+    return response.data?.success || false;
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error saving results:', error);
+    return false;
+  }
+}
+
+/**
+ * Create new assignment
+ */
+export async function createAssignment(assignmentData: CreateAssignmentData): Promise<boolean> {
+  try {
+    const formData = new FormData();
+    
+    // Add text fields
+    Object.keys(assignmentData).forEach(key => {
+      if (key !== 'attachments' && assignmentData[key as keyof CreateAssignmentData]) {
+        formData.append(key, assignmentData[key as keyof CreateAssignmentData] as string);
+      }
+    });
+
+    // Add attachments if any
+    if (assignmentData.attachments && assignmentData.attachments.length > 0) {
+      assignmentData.attachments.forEach((file, index) => {
+        formData.append('attachments', file);
+      });
+    }
+
+    const response = await api.post('/assignments', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    return response.data?.success || false;
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error creating assignment:', error);
+    return false;
+  }
+}
+
+/**
+ * Update assignment
+ */
+export async function updateAssignment(assignmentId: string, assignmentData: Partial<CreateAssignmentData>): Promise<boolean> {
+  try {
+    const formData = new FormData();
+    
+    // Add text fields
+    Object.keys(assignmentData).forEach(key => {
+      if (key !== 'attachments' && assignmentData[key as keyof CreateAssignmentData]) {
+        formData.append(key, assignmentData[key as keyof CreateAssignmentData] as string);
+      }
+    });
+
+    // Add attachments if any
+    if (assignmentData.attachments && assignmentData.attachments.length > 0) {
+      assignmentData.attachments.forEach((file, index) => {
+        formData.append('attachments', file);
+      });
+    }
+
+    const response = await api.put(`/assignments/${assignmentId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    return response.data?.success || false;
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error updating assignment:', error);
+    return false;
+  }
+}
+
+/**
+ * Delete assignment
+ */
+export async function deleteAssignment(assignmentId: string): Promise<boolean> {
+  try {
+    const response = await api.delete(`/assignments/${assignmentId}`);
+    return response.data?.success || false;
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error deleting assignment:', error);
+    return false;
+  }
+}
+
+/**
+ * Get assignment submissions for teacher
+ */
+export async function getAssignmentSubmissions(assignmentId: string): Promise<any[]> {
+  try {
+    const response = await api.get(`/assignments/${assignmentId}/submissions`);
+    
+    if (response.data?.success && response.data?.data) {
+      return response.data.data;
+    }
+    
+    return response.data?.submissions || response.data?.data || [];
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error fetching submissions:', error);
+    return [];
+  }
+}
+
+/**
+ * Grade assignment submission
+ */
+export async function gradeSubmission(submissionId: string, grade: number, feedback?: string): Promise<boolean> {
+  try {
+    const response = await api.put(`/assignments/submissions/${submissionId}/grade`, {
+      grade,
+      feedback
+    });
+    
+    return response.data?.success || false;
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error grading submission:', error);
+    return false;
   }
 }
 
