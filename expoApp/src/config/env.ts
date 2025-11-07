@@ -12,7 +12,7 @@ const RUNTIME_BASE_URL = (typeof process !== 'undefined' && process.env?.EXPO_PU
 // Sensible defaults per platform
 const DEFAULT_BASE_URL = Platform.select({
   web: 'http://localhost:5050/api',
-  android: 'http://10.0.2.2:5050/api',
+  android: 'https://erp-backend-1jtx.onrender.com/api',
   ios: 'http://localhost:5050/api',
   default: 'http://localhost:5050/api',
 });
