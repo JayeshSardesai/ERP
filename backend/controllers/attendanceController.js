@@ -1345,7 +1345,7 @@ exports.getMyAttendance = async (req, res) => {
     let totalSessions = 0;
     let presentSessions = 0;
 
-    processedRecords.forEach(record => {
+    attendanceRecords.forEach(record => {
       totalDays++;
 
       // Count sessions
@@ -1402,7 +1402,7 @@ exports.getMyAttendance = async (req, res) => {
           presentSessions,
           sessionAttendanceRate: attendancePercentage
         },
-        records: processedRecords
+        records: attendanceRecords
       }
     });
 

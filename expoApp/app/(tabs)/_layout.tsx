@@ -41,83 +41,95 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
       }}>
+      
+      {/* HOME TAB - Always visible */}
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <Ionicons name="home" size={28} color={color} />,
+          tabBarIcon: ({ color }) => isTeacher ? 
+            <Ionicons name="home" size={28} color={color} /> :
+            <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
-      {isTeacher ? (
-        <>
-          <Tabs.Screen
-            name="classes"
-            options={{
-              title: 'Classes',
-              tabBarIcon: ({ color }) => <Ionicons name="school" size={28} color={color} />,
-            }}
-          />
-          <Tabs.Screen
-            name="students"
-            options={{
-              title: 'Students',
-              tabBarIcon: ({ color }) => <Ionicons name="people" size={28} color={color} />,
-            }}
-          />
-          <Tabs.Screen
-            name="assignments"
-            options={{
-              title: 'Assignments',
-              tabBarIcon: ({ color }) => <Ionicons name="document-text" size={28} color={color} />,
-            }}
-          />
-          <Tabs.Screen
-            name="activity"
-            options={{
-              title: 'Activity',
-              tabBarIcon: ({ color }) => <Ionicons name="notifications" size={28} color={color} />,
-            }}
-          />
-        </>
-      ) : (
-        <>
-          <Tabs.Screen
-            name="assignments"
-            options={{
-              title: 'Assignments',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.text.fill" color={color} />,
-            }}
-          />
-          <Tabs.Screen
-            name="attendance"
-            options={{
-              title: 'Attendance',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.badge.checkmark" color={color} />,
-            }}
-          />
-          <Tabs.Screen
-            name="results"
-            options={{
-              title: 'Results',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
-            }}
-          />
-          <Tabs.Screen
-            name="activity"
-            options={{
-              title: 'Messages',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="message.fill" color={color} />,
-            }}
-          />
-          <Tabs.Screen
-            name="explore"
-            options={{
-              title: 'Explore',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="chevron.left.forwardslash.chevron.right" color={color} />,
-            }}
-          />
-        </>
-      )}
+
+      {/* TEACHER-ONLY TABS */}
+      <Tabs.Screen
+        name="classes"
+        options={{
+          title: 'Classes',
+          tabBarIcon: ({ color }) => <Ionicons name="school" size={28} color={color} />,
+          href: isTeacher ? '/classes' : null,
+        }}
+      />
+      <Tabs.Screen
+        name="students"
+        options={{
+          title: 'Students',
+          tabBarIcon: ({ color }) => <Ionicons name="people" size={28} color={color} />,
+          href: isTeacher ? '/students' : null,
+        }}
+      />
+
+      {/* STUDENT-ONLY TABS */}
+      <Tabs.Screen
+        name="attendance"
+        options={{
+          title: 'Attendance',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.badge.checkmark" color={color} />,
+          href: !isTeacher ? '/attendance' : null,
+        }}
+      />
+      <Tabs.Screen
+        name="results"
+        options={{
+          title: 'Results',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+          href: !isTeacher ? '/results' : null,
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: 'Explore',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chevron.left.forwardslash.chevron.right" color={color} />,
+          href: !isTeacher ? '/explore' : null,
+        }}
+      />
+
+      {/* SHARED TABS WITH DIFFERENT PURPOSES */}
+      <Tabs.Screen
+        name="assignments"
+        options={{
+          title: 'Assignments',
+          tabBarIcon: ({ color }) => isTeacher ? 
+            <Ionicons name="document-text" size={28} color={color} /> :
+            <IconSymbol size={28} name="doc.text.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="activity"
+        options={{
+          title: isTeacher ? 'Activity' : 'Messages',
+          tabBarIcon: ({ color }) => isTeacher ? 
+            <Ionicons name="notifications" size={28} color={color} /> :
+            <IconSymbol size={28} name="message.fill" color={color} />,
+        }}
+      />
+
+      {/* HIDE UNUSED SCREENS */}
+      <Tabs.Screen
+        name="student-home"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="teacher-home"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
