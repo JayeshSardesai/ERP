@@ -1538,9 +1538,30 @@ exports.getMyAttendance = async (req, res) => {
       _id: `${dayRecord.dateString || dayRecord.date}_${studentUserId}`,
       date: dayRecord.date,
       dateString: dayRecord.dateString,
-      status: dayRecord.sessions.morning?.status === 'present' && dayRecord.sessions.afternoon?.status === 'present' ? 'present' :
-              (dayRecord.sessions.morning?.status === 'present' || dayRecord.sessions.afternoon?.status === 'present') ? 'present' : 
-              (dayRecord.sessions.morning === null && dayRecord.sessions.afternoon === null) ? 'no-class' : 'absent',
+      status: (() => {
+        const morningStatus = dayRecord.sessions.morning?.status;
+        const afternoonStatus = dayRecord.sessions.afternoon?.status;
+        const hasMorning = dayRecord.sessions.morning !== null;
+        const hasAfternoon = dayRecord.sessions.afternoon !== null;
+        
+        // If no sessions exist for this day
+        if (!hasMorning && !hasAfternoon) {
+          return 'no-class';
+        }
+        
+        // If any session is present, mark day as present
+        if (morningStatus === 'present' || afternoonStatus === 'present') {
+          return 'present';
+        }
+        
+        // If all existing sessions are absent, mark as absent
+        if ((hasMorning && morningStatus === 'absent') || (hasAfternoon && afternoonStatus === 'absent')) {
+          return 'absent';
+        }
+        
+        // Default fallback
+        return 'no-class';
+      })(),
       sessions: dayRecord.sessions,
       studentId: studentUserId,
       class: studentClass,
@@ -1550,6 +1571,7 @@ exports.getMyAttendance = async (req, res) => {
     console.log(`[GET MY ATTENDANCE] Final transformed records: ${finalRecords.length}`);
     finalRecords.forEach(record => {
       console.log(`[GET MY ATTENDANCE] Final record: ${record.dateString} - Status: ${record.status} - Morning: ${record.sessions.morning?.status || 'null'} - Afternoon: ${record.sessions.afternoon?.status || 'null'}`);
+      console.log(`[GET MY ATTENDANCE] Record sessions object:`, JSON.stringify(record.sessions, null, 2));
     });
     
     console.log(`[GET MY ATTENDANCE] Statistics: Total Sessions: ${totalSessions}, Present Sessions: ${presentSessions}, Session-based %: ${attendancePercentage}`);
