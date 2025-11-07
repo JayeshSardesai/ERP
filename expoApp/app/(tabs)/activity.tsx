@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getStudentMessages, Message } from '@/src/services/student';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getStudentMessages, Message as StudentMessage } from '@/src/services/student';
+import { getTeacherMessages, Message as TeacherMessage } from '@/src/services/teacher';
+
+type Message = StudentMessage | TeacherMessage;
 
 export default function ActivityScreen() {
   const colorScheme = useColorScheme();
@@ -13,12 +17,31 @@ export default function ActivityScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('all'); // 'all', 'assignment', 'grade', 'reminder', 'announcement'
   const [filterSender, setFilterSender] = useState<string>('all'); // 'all', 'admin', 'teacher'
 
+  useEffect(() => {
+    checkRole();
+  }, []);
+
+  const checkRole = async () => {
+    try {
+      const storedRole = await AsyncStorage.getItem('role');
+      setRole(storedRole);
+    } catch (error) {
+      console.error('Error checking role:', error);
+    }
+  };
+
   const fetchMessages = async () => {
     try {
-      const data = await getStudentMessages();
+      let data: Message[] = [];
+      if (role === 'teacher') {
+        data = await getTeacherMessages();
+      } else {
+        data = await getStudentMessages();
+      }
       setAllMessages(data);
       applyFilters(data, filterType, filterSender);
     } catch (error) {
