@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
+import { useColorScheme as useRNColorScheme, ColorSchemeName } from 'react-native';
 
 /**
  * Cross-platform useColorScheme hook that works on all platforms
  */
-export function useColorScheme() {
+export function useColorScheme(): ColorSchemeName {
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {

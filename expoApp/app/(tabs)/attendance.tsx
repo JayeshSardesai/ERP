@@ -11,7 +11,15 @@ export default function AttendanceScreen() {
   const calendarStyles = getCalendarStyles(isDark);
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [stats, setStats] = useState({ totalDays: 0, presentDays: 0, absentDays: 0, attendancePercentage: 0 });
+  const [stats, setStats] = useState({ 
+    totalDays: 0, 
+    presentDays: 0, 
+    absentDays: 0, 
+    attendancePercentage: 0,
+    totalSessions: 0,
+    presentSessions: 0,
+    sessionAttendanceRate: 0
+  });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -23,7 +31,15 @@ export default function AttendanceScreen() {
     try {
       // Clear ALL previous data immediately
       setAttendanceRecords([]);
-      setStats({ totalDays: 0, presentDays: 0, absentDays: 0, attendancePercentage: 0 });
+      setStats({ 
+        totalDays: 0, 
+        presentDays: 0, 
+        absentDays: 0, 
+        attendancePercentage: 0,
+        totalSessions: 0,
+        presentSessions: 0,
+        sessionAttendanceRate: 0
+      });
 
       const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString();
       const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString();
@@ -54,7 +70,15 @@ export default function AttendanceScreen() {
       console.error('Error fetching attendance:', error);
       // Ensure we clear data on error too
       setAttendanceRecords([]);
-      setStats({ totalDays: 0, presentDays: 0, absentDays: 0, attendancePercentage: 0 });
+      setStats({ 
+        totalDays: 0, 
+        presentDays: 0, 
+        absentDays: 0, 
+        attendancePercentage: 0,
+        totalSessions: 0,
+        presentSessions: 0,
+        sessionAttendanceRate: 0
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -64,7 +88,15 @@ export default function AttendanceScreen() {
   useEffect(() => {
     // FORCE clear all data when month changes
     setAttendanceRecords([]);
-    setStats({ totalDays: 0, presentDays: 0, absentDays: 0, attendancePercentage: 0 });
+    setStats({ 
+      totalDays: 0, 
+      presentDays: 0, 
+      absentDays: 0, 
+      attendancePercentage: 0,
+      totalSessions: 0,
+      presentSessions: 0,
+      sessionAttendanceRate: 0
+    });
     setLoading(true);
 
     // Add small delay to ensure state is cleared before fetching
@@ -144,15 +176,15 @@ export default function AttendanceScreen() {
     setSelectedMonth(newMonth);
   };
 
-  const getDateStyle = (day: any) => {
-    const composed: any = [calendarStyles.dateText];
+  const getDateStyle = (day: { isCurrentMonth: boolean; isToday: boolean }) => {
+    const composed = [calendarStyles.dateText];
     if (!day.isCurrentMonth) composed.push(calendarStyles.otherMonthText);
     if (day.isToday) composed.push(calendarStyles.todayText);
     return composed;
   };
 
-  const getDateContainerStyle = (day: any) => {
-    const composed: any = [calendarStyles.dateContainer];
+  const getDateContainerStyle = (day: { date: number; isCurrentMonth: boolean }) => {
+    const composed = [calendarStyles.dateContainer];
     if (day.date === selectedDate && day.isCurrentMonth) composed.push(calendarStyles.selectedDate);
     return composed;
   };
@@ -212,19 +244,25 @@ export default function AttendanceScreen() {
                   onPress={() => day.isCurrentMonth && setSelectedDate(day.date)}
                 >
                   <Text style={getDateStyle(day)}>{day.date}</Text>
-                  {day.isCurrentMonth && (
+                  {day.isCurrentMonth && day.attendance && (
                     <View style={calendarStyles.statusDot}>
                       {/* Morning session dot */}
                       <View style={[calendarStyles.dot, {
-                        backgroundColor: day.attendance?.sessions?.morning?.status === 'present' ? '#4ADE80' :
+                        backgroundColor: 
+                          day.attendance?.sessions?.morning?.status === 'present' ? '#4ADE80' :
                           day.attendance?.sessions?.morning?.status === 'absent' ? '#EF4444' :
-                            day.attendance?.sessions?.morning === null ? '#D1D5DB' : '#F3F4F6'
+                          day.attendance?.sessions?.morning === null ? '#D1D5DB' :
+                          day.attendance?.status === 'no-class' ? '#9CA3AF' :
+                          '#F3F4F6'
                       }]} />
                       {/* Afternoon session dot */}
                       <View style={[calendarStyles.dot, {
-                        backgroundColor: day.attendance?.sessions?.afternoon?.status === 'present' ? '#4ADE80' :
+                        backgroundColor: 
+                          day.attendance?.sessions?.afternoon?.status === 'present' ? '#4ADE80' :
                           day.attendance?.sessions?.afternoon?.status === 'absent' ? '#EF4444' :
-                            day.attendance?.sessions?.afternoon === null ? '#D1D5DB' : '#F3F4F6'
+                          day.attendance?.sessions?.afternoon === null ? '#D1D5DB' :
+                          day.attendance?.status === 'no-class' ? '#9CA3AF' :
+                          '#F3F4F6'
                       }]} />
                     </View>
                   )}
@@ -243,6 +281,10 @@ export default function AttendanceScreen() {
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#D1D5DB' }]} />
+                <Text style={styles.legendText}>No Session</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#9CA3AF' }]} />
                 <Text style={styles.legendText}>No Class</Text>
               </View>
             </View>

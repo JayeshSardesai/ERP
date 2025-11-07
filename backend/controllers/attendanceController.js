@@ -1361,7 +1361,6 @@ exports.getMyAttendance = async (req, res) => {
     let totalDays = 0;
     let presentDays = 0;
     let absentDays = 0;
-    let halfDays = 0;
     let totalSessions = 0;
     let presentSessions = 0;
 
@@ -1378,7 +1377,7 @@ exports.getMyAttendance = async (req, res) => {
         if (dayRecord.sessions.afternoon.status === 'present') presentSessions++;
       }
 
-      // Determine overall day status
+      // Determine overall day status based on sessions
       const morningPresent = dayRecord.sessions.morning?.status === 'present';
       const afternoonPresent = dayRecord.sessions.afternoon?.status === 'present';
       const morningExists = dayRecord.sessions.morning !== null;
@@ -1388,7 +1387,8 @@ exports.getMyAttendance = async (req, res) => {
         if (morningPresent && afternoonPresent) {
           presentDays++;
         } else if (morningPresent || afternoonPresent) {
-          halfDays++;
+          // Count partial attendance as present day
+          presentDays++;
         } else {
           absentDays++;
         }
@@ -1408,7 +1408,7 @@ exports.getMyAttendance = async (req, res) => {
 
     // Also calculate day-based attendance rate
     const attendanceRate = totalDays > 0
-      ? Math.round(((presentDays + (halfDays * 0.5)) / totalDays) * 100)
+      ? Math.round((presentDays / totalDays) * 100)
       : 0;
 
     res.json({
@@ -1424,7 +1424,6 @@ exports.getMyAttendance = async (req, res) => {
           presentDays,
           absentDays,
           lateDays: 0,
-          halfDays,
           leaveDays: 0,
           attendancePercentage: attendanceRate,
           totalSessions,
