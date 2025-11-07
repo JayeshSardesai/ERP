@@ -127,8 +127,6 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
         rawRecords = [];
       }
       
-      console.log('[STUDENT SERVICE] Raw records count:', rawRecords.length);
-      console.log('[STUDENT SERVICE] Sample raw record:', rawRecords[0]);
       
       // Transform session-based records to day-based records
       const dayRecordsMap = new Map<string, AttendanceRecord>();
@@ -149,12 +147,26 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           return;
         }
         
-        // Extract session and student's status from session document
+        // Extract session and student's status from the record
         let session: string | null = null;
         let sessionStatus: string = 'no-class';
         
-        // These are session documents with students array
-        if (sessionRecord.students && Array.isArray(sessionRecord.students)) {
+        // Check if this is already an individual student record (has _id with student ID)
+        if (sessionRecord._id && sessionRecord._id.includes(studentUserId)) {
+          // Extract session from _id: "2025-11-08_7_C_morning_AB-S-0006"
+          const idParts = sessionRecord._id.split('_');
+          if (idParts.length >= 4) {
+            session = idParts[3]; // 'morning' or 'afternoon'
+            sessionStatus = sessionRecord.status || 'no-class';
+          }
+        }
+        // Check if session is directly available
+        else if (sessionRecord.session) {
+          session = sessionRecord.session;
+          sessionStatus = sessionRecord.status || 'no-class';
+        }
+        // Handle session documents with students array (fallback)
+        else if (sessionRecord.students && Array.isArray(sessionRecord.students)) {
           session = sessionRecord.session; // 'morning' or 'afternoon'
           
           // Find this student in the session's student list
@@ -165,16 +177,10 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           );
           
           if (studentRecord) {
-            sessionStatus = studentRecord.status || 'no-class'; // 'present', 'absent', etc.
+            sessionStatus = studentRecord.status || 'no-class';
           }
         }
-        // Fallback: if it's already processed individual records
-        else if (sessionRecord.session && sessionRecord.status) {
-          session = sessionRecord.session;
-          sessionStatus = sessionRecord.status;
-        }
         
-        console.log(`[STUDENT SERVICE] Processing ${dateStr} ${session}: ${sessionStatus}`);
         
         if (!dayRecordsMap.has(dateStr)) {
           dayRecordsMap.set(dateStr, {
@@ -211,8 +217,6 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
       
       const transformedRecords = Array.from(dayRecordsMap.values());
       
-      console.log('[STUDENT SERVICE] Transformed records count:', transformedRecords.length);
-      console.log('[STUDENT SERVICE] Sample transformed record:', transformedRecords[0]);
       
       
       // Sort records by date for proper display
@@ -255,8 +259,6 @@ export async function getStudentResults(): Promise<Result[]> {
     
     const user = JSON.parse(userData);
     const studentId = user.userId || user._id;
-    console.log('[STUDENT SERVICE] User ID for results:', studentId);
-    
     // Try multiple endpoints to get results
     let response;
     let rawResults = [];
@@ -266,8 +268,6 @@ export async function getStudentResults(): Promise<Result[]> {
       const userData = JSON.parse(await AsyncStorage.getItem('userData') || '{}');
       const schoolCode = await AsyncStorage.getItem('schoolCode') || '';
       
-      console.log('[STUDENT SERVICE] Using website approach - schoolCode:', schoolCode);
-      
       // First try the general results endpoint like the website does
       response = await api.get('/results', { 
         params: { 
@@ -275,8 +275,6 @@ export async function getStudentResults(): Promise<Result[]> {
           studentId: studentId
         } 
       });
-      console.log('[STUDENT SERVICE] Results endpoint response:', response.data);
-      
       if (response.data?.success && response.data?.data) {
         rawResults = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
       } else if (response.data?.results) {
@@ -285,15 +283,10 @@ export async function getStudentResults(): Promise<Result[]> {
         rawResults = response.data;
       }
       
-      console.log('[STUDENT SERVICE] Raw results from website approach:', rawResults.length);
-      
       // If no results found, try the student-specific endpoint as fallback
       if (rawResults.length === 0) {
-        console.log('[STUDENT SERVICE] No results with website approach, trying student endpoint...');
-        
         try {
           response = await api.get(`/results/student/${studentId}/history`);
-          console.log('[STUDENT SERVICE] Student history endpoint response:', response.data);
           
           if (response.data?.success && response.data?.results) {
             rawResults = response.data.results;
@@ -309,17 +302,12 @@ export async function getStudentResults(): Promise<Result[]> {
       return [];
     }
     
-    console.log('[STUDENT SERVICE] Raw results count:', rawResults.length);
-    console.log('[STUDENT SERVICE] Sample raw result:', rawResults[0]);
-    
     if (!Array.isArray(rawResults) || rawResults.length === 0) {
-      console.log('[STUDENT SERVICE] No valid results found');
       return [];
     }
     
     // Transform the results to match the expected format
     const transformedResults = rawResults.map((result: any) => {
-      console.log('[STUDENT SERVICE] Processing result:', result);
       
       // Handle different result structures
       let subjects = [];

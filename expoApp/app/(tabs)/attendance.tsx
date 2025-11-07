@@ -65,7 +65,6 @@ export default function AttendanceScreen() {
       const record = attendanceRecords.find(r => {
         if (!r.date) return false;
         
-        // Only use direct date comparison for accuracy
         const recordDateStr = new Date(r.date).toISOString().split('T')[0];
         return recordDateStr === dateStr;
       });

@@ -342,16 +342,29 @@ exports.getStudentResultHistory = async (req, res) => {
 
     console.log(`[GET STUDENT RESULTS] Student: ${studentId}, School: ${schoolCode}`);
 
-    // Build query using actual Result model field names
-    const query = {
-      student: studentId, // This should be the ObjectId of the student
-      status: 'published' // Only get published results
-    };
+    // Build query - try multiple field combinations since we don't know the exact schema
+    const queries = [
+      // Try with ObjectId conversion if studentId looks like ObjectId
+      ...(studentId.match(/^[0-9a-fA-F]{24}$/) ? [{ student: studentId, status: 'published' }] : []),
+      // Try with string studentId fields
+      { studentId: studentId, status: 'published' },
+      { studentId: studentId },
+      { 'student.userId': studentId },
+      { 'student.studentId': studentId },
+      { userId: studentId },
+      // Try without status filter
+      { studentId: studentId, schoolCode: schoolCode.toUpperCase() },
+      { userId: studentId, schoolCode: schoolCode.toUpperCase() }
+    ];
 
-    if (academicYear) query.academicYear = academicYear;
-    if (examType) query.term = examType; // Map examType to term field
+    if (academicYear) {
+      queries.forEach(q => q.academicYear = academicYear);
+    }
+    if (examType) {
+      queries.forEach(q => q.term = examType);
+    }
 
-    console.log(`[GET STUDENT RESULTS] Query:`, JSON.stringify(query));
+    console.log(`[GET STUDENT RESULTS] Queries to try:`, JSON.stringify(queries, null, 2));
 
     // Try school-specific database first
     let results = [];
@@ -373,40 +386,41 @@ exports.getStudentResultHistory = async (req, res) => {
       const sampleResults = await resultsCollection.find().limit(3).toArray();
       console.log(`[GET STUDENT RESULTS] Sample results:`, JSON.stringify(sampleResults, null, 2));
 
-      results = await resultsCollection
-        .find(query)
-        .sort({ 'examDetails.examDate': -1 })
-        .toArray();
-
-      console.log(`[GET STUDENT RESULTS] Found ${results.length} results with primary query`);
-
-      // If no results found, try alternative queries with different field combinations
-      if (results.length === 0) {
-        console.log(`[GET STUDENT RESULTS] Trying alternative queries...`);
+      // Try each query until we find results
+      for (let i = 0; i < queries.length; i++) {
+        const currentQuery = queries[i];
+        console.log(`[GET STUDENT RESULTS] Trying query ${i + 1}:`, JSON.stringify(currentQuery));
         
-        // Try different field combinations that might exist in actual data
-        const alternativeQueries = [
-          { student: studentId, status: 'published' },
-          { student: studentId },
-          { studentId: studentId, status: 'published' },
-          { studentId: studentId },
-          { 'student._id': studentId },
-          { 'student.userId': studentId }
-        ];
+        const queryResults = await resultsCollection.find(currentQuery).limit(10).toArray();
+        console.log(`[GET STUDENT RESULTS] Query ${i + 1} found: ${queryResults.length} results`);
+        
+        if (queryResults.length > 0) {
+          results = queryResults;
+          console.log(`[GET STUDENT RESULTS] Using results from query ${i + 1}`);
+          console.log(`[GET STUDENT RESULTS] Sample result structure:`, JSON.stringify(queryResults[0], null, 2));
+          break;
+        }
+      }
 
-        for (let i = 0; i < alternativeQueries.length; i++) {
-          const altQuery = alternativeQueries[i];
-          console.log(`[GET STUDENT RESULTS] Trying query ${i + 1}:`, JSON.stringify(altQuery));
-          
-          const altResults = await resultsCollection.find(altQuery).limit(10).toArray();
-          console.log(`[GET STUDENT RESULTS] Query ${i + 1} found: ${altResults.length} results`);
-          
-          if (altResults.length > 0) {
-            results = altResults;
-            console.log(`[GET STUDENT RESULTS] Using results from query ${i + 1}`);
-            console.log(`[GET STUDENT RESULTS] Sample result structure:`, JSON.stringify(altResults[0], null, 2));
-            break;
-          }
+      // If still no results, check what's actually in the collection
+      if (results.length === 0) {
+        console.log(`[GET STUDENT RESULTS] No results found with any query. Checking collection contents...`);
+        const sampleDocs = await resultsCollection.find().limit(5).toArray();
+        console.log(`[GET STUDENT RESULTS] Sample documents in collection:`, JSON.stringify(sampleDocs, null, 2));
+        
+        // Try a broad search for any document containing the studentId
+        const broadResults = await resultsCollection.find({
+          $or: [
+            { studentId: { $regex: studentId, $options: 'i' } },
+            { userId: { $regex: studentId, $options: 'i' } },
+            { 'student.userId': { $regex: studentId, $options: 'i' } },
+            { 'student.studentId': { $regex: studentId, $options: 'i' } }
+          ]
+        }).limit(5).toArray();
+        console.log(`[GET STUDENT RESULTS] Broad search results:`, JSON.stringify(broadResults, null, 2));
+        
+        if (broadResults.length > 0) {
+          results = broadResults;
         }
       }
 
@@ -415,7 +429,8 @@ exports.getStudentResultHistory = async (req, res) => {
 
       // Fallback to main database using Result model
       const Result = require('../models/Result');
-      results = await Result.find(query)
+      // Try the first query as fallback
+      results = await Result.find(queries[0] || { studentId: studentId })
         .populate('student', 'name email')
         .sort({ createdAt: -1 })
         .select({
