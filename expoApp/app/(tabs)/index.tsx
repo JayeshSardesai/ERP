@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getStudentMessages, getStudentAssignments, getStudentAttendance, getStudentResults } from '@/src/services/student';
 
@@ -16,6 +17,7 @@ export default function HomeScreen() {
   const [attendanceStats, setAttendanceStats] = useState({ attendancePercentage: 0, presentDays: 0, totalDays: 0 });
   const [todayAttendance, setTodayAttendance] = useState<any>(null);
   const [results, setResults] = useState<any[]>([]);
+  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -76,18 +78,22 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    checkRole();
+    loadData();
   }, []);
 
-  const checkRole = async () => {
-    try {
-      const storedRole = await AsyncStorage.getItem('role');
-      setRole(storedRole);
-    } catch (error) {
-      console.error('Error checking role:', error);
-    } finally {
-      setLoading(false);
-    }
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  const getCurrentDateTime = () => {
+    const now = new Date();
+    return now.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
   };
 
   if (loading) {

@@ -101,8 +101,8 @@ const auth = async (req, res, next) => {
       // Preserve student details for filtering
       studentDetails: user.studentDetails,
       // Set class/section at the root level for easy access
-      class: studentClass,
-      section: studentSection
+      class: user.studentDetails?.class || user.class,
+      section: user.studentDetails?.section || user.section
     };
     next();
   } catch (error) {

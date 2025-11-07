@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSchoolInfo, SchoolInfo } from '@/src/services/student';
 
 export default function MenuScreen() {
   const colorScheme = useColorScheme();
