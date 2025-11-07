@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -84,67 +85,32 @@ export default function TabLayout() {
             name="assignments"
             options={{
               title: 'Assignments',
-              tabBarIcon: ({ color }) => <Ionicons name="document-text" size={28} color={color} />,
+              tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.text.fill" color={color} />,
             }}
           />
           <Tabs.Screen
             name="attendance"
             options={{
               title: 'Attendance',
-              tabBarIcon: ({ color }) => <Ionicons name="calendar" size={28} color={color} />,
+              tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.badge.checkmark" color={color} />,
             }}
           />
           <Tabs.Screen
             name="results"
             options={{
               title: 'Results',
-              tabBarIcon: ({ color }) => <Ionicons name="stats-chart" size={28} color={color} />,
+              tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
             }}
           />
           <Tabs.Screen
             name="activity"
             options={{
-              title: 'Activity',
-              tabBarIcon: ({ color }) => <Ionicons name="notifications" size={28} color={color} />,
+              title: 'Messages',
+              tabBarIcon: ({ color }) => <IconSymbol size={28} name="message.fill" color={color} />,
             }}
           />
         </>
       )}
-      <Tabs.Screen
-        name="assignments"
-        options={{
-          title: 'Assignments',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.text.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="attendance"
-        options={{
-          title: 'Attendance',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.badge.checkmark" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="results"
-        options={{
-          title: 'Results',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="activity"
-        options={{
-          title: 'Messages',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="message.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chevron.left.forwardslash.chevron.right" color={color} />,
-        }}
-      />
     </Tabs>
   );
 }
