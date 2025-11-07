@@ -1,23 +1,76 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getStudentResults, Result } from '@/src/services/student';
+import { getTeacherResults, saveStudentResults, getClasses, getStudentsByClassSection, StudentResult } from '@/src/services/teacher';
+import { usePermissions } from '@/src/hooks/usePermissions';
 
 export default function ResultsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const styles = getStyles(isDark);
+  const { hasPermission } = usePermissions();
 
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
+  
+  // Teacher-specific state
+  const [isTeacher, setIsTeacher] = useState<boolean>(false);
+  const [teacherResults, setTeacherResults] = useState<StudentResult[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedSection, setSelectedSection] = useState<string>('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [classes, setClasses] = useState<any[]>([]);
+  const [showClassSelector, setShowClassSelector] = useState<boolean>(false);
+  const [showGradeModal, setShowGradeModal] = useState<boolean>(false);
+  const [editingResult, setEditingResult] = useState<StudentResult | null>(null);
+  const [newMarks, setNewMarks] = useState<string>('');
+  const [newTotalMarks, setNewTotalMarks] = useState<string>('');
+  const [newTestName, setNewTestName] = useState<string>('');
+
+  const checkRole = async () => {
+    try {
+      const role = await AsyncStorage.getItem('role');
+      setIsTeacher(role === 'teacher');
+      
+      if (role === 'teacher') {
+        // Fetch classes for teacher
+        const classData = await getClasses();
+        setClasses(classData);
+        
+        // Set default class if available
+        if (classData.length > 0 && !selectedClass) {
+          setSelectedClass(classData[0].className);
+          if (classData[0].sections && classData[0].sections.length > 0) {
+            setSelectedSection(classData[0].sections[0].sectionName);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking role:', error);
+    }
+  };
 
   const fetchResults = async () => {
     try {
-      const data = await getStudentResults();
-      setResults(data);
+      const role = await AsyncStorage.getItem('role');
+      const isTeacherRole = role === 'teacher';
+      
+      if (isTeacherRole) {
+        // Teacher: fetch class results
+        if (selectedClass && selectedSection) {
+          const data = await getTeacherResults(selectedClass, selectedSection, selectedSubject);
+          setTeacherResults(data);
+        }
+      } else {
+        // Student: fetch own results
+        const data = await getStudentResults();
+        setResults(data);
+      }
     } catch (error) {
       console.error('Error fetching results:', error);
     } finally {
@@ -27,8 +80,12 @@ export default function ResultsScreen() {
   };
 
   useEffect(() => {
-    fetchResults();
+    checkRole();
   }, []);
+
+  useEffect(() => {
+    fetchResults();
+  }, [selectedClass, selectedSection, selectedSubject]);
 
   const onRefresh = () => {
     setRefreshing(true);

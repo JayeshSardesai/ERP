@@ -120,6 +120,7 @@ const schoolRoutes = require('./routes/schools');
 const schoolUserRoutes = require('./routes/schoolUsers')(upload);
 const assignmentRoutes = require('./routes/assignments')(upload);
 const idCardTemplateRoutes = require('./routes/idCardTemplates')(upload);
+const permissionsRoutes = require('./routes/permissions');
 
 // Serve uploads statically
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -230,6 +231,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/leave-requests', leaveRoutes);
 app.use('/api/id-card-templates', idCardTemplateRoutes);
 app.use('/api/chalans', chalanRoutes);
+app.use('/api/permissions', permissionsRoutes);
 
 
 // --- Define Export/Import Routes Directly ---

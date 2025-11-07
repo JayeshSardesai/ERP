@@ -2,11 +2,13 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import PermissionRefreshIndicator from '@/components/PermissionRefreshIndicator';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -35,12 +37,13 @@ export default function TabLayout() {
   const isTeacher = role === 'teacher';
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+          headerShown: false,
+          tabBarButton: HapticTab,
+        }}>
       
       {/* HOME TAB - Always visible */}
       <Tabs.Screen
@@ -131,5 +134,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    <PermissionRefreshIndicator />
+    </View>
   );
 }

@@ -178,33 +178,29 @@ export async function getClasses(): Promise<Class[]> {
 }
 
 /**
- * Get students by class and section
+ * Get students by class and section - Optimized
  */
 export async function getStudentsByClassSection(className: string, section?: string): Promise<Student[]> {
   try {
+    console.log('[TEACHER SERVICE] Fetching students for class:', className, 'section:', section);
+    
     const params: any = { className };
     if (section && section !== 'ALL') {
       params.section = section;
     }
 
-    const response = await api.get('/reports/students-by-class-section', { params });
+    // Use the correct route path
+    const response = await api.get('/reports/students-by-class', { params });
+    
+    console.log('[TEACHER SERVICE] Students API response:', response.data);
     
     if (response.data?.success && response.data?.data) {
+      console.log('[TEACHER SERVICE] Found', response.data.data.length, 'students');
       return response.data.data;
     }
     
-    // Fallback: use users endpoint
-    const schoolCode = await AsyncStorage.getItem('schoolCode');
-    if (!schoolCode) throw new Error('No school code found');
-
-    const userResponse = await api.get(`/users/role/student`, {
-      params: { className, section }
-    });
-
-    if (userResponse.data?.success && userResponse.data?.data) {
-      return userResponse.data.data;
-    }
-
+    // If no data, return empty array instead of making another API call
+    console.log('[TEACHER SERVICE] No students found for class:', className, 'section:', section);
     return [];
   } catch (error: any) {
     console.error('[TEACHER SERVICE] Error fetching students:', error);

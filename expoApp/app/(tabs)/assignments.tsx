@@ -5,6 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getStudentAssignments, Assignment as StudentAssignment } from '@/src/services/student';
 import { getTeacherAssignments, Assignment as TeacherAssignment } from '@/src/services/teacher';
+import CreateAssignmentModal from '@/components/CreateAssignmentModal';
+import { usePermissions } from '@/src/hooks/usePermissions';
 
 type Assignment = StudentAssignment | TeacherAssignment;
 import { downloadFile, formatFileSize } from '@/src/utils/fileDownload';
@@ -13,6 +15,7 @@ export default function AssignmentsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const styles = getStyles(isDark);
+  const { hasPermission, loading: permissionsLoading } = usePermissions();
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]); // Store original data
@@ -213,7 +216,7 @@ export default function AssignmentsScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Assignments</Text>
-          {isTeacher && (
+          {isTeacher && hasPermission('addAssignments') && (
             <TouchableOpacity 
               style={styles.createButton}
               onPress={() => setShowCreateModal(true)}
@@ -277,6 +280,15 @@ export default function AssignmentsScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* Create Assignment Modal */}
+      <CreateAssignmentModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          fetchAssignments();
+        }}
+      />
 
       {/* Assignment Detail Modal */}
       <Modal

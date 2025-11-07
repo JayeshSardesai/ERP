@@ -5,12 +5,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getStudentAttendance, AttendanceRecord } from '@/src/services/student';
 import { getClassAttendance, getClasses, getStudentsByClassSection, markSessionAttendance, AttendanceRecord as TeacherAttendanceRecord } from '@/src/services/teacher';
+import { usePermissions } from '@/src/hooks/usePermissions';
 
 export default function AttendanceScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const styles = getStyles(isDark);
   const calendarStyles = getCalendarStyles(isDark);
+  const { hasPermission } = usePermissions();
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [stats, setStats] = useState({ 
@@ -277,9 +279,34 @@ export default function AttendanceScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Attendance</Text>
-          <Text style={styles.headerSubtitle}>
-            {new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </Text>
+          {isTeacher ? (
+            <View style={styles.teacherControls}>
+              <TouchableOpacity 
+                style={styles.classSelector}
+                onPress={() => setShowClassSelector(true)}
+              >
+                <Text style={styles.classSelectorText}>
+                  {selectedClass && selectedSection ? `${selectedClass} - ${selectedSection}` : 'Select Class'}
+                </Text>
+                <Text style={styles.classSelectorIcon}>▼</Text>
+              </TouchableOpacity>
+              {hasPermission('markAttendance') && (
+                <TouchableOpacity 
+                  style={styles.markAttendanceButton}
+                  onPress={() => {
+                    // Navigate to attendance marking
+                    Alert.alert('Mark Attendance', 'Attendance marking feature coming soon!');
+                  }}
+                >
+                  <Text style={styles.markAttendanceButtonText}>Mark Attendance</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <Text style={styles.headerSubtitle}>
+              {new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </Text>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -421,6 +448,27 @@ function getStyles(isDark: boolean) {
     header: { padding: 20, paddingTop: 10, alignItems: 'center' },
     headerTitle: { fontSize: 24, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A' },
     headerSubtitle: { fontSize: 14, color: isDark ? '#9CA3AF' : '#1E3A8A', marginTop: 4 },
+    teacherControls: { width: '100%', marginTop: 16 },
+    classSelector: { 
+      backgroundColor: isDark ? '#1F2937' : '#DBEAFE', 
+      borderRadius: 12, 
+      padding: 12, 
+      flexDirection: 'row', 
+      justifyContent: 'space-between', 
+      alignItems: 'center',
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#374151' : '#93C5FD'
+    },
+    classSelectorText: { fontSize: 14, fontWeight: '600', color: isDark ? '#93C5FD' : '#1E3A8A' },
+    classSelectorIcon: { fontSize: 12, color: isDark ? '#93C5FD' : '#1E3A8A' },
+    markAttendanceButton: { 
+      backgroundColor: isDark ? '#1E40AF' : '#3B82F6', 
+      borderRadius: 12, 
+      padding: 12, 
+      alignItems: 'center' 
+    },
+    markAttendanceButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
     section: { paddingHorizontal: 20, marginBottom: 20 },
     sectionTitle: { fontSize: 18, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', marginBottom: 12 },
     calendarCard: { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 2, borderColor: isDark ? '#1F2937' : '#93C5FD' },
