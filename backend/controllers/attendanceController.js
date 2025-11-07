@@ -1293,14 +1293,6 @@ exports.getMyAttendance = async (req, res) => {
         // Re-count after creating sample data
         const newTotalRecords = await attendanceCollection.countDocuments();
         console.log(`[GET MY ATTENDANCE] After creating sample data, total records: ${newTotalRecords}`);
-      } else {
-        // For testing: Clear existing data and recreate with proper statuses
-        console.log(`[GET MY ATTENDANCE] Clearing existing attendance data and recreating for testing...`);
-        await attendanceCollection.deleteMany({ class: studentClass, section: studentSection });
-        await createSampleAttendanceData(attendanceCollection, studentClass, studentSection, studentUserId);
-        
-        const newTotalRecords = await attendanceCollection.countDocuments();
-        console.log(`[GET MY ATTENDANCE] After recreating sample data, total records: ${newTotalRecords}`);
       }
 
       // Find all session documents for the student's class and section
