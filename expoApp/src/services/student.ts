@@ -233,12 +233,57 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
             sessionStatus = sessionRecord.status || 'no-class';
           }
         }
-        // Check if session is directly available
+        // Handle individual session documents (morning/afternoon as separate records)
+        else if (sessionRecord.session && sessionRecord.students && Array.isArray(sessionRecord.students)) {
+          console.log('[STUDENT SERVICE] Processing session document:', sessionRecord.session, 'for date:', dateStr);
+          
+          // Find this student in the session's student list
+          const studentRecord = sessionRecord.students.find((s: any) => {
+            const sId = s.studentId?.toString();
+            const sUserId = s.userId?.toString();
+            const sRollNumber = s.rollNumber?.toString();
+            const searchId = studentUserId?.toString();
+            
+            // Direct matches
+            if (sId === searchId || sUserId === searchId || sRollNumber === searchId) {
+              return true;
+            }
+            
+            // Extract numeric part from formatted IDs (AB-S-0006 -> 6)
+            const extractNumber = (id: any): number | null => {
+              if (!id) return null;
+              const match = id.toString().match(/(\d+)$/);
+              return match ? parseInt(match[1]) : null;
+            };
+            
+            const searchNum = extractNumber(searchId);
+            const sIdNum = extractNumber(sId);
+            const sUserIdNum = extractNumber(sUserId);
+            const sRollNum = extractNumber(sRollNumber);
+            
+            // Match by numeric part
+            if (searchNum && (searchNum === sIdNum || searchNum === sUserIdNum || searchNum === sRollNum)) {
+              return true;
+            }
+            
+            return false;
+          });
+
+          if (studentRecord) {
+            session = sessionRecord.session; // 'morning' or 'afternoon'
+            sessionStatus = studentRecord.status || 'no-class';
+            console.log('[STUDENT SERVICE] Found student in session:', session, 'status:', sessionStatus);
+          } else {
+            console.log('[STUDENT SERVICE] Student not found in session:', sessionRecord.session);
+            return; // Skip this record if student not found
+          }
+        }
+        // Check if session is directly available (fallback)
         else if (sessionRecord.session) {
           session = sessionRecord.session;
           sessionStatus = sessionRecord.status || 'no-class';
         }
-        // Handle day-based records with sessions object
+        // Handle day-based records with sessions object (legacy)
         else if (sessionRecord.sessions) {
           console.log('[STUDENT SERVICE] Processing day-based record with sessions:', sessionRecord.sessions);
           
@@ -290,38 +335,10 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           dayRecordsMap.set(dateStr, dayRecord);
           return; // Skip the rest of processing for this record
         }
-        // Handle session documents with students array (fallback)
-        else if (sessionRecord.students && Array.isArray(sessionRecord.students)) {
-          session = sessionRecord.session; // 'morning' or 'afternoon'
-
-          // Find this student in the session's student list
-          const studentRecord = sessionRecord.students.find((s: any) =>
-            s.studentId === studentUserId ||
-            s.userId === studentUserId ||
-            s.rollNumber === studentUserId
-          );
-
-          if (studentRecord) {
-            sessionStatus = studentRecord.status || 'no-class';
-          }
-        }
-        // Handle day-based records without sessions (use overall status)
-        else if (sessionRecord.status && !sessionRecord.session) {
-          // This is a day-based record, create both morning and afternoon sessions with same status
-          const dayRecord = dayRecordsMap.get(dateStr) || {
-            _id: dateStr,
-            date: sessionRecord.date || new Date(dateStr).toISOString(),
-            dateString: dateStr,
-            status: sessionRecord.status,
-            sessions: { morning: null, afternoon: null }
-          };
-          
-          // Set both sessions to the same status for day-based records
-          dayRecord.sessions.morning = { status: sessionRecord.status as 'present' | 'absent' };
-          dayRecord.sessions.afternoon = { status: sessionRecord.status as 'present' | 'absent' };
-          dayRecord.status = sessionRecord.status;
-          dayRecordsMap.set(dateStr, dayRecord);
-          return; // Skip the rest of processing for this record
+        // If no session was found, skip this record
+        else {
+          console.log('[STUDENT SERVICE] No valid session data found for record:', sessionRecord._id);
+          return;
         }
 
 
@@ -340,14 +357,18 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
 
         const dayRecord = dayRecordsMap.get(dateStr)!;
 
+        console.log('[STUDENT SERVICE] Setting session data - Session:', session, 'Status:', sessionStatus, 'Date:', dateStr);
+        
         if (session === 'morning') {
           dayRecord.sessions.morning = { 
             status: (sessionStatus === 'present' || sessionStatus === 'absent') ? sessionStatus : 'absent'
           };
+          console.log('[STUDENT SERVICE] Set morning session:', dayRecord.sessions.morning);
         } else if (session === 'afternoon') {
           dayRecord.sessions.afternoon = { 
             status: (sessionStatus === 'present' || sessionStatus === 'absent') ? sessionStatus : 'absent'
           };
+          console.log('[STUDENT SERVICE] Set afternoon session:', dayRecord.sessions.afternoon);
         }
 
         // Update overall day status based on sessions
@@ -364,6 +385,11 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
       });
 
       const transformedRecords = Array.from(dayRecordsMap.values());
+      
+      console.log('[STUDENT SERVICE] Final transformed records:');
+      transformedRecords.forEach(record => {
+        console.log(`[STUDENT SERVICE] ${record.dateString}: ${record.status} - Morning: ${record.sessions.morning?.status || 'null'}, Afternoon: ${record.sessions.afternoon?.status || 'null'}`);
+      });
 
 
 
