@@ -141,7 +141,9 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
         if (sessionRecord.dateString) {
           dateStr = sessionRecord.dateString;
         } else if (sessionRecord.date) {
-          dateStr = new Date(sessionRecord.date).toISOString().split('T')[0];
+          // Ensure we get the local date string, not UTC
+          const recordDate = new Date(sessionRecord.date);
+          dateStr = recordDate.toISOString().split('T')[0];
         } else {
           console.warn('[STUDENT SERVICE] No date found in record:', sessionRecord);
           return;
@@ -186,6 +188,7 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           dayRecordsMap.set(dateStr, {
             _id: dateStr,
             date: sessionRecord.date || new Date(dateStr).toISOString(),
+            dateString: dateStr, // Add dateString for easier matching
             status: 'no-class', // Will be updated based on sessions
             sessions: {
               morning: null,
@@ -320,6 +323,8 @@ export async function getStudentResults(): Promise<Result[]> {
       // Extract exam type
       if (result.examType) {
         examType = result.examType;
+      } else if (result.term) {
+        examType = result.term;
       } else if (result.examDetails?.examType) {
         examType = result.examDetails.examType;
       } else if (result.subjects?.[0]?.testType) {
@@ -330,7 +335,7 @@ export async function getStudentResults(): Promise<Result[]> {
       if (result.subjects && Array.isArray(result.subjects)) {
         subjects = result.subjects.map((subject: any) => {
           // Handle different subject structures
-          let subjectName = subject.subjectName || subject.subject || 'Unknown Subject';
+          let subjectName = subject.subjectName || subject.name || subject.subject || 'Unknown Subject';
           let marksObtained = 0;
           let totalMarks = 100;
           let grade = subject.grade || '';
@@ -343,7 +348,7 @@ export async function getStudentResults(): Promise<Result[]> {
             percentage = subject.total.percentage || 0;
             grade = subject.total.grade || grade;
           } else {
-            marksObtained = subject.marksObtained || subject.obtainedMarks || 0;
+            marksObtained = subject.marksObtained || subject.obtainedMarks || subject.totalMarks || 0;
             totalMarks = subject.totalMarks || subject.maxMarks || 100;
             percentage = subject.percentage || 0;
           }
@@ -363,31 +368,38 @@ export async function getStudentResults(): Promise<Result[]> {
         });
       }
       
-      // Calculate overall statistics
-      if (subjects.length > 0) {
+      // Calculate overall statistics - use result's direct values first
+      if (result.percentage !== undefined) {
+        overallPercentage = result.percentage;
+      } else if (result.totalMarks && result.maxMarks) {
+        overallPercentage = (result.totalMarks / result.maxMarks) * 100;
+      } else if (subjects.length > 0) {
         const totalMarks = subjects.reduce((sum: number, s: any) => sum + s.totalMarks, 0);
         const obtainedMarks = subjects.reduce((sum: number, s: any) => sum + s.marksObtained, 0);
         overallPercentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
-        overallGrade = subjects[0]?.grade || 'N/A';
       }
       
-      // Extract other fields
-      if (result.overallResult) {
-        overallPercentage = result.overallResult.percentage || overallPercentage;
-        overallGrade = result.overallResult.grade || overallGrade;
-        rank = result.overallResult.rank;
-      } else if (result.percentage !== undefined) {
-        overallPercentage = result.percentage;
+      // Extract grade
+      if (result.grade) {
+        overallGrade = result.grade;
+      } else if (result.overallResult?.grade) {
+        overallGrade = result.overallResult.grade;
+      } else if (subjects.length > 0 && subjects[0]?.grade) {
+        overallGrade = subjects[0].grade;
       }
       
-      if (result.classDetails?.academicYear) {
-        academicYear = result.classDetails.academicYear;
-      } else if (result.academicYear) {
-        academicYear = result.academicYear;
-      }
-      
+      // Extract rank
       if (result.rank !== undefined) {
         rank = result.rank;
+      } else if (result.overallResult?.rank) {
+        rank = result.overallResult.rank;
+      }
+      
+      // Extract academic year
+      if (result.academicYear) {
+        academicYear = result.academicYear;
+      } else if (result.classDetails?.academicYear) {
+        academicYear = result.classDetails.academicYear;
       }
       
       const transformedResult = {

@@ -495,13 +495,17 @@ const calculateProgressTrend = (results) => {
   const latest = results[0];
   const previous = results[1];
 
-  const improvement = latest.overallResult.percentage - previous.overallResult.percentage;
+  // Handle different result structures
+  const latestPercentage = latest.overallResult?.percentage || latest.percentage || 0;
+  const previousPercentage = previous.overallResult?.percentage || previous.percentage || 0;
+
+  const improvement = latestPercentage - previousPercentage;
 
   return {
     trend: improvement > 5 ? 'improving' : improvement < -5 ? 'declining' : 'stable',
     improvement: Math.round(improvement * 100) / 100,
-    latestPercentage: latest.overallResult.percentage,
-    previousPercentage: previous.overallResult.percentage
+    latestPercentage: latestPercentage,
+    previousPercentage: previousPercentage
   };
 };
 
