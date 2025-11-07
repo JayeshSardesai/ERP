@@ -21,42 +21,40 @@ export default function AttendanceScreen() {
 
   const fetchAttendance = async () => {
     try {
-      // Clear previous records first
+      // Clear ALL previous data immediately
       setAttendanceRecords([]);
+      setStats({ totalDays: 0, presentDays: 0, absentDays: 0, attendancePercentage: 0 });
       
       const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString();
       const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString();
       
-      console.log('[ATTENDANCE] Fetching for month:', selectedMonth.toLocaleDateString(), 'Range:', startDate, 'to', endDate);
+      console.log('[ATTENDANCE] Fetching FRESH data for month:', selectedMonth.toLocaleDateString(), 'Range:', startDate, 'to', endDate);
       
       const { records, stats: attendanceStats } = await getStudentAttendance(startDate, endDate);
       
-      // Filter records to only include current month - be very strict
-      const currentMonthRecords = records.filter(record => {
-        const recordDate = new Date(record.date);
-        const selectedYear = selectedMonth.getFullYear();
-        const selectedMonthNum = selectedMonth.getMonth();
-        
-        const isCurrentMonth = recordDate.getFullYear() === selectedYear && 
-                              recordDate.getMonth() === selectedMonthNum;
-        
-        if (!isCurrentMonth) {
-          console.log('[ATTENDANCE] Excluding record from different month:', 
-            record.dateString, 
-            'Record month:', recordDate.getMonth() + 1, recordDate.getFullYear(),
-            'Selected month:', selectedMonthNum + 1, selectedYear
-          );
-        }
-        
-        return isCurrentMonth;
+      console.log('[ATTENDANCE] Backend returned:', records.length, 'records');
+      
+      // Only use the exact records returned from backend - no additional filtering
+      // The backend should already filter by date range
+      const validRecords = records.filter(record => {
+        // Only basic validation - ensure record has required fields
+        return record && record.date && record.dateString;
       });
       
-      console.log('[ATTENDANCE] Filtered records for current month:', currentMonthRecords.length, 'from', records.length);
+      console.log('[ATTENDANCE] Using', validRecords.length, 'valid records from backend');
       
-      setAttendanceRecords(currentMonthRecords);
+      // Log each record for debugging
+      validRecords.forEach((record, index) => {
+        console.log(`[ATTENDANCE] Record ${index + 1}:`, record.dateString, record.status);
+      });
+      
+      setAttendanceRecords(validRecords);
       setStats(attendanceStats);
     } catch (error) {
       console.error('Error fetching attendance:', error);
+      // Ensure we clear data on error too
+      setAttendanceRecords([]);
+      setStats({ totalDays: 0, presentDays: 0, absentDays: 0, attendancePercentage: 0 });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -64,10 +62,17 @@ export default function AttendanceScreen() {
   };
 
   useEffect(() => {
-    // Clear attendance records immediately when month changes
+    // FORCE clear all data when month changes
     setAttendanceRecords([]);
+    setStats({ totalDays: 0, presentDays: 0, absentDays: 0, attendancePercentage: 0 });
     setLoading(true);
-    fetchAttendance();
+    
+    // Add small delay to ensure state is cleared before fetching
+    const timer = setTimeout(() => {
+      fetchAttendance();
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, [selectedMonth]);
 
   const onRefresh = () => {

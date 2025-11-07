@@ -225,28 +225,34 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
       // Sort records by date for proper display (most recent first)
       transformedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
-      // Filter records to requested date range if provided
-      let filteredRecords = transformedRecords;
+      // STRICT filtering - only return records within the exact requested date range
+      let filteredRecords: AttendanceRecord[] = [];
       if (startDate && endDate) {
         const start = new Date(startDate);
         const end = new Date(endDate);
         
-        // Set time to start of day for start date and end of day for end date
+        // Set time boundaries
         start.setHours(0, 0, 0, 0);
         end.setHours(23, 59, 59, 999);
         
+        console.log('[STUDENT SERVICE] STRICT filtering for range:', start.toDateString(), 'to', end.toDateString());
+        
         filteredRecords = transformedRecords.filter(record => {
           const recordDate = new Date(record.date);
-          recordDate.setHours(0, 0, 0, 0); // Normalize to start of day
+          recordDate.setHours(0, 0, 0, 0);
           
           const isInRange = recordDate >= start && recordDate <= end;
-          if (!isInRange) {
-            console.log('[STUDENT SERVICE] Excluding record outside range:', record.dateString, 'Range:', start.toDateString(), 'to', end.toDateString());
-          }
+          
+          console.log('[STUDENT SERVICE] Record:', record.dateString, 'In range:', isInRange);
+          
           return isInRange;
         });
-        console.log('[STUDENT SERVICE] Filtered attendance to date range:', filteredRecords.length, 'from', transformedRecords.length);
-        console.log('[STUDENT SERVICE] Date range:', start.toDateString(), 'to', end.toDateString());
+        
+        console.log('[STUDENT SERVICE] FINAL filtered records:', filteredRecords.length, 'from', transformedRecords.length);
+      } else {
+        // If no date range specified, return empty array to prevent showing old data
+        console.log('[STUDENT SERVICE] No date range specified - returning empty array');
+        filteredRecords = [];
       }
       
       // Calculate stats from transformed records
