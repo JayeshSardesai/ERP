@@ -71,6 +71,17 @@ export default function TabLayout() {
         }}
       />
 
+      {/* SHARED TABS WITH DIFFERENT PURPOSES */}
+      <Tabs.Screen
+        name="assignments"
+        options={{
+          title: 'Assignments',
+          tabBarIcon: ({ color }) => isTeacher ? 
+            <Ionicons name="document-text" size={28} color={color} /> :
+            <IconSymbol size={28} name="doc.text.fill" color={color} />,
+        }}
+      />
+
       {/* STUDENT-ONLY TABS */}
       <Tabs.Screen
         name="attendance"
@@ -89,31 +100,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chevron.left.forwardslash.chevron.right" color={color} />,
-          href: !isTeacher ? '/explore' : null,
-        }}
-      />
-
-      {/* SHARED TABS WITH DIFFERENT PURPOSES */}
-      <Tabs.Screen
-        name="assignments"
-        options={{
-          title: 'Assignments',
-          tabBarIcon: ({ color }) => isTeacher ? 
-            <Ionicons name="document-text" size={28} color={color} /> :
-            <IconSymbol size={28} name="doc.text.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="activity"
         options={{
           title: isTeacher ? 'Activity' : 'Messages',
           tabBarIcon: ({ color }) => isTeacher ? 
             <Ionicons name="notifications" size={28} color={color} /> :
             <IconSymbol size={28} name="message.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: 'Explore',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chevron.left.forwardslash.chevron.right" color={color} />,
+          href: !isTeacher ? '/explore' : null,
         }}
       />
 

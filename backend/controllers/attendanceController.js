@@ -1337,6 +1337,26 @@ exports.getMyAttendance = async (req, res) => {
       attendanceRecords = [];
     }
 
+    // Transform session records into day-based records for statistics
+    const dayRecordsMap = new Map();
+    
+    attendanceRecords.forEach(record => {
+      const dateKey = record.dateString || record.date;
+      if (!dayRecordsMap.has(dateKey)) {
+        dayRecordsMap.set(dateKey, {
+          date: record.date,
+          dateString: record.dateString,
+          sessions: { morning: null, afternoon: null }
+        });
+      }
+      
+      const dayRecord = dayRecordsMap.get(dateKey);
+      dayRecord.sessions[record.session] = {
+        status: record.status,
+        markedAt: record.markedAt
+      };
+    });
+
     // Calculate statistics
     let totalDays = 0;
     let presentDays = 0;
@@ -1345,30 +1365,39 @@ exports.getMyAttendance = async (req, res) => {
     let totalSessions = 0;
     let presentSessions = 0;
 
-    attendanceRecords.forEach(record => {
+    dayRecordsMap.forEach(dayRecord => {
       totalDays++;
-
+      
       // Count sessions
-      if (record.sessions.morning) {
+      if (dayRecord.sessions.morning) {
         totalSessions++;
-        if (record.sessions.morning.status === 'present') presentSessions++;
+        if (dayRecord.sessions.morning.status === 'present') presentSessions++;
       }
-      if (record.sessions.afternoon) {
+      if (dayRecord.sessions.afternoon) {
         totalSessions++;
-        if (record.sessions.afternoon.status === 'present') presentSessions++;
+        if (dayRecord.sessions.afternoon.status === 'present') presentSessions++;
       }
 
-      // Count overall day status
-      switch (record.status) {
-        case 'present':
+      // Determine overall day status
+      const morningPresent = dayRecord.sessions.morning?.status === 'present';
+      const afternoonPresent = dayRecord.sessions.afternoon?.status === 'present';
+      const morningExists = dayRecord.sessions.morning !== null;
+      const afternoonExists = dayRecord.sessions.afternoon !== null;
+
+      if (morningExists && afternoonExists) {
+        if (morningPresent && afternoonPresent) {
           presentDays++;
-          break;
-        case 'absent':
-          absentDays++;
-          break;
-        case 'half_day':
+        } else if (morningPresent || afternoonPresent) {
           halfDays++;
-          break;
+        } else {
+          absentDays++;
+        }
+      } else if (morningExists || afternoonExists) {
+        if (morningPresent || afternoonPresent) {
+          presentDays++;
+        } else {
+          absentDays++;
+        }
       }
     });
 
@@ -1402,7 +1431,17 @@ exports.getMyAttendance = async (req, res) => {
           presentSessions,
           sessionAttendanceRate: attendancePercentage
         },
-        records: attendanceRecords
+        records: Array.from(dayRecordsMap.values()).map(dayRecord => ({
+          _id: `${dayRecord.dateString || dayRecord.date}_${studentUserId}`,
+          date: dayRecord.date,
+          dateString: dayRecord.dateString,
+          status: dayRecord.sessions.morning?.status === 'present' && dayRecord.sessions.afternoon?.status === 'present' ? 'present' :
+                  (dayRecord.sessions.morning?.status === 'present' || dayRecord.sessions.afternoon?.status === 'present') ? 'half_day' : 'absent',
+          sessions: dayRecord.sessions,
+          studentId: studentUserId,
+          class: studentClass,
+          section: studentSection
+        }))
       }
     });
 

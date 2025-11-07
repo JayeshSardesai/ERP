@@ -165,7 +165,7 @@ exports.schoolLogin = async (req, res) => {
       console.log(`[SCHOOL LOGIN FAIL] User not found: ${identifier} in school: ${schoolCode}`);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid email/user ID or school code. Please check your credentials.'
       });
     }
 
@@ -189,7 +189,7 @@ exports.schoolLogin = async (req, res) => {
       console.log(`[SCHOOL LOGIN FAIL] Wrong password for: ${identifier}`);
       return res.status(400).json({ 
         success: false,
-        message: 'Invalid credentials' 
+        message: 'Incorrect password. Please check your password and try again.' 
       });
     }
 
