@@ -1320,13 +1320,23 @@ exports.getMyAttendance = async (req, res) => {
 
       console.log(`[GET MY ATTENDANCE] Extracted ${attendanceRecords.length} attendance records for student ${studentUserId}`);
 
-      // If no records found, show debug info
-      if (attendanceRecords.length === 0 && sessionDocuments.length > 0) {
-        console.log(`[GET MY ATTENDANCE] Sample session document structure:`, JSON.stringify(sessionDocuments[0], null, 2));
-        console.log(`[GET MY ATTENDANCE] Looking for student ID: ${studentUserId}`);
-        if (sessionDocuments[0].students && sessionDocuments[0].students.length > 0) {
-          console.log(`[GET MY ATTENDANCE] Sample student in session:`, JSON.stringify(sessionDocuments[0].students[0], null, 2));
-        }
+      // Enhanced debugging for session records
+      if (sessionDocuments.length > 0) {
+        console.log(`[GET MY ATTENDANCE] Processing ${sessionDocuments.length} session documents`);
+        sessionDocuments.forEach((doc, index) => {
+          console.log(`[GET MY ATTENDANCE] Session ${index + 1}: ${doc.dateString} ${doc.session} - ${doc.students?.length || 0} students`);
+          if (doc.students && doc.students.length > 0) {
+            const studentFound = doc.students.find(s => 
+              s.userId === studentUserId || s.rollNumber === studentUserId
+            );
+            if (studentFound) {
+              console.log(`[GET MY ATTENDANCE] ✅ Student found in session: ${doc.dateString} ${doc.session} - Status: ${studentFound.status}`);
+            } else {
+              console.log(`[GET MY ATTENDANCE] ❌ Student NOT found in session: ${doc.dateString} ${doc.session}`);
+              console.log(`[GET MY ATTENDANCE] Available student IDs:`, doc.students.map(s => s.userId || s.rollNumber));
+            }
+          }
+        });
       }
 
     } catch (error) {
@@ -1411,6 +1421,25 @@ exports.getMyAttendance = async (req, res) => {
       ? Math.round((presentDays / totalDays) * 100)
       : 0;
 
+    // Debug final transformed records
+    const finalRecords = Array.from(dayRecordsMap.values()).map(dayRecord => ({
+      _id: `${dayRecord.dateString || dayRecord.date}_${studentUserId}`,
+      date: dayRecord.date,
+      dateString: dayRecord.dateString,
+      status: dayRecord.sessions.morning?.status === 'present' && dayRecord.sessions.afternoon?.status === 'present' ? 'present' :
+              (dayRecord.sessions.morning?.status === 'present' || dayRecord.sessions.afternoon?.status === 'present') ? 'present' : 
+              (dayRecord.sessions.morning === null && dayRecord.sessions.afternoon === null) ? 'no-class' : 'absent',
+      sessions: dayRecord.sessions,
+      studentId: studentUserId,
+      class: studentClass,
+      section: studentSection
+    }));
+
+    console.log(`[GET MY ATTENDANCE] Final transformed records: ${finalRecords.length}`);
+    finalRecords.forEach(record => {
+      console.log(`[GET MY ATTENDANCE] Final record: ${record.dateString} - Status: ${record.status} - Morning: ${record.sessions.morning?.status || 'null'} - Afternoon: ${record.sessions.afternoon?.status || 'null'}`);
+    });
+
     res.json({
       success: true,
       data: {
@@ -1430,17 +1459,7 @@ exports.getMyAttendance = async (req, res) => {
           presentSessions,
           sessionAttendanceRate: attendancePercentage
         },
-        records: Array.from(dayRecordsMap.values()).map(dayRecord => ({
-          _id: `${dayRecord.dateString || dayRecord.date}_${studentUserId}`,
-          date: dayRecord.date,
-          dateString: dayRecord.dateString,
-          status: dayRecord.sessions.morning?.status === 'present' && dayRecord.sessions.afternoon?.status === 'present' ? 'present' :
-                  (dayRecord.sessions.morning?.status === 'present' || dayRecord.sessions.afternoon?.status === 'present') ? 'half_day' : 'absent',
-          sessions: dayRecord.sessions,
-          studentId: studentUserId,
-          class: studentClass,
-          section: studentSection
-        }))
+        records: finalRecords
       }
     });
 

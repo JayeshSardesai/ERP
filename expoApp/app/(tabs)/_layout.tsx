@@ -119,12 +119,6 @@ export default function TabLayout() {
 
       {/* HIDE UNUSED SCREENS */}
       <Tabs.Screen
-        name="student-home"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
         name="teacher-home"
         options={{
           href: null,
