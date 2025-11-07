@@ -1289,6 +1289,10 @@ exports.getMyAttendance = async (req, res) => {
       if (totalRecords === 0) {
         console.log(`[GET MY ATTENDANCE] No attendance records found, creating sample data for testing...`);
         await createSampleAttendanceData(attendanceCollection, studentClass, studentSection, studentUserId);
+        
+        // Re-count after creating sample data
+        const newTotalRecords = await attendanceCollection.countDocuments();
+        console.log(`[GET MY ATTENDANCE] After creating sample data, total records: ${newTotalRecords}`);
       }
 
       // Find all session documents for the student's class and section

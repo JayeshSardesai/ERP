@@ -192,6 +192,17 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
       const studentUserId = userData.userId || userData._id;
 
       rawRecords.forEach((sessionRecord: any) => {
+        console.log('[STUDENT SERVICE] Processing raw record:', {
+          _id: sessionRecord._id,
+          date: sessionRecord.date,
+          dateString: sessionRecord.dateString,
+          status: sessionRecord.status,
+          session: sessionRecord.session,
+          sessions: sessionRecord.sessions,
+          hasStudents: !!sessionRecord.students,
+          studentsCount: sessionRecord.students?.length || 0
+        });
+
         // Use dateString if available, otherwise extract from date
         let dateStr: string;
         if (sessionRecord.dateString) {
@@ -260,9 +271,13 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
         const dayRecord = dayRecordsMap.get(dateStr)!;
 
         if (session === 'morning') {
-          dayRecord.sessions.morning = { status: sessionStatus as 'present' | 'absent' };
+          dayRecord.sessions.morning = { 
+            status: (sessionStatus === 'present' || sessionStatus === 'absent') ? sessionStatus : 'absent'
+          };
         } else if (session === 'afternoon') {
-          dayRecord.sessions.afternoon = { status: sessionStatus as 'present' | 'absent' };
+          dayRecord.sessions.afternoon = { 
+            status: (sessionStatus === 'present' || sessionStatus === 'absent') ? sessionStatus : 'absent'
+          };
         }
 
         // Update overall day status based on sessions

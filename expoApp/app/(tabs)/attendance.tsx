@@ -65,7 +65,15 @@ export default function AttendanceScreen() {
       });
 
       setAttendanceRecords(validRecords);
-      setStats(attendanceStats);
+      setStats({
+        totalDays: attendanceStats.totalDays,
+        presentDays: attendanceStats.presentDays,
+        absentDays: attendanceStats.absentDays,
+        attendancePercentage: attendanceStats.attendancePercentage,
+        totalSessions: attendanceStats.totalSessions || 0,
+        presentSessions: attendanceStats.presentSessions || 0,
+        sessionAttendanceRate: attendanceStats.sessionAttendanceRate || 0
+      });
     } catch (error) {
       console.error('Error fetching attendance:', error);
       // Ensure we clear data on error too
@@ -252,6 +260,8 @@ export default function AttendanceScreen() {
                           day.attendance?.sessions?.morning?.status === 'present' ? '#4ADE80' :
                           day.attendance?.sessions?.morning?.status === 'absent' ? '#EF4444' :
                           day.attendance?.sessions?.morning === null ? '#D1D5DB' :
+                          day.attendance?.status === 'present' ? '#4ADE80' :
+                          day.attendance?.status === 'absent' ? '#EF4444' :
                           day.attendance?.status === 'no-class' ? '#9CA3AF' :
                           '#F3F4F6'
                       }]} />
@@ -261,6 +271,8 @@ export default function AttendanceScreen() {
                           day.attendance?.sessions?.afternoon?.status === 'present' ? '#4ADE80' :
                           day.attendance?.sessions?.afternoon?.status === 'absent' ? '#EF4444' :
                           day.attendance?.sessions?.afternoon === null ? '#D1D5DB' :
+                          day.attendance?.status === 'present' ? '#4ADE80' :
+                          day.attendance?.status === 'absent' ? '#EF4444' :
                           day.attendance?.status === 'no-class' ? '#9CA3AF' :
                           '#F3F4F6'
                       }]} />
