@@ -37,10 +37,17 @@ export default function HomeScreen() {
       setStudentName(displayName);
 
       // Fetch all student data (now authenticated)
+      // For home page, fetch current month's attendance to ensure we get today's data
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+      
+      console.log('[HOME] Fetching attendance for range:', startOfMonth, 'to', endOfMonth);
+      
       const [messagesData, assignmentsData, attendanceData, resultsData] = await Promise.all([
         getStudentMessages(),
         getStudentAssignments(),
-        getStudentAttendance(),
+        getStudentAttendance(startOfMonth, endOfMonth),
         getStudentResults()
       ]);
 
@@ -48,11 +55,17 @@ export default function HomeScreen() {
       setAssignments(assignmentsData.slice(0, 3));
       setAttendanceStats(attendanceData.stats);
       
-      // Get today's attendance
-      const today = new Date().toISOString().split('T')[0];
-      const todayRecord = attendanceData.records.find(record => 
-        record.date.split('T')[0] === today
-      );
+      // Get today's attendance using local date formatting
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      console.log('[HOME] Looking for today\'s attendance:', today);
+      
+      const todayRecord = attendanceData.records.find(record => {
+        const recordDateStr = record.dateString || record.date?.split('T')[0];
+        console.log('[HOME] Comparing record date:', recordDateStr, 'with today:', today);
+        return recordDateStr === today;
+      });
+      
+      console.log('[HOME] Today\'s attendance record:', todayRecord ? 'Found' : 'Not found');
       setTodayAttendance(todayRecord);
       
       setResults(resultsData.slice(0, 3));

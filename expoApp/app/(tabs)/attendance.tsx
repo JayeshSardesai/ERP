@@ -85,52 +85,57 @@ export default function AttendanceScreen() {
     const month = selectedMonth.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
 
     const days = [];
+    const currentDate = new Date(startDate);
 
-    const prevMonthLastDay = new Date(year, month, 0).getDate();
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      days.push({ day: prevMonthLastDay - i, month: 'prev', status: null });
-    }
+    console.log('[CALENDAR] Building calendar for month:', month + 1, year);
+    console.log('[CALENDAR] Available attendance records:', attendanceRecords.length);
+    attendanceRecords.forEach(record => {
+      console.log('[CALENDAR] Record available:', record.dateString, record.status);
+    });
 
-    for (let i = 1; i <= daysInMonth; i++) {
-      const dateStr = new Date(year, month, i).toISOString().split('T')[0];
+    for (let i = 0; i < 42; i++) {
+      // Use local date string to avoid timezone issues
+      const year = currentDate.getFullYear();
+      const month_num = currentDate.getMonth();
+      const day_num = currentDate.getDate();
+      const dateString = `${year}-${String(month_num + 1).padStart(2, '0')}-${String(day_num).padStart(2, '0')}`;
       
-      // Precise date matching - try multiple date comparison methods
-      const record = attendanceRecords.find(r => {
-        if (!r.date) return false;
-        
-        // Try exact date string match first
-        const recordDateStr = new Date(r.date).toISOString().split('T')[0];
-        if (recordDateStr === dateStr) return true;
-        
-        // Try dateString property if available
-        if (r.dateString && r.dateString === dateStr) return true;
-        
-        // Try comparing just the date parts
-        const recordDate = new Date(r.date);
-        const calendarDate = new Date(year, month, i);
-        
-        return recordDate.getFullYear() === calendarDate.getFullYear() &&
-               recordDate.getMonth() === calendarDate.getMonth() &&
-               recordDate.getDate() === calendarDate.getDate();
-      });
+      const isCurrentMonth = currentDate.getMonth() === month;
+      const isToday = currentDate.toDateString() === new Date().toDateString();
       
+      // STRICT matching - only show attendance if we have exact backend data
+      let attendanceRecord = null;
+      if (isCurrentMonth) {
+        attendanceRecord = attendanceRecords.find(record => {
+          const recordDateStr = record.dateString || record.date?.split('T')[0];
+          const matches = recordDateStr === dateString;
+          if (matches) {
+            console.log('[CALENDAR] ✅ MATCHED attendance for date:', dateString, 'Day:', day_num, 'Status:', record.status);
+          }
+          return matches;
+        });
+      }
+
       days.push({
-        day: i,
-        month: 'current',
-        status: record ? record.status : 'no-class',
-        sessions: record ? record.sessions : { morning: null, afternoon: null }
+        date: currentDate.getDate(),
+        dateString,
+        isCurrentMonth,
+        isToday,
+        attendance: attendanceRecord || null
       });
+
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    const remainingDays = 42 - days.length;
-    for (let i = 1; i <= remainingDays; i++) {
-      days.push({ day: i, month: 'next', status: null });
-    }
-
+    // Summary of matched attendance dates
+    const datesWithAttendance = days.filter(day => day.attendance !== null);
+    console.log('[CALENDAR] Generated', days.length, 'calendar days');
+    console.log('[CALENDAR] Dates with attendance:', datesWithAttendance.map(day => `${day.date} (${day.dateString})`));
+    
     return days;
   };
 
@@ -141,16 +146,14 @@ export default function AttendanceScreen() {
 
   const getDateStyle = (day: any) => {
     const composed: any = [calendarStyles.dateText];
-    if (day.month !== 'current') composed.push(calendarStyles.otherMonthText);
-    if (day.status === 'present') composed.push(calendarStyles.presentText);
-    else if (day.status === 'absent') composed.push(calendarStyles.absentText);
-    else if (day.status === 'no-class') composed.push(calendarStyles.noClassText);
+    if (!day.isCurrentMonth) composed.push(calendarStyles.otherMonthText);
+    if (day.isToday) composed.push(calendarStyles.todayText);
     return composed;
   };
 
   const getDateContainerStyle = (day: any) => {
     const composed: any = [calendarStyles.dateContainer];
-    if (day.day === selectedDate && day.month === 'current') composed.push(calendarStyles.selectedDate);
+    if (day.date === selectedDate && day.isCurrentMonth) composed.push(calendarStyles.selectedDate);
     return composed;
   };
 
@@ -206,22 +209,22 @@ export default function AttendanceScreen() {
                 <TouchableOpacity
                   key={index}
                   style={getDateContainerStyle(day)}
-                  onPress={() => day.month === 'current' && setSelectedDate(day.day)}
+                  onPress={() => day.isCurrentMonth && setSelectedDate(day.date)}
                 >
-                  <Text style={getDateStyle(day)}>{day.day}</Text>
-                  {day.month === 'current' && (
+                  <Text style={getDateStyle(day)}>{day.date}</Text>
+                  {day.isCurrentMonth && (
                     <View style={calendarStyles.statusDot}>
                       {/* Morning session dot */}
                       <View style={[calendarStyles.dot, { 
-                        backgroundColor: day.sessions?.morning?.status === 'present' ? '#4ADE80' : 
-                                       day.sessions?.morning?.status === 'absent' ? '#EF4444' : 
-                                       day.sessions?.morning === null ? '#D1D5DB' : '#F3F4F6'
+                        backgroundColor: day.attendance?.sessions?.morning?.status === 'present' ? '#4ADE80' : 
+                                       day.attendance?.sessions?.morning?.status === 'absent' ? '#EF4444' : 
+                                       day.attendance?.sessions?.morning === null ? '#D1D5DB' : '#F3F4F6'
                       }]} />
                       {/* Afternoon session dot */}
                       <View style={[calendarStyles.dot, { 
-                        backgroundColor: day.sessions?.afternoon?.status === 'present' ? '#4ADE80' : 
-                                       day.sessions?.afternoon?.status === 'absent' ? '#EF4444' : 
-                                       day.sessions?.afternoon === null ? '#D1D5DB' : '#F3F4F6'
+                        backgroundColor: day.attendance?.sessions?.afternoon?.status === 'present' ? '#4ADE80' : 
+                                       day.attendance?.sessions?.afternoon?.status === 'absent' ? '#EF4444' : 
+                                       day.attendance?.sessions?.afternoon === null ? '#D1D5DB' : '#F3F4F6'
                       }]} />
                     </View>
                   )}
@@ -344,6 +347,7 @@ function getCalendarStyles(isDark: boolean) {
     selectedDate: { backgroundColor: isDark ? '#1F2937' : '#DBEAFE', borderRadius: 8 },
     dateText: { fontSize: 14, fontWeight: '600', color: isDark ? '#E5E7EB' : '#1F2937' },
     otherMonthText: { color: isDark ? '#374151' : '#D1D5DB' },
+    todayText: { color: '#3B82F6', fontWeight: '700' },
     presentText: { color: '#16A34A' },
     absentText: { color: '#DC2626' },
     noClassText: { color: '#9CA3AF' },

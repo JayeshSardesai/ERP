@@ -141,9 +141,13 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
         if (sessionRecord.dateString) {
           dateStr = sessionRecord.dateString;
         } else if (sessionRecord.date) {
-          // Ensure we get the local date string, not UTC
+          // Use local date formatting to avoid timezone issues
           const recordDate = new Date(sessionRecord.date);
-          dateStr = recordDate.toISOString().split('T')[0];
+          const year = recordDate.getFullYear();
+          const month = recordDate.getMonth() + 1;
+          const day = recordDate.getDate();
+          dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          console.log('[STUDENT SERVICE] Generated local date string:', dateStr, 'from:', sessionRecord.date);
         } else {
           console.warn('[STUDENT SERVICE] No date found in record:', sessionRecord);
           return;
