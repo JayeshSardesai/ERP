@@ -1216,6 +1216,15 @@ exports.getMyAttendance = async (req, res) => {
     // Get student's userId from authenticated user
     const studentUserId = req.user.userId || req.user._id;
     const schoolCode = req.user.schoolCode;
+    
+    console.log(`[GET MY ATTENDANCE] Student info from token:`, {
+      userId: req.user.userId,
+      _id: req.user._id,
+      finalStudentUserId: studentUserId,
+      schoolCode: schoolCode,
+      role: req.user.role,
+      fullUser: req.user
+    });
 
     console.log(`[GET MY ATTENDANCE] Student: ${studentUserId}, School: ${schoolCode}`);
 
@@ -1295,11 +1304,74 @@ exports.getMyAttendance = async (req, res) => {
       for (const sessionDoc of sessionDocuments) {
         if (sessionDoc.students && Array.isArray(sessionDoc.students)) {
           // Find this student in the session's student list
-          const studentRecord = sessionDoc.students.find(s =>
-            s.studentId === studentUserId ||
-            s.userId === studentUserId ||
-            s.rollNumber === studentUserId
-          );
+          // Handle different ID formats: AB-S-0006 vs 46, etc.
+          const studentRecord = sessionDoc.students.find(s => {
+            const sId = s.studentId?.toString();
+            const sUserId = s.userId?.toString();
+            const sRollNumber = s.rollNumber?.toString();
+            const searchId = studentUserId?.toString();
+            
+            // Direct matches
+            if (sId === searchId || sUserId === searchId || sRollNumber === searchId) {
+              return true;
+            }
+            
+            // Extract numeric part from formatted IDs (AB-S-0006 -> 6)
+            const extractNumber = (id) => {
+              if (!id) return null;
+              const match = id.toString().match(/(\d+)$/);
+              return match ? parseInt(match[1]) : null;
+            };
+            
+            // Also extract all numbers from ID for broader matching
+            const extractAllNumbers = (id) => {
+              if (!id) return [];
+              const matches = id.toString().match(/\d+/g);
+              return matches ? matches.map(n => parseInt(n)) : [];
+            };
+            
+            console.log(`[MATCHING DEBUG] Checking student: searchId=${searchId}, sId=${sId}, sUserId=${sUserId}, sRollNumber=${sRollNumber}`);
+            
+            const searchNum = extractNumber(searchId);
+            const sIdNum = extractNumber(sId);
+            const sUserIdNum = extractNumber(sUserId);
+            const sRollNum = extractNumber(sRollNumber);
+            
+            console.log(`[MATCHING DEBUG] Extracted numbers: searchNum=${searchNum}, sIdNum=${sIdNum}, sUserIdNum=${sUserIdNum}, sRollNum=${sRollNum}`);
+            
+            // Match by numeric part
+            if (searchNum && (searchNum === sIdNum || searchNum === sUserIdNum || searchNum === sRollNum)) {
+              console.log(`[MATCHING DEBUG] ✅ NUMERIC MATCH FOUND!`);
+              return true;
+            }
+            
+            // Try comprehensive number matching - extract all numbers and cross-match
+            const searchNumbers = extractAllNumbers(searchId);
+            const sIdNumbers = extractAllNumbers(sId);
+            const sUserIdNumbers = extractAllNumbers(sUserId);
+            const sRollNumbers = extractAllNumbers(sRollNumber);
+            
+            console.log(`[MATCHING DEBUG] All numbers - search: [${searchNumbers}], sId: [${sIdNumbers}], sUserId: [${sUserIdNumbers}], sRoll: [${sRollNumbers}]`);
+            
+            // Check if any number from search ID matches any number from session student IDs
+            for (const searchN of searchNumbers) {
+              if (sIdNumbers.includes(searchN) || sUserIdNumbers.includes(searchN) || sRollNumbers.includes(searchN)) {
+                console.log(`[MATCHING DEBUG] ✅ COMPREHENSIVE MATCH FOUND! Number: ${searchN}`);
+                return true;
+              }
+            }
+            
+            // Also try reverse - if session ID is a simple number, see if it matches any part of our formatted ID
+            if (sId && !isNaN(parseInt(sId))) {
+              const sessionNum = parseInt(sId);
+              if (searchNumbers.includes(sessionNum)) {
+                console.log(`[MATCHING DEBUG] ✅ REVERSE MATCH FOUND! Session: ${sessionNum}`);
+                return true;
+              }
+            }
+            
+            return false;
+          });
 
           if (studentRecord) {
             attendanceRecords.push({
@@ -1323,17 +1395,57 @@ exports.getMyAttendance = async (req, res) => {
       // Enhanced debugging for session records
       if (sessionDocuments.length > 0) {
         console.log(`[GET MY ATTENDANCE] Processing ${sessionDocuments.length} session documents`);
+        console.log(`[GET MY ATTENDANCE] Looking for student: ${studentUserId} (type: ${typeof studentUserId})`);
         sessionDocuments.forEach((doc, index) => {
           console.log(`[GET MY ATTENDANCE] Session ${index + 1}: ${doc.dateString} ${doc.session} - ${doc.students?.length || 0} students`);
           if (doc.students && doc.students.length > 0) {
-            const studentFound = doc.students.find(s => 
-              s.userId === studentUserId || s.rollNumber === studentUserId
-            );
+            // Use the same matching logic as above
+            const studentFound = doc.students.find(s => {
+              const sId = s.studentId?.toString();
+              const sUserId = s.userId?.toString();
+              const sRollNumber = s.rollNumber?.toString();
+              const searchId = studentUserId?.toString();
+              
+              if (sId === searchId || sUserId === searchId || sRollNumber === searchId) {
+                return true;
+              }
+              
+              const extractNumber = (id) => {
+                if (!id) return null;
+                const match = id.toString().match(/(\d+)$/);
+                return match ? parseInt(match[1]) : null;
+              };
+              
+              const searchNum = extractNumber(searchId);
+              const sIdNum = extractNumber(sId);
+              const sUserIdNum = extractNumber(sUserId);
+              const sRollNum = extractNumber(sRollNumber);
+              
+              if (searchNum && (searchNum === sIdNum || searchNum === sUserIdNum || searchNum === sRollNum)) {
+                return true;
+              }
+              
+              if (sId && searchId) {
+                const sessionIdNum = parseInt(sId);
+                const formattedIdNum = extractNumber(searchId);
+                if (!isNaN(sessionIdNum) && formattedIdNum === sessionIdNum) {
+                  return true;
+                }
+              }
+              
+              return false;
+            });
+            
             if (studentFound) {
               console.log(`[GET MY ATTENDANCE] ✅ Student found in session: ${doc.dateString} ${doc.session} - Status: ${studentFound.status}`);
             } else {
               console.log(`[GET MY ATTENDANCE] ❌ Student NOT found in session: ${doc.dateString} ${doc.session}`);
-              console.log(`[GET MY ATTENDANCE] Available student IDs:`, doc.students.map(s => s.userId || s.rollNumber));
+              console.log(`[GET MY ATTENDANCE] Available students:`, doc.students.map(s => ({
+                studentId: s.studentId,
+                userId: s.userId, 
+                rollNumber: s.rollNumber,
+                name: s.name || s.studentName
+              })));
             }
           }
         });
@@ -1439,6 +1551,9 @@ exports.getMyAttendance = async (req, res) => {
     finalRecords.forEach(record => {
       console.log(`[GET MY ATTENDANCE] Final record: ${record.dateString} - Status: ${record.status} - Morning: ${record.sessions.morning?.status || 'null'} - Afternoon: ${record.sessions.afternoon?.status || 'null'}`);
     });
+    
+    console.log(`[GET MY ATTENDANCE] Statistics: Total Sessions: ${totalSessions}, Present Sessions: ${presentSessions}, Session-based %: ${attendancePercentage}`);
+    console.log(`[GET MY ATTENDANCE] Day Statistics: Total Days: ${totalDays}, Present Days: ${presentDays}, Day-based %: ${attendanceRate}`);
 
     res.json({
       success: true,
@@ -1454,7 +1569,8 @@ exports.getMyAttendance = async (req, res) => {
           absentDays,
           lateDays: 0,
           leaveDays: 0,
-          attendancePercentage: attendanceRate,
+          attendancePercentage: attendancePercentage, // Use session-based percentage as main percentage
+          dayAttendanceRate: attendanceRate, // Keep day-based rate for reference
           totalSessions,
           presentSessions,
           sessionAttendanceRate: attendancePercentage
