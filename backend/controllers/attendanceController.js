@@ -1203,7 +1203,7 @@ exports.lockAttendance = async (req, res) => {
 // Get student's own attendance (for student role)
 exports.getMyAttendance = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, limit = 50 } = req.query;
 
     // Only students can access this endpoint
     if (req.user.role !== 'student') {
