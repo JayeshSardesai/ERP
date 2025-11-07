@@ -145,13 +145,6 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           return;
         }
         
-        console.log(`[STUDENT SERVICE] Raw record for ${dateStr}:`, {
-          _id: sessionRecord._id,
-          date: sessionRecord.date,
-          dateString: sessionRecord.dateString,
-          status: sessionRecord.status,
-          session: sessionRecord.session
-        });
         
         // Determine session from the record
         let session: string | null = null;
@@ -218,13 +211,6 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
       console.log('[STUDENT SERVICE] Transformed records count:', transformedRecords.length);
       console.log('[STUDENT SERVICE] Sample transformed record:', transformedRecords[0]);
       
-      // Debug: Log all transformed records with their dates
-      transformedRecords.forEach((record, index) => {
-        console.log(`[STUDENT SERVICE] Record ${index + 1}: ${record._id} (${new Date(record.date).toISOString().split('T')[0]}) - Status: ${record.status}`, {
-          morning: record.sessions.morning?.status || 'null',
-          afternoon: record.sessions.afternoon?.status || 'null'
-        });
-      });
       
       // Sort records by date for proper display
       transformedRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -283,20 +269,9 @@ export async function getStudentResults(): Promise<Result[]> {
         rawResults = response.data.data;
       }
       
-      // If no results found but endpoint succeeded, it might have created sample data
-      // Try again after a short delay
+      // Log if no results found
       if (rawResults.length === 0 && response.data?.success) {
-        console.log('[STUDENT SERVICE] No results found, retrying after potential sample data creation...');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-        
-        const retryResponse = await api.get(`/results/student/${studentId}/history`);
-        console.log('[STUDENT SERVICE] Retry response:', retryResponse.data);
-        
-        if (retryResponse.data?.success && retryResponse.data?.results) {
-          rawResults = retryResponse.data.results;
-        } else if (retryResponse.data?.success && Array.isArray(retryResponse.data?.data)) {
-          rawResults = retryResponse.data.data;
-        }
+        console.log('[STUDENT SERVICE] No results found for this student');
       }
     } catch (historyError) {
       console.log('[STUDENT SERVICE] History endpoint failed:', historyError);

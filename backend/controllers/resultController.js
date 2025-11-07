@@ -341,15 +341,14 @@ exports.getStudentResultHistory = async (req, res) => {
 
     console.log(`[GET STUDENT RESULTS] Student: ${studentId}, School: ${schoolCode}`);
 
-    // Build query
+    // Build query using actual Result model field names
     const query = {
-      schoolCode,
-      studentId,
-      isActive: true
+      student: studentId, // This should be the ObjectId of the student
+      status: 'published' // Only get published results
     };
 
-    if (academicYear) query['classDetails.academicYear'] = academicYear;
-    if (examType) query['examDetails.examType'] = examType;
+    if (academicYear) query.academicYear = academicYear;
+    if (examType) query.term = examType; // Map examType to term field
 
     console.log(`[GET STUDENT RESULTS] Query:`, JSON.stringify(query));
 
@@ -364,10 +363,9 @@ exports.getStudentResultHistory = async (req, res) => {
       const totalResults = await resultsCollection.countDocuments();
       console.log(`[GET STUDENT RESULTS] Total results in collection: ${totalResults}`);
 
-      // If no results exist, create sample data for testing
+      // If no results exist, log for debugging but don't create sample data
       if (totalResults === 0) {
-        console.log(`[GET STUDENT RESULTS] No results found, creating sample data for testing...`);
-        await createSampleResultsData(resultsCollection, studentId, schoolCode);
+        console.log(`[GET STUDENT RESULTS] No results found for student ${studentId} in school ${schoolCode}`);
       }
 
       // Debug: Check sample records to understand structure
@@ -379,58 +377,81 @@ exports.getStudentResultHistory = async (req, res) => {
         .sort({ 'examDetails.examDate': -1 })
         .toArray();
 
-      console.log(`[GET STUDENT RESULTS] Found ${results.length} results with query in school database`);
+      console.log(`[GET STUDENT RESULTS] Found ${results.length} results with primary query`);
 
-      // If no results found, try alternative queries
+      // If no results found, try alternative queries with different field combinations
       if (results.length === 0) {
-        // Try with different field names
-        const altQuery1 = { schoolCode, userId: studentId, isActive: true };
-        const altResults1 = await resultsCollection.find(altQuery1).limit(5).toArray();
-        console.log(`[GET STUDENT RESULTS] Alternative query with userId: ${altResults1.length} results`);
+        console.log(`[GET STUDENT RESULTS] Trying alternative queries...`);
+        
+        // Try different field combinations that might exist in actual data
+        const alternativeQueries = [
+          { student: studentId, status: 'published' },
+          { student: studentId },
+          { studentId: studentId, status: 'published' },
+          { studentId: studentId },
+          { 'student._id': studentId },
+          { 'student.userId': studentId }
+        ];
 
-        // Try without schoolCode
-        const altQuery2 = { studentId, isActive: true };
-        const altResults2 = await resultsCollection.find(altQuery2).limit(5).toArray();
-        console.log(`[GET STUDENT RESULTS] Query without schoolCode: ${altResults2.length} results`);
-
-        // Try just studentId
-        const altQuery3 = { studentId };
-        const altResults3 = await resultsCollection.find(altQuery3).limit(5).toArray();
-        console.log(`[GET STUDENT RESULTS] Query with just studentId: ${altResults3.length} results`);
-        console.log(`[GET STUDENT RESULTS] Sample studentId results:`, JSON.stringify(altResults3, null, 2));
+        for (let i = 0; i < alternativeQueries.length; i++) {
+          const altQuery = alternativeQueries[i];
+          console.log(`[GET STUDENT RESULTS] Trying query ${i + 1}:`, JSON.stringify(altQuery));
+          
+          const altResults = await resultsCollection.find(altQuery).limit(10).toArray();
+          console.log(`[GET STUDENT RESULTS] Query ${i + 1} found: ${altResults.length} results`);
+          
+          if (altResults.length > 0) {
+            results = altResults;
+            console.log(`[GET STUDENT RESULTS] Using results from query ${i + 1}`);
+            console.log(`[GET STUDENT RESULTS] Sample result structure:`, JSON.stringify(altResults[0], null, 2));
+            break;
+          }
+        }
       }
 
     } catch (error) {
       console.error(`[GET STUDENT RESULTS] Error accessing school database:`, error.message);
 
-      // Fallback to main database
+      // Fallback to main database using Result model
+      const Result = require('../models/Result');
       results = await Result.find(query)
-        .sort({ 'examDetails.examDate': -1 })
+        .populate('student', 'name email')
+        .sort({ createdAt: -1 })
         .select({
-          resultId: 1,
-          'classDetails.grade': 1,
-          'classDetails.section': 1,
-          'examDetails.examType': 1,
-          'examDetails.examDate': 1,
-          'overallResult.percentage': 1,
-          'overallResult.grade': 1,
-          'overallResult.status': 1,
-          'overallResult.rank': 1,
-          'overallResult.totalStudents': 1
+          _id: 1,
+          class: 1,
+          section: 1,
+          academicYear: 1,
+          term: 1,
+          subjects: 1,
+          totalMarks: 1,
+          maxMarks: 1,
+          percentage: 1,
+          grade: 1,
+          rank: 1,
+          totalStudents: 1,
+          status: 1,
+          createdAt: 1
         });
 
       console.log(`[GET STUDENT RESULTS] Found ${results.length} results in main database`);
     }
 
-    // Transform results to match frontend expectations
+    // Transform results to match frontend expectations using actual Result model fields
     const transformedResults = results.map(result => ({
-      _id: result._id || result.resultId,
-      examType: result.examDetails?.examType || result.examType || 'Unknown Exam',
-      overallPercentage: result.overallResult?.percentage || result.percentage || 0,
-      overallGrade: result.overallResult?.grade || result.grade || 'N/A',
-      rank: result.overallResult?.rank || result.rank,
-      academicYear: result.classDetails?.academicYear || result.academicYear,
-      subjects: result.subjects || []
+      _id: result._id,
+      examType: result.term || 'Unknown Exam', // Use term field as examType
+      overallPercentage: result.percentage || 0,
+      overallGrade: result.grade || 'N/A',
+      rank: result.rank,
+      academicYear: result.academicYear,
+      subjects: result.subjects ? result.subjects.map(subject => ({
+        subjectName: subject.name,
+        marksObtained: subject.totalMarks,
+        totalMarks: subject.maxMarks,
+        grade: subject.grade,
+        percentage: subject.percentage
+      })) : []
     }));
 
     // Calculate progress trend
@@ -1406,139 +1427,6 @@ exports.getClassPerformanceStats = async (req, res) => {
   }
 };
 
-// ---------------------------------------------------------
-// Helper function to create sample results data for testing
-// ---------------------------------------------------------
-const createSampleResultsData = async (resultsCollection, studentId, schoolCode) => {
-  try {
-    console.log(`[CREATE SAMPLE RESULTS] Creating sample results for student: ${studentId}, school: ${schoolCode}`);
-    
-    const sampleResults = [
-      {
-        _id: `result_${studentId}_midterm_2024`,
-        schoolCode: schoolCode.toUpperCase(),
-        studentId: studentId,
-        examType: 'Mid Term Examination',
-        academicYear: '2024-25',
-        subjects: [
-          {
-            subjectName: 'Mathematics',
-            testType: 'Mid Term',
-            maxMarks: 100,
-            obtainedMarks: 85,
-            totalMarks: 100,
-            grade: 'A',
-            percentage: 85.0,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            subjectName: 'Science',
-            testType: 'Mid Term',
-            maxMarks: 100,
-            obtainedMarks: 78,
-            totalMarks: 100,
-            grade: 'B+',
-            percentage: 78.0,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            subjectName: 'English',
-            testType: 'Mid Term',
-            maxMarks: 100,
-            obtainedMarks: 92,
-            totalMarks: 100,
-            grade: 'A+',
-            percentage: 92.0,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            subjectName: 'Social Studies',
-            testType: 'Mid Term',
-            maxMarks: 100,
-            obtainedMarks: 80,
-            totalMarks: 100,
-            grade: 'A',
-            percentage: 80.0,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        ],
-        overallResult: {
-          totalMarks: 335,
-          maxMarks: 400,
-          percentage: 83.75,
-          grade: 'A',
-          rank: 5
-        },
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      {
-        _id: `result_${studentId}_unit1_2024`,
-        schoolCode: schoolCode.toUpperCase(),
-        studentId: studentId,
-        examType: 'Unit Test 1',
-        academicYear: '2024-25',
-        subjects: [
-          {
-            subjectName: 'Mathematics',
-            testType: 'Unit Test',
-            maxMarks: 50,
-            obtainedMarks: 42,
-            totalMarks: 50,
-            grade: 'A',
-            percentage: 84.0,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            subjectName: 'Science',
-            testType: 'Unit Test',
-            maxMarks: 50,
-            obtainedMarks: 38,
-            totalMarks: 50,
-            grade: 'B+',
-            percentage: 76.0,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            subjectName: 'English',
-            testType: 'Unit Test',
-            maxMarks: 50,
-            obtainedMarks: 45,
-            totalMarks: 50,
-            grade: 'A+',
-            percentage: 90.0,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        ],
-        overallResult: {
-          totalMarks: 125,
-          maxMarks: 150,
-          percentage: 83.33,
-          grade: 'A',
-          rank: 3
-        },
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ];
-
-    // Insert sample results
-    await resultsCollection.insertMany(sampleResults);
-    console.log(`[CREATE SAMPLE RESULTS] Successfully created ${sampleResults.length} sample results`);
-    
-    return sampleResults;
-  } catch (error) {
-    console.error('[CREATE SAMPLE RESULTS] Error creating sample results:', error);
-    return [];
-  }
-};
 
 // ---------------------------------------------------------
 // Module exports (explicit)

@@ -61,18 +61,13 @@ export default function AttendanceScreen() {
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = new Date(year, month, i).toISOString().split('T')[0];
       
-      // More robust date matching - try multiple formats
+      // Precise date matching - only use exact date comparison
       const record = attendanceRecords.find(r => {
         if (!r.date) return false;
         
-        // Try direct date comparison
+        // Only use direct date comparison for accuracy
         const recordDateStr = new Date(r.date).toISOString().split('T')[0];
-        if (recordDateStr === dateStr) return true;
-        
-        // Try _id based matching (in case _id contains the date)
-        if (r._id && r._id.startsWith(dateStr)) return true;
-        
-        return false;
+        return recordDateStr === dateStr;
       });
       
       console.log(`[ATTENDANCE CALENDAR] Date ${dateStr} (day ${i}): ${record ? 'Found record' : 'No record'} - Status: ${record?.status || 'no-class'}`);
