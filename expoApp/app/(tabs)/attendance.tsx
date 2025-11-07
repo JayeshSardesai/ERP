@@ -21,10 +21,39 @@ export default function AttendanceScreen() {
 
   const fetchAttendance = async () => {
     try {
+      // Clear previous records first
+      setAttendanceRecords([]);
+      
       const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString();
       const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString();
+      
+      console.log('[ATTENDANCE] Fetching for month:', selectedMonth.toLocaleDateString(), 'Range:', startDate, 'to', endDate);
+      
       const { records, stats: attendanceStats } = await getStudentAttendance(startDate, endDate);
-      setAttendanceRecords(records);
+      
+      // Filter records to only include current month - be very strict
+      const currentMonthRecords = records.filter(record => {
+        const recordDate = new Date(record.date);
+        const selectedYear = selectedMonth.getFullYear();
+        const selectedMonthNum = selectedMonth.getMonth();
+        
+        const isCurrentMonth = recordDate.getFullYear() === selectedYear && 
+                              recordDate.getMonth() === selectedMonthNum;
+        
+        if (!isCurrentMonth) {
+          console.log('[ATTENDANCE] Excluding record from different month:', 
+            record.dateString, 
+            'Record month:', recordDate.getMonth() + 1, recordDate.getFullYear(),
+            'Selected month:', selectedMonthNum + 1, selectedYear
+          );
+        }
+        
+        return isCurrentMonth;
+      });
+      
+      console.log('[ATTENDANCE] Filtered records for current month:', currentMonthRecords.length, 'from', records.length);
+      
+      setAttendanceRecords(currentMonthRecords);
       setStats(attendanceStats);
     } catch (error) {
       console.error('Error fetching attendance:', error);
@@ -35,6 +64,9 @@ export default function AttendanceScreen() {
   };
 
   useEffect(() => {
+    // Clear attendance records immediately when month changes
+    setAttendanceRecords([]);
+    setLoading(true);
     fetchAttendance();
   }, [selectedMonth]);
 

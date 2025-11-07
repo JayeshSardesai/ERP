@@ -222,8 +222,32 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
       
       
       
-      // Sort records by date for proper display
-      transformedRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      // Sort records by date for proper display (most recent first)
+      transformedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      // Filter records to requested date range if provided
+      let filteredRecords = transformedRecords;
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        // Set time to start of day for start date and end of day for end date
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        
+        filteredRecords = transformedRecords.filter(record => {
+          const recordDate = new Date(record.date);
+          recordDate.setHours(0, 0, 0, 0); // Normalize to start of day
+          
+          const isInRange = recordDate >= start && recordDate <= end;
+          if (!isInRange) {
+            console.log('[STUDENT SERVICE] Excluding record outside range:', record.dateString, 'Range:', start.toDateString(), 'to', end.toDateString());
+          }
+          return isInRange;
+        });
+        console.log('[STUDENT SERVICE] Filtered attendance to date range:', filteredRecords.length, 'from', transformedRecords.length);
+        console.log('[STUDENT SERVICE] Date range:', start.toDateString(), 'to', end.toDateString());
+      }
       
       // Calculate stats from transformed records
       const stats = {
@@ -241,7 +265,7 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
       }
       
       return {
-        records: transformedRecords,
+        records: filteredRecords,
         stats: response.data.data.summary || stats
       };
     }
@@ -309,8 +333,39 @@ export async function getStudentResults(): Promise<Result[]> {
       return [];
     }
     
+    // Filter out placeholder records and invalid results
+    const validResults = rawResults.filter((result: any) => {
+      // Skip placeholder records by flag
+      if (result._placeholder === true) {
+        console.log('[STUDENT SERVICE] Skipping placeholder result:', result._id);
+        return false;
+      }
+      
+      // Skip placeholder records by description
+      if (result.note && result.note.includes('Placeholder for results collection')) {
+        console.log('[STUDENT SERVICE] Skipping placeholder result by description:', result._id);
+        return false;
+      }
+      
+      // Skip results without proper structure
+      if (!result.subjects || !Array.isArray(result.subjects) || result.subjects.length === 0) {
+        console.log('[STUDENT SERVICE] Skipping result without subjects:', result._id);
+        return false;
+      }
+      
+      // Skip frozen placeholder results (additional check)
+      if (result.frozen && result.note && result.note.includes('Placeholder')) {
+        console.log('[STUDENT SERVICE] Skipping frozen placeholder result:', result._id);
+        return false;
+      }
+      
+      return true;
+    });
+    
+    console.log('[STUDENT SERVICE] Filtered results count:', validResults.length, 'from', rawResults.length);
+    
     // Transform the results to match the expected format
-    const transformedResults = rawResults.map((result: any) => {
+    const transformedResults = validResults.map((result: any) => {
       
       // Handle different result structures
       let subjects = [];
@@ -320,15 +375,15 @@ export async function getStudentResults(): Promise<Result[]> {
       let rank = null;
       let academicYear = '2024-25';
       
-      // Extract exam type
-      if (result.examType) {
+      // Extract exam type - prioritize testType from subjects
+      if (result.subjects?.[0]?.testType) {
+        examType = result.subjects[0].testType;
+      } else if (result.examType) {
         examType = result.examType;
       } else if (result.term) {
         examType = result.term;
       } else if (result.examDetails?.examType) {
         examType = result.examDetails.examType;
-      } else if (result.subjects?.[0]?.testType) {
-        examType = result.subjects[0].testType;
       }
       
       // Extract subjects
@@ -341,16 +396,18 @@ export async function getStudentResults(): Promise<Result[]> {
           let grade = subject.grade || '';
           let percentage = 0;
           
-          // Extract marks - handle nested structure
+          // Extract marks - handle the exact database structure
+          marksObtained = subject.obtainedMarks || subject.marksObtained || 0;
+          totalMarks = subject.maxMarks || subject.totalMarks || 100;
+          percentage = subject.percentage || 0;
+          grade = subject.grade || '';
+          
+          // Handle nested structure if exists
           if (subject.total) {
-            marksObtained = subject.total.marksObtained || subject.total.obtainedMarks || 0;
-            totalMarks = subject.total.maxMarks || subject.total.totalMarks || 100;
-            percentage = subject.total.percentage || 0;
+            marksObtained = subject.total.marksObtained || subject.total.obtainedMarks || marksObtained;
+            totalMarks = subject.total.maxMarks || subject.total.totalMarks || totalMarks;
+            percentage = subject.total.percentage || percentage;
             grade = subject.total.grade || grade;
-          } else {
-            marksObtained = subject.marksObtained || subject.obtainedMarks || subject.totalMarks || 0;
-            totalMarks = subject.totalMarks || subject.maxMarks || 100;
-            percentage = subject.percentage || 0;
           }
           
           // Calculate percentage if not provided
@@ -412,7 +469,14 @@ export async function getStudentResults(): Promise<Result[]> {
         academicYear
       };
       
-      console.log('[STUDENT SERVICE] Transformed result:', transformedResult);
+      console.log('[STUDENT SERVICE] Transformed result:', {
+        id: transformedResult._id,
+        examType: transformedResult.examType,
+        subjectsCount: transformedResult.subjects.length,
+        overallPercentage: transformedResult.overallPercentage,
+        grade: transformedResult.overallGrade,
+        rank: transformedResult.rank
+      });
       return transformedResult;
     });
     
