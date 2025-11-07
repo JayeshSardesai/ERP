@@ -61,8 +61,7 @@ export default function AttendanceScreen() {
 
       // Log each record for debugging
       validRecords.forEach((record, index) => {
-        console.log(`[ATTENDANCE] Record ${index + 1}:`, record.dateString, record.status);
-        console.log(`[ATTENDANCE] Record ${index + 1} sessions:`, JSON.stringify(record.sessions, null, 2));
+        console.log(`[ATTENDANCE] Record ${index + 1}:`, record.dateString, record.status, 'Sessions:', record.sessions);
       });
 
       setAttendanceRecords(validRecords);

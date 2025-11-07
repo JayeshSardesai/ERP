@@ -202,8 +202,6 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           hasStudents: !!sessionRecord.students,
           studentsCount: sessionRecord.students?.length || 0
         });
-        
-        console.log('[STUDENT SERVICE] Full record structure:', JSON.stringify(sessionRecord, null, 2));
 
         // Use dateString if available, otherwise extract from date
         let dateStr: string;
@@ -242,44 +240,54 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
         }
         // Handle day-based records with sessions object
         else if (sessionRecord.sessions) {
-          // This is a day-based record with sessions object
+          console.log('[STUDENT SERVICE] Processing day-based record with sessions:', sessionRecord.sessions);
+          
+          // Create or get the day record
+          const dayRecord = dayRecordsMap.get(dateStr) || {
+            _id: dateStr,
+            date: sessionRecord.date || new Date(dateStr).toISOString(),
+            dateString: dateStr,
+            status: sessionRecord.status || 'no-class',
+            sessions: { morning: null, afternoon: null }
+          };
+
+          // Handle morning session
           if (sessionRecord.sessions.morning) {
-            const dayRecord = dayRecordsMap.get(dateStr) || {
-              _id: dateStr,
-              date: sessionRecord.date || new Date(dateStr).toISOString(),
-              dateString: dateStr,
-              status: 'no-class',
-              sessions: { morning: null, afternoon: null }
-            };
             dayRecord.sessions.morning = {
               status: sessionRecord.sessions.morning.status as 'present' | 'absent'
             };
-            dayRecordsMap.set(dateStr, dayRecord);
+            console.log('[STUDENT SERVICE] Set morning session:', dayRecord.sessions.morning);
           }
+
+          // Handle afternoon session
           if (sessionRecord.sessions.afternoon) {
-            const dayRecord = dayRecordsMap.get(dateStr) || {
-              _id: dateStr,
-              date: sessionRecord.date || new Date(dateStr).toISOString(),
-              dateString: dateStr,
-              status: 'no-class',
-              sessions: { morning: null, afternoon: null }
-            };
             dayRecord.sessions.afternoon = {
               status: sessionRecord.sessions.afternoon.status as 'present' | 'absent'
             };
-            dayRecordsMap.set(dateStr, dayRecord);
+            console.log('[STUDENT SERVICE] Set afternoon session:', dayRecord.sessions.afternoon);
           }
-          // Update overall day status
-          const dayRecord = dayRecordsMap.get(dateStr);
-          if (dayRecord) {
-            const morningStatus = dayRecord.sessions.morning?.status;
-            const afternoonStatus = dayRecord.sessions.afternoon?.status;
-            if (morningStatus === 'present' || afternoonStatus === 'present') {
-              dayRecord.status = 'present';
-            } else if (morningStatus === 'absent' || afternoonStatus === 'absent') {
-              dayRecord.status = 'absent';
-            }
+
+          // Update overall day status based on sessions
+          const morningStatus = dayRecord.sessions.morning?.status;
+          const afternoonStatus = dayRecord.sessions.afternoon?.status;
+          
+          if (morningStatus === 'present' || afternoonStatus === 'present') {
+            dayRecord.status = 'present';
+          } else if ((morningStatus === 'absent' && afternoonStatus === 'absent') || 
+                     (morningStatus === 'absent' && !afternoonStatus) || 
+                     (afternoonStatus === 'absent' && !morningStatus)) {
+            dayRecord.status = 'absent';
+          } else {
+            dayRecord.status = 'no-class';
           }
+
+          console.log('[STUDENT SERVICE] Final day record:', {
+            date: dayRecord.dateString,
+            status: dayRecord.status,
+            sessions: dayRecord.sessions
+          });
+
+          dayRecordsMap.set(dateStr, dayRecord);
           return; // Skip the rest of processing for this record
         }
         // Handle session documents with students array (fallback)
