@@ -1268,8 +1268,8 @@ exports.getMyAttendance = async (req, res) => {
     // Try school-specific database first
     let attendanceRecords = [];
     try {
-      const DatabaseManager = require('../utils/databaseManager');
-      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+      const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+      const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
       const attendanceCollection = schoolConn.collection('attendances');
       
       // Debug: Check what attendance records exist in the collection
@@ -1303,11 +1303,11 @@ exports.getMyAttendance = async (req, res) => {
           
           if (studentRecord) {
             attendanceRecords.push({
-              _id: `${sessionDoc._id}_${studentUserId}`,
+              _id: `${sessionDoc.dateString || sessionDoc.date}_${sessionDoc.class}_${sessionDoc.section}_${sessionDoc.session}_${studentUserId}`,
               date: sessionDoc.date,
               dateString: sessionDoc.dateString,
-              session: sessionDoc.session,
-              status: studentRecord.status,
+              session: sessionDoc.session, // 'morning' or 'afternoon'
+              status: studentRecord.status, // 'present' or 'absent'
               studentId: studentUserId,
               class: sessionDoc.class,
               section: sessionDoc.section,

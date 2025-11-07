@@ -21,7 +21,7 @@ export interface AttendanceRecord {
   date: string;
   dateString?: string;
   dayOfWeek?: string;
-  status: 'present' | 'absent' | 'half_day';
+  status: 'present' | 'absent' | 'half_day' | 'no-class';
   sessions: {
     morning: {
       status: 'present' | 'absent';
@@ -115,31 +115,145 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
     console.log('[STUDENT SERVICE] Attendance response:', response.data);
     
     if (response.data?.success && response.data?.data) {
-      return {
-        records: response.data.data.records || [],
-        stats: response.data.data.summary || { 
-          totalDays: 0, 
-          presentDays: 0, 
-          absentDays: 0, 
-          lateDays: 0,
-          halfDays: 0,
-          leaveDays: 0,
-          attendancePercentage: 0 
+      // Handle different response structures
+      let rawRecords = [];
+      
+      if (response.data.data.records && Array.isArray(response.data.data.records)) {
+        rawRecords = response.data.data.records;
+      } else if (Array.isArray(response.data.data)) {
+        rawRecords = response.data.data;
+      } else {
+        console.warn('[STUDENT SERVICE] Unexpected data structure:', response.data.data);
+        rawRecords = [];
+      }
+      
+      console.log('[STUDENT SERVICE] Raw records count:', rawRecords.length);
+      console.log('[STUDENT SERVICE] Sample raw record:', rawRecords[0]);
+      
+      // Transform session-based records to day-based records
+      const dayRecordsMap = new Map<string, AttendanceRecord>();
+      
+      rawRecords.forEach((sessionRecord: any) => {
+        // Handle different date formats
+        let dateStr: string;
+        if (sessionRecord.date) {
+          dateStr = new Date(sessionRecord.date).toISOString().split('T')[0];
+        } else if (sessionRecord.dateString) {
+          dateStr = sessionRecord.dateString;
+        } else {
+          console.warn('[STUDENT SERVICE] No date found in record:', sessionRecord);
+          return;
         }
+        
+        console.log(`[STUDENT SERVICE] Raw record for ${dateStr}:`, {
+          _id: sessionRecord._id,
+          date: sessionRecord.date,
+          dateString: sessionRecord.dateString,
+          status: sessionRecord.status,
+          session: sessionRecord.session
+        });
+        
+        // Determine session from the record
+        let session: string | null = null;
+        let sessionStatus: string = 'no-class';
+        
+        // Method 1: Check if session is directly in the record
+        if (sessionRecord.session) {
+          session = sessionRecord.session;
+          sessionStatus = sessionRecord.status || 'no-class';
+        }
+        // Method 2: Extract from _id field if it follows the pattern
+        else if (sessionRecord._id && typeof sessionRecord._id === 'string') {
+          const idParts = sessionRecord._id.split('_');
+          if (idParts.length >= 4) {
+            session = idParts[3]; // 'morning' or 'afternoon'
+            sessionStatus = sessionRecord.status || 'no-class';
+          }
+        }
+        // Method 3: Check if there are students array with session info
+        else if (sessionRecord.students && Array.isArray(sessionRecord.students)) {
+          // This is a session document, extract student's attendance
+          // Note: We'll get userData outside the loop to avoid async issues
+          session = sessionRecord.session || 'unknown';
+          sessionStatus = 'no-class'; // Default, will be updated if student found
+        }
+        
+        console.log(`[STUDENT SERVICE] Processing ${dateStr} ${session}: ${sessionStatus}`);
+        
+        if (!dayRecordsMap.has(dateStr)) {
+          dayRecordsMap.set(dateStr, {
+            _id: dateStr,
+            date: sessionRecord.date || new Date(dateStr).toISOString(),
+            status: 'no-class', // Will be updated based on sessions
+            sessions: {
+              morning: null,
+              afternoon: null
+            }
+          });
+        }
+        
+        const dayRecord = dayRecordsMap.get(dateStr)!;
+        
+        if (session === 'morning') {
+          dayRecord.sessions.morning = { status: sessionStatus as 'present' | 'absent' };
+        } else if (session === 'afternoon') {
+          dayRecord.sessions.afternoon = { status: sessionStatus as 'present' | 'absent' };
+        }
+        
+        // Update overall day status based on sessions
+        const morningStatus = dayRecord.sessions.morning?.status;
+        const afternoonStatus = dayRecord.sessions.afternoon?.status;
+        
+        if (morningStatus === 'present' || afternoonStatus === 'present') {
+          dayRecord.status = 'present';
+        } else if (morningStatus === 'absent' || afternoonStatus === 'absent') {
+          dayRecord.status = 'absent';
+        } else if (morningStatus === 'no-class' && afternoonStatus === 'no-class') {
+          dayRecord.status = 'no-class';
+        }
+      });
+      
+      const transformedRecords = Array.from(dayRecordsMap.values());
+      
+      console.log('[STUDENT SERVICE] Transformed records count:', transformedRecords.length);
+      console.log('[STUDENT SERVICE] Sample transformed record:', transformedRecords[0]);
+      
+      // Debug: Log all transformed records with their dates
+      transformedRecords.forEach((record, index) => {
+        console.log(`[STUDENT SERVICE] Record ${index + 1}: ${record._id} (${new Date(record.date).toISOString().split('T')[0]}) - Status: ${record.status}`, {
+          morning: record.sessions.morning?.status || 'null',
+          afternoon: record.sessions.afternoon?.status || 'null'
+        });
+      });
+      
+      // Sort records by date for proper display
+      transformedRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      // Calculate stats from transformed records
+      const stats = {
+        totalDays: transformedRecords.length,
+        presentDays: transformedRecords.filter(r => r.status === 'present').length,
+        absentDays: transformedRecords.filter(r => r.status === 'absent').length,
+        lateDays: 0,
+        halfDays: 0,
+        leaveDays: 0,
+        attendancePercentage: 0
+      };
+      
+      if (stats.totalDays > 0) {
+        stats.attendancePercentage = Math.round((stats.presentDays / stats.totalDays) * 100);
+      }
+      
+      return {
+        records: transformedRecords,
+        stats: response.data.data.summary || stats
       };
     }
     
-    return {
-      records: [],
-      stats: { totalDays: 0, presentDays: 0, absentDays: 0, lateDays: 0, halfDays: 0, leaveDays: 0, attendancePercentage: 0 }
-    };
-  } catch (error: any) {
+    return { records: [], stats: { totalDays: 0, presentDays: 0, absentDays: 0, lateDays: 0, halfDays: 0, leaveDays: 0, attendancePercentage: 0 } };
+  } catch (error) {
     console.error('[STUDENT SERVICE] Error fetching attendance:', error);
-    console.error('[STUDENT SERVICE] Error response:', error?.response?.data);
-    return {
-      records: [],
-      stats: { totalDays: 0, presentDays: 0, absentDays: 0, lateDays: 0, halfDays: 0, leaveDays: 0, attendancePercentage: 0 }
-    };
+    return { records: [], stats: { totalDays: 0, presentDays: 0, absentDays: 0, lateDays: 0, halfDays: 0, leaveDays: 0, attendancePercentage: 0 } };
   }
 }
 
@@ -151,15 +265,182 @@ export async function getStudentResults(): Promise<Result[]> {
     if (!userData) throw new Error('No user data found');
     
     const user = JSON.parse(userData);
-    console.log('[STUDENT SERVICE] User ID for results:', user.userId || user._id);
+    const studentId = user.userId || user._id;
+    console.log('[STUDENT SERVICE] User ID for results:', studentId);
     
-    const response = await api.get(`/results/student/${user.userId || user._id}/history`);
-    console.log('[STUDENT SERVICE] Results response:', response.data);
+    // Try multiple endpoints to get results
+    let response;
+    let rawResults = [];
     
-    const results = response.data.results || response.data.data || [];
-    console.log('[STUDENT SERVICE] Parsed results count:', results.length);
+    try {
+      // First try the student-specific history endpoint
+      response = await api.get(`/results/student/${studentId}/history`);
+      console.log('[STUDENT SERVICE] History endpoint response:', response.data);
+      
+      if (response.data?.success && response.data?.results) {
+        rawResults = response.data.results;
+      } else if (response.data?.success && Array.isArray(response.data?.data)) {
+        rawResults = response.data.data;
+      }
+      
+      // If no results found but endpoint succeeded, it might have created sample data
+      // Try again after a short delay
+      if (rawResults.length === 0 && response.data?.success) {
+        console.log('[STUDENT SERVICE] No results found, retrying after potential sample data creation...');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        
+        const retryResponse = await api.get(`/results/student/${studentId}/history`);
+        console.log('[STUDENT SERVICE] Retry response:', retryResponse.data);
+        
+        if (retryResponse.data?.success && retryResponse.data?.results) {
+          rawResults = retryResponse.data.results;
+        } else if (retryResponse.data?.success && Array.isArray(retryResponse.data?.data)) {
+          rawResults = retryResponse.data.data;
+        }
+      }
+    } catch (historyError) {
+      console.log('[STUDENT SERVICE] History endpoint failed:', historyError);
+      
+      try {
+        // Try alternative student endpoint
+        response = await api.get(`/results/student/${studentId}`);
+        console.log('[STUDENT SERVICE] Student endpoint response:', response.data);
+        
+        if (response.data?.success && response.data?.results) {
+          rawResults = response.data.results;
+        } else if (response.data?.success && Array.isArray(response.data?.data)) {
+          rawResults = response.data.data;
+        }
+      } catch (altError) {
+        console.log('[STUDENT SERVICE] Student endpoint failed:', altError);
+        
+        try {
+          // Try general results endpoint with student filtering
+          response = await api.get('/results', { params: { studentId } });
+          console.log('[STUDENT SERVICE] General results endpoint response:', response.data);
+          
+          if (response.data?.success && response.data?.data) {
+            rawResults = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
+          } else if (Array.isArray(response.data)) {
+            rawResults = response.data;
+          }
+        } catch (generalError) {
+          console.log('[STUDENT SERVICE] All endpoints failed:', generalError);
+          return [];
+        }
+      }
+    }
     
-    return results;
+    console.log('[STUDENT SERVICE] Raw results count:', rawResults.length);
+    console.log('[STUDENT SERVICE] Sample raw result:', rawResults[0]);
+    
+    if (!Array.isArray(rawResults) || rawResults.length === 0) {
+      console.log('[STUDENT SERVICE] No valid results found');
+      return [];
+    }
+    
+    // Transform the results to match the expected format
+    const transformedResults = rawResults.map((result: any) => {
+      console.log('[STUDENT SERVICE] Processing result:', result);
+      
+      // Handle different result structures
+      let subjects = [];
+      let examType = 'Exam';
+      let overallPercentage = 0;
+      let overallGrade = 'N/A';
+      let rank = null;
+      let academicYear = '2024-25';
+      
+      // Extract exam type
+      if (result.examType) {
+        examType = result.examType;
+      } else if (result.examDetails?.examType) {
+        examType = result.examDetails.examType;
+      } else if (result.subjects?.[0]?.testType) {
+        examType = result.subjects[0].testType;
+      }
+      
+      // Extract subjects
+      if (result.subjects && Array.isArray(result.subjects)) {
+        subjects = result.subjects.map((subject: any) => {
+          // Handle different subject structures
+          let subjectName = subject.subjectName || subject.subject || 'Unknown Subject';
+          let marksObtained = 0;
+          let totalMarks = 100;
+          let grade = subject.grade || '';
+          let percentage = 0;
+          
+          // Extract marks - handle nested structure
+          if (subject.total) {
+            marksObtained = subject.total.marksObtained || subject.total.obtainedMarks || 0;
+            totalMarks = subject.total.maxMarks || subject.total.totalMarks || 100;
+            percentage = subject.total.percentage || 0;
+            grade = subject.total.grade || grade;
+          } else {
+            marksObtained = subject.marksObtained || subject.obtainedMarks || 0;
+            totalMarks = subject.totalMarks || subject.maxMarks || 100;
+            percentage = subject.percentage || 0;
+          }
+          
+          // Calculate percentage if not provided
+          if (percentage === 0 && totalMarks > 0) {
+            percentage = (marksObtained / totalMarks) * 100;
+          }
+          
+          return {
+            subjectName,
+            marksObtained,
+            totalMarks,
+            grade,
+            percentage: Math.round(percentage * 100) / 100
+          };
+        });
+      }
+      
+      // Calculate overall statistics
+      if (subjects.length > 0) {
+        const totalMarks = subjects.reduce((sum: number, s: any) => sum + s.totalMarks, 0);
+        const obtainedMarks = subjects.reduce((sum: number, s: any) => sum + s.marksObtained, 0);
+        overallPercentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
+        overallGrade = subjects[0]?.grade || 'N/A';
+      }
+      
+      // Extract other fields
+      if (result.overallResult) {
+        overallPercentage = result.overallResult.percentage || overallPercentage;
+        overallGrade = result.overallResult.grade || overallGrade;
+        rank = result.overallResult.rank;
+      } else if (result.percentage !== undefined) {
+        overallPercentage = result.percentage;
+      }
+      
+      if (result.classDetails?.academicYear) {
+        academicYear = result.classDetails.academicYear;
+      } else if (result.academicYear) {
+        academicYear = result.academicYear;
+      }
+      
+      if (result.rank !== undefined) {
+        rank = result.rank;
+      }
+      
+      const transformedResult = {
+        _id: result._id || result.resultId || `result_${Date.now()}`,
+        examType,
+        subjects,
+        overallPercentage: Math.round(overallPercentage * 100) / 100,
+        overallGrade,
+        rank,
+        academicYear
+      };
+      
+      console.log('[STUDENT SERVICE] Transformed result:', transformedResult);
+      return transformedResult;
+    });
+    
+    console.log('[STUDENT SERVICE] Final transformed results count:', transformedResults.length);
+    
+    return transformedResults;
   } catch (error: any) {
     console.error('[STUDENT SERVICE] Error fetching results:', error);
     console.error('[STUDENT SERVICE] Error response:', error?.response?.data);

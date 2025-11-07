@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
@@ -16,6 +16,7 @@ export default function HomeScreen() {
   const [messages, setMessages] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [attendanceStats, setAttendanceStats] = useState({ attendancePercentage: 0, presentDays: 0, totalDays: 0 });
+  const [todayAttendance, setTodayAttendance] = useState<any>(null);
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,6 +47,14 @@ export default function HomeScreen() {
       setMessages(messagesData.slice(0, 3));
       setAssignments(assignmentsData.slice(0, 3));
       setAttendanceStats(attendanceData.stats);
+      
+      // Get today's attendance
+      const today = new Date().toISOString().split('T')[0];
+      const todayRecord = attendanceData.records.find(record => 
+        record.date.split('T')[0] === today
+      );
+      setTodayAttendance(todayRecord);
+      
       setResults(resultsData.slice(0, 3));
     } catch (error) {
       console.error('Error loading home data:', error);
@@ -99,7 +108,12 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.logoIcon}>🎓</Text>
+            <Image 
+              source={require('@/assets/images/logo.png')} 
+              style={styles.logoIcon}
+              tintColor={isDark ? '#FFFFFF' : '#000000'}
+              resizeMode="contain"
+            />
             <Text style={styles.logoText}>EduLogix</Text>
           </View>
           <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/menu')}>
@@ -205,10 +219,47 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Attendance Overview</Text>
+            <Text style={styles.sectionTitle}>Today's Attendance</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/attendance')}>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
+          </View>
+
+          <View style={styles.todayAttendanceCard}>
+            <View style={styles.todayAttendanceHeader}>
+              <Text style={styles.todayAttendanceTitle}>
+                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+              </Text>
+            </View>
+            {todayAttendance ? (
+              <View style={styles.sessionsContainer}>
+                <View style={styles.sessionItem}>
+                  <View style={styles.sessionInfo}>
+                    <Text style={styles.sessionLabel}>Morning</Text>
+                    <Text style={styles.sessionTime}>8:00 AM - 12:00 PM</Text>
+                  </View>
+                  <View style={[styles.sessionDot, { 
+                    backgroundColor: todayAttendance?.sessions?.morning?.status === 'present' ? '#4ADE80' : 
+                                   todayAttendance?.sessions?.morning?.status === 'absent' ? '#EF4444' : '#D1D5DB' 
+                  }]} />
+                </View>
+                <View style={styles.sessionItem}>
+                  <View style={styles.sessionInfo}>
+                    <Text style={styles.sessionLabel}>Afternoon</Text>
+                    <Text style={styles.sessionTime}>1:00 PM - 4:00 PM</Text>
+                  </View>
+                  <View style={[styles.sessionDot, { 
+                    backgroundColor: todayAttendance?.sessions?.afternoon?.status === 'present' ? '#4ADE80' : 
+                                   todayAttendance?.sessions?.afternoon?.status === 'absent' ? '#EF4444' : '#D1D5DB' 
+                  }]} />
+                </View>
+              </View>
+            ) : (
+              <View style={styles.noDataContainer}>
+                <Text style={styles.noDataText}>No attendance marked for today</Text>
+                <Text style={styles.noDataSubtext}>Attendance will appear here once marked by your teacher</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.attendanceCard}>
@@ -223,7 +274,7 @@ export default function HomeScreen() {
               <View style={styles.attendanceStat}>
                 <View style={[styles.statusDot, { backgroundColor: '#4ADE80' }]} />
                 <View>
-                  <Text style={styles.attendanceStatLabel}>Attended</Text>
+                  <Text style={styles.attendanceStatLabel}>Overall Attendance</Text>
                   <Text style={styles.attendanceStatValue}>
                     {attendanceStats.presentDays || 0}/{attendanceStats.totalDays || 0} days
                   </Text>
@@ -261,7 +312,8 @@ function getStyles(isDark: boolean) {
     alignItems: 'center',
     },
     logoIcon: {
-      fontSize: 24,
+      width: 24,
+      height: 24,
       marginRight: 8,
     },
     logoText: {
@@ -494,6 +546,65 @@ function getStyles(isDark: boolean) {
     attendanceStatValue: {
       fontSize: 12,
       color: isDark ? '#9CA3AF' : '#6B7280',
-  },
+    },
+    todayAttendanceCard: {
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 2,
+      borderColor: isDark ? '#1F2937' : '#93C5FD',
+      marginBottom: 12,
+    },
+    todayAttendanceHeader: {
+      marginBottom: 16,
+    },
+    todayAttendanceTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: isDark ? '#93C5FD' : '#1E3A8A',
+      textAlign: 'center',
+    },
+    sessionsContainer: {
+      gap: 12,
+    },
+    sessionItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 8,
+    },
+    sessionInfo: {
+      flex: 1,
+    },
+    sessionLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: isDark ? '#E5E7EB' : '#1F2937',
+    },
+    sessionTime: {
+      fontSize: 12,
+      color: isDark ? '#9CA3AF' : '#6B7280',
+      marginTop: 2,
+    },
+    sessionDot: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+    },
+    noDataContainer: {
+      alignItems: 'center',
+      paddingVertical: 20,
+    },
+    noDataText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: isDark ? '#9CA3AF' : '#6B7280',
+      marginBottom: 4,
+    },
+    noDataSubtext: {
+      fontSize: 12,
+      color: isDark ? '#6B7280' : '#9CA3AF',
+      textAlign: 'center',
+    },
 });
 }

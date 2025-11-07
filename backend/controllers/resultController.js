@@ -356,8 +356,8 @@ exports.getStudentResultHistory = async (req, res) => {
     // Try school-specific database first
     let results = [];
     try {
-      const DatabaseManager = require('../utils/databaseManager');
-      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+      const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+      const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
       const resultsCollection = schoolConn.collection('results');
 
       // Debug: Check what results exist in the collection
@@ -631,8 +631,8 @@ exports.saveResults = async (req, res) => {
       });
     }
 
-    const DatabaseManager = require('../utils/databaseManager');
-    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
     const savedResults = [];
@@ -821,8 +821,8 @@ exports.getResults = async (req, res) => {
       });
     }
 
-    const DatabaseManager = require('../utils/databaseManager');
-    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
     const query = {
@@ -958,8 +958,8 @@ exports.updateResult = async (req, res) => {
       });
     }
 
-    const DatabaseManager = require('../utils/databaseManager');
-    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
     const { ObjectId } = require('mongodb');
 
@@ -1087,8 +1087,8 @@ exports.freezeResults = async (req, res) => {
       });
     }
 
-    const DatabaseManager = require('../utils/databaseManager');
-    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
     const now = new Date();
@@ -1156,8 +1156,8 @@ exports.getResultsForTeacher = async (req, res) => {
       });
     }
 
-    const DatabaseManager = require('../utils/databaseManager');
-    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
     const query = {
@@ -1403,6 +1403,140 @@ exports.getClassPerformanceStats = async (req, res) => {
       message: 'Error fetching class performance stats',
       error: error.message
     });
+  }
+};
+
+// ---------------------------------------------------------
+// Helper function to create sample results data for testing
+// ---------------------------------------------------------
+const createSampleResultsData = async (resultsCollection, studentId, schoolCode) => {
+  try {
+    console.log(`[CREATE SAMPLE RESULTS] Creating sample results for student: ${studentId}, school: ${schoolCode}`);
+    
+    const sampleResults = [
+      {
+        _id: `result_${studentId}_midterm_2024`,
+        schoolCode: schoolCode.toUpperCase(),
+        studentId: studentId,
+        examType: 'Mid Term Examination',
+        academicYear: '2024-25',
+        subjects: [
+          {
+            subjectName: 'Mathematics',
+            testType: 'Mid Term',
+            maxMarks: 100,
+            obtainedMarks: 85,
+            totalMarks: 100,
+            grade: 'A',
+            percentage: 85.0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            subjectName: 'Science',
+            testType: 'Mid Term',
+            maxMarks: 100,
+            obtainedMarks: 78,
+            totalMarks: 100,
+            grade: 'B+',
+            percentage: 78.0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            subjectName: 'English',
+            testType: 'Mid Term',
+            maxMarks: 100,
+            obtainedMarks: 92,
+            totalMarks: 100,
+            grade: 'A+',
+            percentage: 92.0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            subjectName: 'Social Studies',
+            testType: 'Mid Term',
+            maxMarks: 100,
+            obtainedMarks: 80,
+            totalMarks: 100,
+            grade: 'A',
+            percentage: 80.0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        ],
+        overallResult: {
+          totalMarks: 335,
+          maxMarks: 400,
+          percentage: 83.75,
+          grade: 'A',
+          rank: 5
+        },
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        _id: `result_${studentId}_unit1_2024`,
+        schoolCode: schoolCode.toUpperCase(),
+        studentId: studentId,
+        examType: 'Unit Test 1',
+        academicYear: '2024-25',
+        subjects: [
+          {
+            subjectName: 'Mathematics',
+            testType: 'Unit Test',
+            maxMarks: 50,
+            obtainedMarks: 42,
+            totalMarks: 50,
+            grade: 'A',
+            percentage: 84.0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            subjectName: 'Science',
+            testType: 'Unit Test',
+            maxMarks: 50,
+            obtainedMarks: 38,
+            totalMarks: 50,
+            grade: 'B+',
+            percentage: 76.0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            subjectName: 'English',
+            testType: 'Unit Test',
+            maxMarks: 50,
+            obtainedMarks: 45,
+            totalMarks: 50,
+            grade: 'A+',
+            percentage: 90.0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        ],
+        overallResult: {
+          totalMarks: 125,
+          maxMarks: 150,
+          percentage: 83.33,
+          grade: 'A',
+          rank: 3
+        },
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ];
+
+    // Insert sample results
+    await resultsCollection.insertMany(sampleResults);
+    console.log(`[CREATE SAMPLE RESULTS] Successfully created ${sampleResults.length} sample results`);
+    
+    return sampleResults;
+  } catch (error) {
+    console.error('[CREATE SAMPLE RESULTS] Error creating sample results:', error);
+    return [];
   }
 };
 

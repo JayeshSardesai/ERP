@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -54,7 +54,12 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.logoContainer}>
             <View style={styles.logoPlaceholder}>
-              <Text style={styles.logoText}>🎓</Text>
+              <Image 
+                source={require('@/assets/images/logo.png')} 
+                style={styles.logoImage}
+                tintColor={isDark ? '#FFFFFF' : '#000000'}
+                resizeMode="contain"
+              />
               <Text style={styles.logoTitle}>EduLogix</Text>
               <Text style={styles.logoSubtitle}>EMPOWERING TECHNOLOGIES</Text>
             </View>
@@ -79,15 +84,14 @@ export default function LoginScreen() {
 
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email</Text>
+              <Text style={styles.inputLabel}>Email or Student ID</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email"
+                placeholder="Enter your email or student ID"
                 placeholderTextColor={isDark ? '#6B7280' : '#93C5FD'}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
-                keyboardType="email-address"
               />
             </View>
 
@@ -123,7 +127,7 @@ function getStyles(isDark: boolean) {
     scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 40 },
     logoContainer: { alignItems: 'center', marginTop: 20, marginBottom: 30 },
     logoPlaceholder: { alignItems: 'center' },
-    logoText: { fontSize: 60, marginBottom: 10 },
+    logoImage: { width: 80, height: 80, marginBottom: 10 },
     logoTitle: { fontSize: 32, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', marginBottom: 4 },
     logoSubtitle: { fontSize: 10, color: isDark ? '#93C5FD' : '#1E3A8A', letterSpacing: 2 },
     welcomeContainer: { alignItems: 'center', marginBottom: 24 },

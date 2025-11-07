@@ -60,11 +60,28 @@ export default function AttendanceScreen() {
 
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = new Date(year, month, i).toISOString().split('T')[0];
-      const record = attendanceRecords.find(r => r.date.split('T')[0] === dateStr);
+      
+      // More robust date matching - try multiple formats
+      const record = attendanceRecords.find(r => {
+        if (!r.date) return false;
+        
+        // Try direct date comparison
+        const recordDateStr = new Date(r.date).toISOString().split('T')[0];
+        if (recordDateStr === dateStr) return true;
+        
+        // Try _id based matching (in case _id contains the date)
+        if (r._id && r._id.startsWith(dateStr)) return true;
+        
+        return false;
+      });
+      
+      console.log(`[ATTENDANCE CALENDAR] Date ${dateStr} (day ${i}): ${record ? 'Found record' : 'No record'} - Status: ${record?.status || 'no-class'}`);
+      
       days.push({
         day: i,
         month: 'current',
-        status: record ? record.status : 'no-class'
+        status: record ? record.status : 'no-class',
+        sessions: record ? record.sessions : { morning: null, afternoon: null }
       });
     }
 
@@ -151,14 +168,20 @@ export default function AttendanceScreen() {
                   onPress={() => day.month === 'current' && setSelectedDate(day.day)}
                 >
                   <Text style={getDateStyle(day)}>{day.day}</Text>
-                  {day.status === 'present' && day.month === 'current' && (
+                  {day.month === 'current' && (
                     <View style={calendarStyles.statusDot}>
-                      <View style={[calendarStyles.dot, { backgroundColor: '#4ADE80' }]} />
-                    </View>
-                  )}
-                  {day.status === 'absent' && day.month === 'current' && (
-                    <View style={calendarStyles.statusDot}>
-                      <View style={[calendarStyles.dot, { backgroundColor: '#EF4444' }]} />
+                      {/* Morning session dot */}
+                      <View style={[calendarStyles.dot, { 
+                        backgroundColor: day.sessions?.morning?.status === 'present' ? '#4ADE80' : 
+                                       day.sessions?.morning?.status === 'absent' ? '#EF4444' : 
+                                       day.sessions?.morning === null ? '#D1D5DB' : '#F3F4F6'
+                      }]} />
+                      {/* Afternoon session dot */}
+                      <View style={[calendarStyles.dot, { 
+                        backgroundColor: day.sessions?.afternoon?.status === 'present' ? '#4ADE80' : 
+                                       day.sessions?.afternoon?.status === 'absent' ? '#EF4444' : 
+                                       day.sessions?.afternoon === null ? '#D1D5DB' : '#F3F4F6'
+                      }]} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -179,9 +202,22 @@ export default function AttendanceScreen() {
                 <Text style={styles.legendText}>No Class</Text>
               </View>
             </View>
+            
+            <View style={styles.sessionLegendContainer}>
+              <Text style={styles.sessionLegendTitle}>Session Indicators:</Text>
+              <View style={styles.sessionLegendRow}>
+                <Text style={styles.sessionLegendText}>Left dot: Morning • Right dot: Afternoon</Text>
+              </View>
+            </View>
 
             <View style={styles.divider} />
             <Text style={styles.sessionInfo}>Attendance tracking for {monthYear}</Text>
+            {attendanceRecords.length === 0 && (
+              <View style={styles.noRecordsContainer}>
+                <Text style={styles.noRecordsText}>No attendance records found</Text>
+                <Text style={styles.noRecordsSubtext}>Your attendance will appear here once your teacher starts marking attendance</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -247,6 +283,13 @@ function getStyles(isDark: boolean) {
     statusDot: { width: 12, height: 12, borderRadius: 6, marginRight: 8 },
     attendanceStatLabel: { fontSize: 14, fontWeight: '600', color: isDark ? '#E5E7EB' : '#1F2937' },
     attendanceStatValue: { fontSize: 12, color: isDark ? '#9CA3AF' : '#6B7280' },
+    sessionLegendContainer: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: isDark ? '#1F2937' : '#E5E7EB' },
+    sessionLegendTitle: { fontSize: 12, fontWeight: '600', color: isDark ? '#93C5FD' : '#1E3A8A', marginBottom: 4 },
+    sessionLegendRow: { alignItems: 'center' },
+    sessionLegendText: { fontSize: 11, color: isDark ? '#9CA3AF' : '#6B7280', textAlign: 'center' },
+    noRecordsContainer: { alignItems: 'center', paddingVertical: 20, marginTop: 12 },
+    noRecordsText: { fontSize: 14, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 4 },
+    noRecordsSubtext: { fontSize: 12, color: isDark ? '#6B7280' : '#9CA3AF', textAlign: 'center', paddingHorizontal: 20 },
   });
 }
 
@@ -264,6 +307,6 @@ function getCalendarStyles(isDark: boolean) {
     absentText: { color: '#DC2626' },
     noClassText: { color: '#9CA3AF' },
     statusDot: { position: 'absolute', bottom: 4, flexDirection: 'row', gap: 2 },
-    dot: { width: 4, height: 4, borderRadius: 2 },
+    dot: { width: 6, height: 6, borderRadius: 3 },
   });
 }
