@@ -27,28 +27,28 @@ export default function TabLayout() {
         name="assignments"
         options={{
           title: 'Assignments',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.text" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.text.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="attendance"
         options={{
           title: 'Attendance',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.badge.checkmark" color={color} />,
         }}
       />
       <Tabs.Screen
         name="results"
         options={{
           title: 'Results',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="activity"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="safari.fill" color={color} />,
+          title: 'Messages',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="message.fill" color={color} />,
         }}
       />
     </Tabs>

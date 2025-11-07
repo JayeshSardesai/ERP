@@ -133,42 +133,45 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
       // Transform session-based records to day-based records
       const dayRecordsMap = new Map<string, AttendanceRecord>();
       
+      // Get user data once before processing records
+      const userData = JSON.parse(await AsyncStorage.getItem('userData') || '{}');
+      const studentUserId = userData.userId || userData._id;
+      
       rawRecords.forEach((sessionRecord: any) => {
-        // Handle different date formats
+        // Use dateString if available, otherwise extract from date
         let dateStr: string;
-        if (sessionRecord.date) {
-          dateStr = new Date(sessionRecord.date).toISOString().split('T')[0];
-        } else if (sessionRecord.dateString) {
+        if (sessionRecord.dateString) {
           dateStr = sessionRecord.dateString;
+        } else if (sessionRecord.date) {
+          dateStr = new Date(sessionRecord.date).toISOString().split('T')[0];
         } else {
           console.warn('[STUDENT SERVICE] No date found in record:', sessionRecord);
           return;
         }
         
-        
-        // Determine session from the record
+        // Extract session and student's status from session document
         let session: string | null = null;
         let sessionStatus: string = 'no-class';
         
-        // Method 1: Check if session is directly in the record
-        if (sessionRecord.session) {
-          session = sessionRecord.session;
-          sessionStatus = sessionRecord.status || 'no-class';
-        }
-        // Method 2: Extract from _id field if it follows the pattern
-        else if (sessionRecord._id && typeof sessionRecord._id === 'string') {
-          const idParts = sessionRecord._id.split('_');
-          if (idParts.length >= 4) {
-            session = idParts[3]; // 'morning' or 'afternoon'
-            sessionStatus = sessionRecord.status || 'no-class';
+        // These are session documents with students array
+        if (sessionRecord.students && Array.isArray(sessionRecord.students)) {
+          session = sessionRecord.session; // 'morning' or 'afternoon'
+          
+          // Find this student in the session's student list
+          const studentRecord = sessionRecord.students.find((s: any) => 
+            s.studentId === studentUserId || 
+            s.userId === studentUserId ||
+            s.rollNumber === studentUserId
+          );
+          
+          if (studentRecord) {
+            sessionStatus = studentRecord.status || 'no-class'; // 'present', 'absent', etc.
           }
         }
-        // Method 3: Check if there are students array with session info
-        else if (sessionRecord.students && Array.isArray(sessionRecord.students)) {
-          // This is a session document, extract student's attendance
-          // Note: We'll get userData outside the loop to avoid async issues
-          session = sessionRecord.session || 'unknown';
-          sessionStatus = 'no-class'; // Default, will be updated if student found
+        // Fallback: if it's already processed individual records
+        else if (sessionRecord.session && sessionRecord.status) {
+          session = sessionRecord.session;
+          sessionStatus = sessionRecord.status;
         }
         
         console.log(`[STUDENT SERVICE] Processing ${dateStr} ${session}: ${sessionStatus}`);
@@ -259,51 +262,51 @@ export async function getStudentResults(): Promise<Result[]> {
     let rawResults = [];
     
     try {
-      // First try the student-specific history endpoint
-      response = await api.get(`/results/student/${studentId}/history`);
-      console.log('[STUDENT SERVICE] History endpoint response:', response.data);
+      // Use the same approach as the website - /results endpoint with params
+      const userData = JSON.parse(await AsyncStorage.getItem('userData') || '{}');
+      const schoolCode = await AsyncStorage.getItem('schoolCode') || '';
       
-      if (response.data?.success && response.data?.results) {
-        rawResults = response.data.results;
-      } else if (response.data?.success && Array.isArray(response.data?.data)) {
-        rawResults = response.data.data;
+      console.log('[STUDENT SERVICE] Using website approach - schoolCode:', schoolCode);
+      
+      // First try the general results endpoint like the website does
+      response = await api.get('/results', { 
+        params: { 
+          schoolCode: schoolCode.toUpperCase(),
+          studentId: studentId
+        } 
+      });
+      console.log('[STUDENT SERVICE] Results endpoint response:', response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        rawResults = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
+      } else if (response.data?.results) {
+        rawResults = Array.isArray(response.data.results) ? response.data.results : [response.data.results];
+      } else if (Array.isArray(response.data)) {
+        rawResults = response.data;
       }
       
-      // Log if no results found
-      if (rawResults.length === 0 && response.data?.success) {
-        console.log('[STUDENT SERVICE] No results found for this student');
-      }
-    } catch (historyError) {
-      console.log('[STUDENT SERVICE] History endpoint failed:', historyError);
+      console.log('[STUDENT SERVICE] Raw results from website approach:', rawResults.length);
       
-      try {
-        // Try alternative student endpoint
-        response = await api.get(`/results/student/${studentId}`);
-        console.log('[STUDENT SERVICE] Student endpoint response:', response.data);
-        
-        if (response.data?.success && response.data?.results) {
-          rawResults = response.data.results;
-        } else if (response.data?.success && Array.isArray(response.data?.data)) {
-          rawResults = response.data.data;
-        }
-      } catch (altError) {
-        console.log('[STUDENT SERVICE] Student endpoint failed:', altError);
+      // If no results found, try the student-specific endpoint as fallback
+      if (rawResults.length === 0) {
+        console.log('[STUDENT SERVICE] No results with website approach, trying student endpoint...');
         
         try {
-          // Try general results endpoint with student filtering
-          response = await api.get('/results', { params: { studentId } });
-          console.log('[STUDENT SERVICE] General results endpoint response:', response.data);
+          response = await api.get(`/results/student/${studentId}/history`);
+          console.log('[STUDENT SERVICE] Student history endpoint response:', response.data);
           
-          if (response.data?.success && response.data?.data) {
-            rawResults = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
-          } else if (Array.isArray(response.data)) {
-            rawResults = response.data;
+          if (response.data?.success && response.data?.results) {
+            rawResults = response.data.results;
+          } else if (response.data?.success && Array.isArray(response.data?.data)) {
+            rawResults = response.data.data;
           }
-        } catch (generalError) {
-          console.log('[STUDENT SERVICE] All endpoints failed:', generalError);
-          return [];
+        } catch (studentError) {
+          console.log('[STUDENT SERVICE] Student endpoint also failed:', studentError);
         }
       }
+    } catch (error) {
+      console.log('[STUDENT SERVICE] Results fetching failed:', error);
+      return [];
     }
     
     console.log('[STUDENT SERVICE] Raw results count:', rawResults.length);

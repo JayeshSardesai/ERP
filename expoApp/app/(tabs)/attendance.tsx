@@ -70,7 +70,6 @@ export default function AttendanceScreen() {
         return recordDateStr === dateStr;
       });
       
-      console.log(`[ATTENDANCE CALENDAR] Date ${dateStr} (day ${i}): ${record ? 'Found record' : 'No record'} - Status: ${record?.status || 'no-class'}`);
       
       days.push({
         day: i,

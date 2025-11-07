@@ -334,7 +334,8 @@ const calculateClassRank = async (currentResult, schoolCode, grade, section, exa
 // ---------------------------------------------------------
 exports.getStudentResultHistory = async (req, res) => {
   try {
-    const { studentId } = req.params;
+    // Handle both URL params and query params for studentId
+    const studentId = req.params?.studentId || req.query?.studentId;
     const { academicYear, examType } = req.query;
 
     const schoolCode = req.user.schoolCode;
@@ -831,9 +832,15 @@ exports.saveResults = async (req, res) => {
 // ---------------------------------------------------------
 exports.getResults = async (req, res) => {
   try {
-    const { schoolCode, class: className, section, subject, testType, academicYear } = req.query;
+    const { schoolCode, class: className, section, subject, testType, academicYear, studentId } = req.query;
 
-    console.log('🔍 Fetching results:', { schoolCode, className, section, subject, testType, academicYear });
+    console.log('🔍 Fetching results:', { schoolCode, className, section, subject, testType, academicYear, studentId });
+
+    // If studentId is provided, use student-specific logic
+    if (studentId) {
+      console.log('🎓 Student-specific results request for:', studentId);
+      return exports.getStudentResultHistory(req, res);
+    }
 
     if (!schoolCode || !className || !section) {
       return res.status(400).json({
