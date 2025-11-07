@@ -1398,8 +1398,18 @@ exports.getMyAttendance = async (req, res) => {
 
       // Enhanced debugging for session records
       if (sessionDocuments.length > 0) {
-        console.log(`[GET MY ATTENDANCE] Processing ${sessionDocuments.length} session documents`);
-        console.log(`[GET MY ATTENDANCE] Looking for student: ${studentUserId} (type: ${typeof studentUserId})`);
+        console.log(`[GET MY ATTENDANCE] Session documents details:`, sessionDocuments.map(doc => ({
+          _id: doc._id,
+          dateString: doc.dateString,
+          session: doc.session,
+          studentsCount: doc.students?.length || 0,
+          firstStudent: doc.students?.[0] ? {
+            studentId: doc.students[0].studentId,
+            userId: doc.students[0].userId,
+            status: doc.students[0].status
+          } : null
+        })));
+
         sessionDocuments.forEach((doc, index) => {
           console.log(`[GET MY ATTENDANCE] Session ${index + 1}: ${doc.dateString} ${doc.session} - ${doc.students?.length || 0} students`);
           if (doc.students && doc.students.length > 0) {
@@ -1584,6 +1594,11 @@ exports.getMyAttendance = async (req, res) => {
     finalRecords.forEach(record => {
       console.log(`[GET MY ATTENDANCE] Final record: ${record.dateString} - Status: ${record.status} - Morning: ${record.sessions.morning?.status || 'null'} - Afternoon: ${record.sessions.afternoon?.status || 'null'}`);
       console.log(`[GET MY ATTENDANCE] Record sessions object:`, JSON.stringify(record.sessions, null, 2));
+    });
+    
+    console.log(`[GET MY ATTENDANCE] Raw attendance records found: ${attendanceRecords.length}`);
+    attendanceRecords.forEach(record => {
+      console.log(`[GET MY ATTENDANCE] Raw record: ${record.dateString} - Session: ${record.session} - Status: ${record.status}`);
     });
     
     console.log(`[GET MY ATTENDANCE] Statistics: Total Sessions: ${totalSessions}, Present Sessions: ${presentSessions}, Session-based %: ${attendancePercentage}`);
