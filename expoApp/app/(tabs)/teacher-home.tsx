@@ -31,11 +31,19 @@ export default function TeacherHomeScreen() {
       const displayName = user.name?.displayName || user.name?.firstName || 'Teacher';
       setTeacherName(displayName);
 
+      console.log('[TEACHER HOME] Fetching teacher data...');
+      
       const [messagesData, assignmentsData, classesData] = await Promise.all([
         getTeacherMessages(),
         getTeacherAssignments(),
         getClasses()
       ]);
+
+      console.log('[TEACHER HOME] Fetched data:', {
+        messages: messagesData.length,
+        assignments: assignmentsData.length,
+        classes: classesData.length
+      });
 
       setMessages(messagesData.slice(0, 3));
       setAssignments(assignmentsData.slice(0, 5));

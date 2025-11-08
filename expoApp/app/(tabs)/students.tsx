@@ -21,16 +21,35 @@ export default function StudentsScreen() {
 
   const fetchData = async () => {
     try {
-      const [classesData, studentsData] = await Promise.all([
-        getClasses(),
-        getStudentsByClassSection(selectedClass || '', selectedSection === 'ALL' ? undefined : selectedSection)
-      ]);
+      console.log('[STUDENTS] Fetching data for class:', selectedClass, 'section:', selectedSection);
       
+      const classesData = await getClasses();
       setClasses(classesData);
-      setAllStudents(studentsData);
-      setStudents(studentsData);
+      
+      // If no class is selected, try to get students from the first available class
+      let classToFetch = selectedClass;
+      if (!classToFetch && classesData.length > 0) {
+        classToFetch = classesData[0].className;
+        setSelectedClass(classToFetch);
+      }
+      
+      if (classToFetch) {
+        const studentsData = await getStudentsByClassSection(
+          classToFetch, 
+          selectedSection === 'ALL' ? undefined : selectedSection
+        );
+        console.log('[STUDENTS] Fetched', studentsData.length, 'students');
+        setAllStudents(studentsData);
+        setStudents(studentsData);
+      } else {
+        console.log('[STUDENTS] No class available to fetch students');
+        setAllStudents([]);
+        setStudents([]);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
+      setAllStudents([]);
+      setStudents([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -47,10 +66,13 @@ export default function StudentsScreen() {
   }, [params]);
 
   useEffect(() => {
-    if (selectedClass) {
-      fetchData();
-    }
+    fetchData();
   }, [selectedClass, selectedSection]);
+
+  // Initial load
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);

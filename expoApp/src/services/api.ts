@@ -26,6 +26,23 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === 'ERR_NETWORK' || error.code === 'ERR_INTERNET_DISCONNECTED') {
+      console.error('[API] Network error:', error.message);
+      // You could show a toast or notification here
+    } else if (error.response?.status === 403) {
+      console.error('[API] 403 Forbidden:', error.response.data);
+    } else if (error.response?.status === 401) {
+      console.error('[API] 401 Unauthorized:', error.response.data);
+      // Could redirect to login here
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
 
 

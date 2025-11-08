@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useRouter } from 'expo-router';
 import { getStudentAttendance, AttendanceRecord } from '@/src/services/student';
 import { getClassAttendance, getClasses, getStudentsByClassSection, markSessionAttendance, AttendanceRecord as TeacherAttendanceRecord } from '@/src/services/teacher';
 import { usePermissions } from '@/src/hooks/usePermissions';
@@ -13,6 +14,7 @@ export default function AttendanceScreen() {
   const styles = getStyles(isDark);
   const calendarStyles = getCalendarStyles(isDark);
   const { hasPermission } = usePermissions();
+  const router = useRouter();
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [stats, setStats] = useState({ 
@@ -33,6 +35,9 @@ export default function AttendanceScreen() {
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [classes, setClasses] = useState<any[]>([]);
   const [showClassSelector, setShowClassSelector] = useState<boolean>(false);
+  const [showMarkAttendance, setShowMarkAttendance] = useState<boolean>(false);
+  const [students, setStudents] = useState<any[]>([]);
+  const [attendanceData, setAttendanceData] = useState<{[key: string]: 'present' | 'absent' | 'half_day'}>({});
 
   const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -293,9 +298,20 @@ export default function AttendanceScreen() {
               {hasPermission('markAttendance') && (
                 <TouchableOpacity 
                   style={styles.markAttendanceButton}
-                  onPress={() => {
-                    // Navigate to attendance marking
-                    Alert.alert('Mark Attendance', 'Attendance marking feature coming soon!');
+                  onPress={async () => {
+                    if (!selectedClass) {
+                      Alert.alert('Select Class', 'Please select a class first');
+                      return;
+                    }
+                    // Fetch students for the selected class
+                    try {
+                      const studentsData = await getStudentsByClassSection(selectedClass, selectedSection === 'ALL' ? undefined : selectedSection);
+                      setStudents(studentsData);
+                      setAttendanceData({});
+                      setShowMarkAttendance(true);
+                    } catch (error) {
+                      Alert.alert('Error', 'Failed to load students');
+                    }
                   }}
                 >
                   <Text style={styles.markAttendanceButtonText}>Mark Attendance</Text>
@@ -437,6 +453,97 @@ export default function AttendanceScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* Attendance Marking Modal */}
+      <Modal visible={showMarkAttendance} transparent={true} animationType="slide">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Mark Attendance</Text>
+              <Text style={styles.modalSubtitle}>
+                {selectedClass} - {selectedSection} ({new Date().toLocaleDateString()})
+              </Text>
+            </View>
+            
+            <ScrollView style={styles.studentsList}>
+              {students.map((student) => (
+                <View key={student.userId} style={styles.studentRow}>
+                  <Text style={styles.studentName}>
+                    {student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.userId}
+                  </Text>
+                  <View style={styles.attendanceButtons}>
+                    {['present', 'absent', 'half_day'].map((status) => (
+                      <TouchableOpacity
+                        key={status}
+                        style={[
+                          styles.attendanceButton,
+                          attendanceData[student.userId] === status && styles.attendanceButtonSelected,
+                          status === 'present' && styles.presentButton,
+                          status === 'absent' && styles.absentButton,
+                          status === 'half_day' && styles.halfDayButton,
+                        ]}
+                        onPress={() => setAttendanceData(prev => ({
+                          ...prev,
+                          [student.userId]: status as 'present' | 'absent' | 'half_day'
+                        }))}
+                      >
+                        <Text style={[
+                          styles.attendanceButtonText,
+                          attendanceData[student.userId] === status && styles.attendanceButtonTextSelected
+                        ]}>
+                          {status === 'present' ? 'P' : status === 'absent' ? 'A' : 'H'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => setShowMarkAttendance(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.saveButton}
+                onPress={async () => {
+                  try {
+                    const attendanceRecords = Object.entries(attendanceData).map(([studentId, status]) => ({
+                      studentId,
+                      status,
+                      date: new Date().toISOString(),
+                      session: 'morning' // Default to morning session
+                    }));
+                    
+                    const success = await markSessionAttendance({
+                      className: selectedClass,
+                      section: selectedSection === 'ALL' || !selectedSection ? undefined : selectedSection,
+                      date: new Date().toISOString(),
+                      session: 'morning',
+                      attendance: attendanceRecords
+                    });
+                    
+                    if (success) {
+                      Alert.alert('Success', 'Attendance marked successfully');
+                      setShowMarkAttendance(false);
+                      fetchAttendance(); // Refresh attendance data
+                    } else {
+                      Alert.alert('Error', 'Failed to mark attendance');
+                    }
+                  } catch (error) {
+                    Alert.alert('Error', 'Failed to mark attendance');
+                  }
+                }}
+              >
+                <Text style={styles.saveButtonText}>Save Attendance</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -499,6 +606,28 @@ function getStyles(isDark: boolean) {
     noRecordsContainer: { alignItems: 'center', paddingVertical: 20, marginTop: 12 },
     noRecordsText: { fontSize: 14, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 4 },
     noRecordsSubtext: { fontSize: 12, color: isDark ? '#6B7280' : '#9CA3AF', textAlign: 'center', paddingHorizontal: 20 },
+    // Modal styles
+    modalContainer: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+    modalContent: { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderRadius: 16, padding: 20, width: '90%', maxHeight: '80%' },
+    modalHeader: { marginBottom: 20 },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: isDark ? '#E5E7EB' : '#1F2937', marginBottom: 4 },
+    modalSubtitle: { fontSize: 14, color: isDark ? '#9CA3AF' : '#6B7280' },
+    studentsList: { maxHeight: 400 },
+    studentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: isDark ? '#374151' : '#E5E7EB' },
+    studentName: { flex: 1, fontSize: 14, fontWeight: '500', color: isDark ? '#E5E7EB' : '#1F2937' },
+    attendanceButtons: { flexDirection: 'row', gap: 8 },
+    attendanceButton: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: isDark ? '#374151' : '#D1D5DB' },
+    attendanceButtonSelected: { borderWidth: 2 },
+    presentButton: { backgroundColor: isDark ? '#065F46' : '#ECFDF5' },
+    absentButton: { backgroundColor: isDark ? '#7F1D1D' : '#FEF2F2' },
+    halfDayButton: { backgroundColor: isDark ? '#92400E' : '#FFFBEB' },
+    attendanceButtonText: { fontSize: 12, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280' },
+    attendanceButtonTextSelected: { color: isDark ? '#FFFFFF' : '#1F2937' },
+    modalActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, gap: 12 },
+    cancelButton: { flex: 1, backgroundColor: isDark ? '#374151' : '#F3F4F6', borderRadius: 8, padding: 12, alignItems: 'center' },
+    cancelButtonText: { fontSize: 14, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280' },
+    saveButton: { flex: 1, backgroundColor: '#3B82F6', borderRadius: 8, padding: 12, alignItems: 'center' },
+    saveButtonText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
   });
 }
 

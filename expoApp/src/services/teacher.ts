@@ -52,6 +52,9 @@ export interface Assignment {
   section: string;
   status?: 'pending' | 'submitted' | 'graded' | 'published' | 'draft';
   maxMarks?: number;
+  totalSubmissions?: number;
+  gradedSubmissions?: number;
+  pendingSubmissions?: number;
   attachments?: Array<{
     path: string;
     originalName: string;
@@ -233,7 +236,7 @@ export async function getTeacherAssignments(): Promise<Assignment[]> {
  */
 export async function getTeacherMessages(): Promise<Message[]> {
   try {
-    const response = await api.get('/messages');
+    const response = await api.get('/messages/teacher');
     
     const messages = response.data?.data?.messages || response.data?.messages || response.data?.data || [];
     

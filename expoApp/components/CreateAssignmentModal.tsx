@@ -381,17 +381,24 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
             <View style={styles.pickerModalContainer}>
               <View style={styles.pickerModal}>
                 <Text style={styles.pickerModalTitle}>Select Start Date</Text>
-                <TextInput
-                  style={styles.textInput}
+                <input
+                  type="date"
+                  style={{
+                    width: '100%',
+                    padding: 12,
+                    borderRadius: 8,
+                    border: '1px solid #D1D5DB',
+                    fontSize: 16,
+                    backgroundColor: isDark ? '#374151' : '#FFFFFF',
+                    color: isDark ? '#FFFFFF' : '#000000'
+                  }}
                   value={startDate.toISOString().split('T')[0]}
-                  onChangeText={(text) => {
-                    const newDate = new Date(text);
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value);
                     if (!isNaN(newDate.getTime())) {
                       setStartDate(newDate);
                     }
                   }}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
                 />
                 <TouchableOpacity
                   style={styles.pickerCloseButton}
@@ -409,17 +416,24 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
             <View style={styles.pickerModalContainer}>
               <View style={styles.pickerModal}>
                 <Text style={styles.pickerModalTitle}>Select Due Date</Text>
-                <TextInput
-                  style={styles.textInput}
+                <input
+                  type="date"
+                  style={{
+                    width: '100%',
+                    padding: 12,
+                    borderRadius: 8,
+                    border: '1px solid #D1D5DB',
+                    fontSize: 16,
+                    backgroundColor: isDark ? '#374151' : '#FFFFFF',
+                    color: isDark ? '#FFFFFF' : '#000000'
+                  }}
                   value={dueDate.toISOString().split('T')[0]}
-                  onChangeText={(text) => {
-                    const newDate = new Date(text);
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value);
                     if (!isNaN(newDate.getTime())) {
                       setDueDate(newDate);
                     }
                   }}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
                 />
                 <TouchableOpacity
                   style={styles.pickerCloseButton}
