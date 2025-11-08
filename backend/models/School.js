@@ -165,9 +165,9 @@ const schoolSchema = new mongoose.Schema({
   admins: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 
   // New fields for additional school details
-  schoolType: { type: String, enum: ['Public', 'Private', 'International'], required: true },
-  establishedYear: { type: Number, required: true },
-  affiliationBoard: { type: String, enum: ['CBSE', 'ICSE', 'State Board', 'IB'], required: true },
+  schoolType: { type: String, enum: ['Public', 'Private', 'International'], default: 'Private' },
+  establishedYear: { type: Number, default: () => new Date().getFullYear() },
+  affiliationBoard: { type: String, enum: ['CBSE', 'ICSE', 'State Board', 'IB'], default: 'State Board' },
   website: { type: String },
   secondaryContact: { type: String },
   

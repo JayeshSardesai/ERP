@@ -172,15 +172,23 @@ const requireSuperAdmin = (req, res, next) => {
 const setMainDbContext = (req, res, next) => {
   try {
     console.log('[setMainDbContext] Initializing main database context');
-    req.mainDb = DatabaseManager.getMainConnection();
+    console.log('[setMainDbContext] DatabaseManager:', DatabaseManager);
+    
+    const mainDb = DatabaseManager.getMainConnection();
+    console.log('[setMainDbContext] Main connection:', mainDb);
+    console.log('[setMainDbContext] Main connection readyState:', mainDb?.readyState);
+    
+    req.mainDb = mainDb;
     console.log('[setMainDbContext] Main database context set successfully');
     next();
   } catch (error) {
     console.error('[setMainDbContext ERROR] Failed to set main database context:', error);
+    console.error('[setMainDbContext ERROR] Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error setting main database context',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

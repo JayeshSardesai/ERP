@@ -16,13 +16,18 @@ exports.sendMessage = async (req, res) => {
     }
     
     // Validate required fields according to new schema
-    const { title, subject, message, class: targetClass, section: targetSection } = req.body;
+    const { title, subject, message, class: targetClass, section: targetSection, academicYear } = req.body;
     
     if (!title || !subject || !message || !targetClass || !targetSection) {
       return res.status(400).json({
         success: false,
         message: 'Title, subject, message, class, and section are required'
       });
+    }
+    
+    // Log if academic year is missing (for debugging)
+    if (!academicYear) {
+      console.warn('⚠️ Message being sent without academic year - will not be filterable by year');
     }
 
     // Verify school ownership - use schoolId from authenticated user
@@ -149,7 +154,13 @@ exports.sendMessage = async (req, res) => {
       schoolId: userSchoolId // Store schoolId for reference
     };
     
+    // Only add academicYear if provided
+    if (academicYear) {
+      messageData.academicYear = academicYear;
+    }
+    
     console.log('✅ Message Data to be Saved:', messageData);
+    console.log('📅 Academic Year being saved:', academicYear || 'NONE');
     
     // Save message to school database instead of main database
     const messagesCollection = db.collection('messages');
@@ -307,7 +318,7 @@ exports.previewMessage = async (req, res) => {
 exports.getMessages = async (req, res) => {
   try {
     console.log('Fetching messages with filters:', req.query);
-    const { class: filterClass, section: filterSection, page = 1, limit = 20 } = req.query;
+    const { class: filterClass, section: filterSection, academicYear: filterAcademicYear, page = 1, limit = 20 } = req.query;
 
     // Get school connection for message queries
     const schoolCode = req.user.schoolCode;
@@ -351,6 +362,12 @@ exports.getMessages = async (req, res) => {
       if (filterClass && filterClass !== 'ALL') query.class = filterClass;
       if (filterSection && filterSection !== 'ALL') query.section = filterSection;
     }
+    
+    // Filter by academic year for all users
+    if (filterAcademicYear) {
+      query.academicYear = filterAcademicYear;
+      console.log(`[GET MESSAGES] Filtering by academic year: ${filterAcademicYear}`);
+    }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const messagesCollection = db.collection('messages');
@@ -373,6 +390,7 @@ exports.getMessages = async (req, res) => {
       title: msg.title,
       subject: msg.subject,
       message: msg.message,
+      academicYear: msg.academicYear, // Include academic year in response
       createdAt: msg.createdAt,
       // Manual virtual fields calculation
       messageAge: calculateMessageAge(msg.createdAt),

@@ -1508,49 +1508,81 @@ exports.updateUserPassword = async (req, res) => {
 // Get all schools (for super admin)
 exports.getAllSchools = async (req, res) => {
   try {
+    console.log('[getAllSchools] Request received');
+    console.log('[getAllSchools] User:', req.user);
+    console.log('[getAllSchools] User role:', req.user?.role);
+    
     if (req.user.role !== 'superadmin') {
+      console.log('[getAllSchools] Access denied - not superadmin');
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const schools = await School.find({})
-      .select('-__v');
+    console.log('[getAllSchools] Fetching schools from database...');
+    console.log('[getAllSchools] Mongoose connection state:', mongoose.connection.readyState);
+    console.log('[getAllSchools] Database name:', mongoose.connection.name);
+    
+    let schools;
+    try {
+      schools = await School.find({}).select('-__v').lean();
+      console.log('[getAllSchools] Found', schools.length, 'schools');
+    } catch (dbError) {
+      console.error('[getAllSchools] Database query error:', dbError);
+      console.error('[getAllSchools] Error name:', dbError.name);
+      console.error('[getAllSchools] Error code:', dbError.code);
+      console.error('[getAllSchools] Error stack:', dbError.stack);
+      throw dbError;
+    }
 
-    // Map all fields needed for frontend
-    const mappedSchools = schools.map(school => ({
-      _id: school._id,
-      id: school._id,
-      name: school.name,
-      code: school.code,
-      logoUrl: school.logoUrl,
-      address: school.address,
-      contact: school.contact,
-      area: school.address?.area || school.address?.street || '',
-      district: school.address?.district || school.address?.city || '',
-      pinCode: school.address?.pinCode || school.address?.zipCode || '',
-      mobile: school.mobile || school.contact?.phone || '',
-      principalName: school.principalName || '',
-      principalEmail: school.principalEmail || school.contact?.email || '',
-      bankDetails: school.bankDetails || {},
-      accessMatrix: school.accessMatrix || {},
-      features: school.features || {},
-      settings: school.settings || {},
-      stats: school.stats || {},
-      isActive: school.isActive,
-      establishedDate: school.establishedDate,
-      createdAt: school.createdAt,
-      updatedAt: school.updatedAt,
-      schoolType: school.schoolType,
-      establishedYear: school.establishedYear,
-      affiliationBoard: school.affiliationBoard,
-      website: school.website,
-      secondaryContact: school.secondaryContact
-    }));
+    // Map all fields needed for frontend with safe fallbacks
+    const mappedSchools = schools.map(school => {
+      try {
+        return {
+          _id: school._id,
+          id: school._id,
+          name: school.name || 'Unknown School',
+          code: school.code || 'N/A',
+          logoUrl: school.logoUrl || null,
+          address: school.address || {},
+          contact: school.contact || {},
+          area: school.address?.area || school.address?.street || '',
+          district: school.address?.district || school.address?.city || '',
+          pinCode: school.address?.pinCode || school.address?.zipCode || '',
+          mobile: school.mobile || school.contact?.phone || '',
+          principalName: school.principalName || '',
+          principalEmail: school.principalEmail || school.contact?.email || '',
+          bankDetails: school.bankDetails || {},
+          accessMatrix: school.accessMatrix || {},
+          features: school.features || {},
+          settings: school.settings || {},
+          stats: school.stats || {},
+          isActive: school.isActive !== false,
+          establishedDate: school.establishedDate || null,
+          createdAt: school.createdAt || null,
+          updatedAt: school.updatedAt || null,
+          schoolType: school.schoolType || 'Private',
+          establishedYear: school.establishedYear || new Date().getFullYear(),
+          affiliationBoard: school.affiliationBoard || 'State Board',
+          website: school.website || '',
+          secondaryContact: school.secondaryContact || ''
+        };
+      } catch (mapError) {
+        console.error('[getAllSchools] Error mapping school:', school._id, mapError);
+        return null;
+      }
+    }).filter(Boolean);
 
-    console.log(`Successfully fetched ${mappedSchools.length} schools for superadmin`);
+    console.log(`[getAllSchools] Successfully fetched ${mappedSchools.length} schools for superadmin`);
     res.json(mappedSchools);
   } catch (error) {
-    console.error('Error fetching schools:', error);
-    res.status(500).json({ message: 'Error fetching schools', error: error.message });
+    console.error('[getAllSchools] Error fetching schools:', error);
+    console.error('[getAllSchools] Error message:', error.message);
+    console.error('[getAllSchools] Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching schools', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
