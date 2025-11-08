@@ -185,22 +185,49 @@ export async function getStudentsByClassSection(className: string, section?: str
   try {
     console.log('[TEACHER SERVICE] Fetching students for class:', className, 'section:', section);
     
-    const params: any = { className };
+    const params: any = { 
+      role: 'student',
+      className: className,
+      limit: 200 // Get more students
+    };
     if (section && section !== 'ALL') {
       params.section = section;
     }
 
-    // Use the correct route path
-    const response = await api.get('/reports/students-by-class', { params });
+    // Use the users endpoint which teachers have access to
+    const response = await api.get('/users/role/student', { params });
     
     console.log('[TEACHER SERVICE] Students API response:', response.data);
     
-    if (response.data?.success && response.data?.data) {
-      console.log('[TEACHER SERVICE] Found', response.data.data.length, 'students');
-      return response.data.data;
+    if (response.data?.success && response.data?.users) {
+      const students = response.data.users.map((user: any) => ({
+        userId: user.userId || user._id,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        class: user.class || user.className,
+        section: user.section || user.sectionName,
+        rollNumber: user.rollNumber,
+        status: user.status
+      }));
+      
+      // Filter by class and section on frontend since backend might not support these filters
+      let filteredStudents = students;
+      if (className) {
+        filteredStudents = filteredStudents.filter((student: any) => 
+          student.class === className || student.class === className.toString()
+        );
+      }
+      if (section && section !== 'ALL') {
+        filteredStudents = filteredStudents.filter((student: any) => 
+          student.section === section || student.section === section.toString()
+        );
+      }
+      
+      console.log('[TEACHER SERVICE] Found', filteredStudents.length, 'students after filtering');
+      return filteredStudents;
     }
     
-    // If no data, return empty array instead of making another API call
     console.log('[TEACHER SERVICE] No students found for class:', className, 'section:', section);
     return [];
   } catch (error: any) {
@@ -504,16 +531,31 @@ export async function updateAssignment(assignmentId: string, assignmentData: Par
 }
 
 /**
- * Delete assignment
+ * Grade submission
  */
-export async function deleteAssignment(assignmentId: string): Promise<boolean> {
+export async function gradeSubmission(submissionId: string, grade: number, feedback?: string): Promise<boolean> {
   try {
-    const response = await api.delete(`/assignments/${assignmentId}`);
+    const response = await api.put(`/assignments/submissions/${submissionId}/grade`, {
+      grade,
+      feedback
+    });
+    
     return response.data?.success || false;
   } catch (error: any) {
-    console.error('[TEACHER SERVICE] Error deleting assignment:', error);
+    console.error('[TEACHER SERVICE] Error grading submission:', error);
     return false;
   }
 }
 
-
+/**
+ * Cancel/Delete an assignment
+ */
+export async function cancelAssignment(assignmentId: string): Promise<boolean> {
+  try {
+    const response = await api.delete(`/assignments/${assignmentId}`);
+    return response.data?.success || false;
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error canceling assignment:', error);
+    return false;
+  }
+}

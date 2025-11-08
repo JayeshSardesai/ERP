@@ -38,6 +38,8 @@ export default function AttendanceScreen() {
   const [showMarkAttendance, setShowMarkAttendance] = useState<boolean>(false);
   const [students, setStudents] = useState<any[]>([]);
   const [attendanceData, setAttendanceData] = useState<{[key: string]: 'present' | 'absent' | 'half_day'}>({});
+  const [selectedSession, setSelectedSession] = useState<'morning' | 'afternoon'>('morning');
+  const [attendanceDate, setAttendanceDate] = useState<Date>(new Date());
 
   const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -461,8 +463,56 @@ export default function AttendanceScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Mark Attendance</Text>
               <Text style={styles.modalSubtitle}>
-                {selectedClass} - {selectedSection} ({new Date().toLocaleDateString()})
+                {selectedClass} - {selectedSection}
               </Text>
+              
+              {/* Date and Session Selection */}
+              <View style={styles.attendanceControls}>
+                <View style={styles.controlGroup}>
+                  <Text style={styles.controlLabel}>Date:</Text>
+                  <TouchableOpacity 
+                    style={styles.dateButton}
+                    onPress={() => {
+                      // For simplicity, just use today's date
+                      setAttendanceDate(new Date());
+                    }}
+                  >
+                    <Text style={styles.dateButtonText}>
+                      {attendanceDate.toLocaleDateString()}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.controlGroup}>
+                  <Text style={styles.controlLabel}>Session:</Text>
+                  <View style={styles.sessionButtons}>
+                    <TouchableOpacity
+                      style={[
+                        styles.sessionButton,
+                        selectedSession === 'morning' && styles.sessionButtonActive
+                      ]}
+                      onPress={() => setSelectedSession('morning')}
+                    >
+                      <Text style={[
+                        styles.sessionButtonText,
+                        selectedSession === 'morning' && styles.sessionButtonTextActive
+                      ]}>Morning</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.sessionButton,
+                        selectedSession === 'afternoon' && styles.sessionButtonActive
+                      ]}
+                      onPress={() => setSelectedSession('afternoon')}
+                    >
+                      <Text style={[
+                        styles.sessionButtonText,
+                        selectedSession === 'afternoon' && styles.sessionButtonTextActive
+                      ]}>Afternoon</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
             </View>
             
             <ScrollView style={styles.studentsList}>
@@ -514,15 +564,15 @@ export default function AttendanceScreen() {
                     const attendanceRecords = Object.entries(attendanceData).map(([studentId, status]) => ({
                       studentId,
                       status,
-                      date: new Date().toISOString(),
-                      session: 'morning' // Default to morning session
+                      date: attendanceDate.toISOString(),
+                      session: selectedSession
                     }));
                     
                     const success = await markSessionAttendance({
                       className: selectedClass,
                       section: selectedSection === 'ALL' || !selectedSection ? undefined : selectedSection,
-                      date: new Date().toISOString(),
-                      session: 'morning',
+                      date: attendanceDate.toISOString(),
+                      session: selectedSession,
                       attendance: attendanceRecords
                     });
                     
@@ -628,6 +678,17 @@ function getStyles(isDark: boolean) {
     cancelButtonText: { fontSize: 14, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280' },
     saveButton: { flex: 1, backgroundColor: '#3B82F6', borderRadius: 8, padding: 12, alignItems: 'center' },
     saveButtonText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
+    // Attendance controls styles
+    attendanceControls: { marginTop: 16, gap: 12 },
+    controlGroup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    controlLabel: { fontSize: 14, fontWeight: '600', color: isDark ? '#E5E7EB' : '#1F2937', flex: 1 },
+    dateButton: { backgroundColor: isDark ? '#374151' : '#F3F4F6', borderRadius: 8, padding: 8, flex: 2 },
+    dateButtonText: { fontSize: 14, color: isDark ? '#E5E7EB' : '#1F2937', textAlign: 'center' },
+    sessionButtons: { flexDirection: 'row', gap: 8, flex: 2 },
+    sessionButton: { flex: 1, backgroundColor: isDark ? '#374151' : '#F3F4F6', borderRadius: 8, padding: 8, alignItems: 'center' },
+    sessionButtonActive: { backgroundColor: '#3B82F6' },
+    sessionButtonText: { fontSize: 12, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280' },
+    sessionButtonTextActive: { color: '#FFFFFF' },
   });
 }
 

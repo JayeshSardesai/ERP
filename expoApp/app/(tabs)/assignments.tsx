@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getStudentAssignments, Assignment as StudentAssignment } from '@/src/services/student';
-import { getTeacherAssignments, Assignment as TeacherAssignment } from '@/src/services/teacher';
+import { getTeacherAssignments, Assignment as TeacherAssignment, cancelAssignment } from '@/src/services/teacher';
 import CreateAssignmentModal from '@/components/CreateAssignmentModal';
 import { usePermissions } from '@/src/hooks/usePermissions';
 
@@ -273,6 +273,40 @@ export default function AssignmentsScreen() {
                     </Text>
                   </View>
                   {assignment.status === 'pending' && <Text style={styles.urgentIndicator}>!</Text>}
+                  {isTeacher && (
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={(e) => {
+                        e.stopPropagation(); // Prevent opening assignment detail
+                        Alert.alert(
+                          'Cancel Assignment',
+                          'Are you sure you want to cancel this assignment? This action cannot be undone.',
+                          [
+                            { text: 'No', style: 'cancel' },
+                            {
+                              text: 'Yes, Cancel',
+                              style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  const success = await cancelAssignment(assignment._id);
+                                  if (success) {
+                                    Alert.alert('Success', 'Assignment cancelled successfully');
+                                    fetchAssignments(); // Refresh the list
+                                  } else {
+                                    Alert.alert('Error', 'Failed to cancel assignment');
+                                  }
+                                } catch (error) {
+                                  Alert.alert('Error', 'Failed to cancel assignment');
+                                }
+                              }
+                            }
+                          ]
+                        );
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>✕</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </TouchableOpacity>
             ))
@@ -287,7 +321,9 @@ export default function AssignmentsScreen() {
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSuccess={() => {
-          fetchAssignments();
+          setShowCreateModal(false); // Close the modal
+          fetchAssignments(); // Refresh the assignments list
+          Alert.alert('Success', 'Assignment created successfully!');
         }}
       />
 
@@ -461,5 +497,19 @@ function getStyles(isDark: boolean) {
     attachmentName: { fontSize: 14, fontWeight: '600', color: isDark ? '#E5E7EB' : '#1F2937', marginBottom: 4 },
     attachmentSize: { fontSize: 12, color: isDark ? '#9CA3AF' : '#6B7280' },
     downloadIcon: { fontSize: 20, marginLeft: 8 },
+    cancelButton: { 
+      width: 24, 
+      height: 24, 
+      borderRadius: 12, 
+      backgroundColor: '#EF4444', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      marginTop: 8 
+    },
+    cancelButtonText: { 
+      color: '#FFFFFF', 
+      fontSize: 12, 
+      fontWeight: '600' 
+    },
   });
 }
