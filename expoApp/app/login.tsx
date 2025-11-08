@@ -57,7 +57,6 @@ export default function LoginScreen() {
               <Image
                 source={require('@/assets/images/logo.png')}
                 style={styles.logoImage}
-                tintColor={isDark ? '#FFFFFF' : '#000000'}
                 resizeMode="contain"
               />
               <Text style={styles.logoTitle}>EduLogix</Text>
@@ -71,7 +70,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.roleContainer}>
-            {(['Student', 'Teacher', 'Admin'] as const).map((role) => (
+            {(['Student', 'Teacher'] as const).map((role) => (
               <TouchableOpacity
                 key={role}
                 style={[styles.roleButton, selectedRole === role && styles.roleButtonActive]}
@@ -85,17 +84,11 @@ export default function LoginScreen() {
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>
-                {selectedRole === 'Student' ? 'Email or Student ID' : 
-                 selectedRole === 'Teacher' ? 'Email or Teacher ID' : 
-                 'Email or User ID'}
+                {selectedRole === 'Student' ? 'Email or Student ID' : 'Email or Teacher ID'}
               </Text>
               <TextInput
                 style={styles.input}
-                placeholder={
-                  selectedRole === 'Student' ? 'Enter your email or student ID' :
-                  selectedRole === 'Teacher' ? 'Enter your email or teacher ID' :
-                  'Enter your email or user ID'
-                }
+                placeholder={selectedRole === 'Student' ? 'Enter your email or student ID' : 'Enter your email or teacher ID'}
                 placeholderTextColor={isDark ? '#6B7280' : '#93C5FD'}
                 value={email}
                 onChangeText={setEmail}

@@ -209,6 +209,43 @@ const schoolSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
+// Pre-init middleware to handle stringified academicSettings
+schoolSchema.pre('init', function(doc) {
+  // Handle stringified academicSettings
+  if (doc.academicSettings && typeof doc.academicSettings === 'string') {
+    try {
+      doc.academicSettings = JSON.parse(doc.academicSettings);
+    } catch (e) {
+      console.error('[School Model] Failed to parse academicSettings:', e);
+      doc.academicSettings = {
+        schoolTypes: [],
+        customGradeNames: {},
+        gradeLevels: {}
+      };
+    }
+  }
+  
+  // Ensure academicSettings exists
+  if (!doc.academicSettings) {
+    doc.academicSettings = {
+      schoolTypes: [],
+      customGradeNames: {},
+      gradeLevels: {}
+    };
+  }
+  
+  // Convert plain objects to Maps if needed
+  if (doc.academicSettings.customGradeNames && !(doc.academicSettings.customGradeNames instanceof Map)) {
+    const obj = doc.academicSettings.customGradeNames;
+    doc.academicSettings.customGradeNames = new Map(Object.entries(obj));
+  }
+  
+  if (doc.academicSettings.gradeLevels && !(doc.academicSettings.gradeLevels instanceof Map)) {
+    const obj = doc.academicSettings.gradeLevels;
+    doc.academicSettings.gradeLevels = new Map(Object.entries(obj));
+  }
+});
+
 // Virtual for full address
 schoolSchema.virtual('fullAddress').get(function() {
   const addr = this.address;

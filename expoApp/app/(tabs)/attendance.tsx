@@ -40,6 +40,8 @@ export default function AttendanceScreen() {
   const [attendanceData, setAttendanceData] = useState<{[key: string]: 'present' | 'absent'}>({});
   const [selectedSession, setSelectedSession] = useState<'morning' | 'afternoon'>('morning');
   const [attendanceDate, setAttendanceDate] = useState<Date>(new Date());
+  const [existingAttendance, setExistingAttendance] = useState<any>(null);
+  const [isSessionFrozen, setIsSessionFrozen] = useState<boolean>(false);
 
   const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -316,7 +318,7 @@ export default function AttendanceScreen() {
                       Alert.alert('Select Section', 'Please select a specific section to mark attendance');
                       return;
                     }
-                    // Fetch students for the selected class
+                    
                     try {
                       console.log('[ATTENDANCE] Fetching students for class:', selectedClass, 'section:', selectedSection);
                       const studentsData = await getStudentsByClassSection(selectedClass, selectedSection);
@@ -328,8 +330,71 @@ export default function AttendanceScreen() {
                       }
                       
                       setStudents(studentsData);
-                      setAttendanceData({});
-                      setShowMarkAttendance(true);
+                      
+                      // Fetch existing attendance for today
+                      const dateStr = attendanceDate.toISOString().split('T')[0];
+                      console.log('[ATTENDANCE] Checking for existing attendance on:', dateStr, 'session:', selectedSession);
+                      
+                      try {
+                        const existingRecords = await getClassAttendance(selectedClass, selectedSection, dateStr);
+                        const todayRecord = existingRecords.find((r: any) => {
+                          const recordDate = r.date?.split('T')[0] || r.dateString;
+                          return recordDate === dateStr;
+                        });
+                        
+                        if (todayRecord) {
+                          console.log('[ATTENDANCE] Found existing attendance:', todayRecord);
+                          setExistingAttendance(todayRecord);
+                          
+                          // Check if session is already marked (frozen)
+                          // Backend creates a session document once attendance is marked - it's automatically frozen
+                          const sessionData = todayRecord.sessions?.[selectedSession];
+                          
+                          // Session is frozen if it exists with any data (backend doesn't allow modification)
+                          const isSessionMarked = sessionData && (
+                            sessionData.status || 
+                            (sessionData.students && sessionData.students.length > 0) ||
+                            sessionData.markedAt ||
+                            sessionData.markedBy
+                          );
+                          
+                          if (isSessionMarked) {
+                            setIsSessionFrozen(true);
+                            console.log('[ATTENDANCE] Session is FROZEN (already marked):', selectedSession, sessionData);
+                            
+                            // Pre-fill attendance data with existing values for viewing
+                            const prefilledData: {[key: string]: 'present' | 'absent'} = {};
+                            if (sessionData.students && Array.isArray(sessionData.students)) {
+                              sessionData.students.forEach((s: any) => {
+                                prefilledData[s.studentId || s.userId] = s.status;
+                              });
+                            }
+                            setAttendanceData(prefilledData);
+                            
+                            Alert.alert(
+                              'Attendance Already Marked',
+                              `${selectedSession.charAt(0).toUpperCase() + selectedSession.slice(1)} session attendance is already marked and frozen. You can view it but cannot edit.`,
+                              [{ text: 'View', onPress: () => setShowMarkAttendance(true) }]
+                            );
+                          } else {
+                            // Session not marked yet - allow marking
+                            setIsSessionFrozen(false);
+                            setAttendanceData({});
+                            setShowMarkAttendance(true);
+                          }
+                        } else {
+                          setExistingAttendance(null);
+                          setIsSessionFrozen(false);
+                          setAttendanceData({});
+                          setShowMarkAttendance(true);
+                        }
+                      } catch (error) {
+                        console.log('[ATTENDANCE] No existing attendance found, starting fresh');
+                        setExistingAttendance(null);
+                        setIsSessionFrozen(false);
+                        setAttendanceData({});
+                        setShowMarkAttendance(true);
+                      }
                     } catch (error) {
                       console.error('[ATTENDANCE] Error loading students:', error);
                       Alert.alert('Error', 'Failed to load students. Please try again.');
@@ -481,7 +546,16 @@ export default function AttendanceScreen() {
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Mark Attendance</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.modalTitle}>
+                  {isSessionFrozen ? 'View Attendance' : 'Mark Attendance'}
+                </Text>
+                {isSessionFrozen && (
+                  <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}>
+                    <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600' }}>Already Marked</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.modalSubtitle}>
                 {selectedClass} - {selectedSection}
               </Text>
@@ -555,11 +629,17 @@ export default function AttendanceScreen() {
                             attendanceData[student.userId] === status && styles.attendanceButtonSelected,
                             status === 'present' && styles.presentButton,
                             status === 'absent' && styles.absentButton,
+                            isSessionFrozen && { opacity: 0.6 }
                           ]}
-                          onPress={() => setAttendanceData(prev => ({
-                            ...prev,
-                            [student.userId]: status as 'present' | 'absent'
-                          }))}
+                          onPress={() => {
+                            if (!isSessionFrozen) {
+                              setAttendanceData(prev => ({
+                                ...prev,
+                                [student.userId]: status as 'present' | 'absent'
+                              }));
+                            }
+                          }}
+                          disabled={isSessionFrozen}
                         >
                           <Text style={[
                             styles.attendanceButtonText,
@@ -580,11 +660,12 @@ export default function AttendanceScreen() {
                 style={styles.cancelButton}
                 onPress={() => setShowMarkAttendance(false)}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{isSessionFrozen ? 'Close' : 'Cancel'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.saveButton}
-                onPress={async () => {
+              {!isSessionFrozen && (
+                <TouchableOpacity 
+                  style={styles.saveButton}
+                  onPress={async () => {
                   try {
                     // Format date as YYYY-MM-DD
                     const dateStr = attendanceDate.toISOString().split('T')[0];
@@ -620,14 +701,29 @@ export default function AttendanceScreen() {
                     } else {
                       Alert.alert('Error', 'Failed to mark attendance. Please try again.');
                     }
-                  } catch (error) {
+                  } catch (error: any) {
                     console.error('[ATTENDANCE] Error marking attendance:', error);
-                    Alert.alert('Error', 'Failed to mark attendance. Please check your connection and try again.');
+                    const errorMessage = error?.response?.data?.message || error?.message || 'Failed to mark attendance. Please check your connection and try again.';
+                    
+                    // Check if error is due to frozen/already marked session
+                    if (errorMessage.includes('frozen') || errorMessage.includes('already been marked')) {
+                      Alert.alert(
+                        'Attendance Already Marked',
+                        'This session has already been marked and is frozen. Cannot modify existing attendance.',
+                        [{ text: 'OK', onPress: () => {
+                          setShowMarkAttendance(false);
+                          fetchAttendance(); // Refresh to show updated data
+                        }}]
+                      );
+                    } else {
+                      Alert.alert('Error', errorMessage);
+                    }
                   }
-                }}
-              >
-                <Text style={styles.saveButtonText}>Save Attendance</Text>
-              </TouchableOpacity>
+                  }}
+                >
+                  <Text style={styles.saveButtonText}>Save Attendance</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>

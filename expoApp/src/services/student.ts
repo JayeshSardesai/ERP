@@ -476,35 +476,54 @@ export async function getStudentResults(): Promise<Result[]> {
     });
 
     console.log('[STUDENT SERVICE] Filtered results count:', validResults.length, 'from', rawResults.length);
+    
+    // Log the structure of first result for debugging
+    if (validResults.length > 0) {
+      console.log('[STUDENT SERVICE] Sample result structure:', {
+        _id: validResults[0]._id,
+        studentName: validResults[0].studentName,
+        subjectsCount: validResults[0].subjects?.length,
+        firstSubject: validResults[0].subjects?.[0] ? {
+          subjectName: validResults[0].subjects[0].subjectName,
+          testType: validResults[0].subjects[0].testType,
+          marks: `${validResults[0].subjects[0].obtainedMarks}/${validResults[0].subjects[0].maxMarks}`
+        } : 'No subjects'
+      });
+    }
 
-    // Transform the results to match the expected format
-    const transformedResults = validResults.map((result: any) => {
+    // Group subjects by testType to create separate result entries for each test
+    const testTypeGroups = new Map<string, any>();
 
-      // Handle different result structures
-      let subjects = [];
-      let examType = 'Exam';
-      let overallPercentage = 0;
-      let overallGrade = 'N/A';
-      let rank = null;
-      let academicYear = '2024-25';
-
-      // Extract exam type - prioritize testType from subjects
-      if (result.subjects?.[0]?.testType) {
-        examType = result.subjects[0].testType;
-      } else if (result.examType) {
-        examType = result.examType;
-      } else if (result.term) {
-        examType = result.term;
-      } else if (result.examDetails?.examType) {
-        examType = result.examDetails.examType;
-      } else {
-        examType = 'Exam'; // Default fallback
-      }
-
-
-      // Extract subjects
+    validResults.forEach((result: any) => {
       if (result.subjects && Array.isArray(result.subjects)) {
-        subjects = result.subjects.map((subject: any) => {
+        console.log('[STUDENT SERVICE] Processing result with', result.subjects.length, 'subjects');
+        console.log('[STUDENT SERVICE] All subjects in this result:', result.subjects.map((s: any) => ({
+          name: s.subjectName,
+          test: s.testType,
+          marks: `${s.obtainedMarks}/${s.maxMarks}`
+        })));
+        
+        result.subjects.forEach((subject: any) => {
+          // Extract test type for this subject
+          const testType = subject.testType || result.examType || result.term || 'Exam';
+          
+          console.log('[STUDENT SERVICE] Subject:', subject.subjectName, '| Test:', testType, '| Marks:', subject.obtainedMarks + '/' + subject.maxMarks);
+          
+          // Get or create group for this test type
+          if (!testTypeGroups.has(testType)) {
+            console.log('[STUDENT SERVICE] Creating new test group:', testType);
+            testTypeGroups.set(testType, {
+              examType: testType,
+              subjects: [],
+              subjectNames: new Set(), // Track subject names to avoid duplicates
+              academicYear: result.academicYear || result.classDetails?.academicYear || '2024-25',
+              rank: result.rank || result.overallResult?.rank,
+              _id: `${result._id}_${testType}` // Unique ID for each test type
+            });
+          }
+
+          const group = testTypeGroups.get(testType);
+
           // Handle different subject structures
           let subjectName = subject.subjectName || subject.name || subject.subject || 'Unknown Subject';
           let marksObtained = 0;
@@ -512,7 +531,8 @@ export async function getStudentResults(): Promise<Result[]> {
           let grade = subject.grade || '';
           let percentage = 0;
 
-          // Extract marks - handle the exact database structure
+          // Extract marks - try all possible field names
+          // Database has: obtainedMarks, maxMarks, totalMarks
           marksObtained = subject.obtainedMarks || subject.marksObtained || 0;
           totalMarks = subject.maxMarks || subject.totalMarks || 100;
           percentage = subject.percentage || 0;
@@ -527,63 +547,62 @@ export async function getStudentResults(): Promise<Result[]> {
           }
 
           // Calculate percentage if not provided
-          if (percentage === 0 && totalMarks > 0) {
+          if (!percentage && totalMarks > 0) {
             percentage = (marksObtained / totalMarks) * 100;
           }
+          
+          console.log('[STUDENT SERVICE] Extracted marks:', {
+            subject: subjectName,
+            obtained: marksObtained,
+            total: totalMarks,
+            percentage: percentage,
+            grade: grade
+          });
 
-
-          return {
-            subjectName,
-            marksObtained,
-            totalMarks,
-            grade,
-            percentage: Math.round(percentage * 100) / 100
-          };
+          // Check for duplicate subjects in this test
+          if (!group.subjectNames.has(subjectName)) {
+            group.subjectNames.add(subjectName);
+            
+            // Add subject to the group
+            group.subjects.push({
+              subjectName,
+              marksObtained,
+              totalMarks,
+              grade,
+              percentage: Math.round(percentage * 100) / 100
+            });
+          } else {
+            console.log('[STUDENT SERVICE] Skipping duplicate subject:', subjectName, 'in test:', testType);
+          }
         });
       }
+    });
 
-      // Calculate overall statistics - use result's direct values first
-      if (result.percentage !== undefined) {
-        overallPercentage = result.percentage;
-      } else if (result.totalMarks && result.maxMarks) {
-        overallPercentage = (result.totalMarks / result.maxMarks) * 100;
-      } else if (subjects.length > 0) {
-        const totalMarks = subjects.reduce((sum: number, s: any) => sum + s.totalMarks, 0);
-        const obtainedMarks = subjects.reduce((sum: number, s: any) => sum + s.marksObtained, 0);
+    // Transform groups into final result format
+    const transformedResults = Array.from(testTypeGroups.values()).map((group: any) => {
+      // Calculate overall statistics for this test
+      let overallPercentage = 0;
+      let overallGrade = 'N/A';
+
+      if (group.subjects.length > 0) {
+        const totalMarks = group.subjects.reduce((sum: number, s: any) => sum + s.totalMarks, 0);
+        const obtainedMarks = group.subjects.reduce((sum: number, s: any) => sum + s.marksObtained, 0);
         overallPercentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
+
+        // Use the most common grade or first subject's grade
+        const grades = group.subjects.map((s: any) => s.grade).filter((g: string) => g);
+        overallGrade = grades.length > 0 ? grades[0] : 'N/A';
       }
 
-      // Extract grade
-      if (result.grade) {
-        overallGrade = result.grade;
-      } else if (result.overallResult?.grade) {
-        overallGrade = result.overallResult.grade;
-      } else if (subjects.length > 0 && subjects[0]?.grade) {
-        overallGrade = subjects[0].grade;
-      }
-
-      // Extract rank
-      if (result.rank !== undefined) {
-        rank = result.rank;
-      } else if (result.overallResult?.rank) {
-        rank = result.overallResult.rank;
-      }
-
-      // Extract academic year
-      if (result.academicYear) {
-        academicYear = result.academicYear;
-      } else if (result.classDetails?.academicYear) {
-        academicYear = result.classDetails.academicYear;
-      }
-
+      // Remove the subjectNames Set before returning (it was only for deduplication)
       const transformedResult = {
-        _id: result._id || result.resultId || `result_${Date.now()}`,
-        examType,
-        subjects,
+        _id: group._id,
+        examType: group.examType,
+        subjects: group.subjects,
         overallPercentage: Math.round(overallPercentage * 100) / 100,
         overallGrade,
-        rank,
-        academicYear
+        rank: group.rank,
+        academicYear: group.academicYear
       };
 
       console.log('[STUDENT SERVICE] Transformed result:', {
@@ -597,7 +616,13 @@ export async function getStudentResults(): Promise<Result[]> {
       return transformedResult;
     });
 
-    console.log('[STUDENT SERVICE] Final transformed results count:', transformedResults.length);
+    console.log('[STUDENT SERVICE] Final transformed results count:', transformedResults.length, 'from', testTypeGroups.size, 'test types');
+    console.log('[STUDENT SERVICE] Test types found:', Array.from(testTypeGroups.keys()).join(', '));
+    
+    // Log summary of each test
+    transformedResults.forEach((result, index) => {
+      console.log(`[STUDENT SERVICE] Test ${index + 1}: ${result.examType} - ${result.subjects.length} subjects - ${result.overallPercentage}%`);
+    });
 
     return transformedResults;
   } catch (error: any) {

@@ -42,7 +42,10 @@ export default function ResultsScreen() {
   const [showSubjectModal, setShowSubjectModal] = useState<boolean>(false);
   const [showTestTypeModal, setShowTestTypeModal] = useState<boolean>(false);
   
-  const testTypes = ['FA1', 'FA2', 'FA3', 'FA4', 'SA1', 'SA2', 'Mid Term', 'Final Term'];
+  // Dynamic test types from backend
+  const [testTypes, setTestTypes] = useState<string[]>([]);
+  const [loadingTestTypes, setLoadingTestTypes] = useState<boolean>(false);
+  const [testConfig, setTestConfig] = useState<{[key: string]: {maxMarks: number, testId: string}}>({});
 
   const checkRole = async () => {
     try {
@@ -76,6 +79,16 @@ export default function ResultsScreen() {
       } else {
         // Student: fetch own results
         const data = await getStudentResults();
+        console.log('[RESULTS PAGE] Fetched results:', data.length, 'test(s)');
+        data.forEach((result: any, index: number) => {
+          console.log(`[RESULTS PAGE] Test ${index + 1}:`, {
+            examType: result.examType,
+            subjectsCount: result.subjects?.length,
+            percentage: result.overallPercentage,
+            grade: result.overallGrade,
+            subjects: result.subjects?.map((s: any) => s.subjectName).join(', ')
+          });
+        });
         setResults(data);
         setLoading(false);
         setRefreshing(false);
@@ -84,6 +97,59 @@ export default function ResultsScreen() {
       console.error('[RESULTS] Error fetching results:', error);
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const fetchTestTypes = async () => {
+    if (!selectedClass || !schoolCode) {
+      setTestTypes([]);
+      return;
+    }
+    
+    setLoadingTestTypes(true);
+    try {
+      console.log('[RESULTS] Fetching test types for class:', selectedClass);
+      
+      const response = await api.get(`/admin/classes/${schoolCode}/tests`);
+      
+      if (response.data?.success && response.data?.data?.tests) {
+        // Filter tests for the selected class
+        const classTests = response.data.data.tests.filter(
+          (t: any) => String(t.className) === String(selectedClass) && t.isActive !== false
+        );
+        
+        // Extract unique test names and store configuration
+        const testNames: string[] = [];
+        const configMap: {[key: string]: {maxMarks: number, testId: string}} = {};
+        
+        classTests.forEach((t: any) => {
+          const name = t.testName || t.displayName || t.name || t.testType;
+          if (name) {
+            testNames.push(name);
+            if (typeof t.maxMarks === 'number') {
+              configMap[name] = {
+                maxMarks: t.maxMarks,
+                testId: t.testId || t._id
+              };
+            }
+          }
+        });
+        
+        const uniqueTestTypes = [...new Set(testNames)];
+        setTestTypes(uniqueTestTypes);
+        setTestConfig(configMap);
+        console.log('[RESULTS] Loaded', uniqueTestTypes.length, 'test types:', uniqueTestTypes);
+        console.log('[RESULTS] Test configuration:', configMap);
+      } else {
+        console.log('[RESULTS] No tests configured for class:', selectedClass);
+        setTestTypes([]);
+      }
+    } catch (error) {
+      console.error('[RESULTS] Error fetching test types:', error);
+      // Fallback to default test types if API fails
+      setTestTypes(['FA1', 'FA2', 'FA3', 'FA4', 'SA1', 'SA2', 'Mid Term', 'Final Term']);
+    } finally {
+      setLoadingTestTypes(false);
     }
   };
 
@@ -245,7 +311,18 @@ export default function ResultsScreen() {
       }
     } catch (error: any) {
       console.error('[RESULTS] Error saving results:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to save results');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to save results';
+      
+      // Check if error is due to frozen results
+      if (errorMessage.includes('frozen') || errorMessage.includes('locked')) {
+        Alert.alert(
+          'Results Frozen',
+          'These results are frozen and cannot be modified. Please contact an administrator if changes are needed.',
+          [{ text: 'OK', onPress: () => fetchExistingResults() }]
+        );
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setSaving(false);
     }
@@ -260,6 +337,13 @@ export default function ResultsScreen() {
   }, []);
 
   useEffect(() => {
+    if (isTeacher && selectedClass) {
+      fetchTestTypes();
+      setSelectedTestType(''); // Reset test type when class changes
+    }
+  }, [selectedClass]);
+
+  useEffect(() => {
     if (isTeacher && selectedClass && selectedSection) {
       fetchSubjects();
     }
@@ -270,6 +354,14 @@ export default function ResultsScreen() {
       fetchStudents();
     }
   }, [selectedClass, selectedSection]);
+
+  useEffect(() => {
+    if (isTeacher && selectedTestType && testConfig[selectedTestType]) {
+      const configuredMaxMarks = testConfig[selectedTestType].maxMarks;
+      setMaxMarks(configuredMaxMarks.toString());
+      console.log('[RESULTS] Auto-populated max marks:', configuredMaxMarks, 'for test:', selectedTestType);
+    }
+  }, [selectedTestType]);
 
   useEffect(() => {
     if (isTeacher && selectedClass && selectedSection && selectedSubject && selectedTestType) {
@@ -294,6 +386,11 @@ export default function ResultsScreen() {
   const isResultFrozen = (studentId: string) => {
     const existing = existingResults.find(r => (r.studentId || r.userId) === studentId);
     return existing?.frozen || false;
+  };
+
+  const hasExistingMarks = (studentId: string) => {
+    const existing = existingResults.find(r => (r.studentId || r.userId) === studentId);
+    return existing && existing.obtainedMarks !== null && existing.obtainedMarks !== undefined;
   };
 
   const getIconForExamType = (examType: string) => {
@@ -402,14 +499,17 @@ export default function ResultsScreen() {
               {/* Max Marks Input */}
               {selectedTestType && (
                 <View style={styles.filterRow}>
-                  <Text style={styles.filterLabel}>Max Marks:</Text>
+                  <Text style={styles.filterLabel}>
+                    Max Marks {testConfig[selectedTestType] && '(Auto-configured)'}
+                  </Text>
                   <TextInput
-                    style={styles.maxMarksInput}
+                    style={[styles.maxMarksInput, testConfig[selectedTestType] && styles.maxMarksInputReadOnly]}
                     value={maxMarks}
                     onChangeText={setMaxMarks}
                     keyboardType="numeric"
                     placeholder="100"
                     placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+                    editable={!testConfig[selectedTestType]}
                   />
                 </View>
               )}
@@ -434,34 +534,35 @@ export default function ResultsScreen() {
 
                 {students.map((student) => {
                   const frozen = isResultFrozen(student.userId);
+                  const hasMarks = hasExistingMarks(student.userId);
+                  const isReadOnly = frozen || hasMarks;
+                  
                   return (
                     <View key={student.userId} style={styles.studentMarksRow}>
                       <View style={styles.studentInfo}>
+                        {isReadOnly && <Ionicons name="lock-closed" size={16} color="#EF4444" style={{ marginRight: 4 }} />}
                         <Text style={styles.studentNameText}>
                           {student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim()}
                         </Text>
                         {frozen && (
-                          <View style={styles.frozenBadge}>
-                            <Ionicons name="lock-closed" size={12} color="#EF4444" />
-                            <Text style={styles.frozenText}>Frozen</Text>
+                          <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginLeft: 8 }}>
+                            <Text style={{ color: '#EF4444', fontSize: 10, fontWeight: '600' }}>Frozen</Text>
+                          </View>
+                        )}
+                        {hasMarks && !frozen && (
+                          <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginLeft: 8 }}>
+                            <Text style={{ color: '#F59E0B', fontSize: 10, fontWeight: '600' }}>Marked</Text>
                           </View>
                         )}
                       </View>
                       <TextInput
-                        style={[styles.marksInput, frozen && styles.marksInputDisabled]}
+                        style={[styles.marksInput, isReadOnly && { opacity: 0.5, backgroundColor: isDark ? '#111827' : '#F3F4F6' }]}
                         value={studentMarks[student.userId] || ''}
-                        onChangeText={(text) => {
-                          if (!frozen) {
-                            setStudentMarks(prev => ({
-                              ...prev,
-                              [student.userId]: text
-                            }));
-                          }
-                        }}
+                        onChangeText={(text) => setStudentMarks(prev => ({ ...prev, [student.userId]: text }))}
                         keyboardType="numeric"
-                        placeholder={`/${maxMarks}`}
+                        placeholder="0"
                         placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
-                        editable={!frozen}
+                        editable={!isReadOnly}
                       />
                     </View>
                   );
@@ -754,6 +855,7 @@ function getStyles(isDark: boolean) {
     filterChipText: { fontSize: 14, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280' },
     filterChipTextActive: { color: isDark ? '#93C5FD' : '#1E3A8A' },
     maxMarksInput: { backgroundColor: isDark ? '#1F2937' : '#F3F4F6', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, fontSize: 16, color: isDark ? '#E5E7EB' : '#1F2937', borderWidth: 2, borderColor: isDark ? '#374151' : '#E5E7EB', width: 100 },
+    maxMarksInputReadOnly: { backgroundColor: isDark ? '#111827' : '#E5E7EB', opacity: 0.7 },
     section: { paddingHorizontal: 20, marginBottom: 20 },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     sectionTitle: { fontSize: 16, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A' },

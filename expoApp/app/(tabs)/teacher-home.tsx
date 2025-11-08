@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
@@ -52,12 +52,15 @@ export default function TeacherHomeScreen() {
         console.error('[TEACHER HOME] Error fetching classes:', error);
       }
 
-      // Messages endpoint may not be available for teachers - skip if error
+      // Fetch messages
       try {
         messagesData = await getTeacherMessages();
         console.log('[TEACHER HOME] Fetched messages:', messagesData.length);
+        if (messagesData.length > 0) {
+          console.log('[TEACHER HOME] Sample message:', messagesData[0]);
+        }
       } catch (error) {
-        console.log('[TEACHER HOME] Messages not available (this is normal)');
+        console.error('[TEACHER HOME] Error fetching messages:', error);
       }
 
       setMessages(messagesData.slice(0, 3));
@@ -115,7 +118,11 @@ export default function TeacherHomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.logoIcon}>🎓</Text>
+            <Image
+              source={require('@/assets/images/logo.png')}
+              style={styles.logoIcon}
+              resizeMode="contain"
+            />
             <Text style={styles.logoText}>EduLogix</Text>
           </View>
           <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/menu')}>
@@ -181,9 +188,13 @@ export default function TeacherHomeScreen() {
             </View>
           ) : (
             messages.map((msg, index) => (
-              <View key={msg._id || index} style={styles.announcementCard}>
-                <View style={[styles.announcementIcon, { backgroundColor: '#FECACA' }]}>
-                  <Text style={styles.announcementIconText}>📢</Text>
+              <TouchableOpacity 
+                key={msg._id || index} 
+                style={styles.announcementCard}
+                onPress={() => router.push('/(tabs)/activity')}
+              >
+                <View style={[styles.announcementIcon, { backgroundColor: '#DBEAFE' }]}>
+                  <Text style={styles.announcementIconText}>📧</Text>
                 </View>
                 <View style={styles.announcementContent}>
                   <Text style={styles.announcementTitle} numberOfLines={1}>
@@ -192,8 +203,13 @@ export default function TeacherHomeScreen() {
                   <Text style={styles.announcementText} numberOfLines={2}>
                     {msg.message}
                   </Text>
+                  {msg.sender && (
+                    <Text style={[styles.announcementText, { fontSize: 11, marginTop: 4, fontStyle: 'italic' }]}>
+                      From: {msg.sender} {msg.senderRole ? `(${msg.senderRole})` : ''}
+                    </Text>
+                  )}
                 </View>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
@@ -308,7 +324,8 @@ function getStyles(isDark: boolean) {
       alignItems: 'center',
     },
     logoIcon: {
-      fontSize: 24,
+      width: 28,
+      height: 28,
       marginRight: 8,
     },
     logoText: {

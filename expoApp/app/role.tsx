@@ -24,9 +24,6 @@ export default function RoleGate() {
         <TouchableOpacity style={styles.roleButton} onPress={() => goToLogin('Teacher')}>
           <Text style={styles.roleText}>Teacher</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.roleButton} onPress={() => goToLogin('Admin')}>
-          <Text style={styles.roleText}>Admin</Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

@@ -73,7 +73,16 @@ export default function StudentHomeScreen() {
       console.log('[STUDENT HOME] Today\'s attendance record:', todayRecord ? 'Found' : 'Not found');
       setTodayAttendance(todayRecord);
 
-      setResults(resultsData.slice(0, 3));
+      console.log('[STUDENT HOME] Results data received:', resultsData.length, 'results');
+      resultsData.forEach((result: any, index: number) => {
+        console.log(`[STUDENT HOME] Result ${index + 1}:`, {
+          examType: result.examType,
+          subjectsCount: result.subjects?.length,
+          percentage: result.overallPercentage,
+          grade: result.overallGrade
+        });
+      });
+      setResults(resultsData.slice(0, 5));
     } catch (error) {
       console.error('Error loading student home data:', error);
     } finally {
@@ -126,7 +135,6 @@ export default function StudentHomeScreen() {
             <Image
               source={require('@/assets/images/logo.png')}
               style={styles.logoIcon}
-              tintColor={isDark ? '#FFFFFF' : '#000000'}
               resizeMode="contain"
             />
             <Text style={styles.logoText}>EduLogix</Text>
@@ -189,23 +197,35 @@ export default function StudentHomeScreen() {
 
           {results.length > 0 ? (
             <>
+              {/* Overall Performance Circle */}
               <View style={styles.resultAnalyticsCard}>
                 <Text style={styles.overallPerformanceTitle}>Overall Performance</Text>
                 <View style={styles.performanceCircleContainer}>
                   <View style={styles.performanceCircle}>
-                    <View style={styles.circleInner}>
-                      <Text style={styles.performancePercentage}>
-                        {Math.round(results[0]?.overallPercentage || 0)}%
-                      </Text>
-                    </View>
+                    <Text style={styles.performancePercentage}>
+                      {(() => {
+                        // Calculate average of all test percentages
+                        const avgPercentage = results.reduce((sum, r) => sum + (r.overallPercentage || 0), 0) / results.length;
+                        return avgPercentage.toFixed(1);
+                      })()}%
+                    </Text>
                   </View>
                 </View>
+                <Text style={styles.announcementText}>
+                  Average across {results.length} test{results.length !== 1 ? 's' : ''}
+                </Text>
               </View>
 
               <View style={styles.subjectScoresCard}>
                 <Text style={styles.subjectScoresTitle}>Recent Test Results</Text>
-                {results.slice(0, 3).map((result, index) => (
+                {results.slice(0, 5).map((result, index) => (
                   <View key={result._id || index} style={styles.testResultItem}>
+                    <View style={styles.testResultHeader}>
+                      <Text style={styles.testResultTitle}>{result.examType}</Text>
+                      <Text style={styles.testResultScore}>
+                        {result.overallPercentage?.toFixed(1)}% • {result.overallGrade || 'N/A'}
+                      </Text>
+                    </View>
                     <View style={styles.progressBarContainer}>
                       <View style={[
                         styles.progressBar,
@@ -216,10 +236,10 @@ export default function StudentHomeScreen() {
                         }
                       ]} />
                     </View>
-                    <View style={styles.testResultInfo}>
-                      <Text style={styles.testResultTitle}>{result.examType}</Text>
-                      <Text style={styles.testResultScore}>
-                        {result.overallPercentage?.toFixed(1)}% • {result.overallGrade || 'N/A'}
+                    <View style={styles.subjectsPreview}>
+                      <Text style={styles.subjectsPreviewText}>
+                        {result.subjects.length} subject{result.subjects.length !== 1 ? 's' : ''}: {result.subjects.slice(0, 2).map((s: any) => s.subjectName).join(', ')}
+                        {result.subjects.length > 2 ? ` +${result.subjects.length - 2} more` : ''}
                       </Text>
                     </View>
                   </View>
@@ -481,7 +501,16 @@ function getStyles(isDark: boolean) {
       marginBottom: 12,
     },
     testResultItem: {
-      marginBottom: 12,
+      marginBottom: 16,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#1F2937' : '#E5E7EB',
+    },
+    testResultHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
     },
     progressBarContainer: {
       height: 8,
@@ -499,13 +528,22 @@ function getStyles(isDark: boolean) {
       alignItems: 'center',
     },
     testResultTitle: {
-      fontSize: 14,
-      fontWeight: '600',
+      fontSize: 15,
+      fontWeight: '700',
       color: isDark ? '#E5E7EB' : '#1F2937',
     },
     testResultScore: {
-      fontSize: 12,
+      fontSize: 13,
+      fontWeight: '600',
+      color: isDark ? '#93C5FD' : '#1E3A8A',
+    },
+    subjectsPreview: {
+      marginTop: 4,
+    },
+    subjectsPreviewText: {
+      fontSize: 11,
       color: isDark ? '#9CA3AF' : '#6B7280',
+      lineHeight: 16,
     },
     todayAttendanceCard: {
       backgroundColor: isDark ? '#0F172A' : '#FFFFFF',

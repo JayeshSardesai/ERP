@@ -1482,15 +1482,35 @@ exports.updateUserPassword = async (req, res) => {
 // Get all schools (for super admin)
 exports.getAllSchools = async (req, res) => {
   try {
+    console.log('[getAllSchools] Fetching schools for superadmin...');
+    
     if (req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'Access denied' });
     }
 
     const schools = await School.find({})
-      .select('-__v');
+      .select('-__v')
+      .lean(); // Use lean() to get plain JavaScript objects
+
+    console.log(`[getAllSchools] Found ${schools.length} schools`);
 
     // Map all fields needed for frontend
-    const mappedSchools = schools.map(school => ({
+    const mappedSchools = schools.map(school => {
+      // Handle academicSettings if it's a string
+      if (school.academicSettings && typeof school.academicSettings === 'string') {
+        try {
+          school.academicSettings = JSON.parse(school.academicSettings);
+        } catch (e) {
+          console.error('[getAllSchools] Failed to parse academicSettings for school:', school.code, e);
+          school.academicSettings = {
+            schoolTypes: [],
+            customGradeNames: {},
+            gradeLevels: {}
+          };
+        }
+      }
+      
+      return {
       _id: school._id,
       id: school._id,
       name: school.name,
@@ -1518,12 +1538,14 @@ exports.getAllSchools = async (req, res) => {
       affiliationBoard: school.affiliationBoard,
       website: school.website,
       secondaryContact: school.secondaryContact
-    }));
+      };
+    });
 
-    console.log(`Successfully fetched ${mappedSchools.length} schools for superadmin`);
+    console.log(`[getAllSchools] Successfully mapped ${mappedSchools.length} schools`);
     res.json(mappedSchools);
   } catch (error) {
-    console.error('Error fetching schools:', error);
+    console.error('[getAllSchools] Error fetching schools:', error);
+    console.error('[getAllSchools] Error stack:', error.stack);
     res.status(500).json({ message: 'Error fetching schools', error: error.message });
   }
 };
