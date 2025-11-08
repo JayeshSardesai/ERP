@@ -69,11 +69,6 @@ export default function StudentsScreen() {
     fetchData();
   }, [selectedClass, selectedSection]);
 
-  // Initial load
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();

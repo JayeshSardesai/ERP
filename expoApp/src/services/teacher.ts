@@ -119,14 +119,14 @@ export interface AttendanceRecord {
 }
 
 export interface ClassAttendance {
-  date: string;
+  date: string; // Format: YYYY-MM-DD
   session: 'morning' | 'afternoon';
   class: string;
   section: string;
   students: Array<{
     studentId: string;
-    name: string;
-    status: 'present' | 'absent';
+    userId: string;
+    status: 'present' | 'absent' | 'half_day';
   }>;
 }
 
@@ -179,59 +179,64 @@ export async function getClasses(): Promise<Class[]> {
 }
 
 /**
- * Get students by class and section - Optimized
+ * Get students by class and section
  */
 export async function getStudentsByClassSection(className: string, section?: string): Promise<Student[]> {
   try {
     console.log('[TEACHER SERVICE] Fetching students for class:', className, 'section:', section);
     
+    // Build query parameters - backend supports class and section filters
     const params: any = { 
-      role: 'student',
-      className: className,
-      limit: 200 // Get more students
+      class: className  // Use 'class' not 'className'
     };
+    
     if (section && section !== 'ALL') {
       params.section = section;
     }
 
-    // Use the users endpoint which teachers have access to
+    console.log('[TEACHER SERVICE] API params:', params);
+
+    // Use the users/role/student endpoint which teachers have access to
     const response = await api.get('/users/role/student', { params });
     
-    console.log('[TEACHER SERVICE] Students API response:', response.data);
+    console.log('[TEACHER SERVICE] Students API response:', {
+      success: response.data?.success,
+      count: response.data?.count,
+      dataLength: response.data?.data?.length
+    });
     
-    if (response.data?.success && response.data?.users) {
-      const students = response.data.users.map((user: any) => ({
+    // Backend returns data in 'data' field, not 'users'
+    if (response.data?.success && response.data?.data) {
+      const students = response.data.data.map((user: any) => ({
         userId: user.userId || user._id,
         _id: user._id,
         name: user.name,
         email: user.email,
-        class: user.class || user.className,
-        section: user.section || user.sectionName,
-        rollNumber: user.rollNumber,
+        studentDetails: user.studentDetails,
+        academicInfo: user.academicInfo,
+        class: user.academicInfo?.class || user.studentDetails?.currentClass || user.class,
+        section: user.academicInfo?.section || user.studentDetails?.currentSection || user.section,
+        rollNumber: user.studentDetails?.rollNumber || user.rollNumber,
         status: user.status
       }));
       
-      // Filter by class and section on frontend since backend might not support these filters
-      let filteredStudents = students;
-      if (className) {
-        filteredStudents = filteredStudents.filter((student: any) => 
-          student.class === className || student.class === className.toString()
-        );
-      }
-      if (section && section !== 'ALL') {
-        filteredStudents = filteredStudents.filter((student: any) => 
-          student.section === section || student.section === section.toString()
-        );
+      console.log('[TEACHER SERVICE] Mapped', students.length, 'students');
+      if (students.length > 0) {
+        console.log('[TEACHER SERVICE] Sample student:', {
+          userId: students[0].userId,
+          name: students[0].name,
+          class: students[0].class,
+          section: students[0].section
+        });
       }
       
-      console.log('[TEACHER SERVICE] Found', filteredStudents.length, 'students after filtering');
-      return filteredStudents;
+      return students;
     }
     
-    console.log('[TEACHER SERVICE] No students found for class:', className, 'section:', section);
+    console.log('[TEACHER SERVICE] No students found - response structure:', Object.keys(response.data || {}));
     return [];
   } catch (error: any) {
-    console.error('[TEACHER SERVICE] Error fetching students:', error);
+    console.error('[TEACHER SERVICE] Error fetching students:', error.response?.data || error.message);
     return [];
   }
 }

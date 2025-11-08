@@ -37,7 +37,7 @@ export default function AttendanceScreen() {
   const [showClassSelector, setShowClassSelector] = useState<boolean>(false);
   const [showMarkAttendance, setShowMarkAttendance] = useState<boolean>(false);
   const [students, setStudents] = useState<any[]>([]);
-  const [attendanceData, setAttendanceData] = useState<{[key: string]: 'present' | 'absent' | 'half_day'}>({});
+  const [attendanceData, setAttendanceData] = useState<{[key: string]: 'present' | 'absent'}>({});
   const [selectedSession, setSelectedSession] = useState<'morning' | 'afternoon'>('morning');
   const [attendanceDate, setAttendanceDate] = useState<Date>(new Date());
 
@@ -113,13 +113,18 @@ export default function AttendanceScreen() {
 
         console.log('[ATTENDANCE] Fetching FRESH data for month:', selectedMonth.toLocaleDateString(), 'Range:', startDate, 'to', endDate);
 
-        const { records, stats: attendanceStats } = await getStudentAttendance(startDate, endDate);
+        // Fetch both monthly records and overall stats
+        const [monthlyData, overallData] = await Promise.all([
+          getStudentAttendance(startDate, endDate), // Monthly records for calendar display
+          getStudentAttendance() // Overall stats for percentage display
+        ]);
 
-        console.log('[ATTENDANCE] Backend returned:', records.length, 'records');
+        console.log('[ATTENDANCE] Monthly data returned:', monthlyData.records.length, 'records');
+        console.log('[ATTENDANCE] Overall stats:', overallData.stats);
 
         // Only use the exact records returned from backend - no additional filtering
         // The backend should already filter by date range
-        const validRecords = records.filter(record => {
+        const validRecords = monthlyData.records.filter(record => {
           // Only basic validation - ensure record has required fields
           return record && record.date && record.dateString;
         });
@@ -127,14 +132,16 @@ export default function AttendanceScreen() {
         console.log('[ATTENDANCE] Valid records after filtering:', validRecords.length);
 
         setAttendanceRecords(validRecords);
+        
+        // Use overall stats for the percentage display, but monthly stats for record counts
         setStats({
-          totalDays: attendanceStats.totalDays,
-          presentDays: attendanceStats.presentDays,
-          absentDays: attendanceStats.absentDays,
-          attendancePercentage: attendanceStats.attendancePercentage,
-          totalSessions: attendanceStats.totalSessions || 0,
-          presentSessions: attendanceStats.presentSessions || 0,
-          sessionAttendanceRate: attendanceStats.sessionAttendanceRate || 0
+          totalDays: overallData.stats.totalDays,
+          presentDays: overallData.stats.presentDays,
+          absentDays: overallData.stats.absentDays,
+          attendancePercentage: overallData.stats.attendancePercentage,
+          totalSessions: overallData.stats.totalSessions || 0,
+          presentSessions: overallData.stats.presentSessions || 0,
+          sessionAttendanceRate: overallData.stats.sessionAttendanceRate || 0
         });
       }
     } catch (error) {
@@ -297,7 +304,7 @@ export default function AttendanceScreen() {
                 </Text>
                 <Text style={styles.classSelectorIcon}>▼</Text>
               </TouchableOpacity>
-              {hasPermission('markAttendance') && (
+              {(hasPermission('viewAttendance') || isTeacher) && (
                 <TouchableOpacity 
                   style={styles.markAttendanceButton}
                   onPress={async () => {
@@ -305,14 +312,27 @@ export default function AttendanceScreen() {
                       Alert.alert('Select Class', 'Please select a class first');
                       return;
                     }
+                    if (!selectedSection || selectedSection === 'ALL') {
+                      Alert.alert('Select Section', 'Please select a specific section to mark attendance');
+                      return;
+                    }
                     // Fetch students for the selected class
                     try {
-                      const studentsData = await getStudentsByClassSection(selectedClass, selectedSection === 'ALL' ? undefined : selectedSection);
+                      console.log('[ATTENDANCE] Fetching students for class:', selectedClass, 'section:', selectedSection);
+                      const studentsData = await getStudentsByClassSection(selectedClass, selectedSection);
+                      console.log('[ATTENDANCE] Loaded students:', studentsData.length);
+                      
+                      if (studentsData.length === 0) {
+                        Alert.alert('No Students', 'No students found in this class/section');
+                        return;
+                      }
+                      
                       setStudents(studentsData);
                       setAttendanceData({});
                       setShowMarkAttendance(true);
                     } catch (error) {
-                      Alert.alert('Error', 'Failed to load students');
+                      console.error('[ATTENDANCE] Error loading students:', error);
+                      Alert.alert('Error', 'Failed to load students. Please try again.');
                     }
                   }}
                 >
@@ -516,38 +536,43 @@ export default function AttendanceScreen() {
             </View>
             
             <ScrollView style={styles.studentsList}>
-              {students.map((student) => (
-                <View key={student.userId} style={styles.studentRow}>
-                  <Text style={styles.studentName}>
-                    {student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.userId}
-                  </Text>
-                  <View style={styles.attendanceButtons}>
-                    {['present', 'absent', 'half_day'].map((status) => (
-                      <TouchableOpacity
-                        key={status}
-                        style={[
-                          styles.attendanceButton,
-                          attendanceData[student.userId] === status && styles.attendanceButtonSelected,
-                          status === 'present' && styles.presentButton,
-                          status === 'absent' && styles.absentButton,
-                          status === 'half_day' && styles.halfDayButton,
-                        ]}
-                        onPress={() => setAttendanceData(prev => ({
-                          ...prev,
-                          [student.userId]: status as 'present' | 'absent' | 'half_day'
-                        }))}
-                      >
-                        <Text style={[
-                          styles.attendanceButtonText,
-                          attendanceData[student.userId] === status && styles.attendanceButtonTextSelected
-                        ]}>
-                          {status === 'present' ? 'P' : status === 'absent' ? 'A' : 'H'}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+              {students.length === 0 ? (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={styles.modalSubtitle}>No students found in this class/section</Text>
                 </View>
-              ))}
+              ) : (
+                students.map((student) => (
+                  <View key={student.userId} style={styles.studentRow}>
+                    <Text style={styles.studentName}>
+                      {student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.userId}
+                    </Text>
+                    <View style={styles.attendanceButtons}>
+                      {['present', 'absent'].map((status) => (
+                        <TouchableOpacity
+                          key={status}
+                          style={[
+                            styles.attendanceButton,
+                            attendanceData[student.userId] === status && styles.attendanceButtonSelected,
+                            status === 'present' && styles.presentButton,
+                            status === 'absent' && styles.absentButton,
+                          ]}
+                          onPress={() => setAttendanceData(prev => ({
+                            ...prev,
+                            [student.userId]: status as 'present' | 'absent'
+                          }))}
+                        >
+                          <Text style={[
+                            styles.attendanceButtonText,
+                            attendanceData[student.userId] === status && styles.attendanceButtonTextSelected
+                          ]}>
+                            {status === 'present' ? 'P' : 'A'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                ))
+              )}
             </ScrollView>
             
             <View style={styles.modalActions}>
@@ -561,30 +586,43 @@ export default function AttendanceScreen() {
                 style={styles.saveButton}
                 onPress={async () => {
                   try {
-                    const attendanceRecords = Object.entries(attendanceData).map(([studentId, status]) => ({
-                      studentId,
-                      status,
-                      date: attendanceDate.toISOString(),
-                      session: selectedSession
+                    // Format date as YYYY-MM-DD
+                    const dateStr = attendanceDate.toISOString().split('T')[0];
+                    
+                    // Prepare students array in the format backend expects
+                    const studentsArray = students.map(student => ({
+                      studentId: student.userId,
+                      userId: student.userId,
+                      status: attendanceData[student.userId] || 'absent' // Default to absent if not marked
                     }));
                     
-                    const success = await markSessionAttendance({
-                      className: selectedClass,
-                      section: selectedSection === 'ALL' || !selectedSection ? undefined : selectedSection,
-                      date: attendanceDate.toISOString(),
+                    console.log('[ATTENDANCE] Marking attendance:', {
+                      date: dateStr,
+                      class: selectedClass,
+                      section: selectedSection,
                       session: selectedSession,
-                      attendance: attendanceRecords
+                      studentsCount: studentsArray.length
+                    });
+                    
+                    const success = await markSessionAttendance({
+                      date: dateStr,
+                      class: selectedClass,
+                      section: selectedSection,
+                      session: selectedSession,
+                      students: studentsArray
                     });
                     
                     if (success) {
-                      Alert.alert('Success', 'Attendance marked successfully');
+                      Alert.alert('Success', `${selectedSession.charAt(0).toUpperCase() + selectedSession.slice(1)} attendance marked successfully for ${studentsArray.length} students`);
                       setShowMarkAttendance(false);
+                      setAttendanceData({}); // Clear attendance data
                       fetchAttendance(); // Refresh attendance data
                     } else {
-                      Alert.alert('Error', 'Failed to mark attendance');
+                      Alert.alert('Error', 'Failed to mark attendance. Please try again.');
                     }
                   } catch (error) {
-                    Alert.alert('Error', 'Failed to mark attendance');
+                    console.error('[ATTENDANCE] Error marking attendance:', error);
+                    Alert.alert('Error', 'Failed to mark attendance. Please check your connection and try again.');
                   }
                 }}
               >

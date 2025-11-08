@@ -344,13 +344,14 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
 
         console.log('[STUDENT SERVICE] FINAL filtered records:', filteredRecords.length, 'from', transformedRecords.length);
       } else {
-        // If no date range specified, return empty array to prevent showing old data
-        console.log('[STUDENT SERVICE] No date range specified - returning empty array');
-        filteredRecords = [];
+        // If no date range specified, return all records for overall stats calculation
+        console.log('[STUDENT SERVICE] No date range specified - returning all records for overall stats');
+        filteredRecords = transformedRecords;
       }
 
-      // Calculate stats from transformed records
-      const stats = {
+      // Calculate stats from ALL transformed records (not just filtered ones)
+      // This gives the overall attendance percentage for the student
+      const overallStats = {
         totalDays: transformedRecords.length,
         presentDays: transformedRecords.filter(r => r.status === 'present').length,
         absentDays: transformedRecords.filter(r => r.status === 'absent').length,
@@ -360,13 +361,25 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
         attendancePercentage: 0
       };
 
-      if (stats.totalDays > 0) {
-        stats.attendancePercentage = Math.round((stats.presentDays / stats.totalDays) * 100);
+      if (overallStats.totalDays > 0) {
+        overallStats.attendancePercentage = Math.round((overallStats.presentDays / overallStats.totalDays) * 100);
       }
+
+      console.log('[STUDENT SERVICE] Calculated overall stats:', overallStats);
+
+      // Use backend summary if available, otherwise use our calculated stats
+      const finalStats = response.data.data.summary || overallStats;
+      
+      // Ensure we have a valid attendance percentage
+      if (!finalStats.attendancePercentage && finalStats.totalDays > 0) {
+        finalStats.attendancePercentage = Math.round((finalStats.presentDays / finalStats.totalDays) * 100);
+      }
+
+      console.log('[STUDENT SERVICE] Final stats being returned:', finalStats);
 
       return {
         records: filteredRecords,
-        stats: response.data.data.summary || stats
+        stats: finalStats
       };
     }
 
