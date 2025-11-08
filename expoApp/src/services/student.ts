@@ -409,18 +409,57 @@ export async function getStudentResults(): Promise<Result[]> {
       const schoolCode = await AsyncStorage.getItem('schoolCode') || '';
 
       // First try the general results endpoint like the website does
+      console.log('[STUDENT SERVICE] Calling API with params:', {
+        schoolCode: schoolCode.toUpperCase(),
+        studentId: studentId
+      });
+      
       response = await api.get('/results', {
         params: {
           schoolCode: schoolCode.toUpperCase(),
           studentId: studentId
         }
       });
+      
+      console.log('[STUDENT SERVICE] Raw API response:', {
+        success: response.data?.success,
+        dataType: Array.isArray(response.data?.data) ? 'array' : typeof response.data?.data,
+        dataLength: response.data?.data?.length,
+        resultsType: Array.isArray(response.data?.results) ? 'array' : typeof response.data?.results,
+        resultsLength: response.data?.results?.length,
+        isArray: Array.isArray(response.data)
+      });
+      
       if (response.data?.success && response.data?.data) {
         rawResults = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
+        console.log('[STUDENT SERVICE] Using response.data.data, count:', rawResults.length);
       } else if (response.data?.results) {
         rawResults = Array.isArray(response.data.results) ? response.data.results : [response.data.results];
+        console.log('[STUDENT SERVICE] Using response.data.results, count:', rawResults.length);
       } else if (Array.isArray(response.data)) {
         rawResults = response.data;
+        console.log('[STUDENT SERVICE] Using response.data directly, count:', rawResults.length);
+      }
+      
+      // Log first raw result to see structure
+      if (rawResults.length > 0) {
+        console.log('[STUDENT SERVICE] First raw result:', {
+          _id: rawResults[0]._id,
+          studentId: rawResults[0].studentId,
+          studentName: rawResults[0].studentName,
+          subjectsCount: rawResults[0].subjects?.length,
+          subjects: rawResults[0].subjects?.map((s: any) => ({
+            name: s.subjectName,
+            test: s.testType,
+            marks: `${s.obtainedMarks}/${s.maxMarks}`
+          }))
+        });
+        
+        // Log COMPLETE raw subjects array to see exact data
+        console.log('[STUDENT SERVICE] 🔍 COMPLETE RAW SUBJECTS DATA:');
+        rawResults[0].subjects?.forEach((s: any, idx: number) => {
+          console.log(`[STUDENT SERVICE] Subject ${idx + 1}:`, JSON.stringify(s, null, 2));
+        });
       }
 
       // If no results found, try the student-specific endpoint as fallback
@@ -503,15 +542,15 @@ export async function getStudentResults(): Promise<Result[]> {
           marks: `${s.obtainedMarks}/${s.maxMarks}`
         })));
         
-        result.subjects.forEach((subject: any) => {
+        result.subjects.forEach((subject: any, subjectIndex: number) => {
           // Extract test type for this subject
           const testType = subject.testType || result.examType || result.term || 'Exam';
           
-          console.log('[STUDENT SERVICE] Subject:', subject.subjectName, '| Test:', testType, '| Marks:', subject.obtainedMarks + '/' + subject.maxMarks);
+          console.log(`[STUDENT SERVICE] Processing subject ${subjectIndex + 1}/${result.subjects.length}:`, subject.subjectName, '| Test:', testType, '| Marks:', subject.obtainedMarks + '/' + subject.maxMarks);
           
           // Get or create group for this test type
           if (!testTypeGroups.has(testType)) {
-            console.log('[STUDENT SERVICE] Creating new test group:', testType);
+            console.log('[STUDENT SERVICE] ✨ Creating NEW test group:', testType);
             testTypeGroups.set(testType, {
               examType: testType,
               subjects: [],
@@ -520,9 +559,13 @@ export async function getStudentResults(): Promise<Result[]> {
               rank: result.rank || result.overallResult?.rank,
               _id: `${result._id}_${testType}` // Unique ID for each test type
             });
+          } else {
+            console.log('[STUDENT SERVICE] ♻️ Using EXISTING test group:', testType);
           }
 
           const group = testTypeGroups.get(testType);
+          console.log(`[STUDENT SERVICE] Current group "${testType}" has ${group.subjects.length} subjects already`);
+          console.log(`[STUDENT SERVICE] Subjects in "${testType}" group:`, Array.from(group.subjectNames));
 
           // Handle different subject structures
           let subjectName = subject.subjectName || subject.name || subject.subject || 'Unknown Subject';
@@ -571,12 +614,25 @@ export async function getStudentResults(): Promise<Result[]> {
               grade,
               percentage: Math.round(percentage * 100) / 100
             });
+            console.log(`[STUDENT SERVICE] ✅ ADDED "${subjectName}" to "${testType}" group. Group now has ${group.subjects.length} subjects`);
           } else {
-            console.log('[STUDENT SERVICE] Skipping duplicate subject:', subjectName, 'in test:', testType);
+            console.log(`[STUDENT SERVICE] ⚠️ SKIPPED duplicate subject: "${subjectName}" in test: "${testType}"`);
           }
         });
       }
     });
+
+    // Log all test groups before transformation
+    console.log('[STUDENT SERVICE] ========================================');
+    console.log('[STUDENT SERVICE] Total test groups created:', testTypeGroups.size);
+    console.log('[STUDENT SERVICE] Test group names:', Array.from(testTypeGroups.keys()).join(', '));
+    testTypeGroups.forEach((group, testName) => {
+      console.log(`[STUDENT SERVICE] Group "${testName}":`, {
+        subjectsCount: group.subjects.length,
+        subjects: group.subjects.map((s: any) => `${s.subjectName} (${s.marksObtained}/${s.totalMarks})`).join(', ')
+      });
+    });
+    console.log('[STUDENT SERVICE] ========================================');
 
     // Transform groups into final result format
     const transformedResults = Array.from(testTypeGroups.values()).map((group: any) => {

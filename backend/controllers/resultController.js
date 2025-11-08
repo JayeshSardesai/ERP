@@ -474,6 +474,9 @@ exports.getStudentResultHistory = async (req, res) => {
         academicYear: result.academicYear,
         subjects: result.subjects ? result.subjects.map(subject => ({
           subjectName: subject.subjectName || subject.name,
+          testType: subject.testType || examType,  // ✅ ADD testType field
+          obtainedMarks: subject.obtainedMarks,     // ✅ Use correct field name
+          maxMarks: subject.maxMarks,               // ✅ Use correct field name
           marksObtained: subject.obtainedMarks || subject.totalMarks,
           totalMarks: subject.maxMarks || subject.totalMarks,
           grade: subject.grade,

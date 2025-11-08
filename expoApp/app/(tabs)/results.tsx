@@ -304,7 +304,17 @@ export default function ResultsScreen() {
         Alert.alert(
           'Success', 
           `Saved ${response.data.data.savedCount} results successfully!`,
-          [{ text: 'OK', onPress: () => fetchExistingResults() }]
+          [
+            { text: 'OK', onPress: () => fetchExistingResults() },
+            { 
+              text: 'Freeze Results', 
+              onPress: () => {
+                fetchExistingResults();
+                setTimeout(() => handleFreezeResults(), 500);
+              },
+              style: 'default'
+            }
+          ]
         );
       } else {
         Alert.alert('Error', response.data?.message || 'Failed to save results');
@@ -326,6 +336,60 @@ export default function ResultsScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleFreezeResults = async () => {
+    if (!selectedClass || !selectedSection || !selectedSubject || !selectedTestType) {
+      Alert.alert('Error', 'Please select class, section, subject, and test type');
+      return;
+    }
+
+    Alert.alert(
+      'Freeze Results',
+      'Are you sure you want to freeze these results? Once frozen, they cannot be modified from the application.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Freeze',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSaving(true);
+              console.log('[RESULTS] Freezing results:', {
+                class: selectedClass,
+                section: selectedSection,
+                subject: selectedSubject,
+                testType: selectedTestType
+              });
+
+              const response = await api.post('/results/freeze', {
+                schoolCode,
+                class: selectedClass,
+                section: selectedSection,
+                subject: selectedSubject,
+                testType: selectedTestType,
+                academicYear: '2024-25'
+              });
+
+              if (response.data?.success) {
+                Alert.alert(
+                  'Success',
+                  'Results have been frozen successfully. They can no longer be modified from the application.',
+                  [{ text: 'OK', onPress: () => fetchExistingResults() }]
+                );
+              } else {
+                Alert.alert('Error', response.data?.message || 'Failed to freeze results');
+              }
+            } catch (error: any) {
+              console.error('[RESULTS] Error freezing results:', error);
+              Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to freeze results');
+            } finally {
+              setSaving(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   useEffect(() => {
@@ -569,21 +633,32 @@ export default function ResultsScreen() {
                 })}
               </View>
 
-              {/* Save Button */}
-              <TouchableOpacity
-                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                onPress={handleSaveResults}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                    <Text style={styles.saveButtonText}>Save Results</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              {/* Action Buttons */}
+              <View style={styles.actionButtonsContainer}>
+                <TouchableOpacity
+                  style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                  onPress={handleSaveResults}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                      <Text style={styles.saveButtonText}>Save Results</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.freezeButton, saving && styles.saveButtonDisabled]}
+                  onPress={handleFreezeResults}
+                  disabled={saving}
+                >
+                  <Ionicons name="lock-closed" size={20} color="#FFFFFF" />
+                  <Text style={styles.freezeButtonText}>Freeze</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -870,9 +945,12 @@ function getStyles(isDark: boolean) {
     frozenText: { fontSize: 10, fontWeight: '600', color: '#EF4444' },
     marksInput: { backgroundColor: isDark ? '#1F2937' : '#F3F4F6', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, fontSize: 16, color: isDark ? '#E5E7EB' : '#1F2937', width: 80, textAlign: 'center', borderWidth: 2, borderColor: isDark ? '#374151' : '#E5E7EB' },
     marksInputDisabled: { backgroundColor: isDark ? '#111827' : '#E5E7EB', opacity: 0.6 },
-    saveButton: { backgroundColor: '#10B981', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, marginTop: 16, gap: 8 },
+    actionButtonsContainer: { flexDirection: 'row', gap: 12, marginTop: 16 },
+    saveButton: { flex: 1, backgroundColor: '#10B981', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, gap: 8 },
+    freezeButton: { flex: 1, backgroundColor: '#EF4444', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, gap: 8 },
     saveButtonDisabled: { opacity: 0.6 },
     saveButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+    freezeButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
     emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 40 },
     emptyStateText: { fontSize: 18, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 16, textAlign: 'center' },
     emptyStateSubtext: { fontSize: 14, color: isDark ? '#6B7280' : '#9CA3AF', marginTop: 8, textAlign: 'center' },
