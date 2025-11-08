@@ -6,7 +6,8 @@ const School = require('../models/School');
 const User = require('../models/User');
 const TestDetails = require('../models/TestDetails');
 const sharp = require('sharp');
-const { uploadToCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
+const axios = require('axios');
+const { uploadToCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile, uploadBufferToCloudinary } = require('../config/cloudinary');
 const path = require('path');
 const fs = require('fs');
 
@@ -40,7 +41,7 @@ exports.addAdminToSchool = async (req, res) => {
     // fall back to lookup by code (case-insensitive).
     let school = null;
     try {
-      if (schoolId) school = await School.findById(schoolId);
+      if (schoolId) school = await School.findById(schoolId).lean();
     } catch (err) {
       // ignore cast error and continue to try by code
       school = null;
@@ -48,7 +49,7 @@ exports.addAdminToSchool = async (req, res) => {
 
     if (!school) {
       // try by code (case-insensitive)
-      school = await School.findOne({ code: new RegExp(`^${schoolId}$`, 'i') });
+      school = await School.findOne({ code: new RegExp(`^${schoolId}$`, 'i') }).lean();
     }
 
     if (!school) {
@@ -289,7 +290,7 @@ exports.createClassesForGrade = async (req, res) => {
       });
     }
 
-    const school = await School.findById(schoolId);
+    const school = await School.findById(schoolId).lean();
     if (!school) {
       return res.status(404).json({ message: 'School not found' });
     }
@@ -393,7 +394,7 @@ exports.getSchoolUsers = async (req, res) => {
     const { schoolId } = req.params;
     const { search, role, status } = req.query;
 
-    const school = await School.findById(schoolId);
+    const school = await School.findById(schoolId).lean();
     if (!school) {
       return res.status(404).json({ message: 'School not found' });
     }
@@ -624,7 +625,7 @@ exports.addUser = async (req, res) => {
     }
 
     // Find school
-    const school = await School.findById(schoolId);
+    const school = await School.findById(schoolId).lean();
     if (!school) {
       return res.status(404).json({ message: 'School not found' });
     }
@@ -795,7 +796,7 @@ exports.createSchool = async (req, res) => {
     }
 
     // Check if code already exists
-    const existingSchool = await School.findOne({ code: cleanCode });
+    const existingSchool = await School.findOne({ code: cleanCode }).lean();
     if (existingSchool) {
       return res.status(400).json({
         success: false,
@@ -1198,8 +1199,8 @@ async function createSchoolDatabase(school) {
           schoolId: school._id,
           schoolCode: school.code,
           matrix: school.accessMatrix,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          lastUpdated: new Date(),
+          updatedBy: 'system',
           note: 'Access permissions matrix for role-based access control'
         };
         
@@ -1487,7 +1488,8 @@ exports.getAllSchools = async (req, res) => {
     }
 
     const schools = await School.find({})
-      .select('-__v');
+      .select('-__v')
+      .lean(); // Use lean() to get plain JS objects and avoid schema validation issues
 
     // Map all fields needed for frontend
     const mappedSchools = schools.map(school => ({
@@ -1561,13 +1563,13 @@ exports.getSchoolById = async (req, res) => {
       // Try to find by ID first if it's a valid ObjectId
       if (mongoose.Types.ObjectId.isValid(schoolId)) {
         console.log(`[getSchoolById] Looking up by ID: ${schoolId}`);
-        school = await School.findById(schoolId);
+        school = await School.findById(schoolId).lean();
       }
 
       // If not found by ID, try by code (case-insensitive)
       if (!school) {
         console.log(`[getSchoolById] Looking up by code: ${schoolId}`);
-        school = await School.findOne({ code: new RegExp(`^${schoolId}$`, 'i') });
+        school = await School.findOne({ code: new RegExp(`^${schoolId}$`, 'i') }).lean();
       }
 
       // If still not found, return 404
@@ -1623,13 +1625,13 @@ exports.getSchoolInfo = async (req, res) => {
     const mongoose = require('mongoose'); 
     if (mongoose.Types.ObjectId.isValid(schoolId)) {
       console.log(`[getSchoolInfo] Attempting find by ID: ${schoolId}`);
-      school = await School.findById(schoolId);
+      school = await School.findById(schoolId).lean();
     }
 
     // Fallback: Try to find by school code (case-insensitive) if not found by ID or if ID format was invalid
     if (!school) {
       console.log(`[getSchoolInfo] Attempting find by code: ${schoolId}`);
-      school = await School.findOne({ code: new RegExp(`^${schoolId}$`, 'i') });
+      school = await School.findOne({ code: new RegExp(`^${schoolId}$`, 'i') }).lean();
     }
 
     if (!school) {
@@ -1676,99 +1678,6 @@ exports.getSchoolInfo = async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: 'Error fetching school info', 
-      error: error.message 
-    });
-  }
-};
-
-// Get school info from school_info collection in school's database
-exports.getSchoolInfoFromDatabase = async (req, res) => {
-  try {
-    const schoolCode = req.user?.schoolCode || req.params.schoolCode;
-    
-    if (!schoolCode) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'School code is required' 
-      });
-    }
-
-    console.log(`[getSchoolInfoFromDatabase] Fetching school_info for: ${schoolCode}`);
-
-    // Get connection to the school's dedicated database
-    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-    const schoolInfoCollection = schoolConnection.collection('school_info');
-    
-    // Fetch school info document
-    let schoolInfo = await schoolInfoCollection.findOne({});
-    
-    // If school_info doesn't exist or doesn't have bank details, try to sync from main database
-    if (!schoolInfo || !schoolInfo.bankDetails) {
-      console.log(`[getSchoolInfoFromDatabase] School info missing or no bank details, syncing from main database...`);
-      
-      // Get school from main database
-      const School = require('../models/School');
-      const mainSchool = await School.findOne({ code: schoolCode });
-      
-      if (mainSchool) {
-        console.log(`[getSchoolInfoFromDatabase] Found school in main DB, syncing...`);
-        console.log(`[getSchoolInfoFromDatabase] Main school bank details:`, JSON.stringify(mainSchool.bankDetails, null, 2));
-        
-        // Sync to dedicated database
-        await syncSchoolInfoToDatabase(mainSchool);
-        
-        // Fetch again after sync
-        schoolInfo = await schoolInfoCollection.findOne({});
-        console.log(`[getSchoolInfoFromDatabase] After sync, bank details:`, JSON.stringify(schoolInfo?.bankDetails, null, 2));
-      } else {
-        console.warn(`[getSchoolInfoFromDatabase] School not found in main database: ${schoolCode}`);
-      }
-    }
-    
-    if (!schoolInfo) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'School information not found in school database' 
-      });
-    }
-
-    console.log(`[getSchoolInfoFromDatabase] Found school: ${schoolInfo.name} (${schoolInfo.code})`);
-    console.log(`[getSchoolInfoFromDatabase] Bank details present:`, !!schoolInfo.bankDetails);
-    
-    // Return school info from school's database
-    res.json({
-      success: true,
-      data: {
-        _id: schoolInfo._id,
-        name: schoolInfo.name,
-        code: schoolInfo.code,
-        address: schoolInfo.address,
-        contact: schoolInfo.contact,
-        principalName: schoolInfo.principalName,
-        principalEmail: schoolInfo.principalEmail,
-        mobile: schoolInfo.mobile,
-        bankDetails: schoolInfo.bankDetails,
-        settings: schoolInfo.settings,
-        features: schoolInfo.features,
-        stats: schoolInfo.stats,
-        schoolType: schoolInfo.schoolType,
-        establishedYear: schoolInfo.establishedYear,
-        affiliationBoard: schoolInfo.affiliationBoard,
-        website: schoolInfo.website,
-        secondaryContact: schoolInfo.secondaryContact,
-        logoUrl: schoolInfo.logoUrl,
-        isActive: schoolInfo.isActive,
-        createdAt: schoolInfo.createdAt,
-        updatedAt: schoolInfo.updatedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching school info from database:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ 
-      success: false,
-      message: 'Error fetching school info from database', 
       error: error.message 
     });
   }
@@ -1822,84 +1731,84 @@ exports.updateSchool = async (req, res) => {
         console.error('Error parsing accessMatrix:', e);
       }
     }
+    
+    if (typeof updateData.academicSettings === 'string') {
+      try {
+        updateData.academicSettings = JSON.parse(updateData.academicSettings);
+      } catch (e) {
+        console.error('Error parsing academicSettings:', e);
+      }
+    }
+    
+    if (typeof updateData.settings === 'string') {
+      try {
+        updateData.settings = JSON.parse(updateData.settings);
+      } catch (e) {
+        console.error('Error parsing settings:', e);
+      }
+    }
 
-    // Handle logo upload with Sharp compression if file is present
+    // Handle school image upload with Sharp compression if file is present
     if (req.file) {
       let tempCompressedPath = null;
       
       try {
-        console.log(`Updating logo: ${req.file.originalname}, Size: ${(req.file.size / 1024).toFixed(2)}KB`);
+        console.log(`📸 Updating school image: ${req.file.originalname}, Size: ${(req.file.size / 1024).toFixed(2)}KB`);
         
-        // Get existing school to get code for filename
-        const existingSchool = await School.findById(schoolId);
+        // Get existing school to get code and old image
+        const existingSchool = await School.findById(schoolId).lean();
 
-        // Create temp directory for compression
-        const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
-        if (!fs.existsSync(tempDir)) {
-          fs.mkdirSync(tempDir, { recursive: true });
-        }
+        // Read the uploaded file
+        const imageBuffer = fs.readFileSync(req.file.path);
 
-        // Generate unique filename with .jpg extension
-        const timestamp = Date.now();
-        const filename = `${existingSchool.code}_${timestamp}.jpg`;
-        tempCompressedPath = path.join(tempDir, filename);
-
-        // Compress logo using Sharp to ~30KB
-        console.log('Compressing logo with Sharp...');
-        const sharpInstance = sharp(req.file.path);
-        await sharpInstance
+        // Compress image using Sharp
+        console.log('🔄 Compressing school image with Sharp...');
+        const compressedImageBuffer = await sharp(imageBuffer)
           .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-          .jpeg({ quality: 60 })
-          .toFile(tempCompressedPath);
-        
-        // Release Sharp resources
-        sharpInstance.destroy();
-        
-        // Check file size and re-compress if needed
-        let stats = fs.statSync(tempCompressedPath);
-        let quality = 60;
-        
-        while (stats.size > 30 * 1024 && quality > 20) {
-          quality -= 10;
-          console.log(`Re-compressing with quality ${quality}...`);
-          const recompressInstance = sharp(req.file.path);
-          await recompressInstance
-            .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-            .jpeg({ quality })
-            .toFile(tempCompressedPath);
-          recompressInstance.destroy();
-          stats = fs.statSync(tempCompressedPath);
-        }
-        
-        console.log(`Compressed logo: ${(stats.size / 1024).toFixed(2)}KB (quality: ${quality})`);
-        
+          .jpeg({ quality: 80 })
+          .toBuffer();
+
+        console.log(`✅ Compressed image in memory: ${(compressedImageBuffer.length / 1024).toFixed(2)}KB`);
+
         // Upload to Cloudinary
-        const cloudinaryFolder = `logos`;
-        const publicId = `${existingSchool.code}_${timestamp}`;
-        const uploadResult = await uploadToCloudinary(tempCompressedPath, cloudinaryFolder, publicId);
+        const timestamp = Date.now();
+        const cloudinaryFolder = `schools/${existingSchool.code.toUpperCase()}`;
+        const publicId = `${existingSchool._id}_${timestamp}`;
         
+        console.log(`☁️ Uploading to Cloudinary: ${cloudinaryFolder}/${publicId}`);
+        const uploadResult = await uploadBufferToCloudinary(
+          compressedImageBuffer,
+          cloudinaryFolder,
+          publicId
+        );
+        
+        if (!uploadResult || !uploadResult.secure_url) {
+          throw new Error('Cloudinary upload failed - no secure_url returned');
+        }
+
+        // Update the school image URL (you may want to use a different field like 'imageUrl' or 'logoUrl')
         updateData.logoUrl = uploadResult.secure_url;
-        console.log('Logo uploaded to Cloudinary:', uploadResult.secure_url);
+        console.log('✅ School image uploaded to Cloudinary:', uploadResult.secure_url);
         
-        // Extract old logo public ID for deletion
-        const oldLogoPublicId = existingSchool.logoUrl ? extractPublicId(existingSchool.logoUrl) : null;
+        // Extract old image public ID for deletion
+        const oldImagePublicId = existingSchool.logoUrl ? extractPublicId(existingSchool.logoUrl) : null;
+        console.log(`🔍 Old image public ID: ${oldImagePublicId}`);
         
-        // Delete temp files
+        // Delete temp file
         deleteLocalFile(req.file.path);
-        deleteLocalFile(tempCompressedPath);
         
-        // Delete old logo from Cloudinary after successful upload
-        if (oldLogoPublicId) {
+        // Delete old image from Cloudinary after successful upload
+        if (oldImagePublicId) {
           try {
-            await deleteFromCloudinary(oldLogoPublicId);
-            console.log(`Deleted old logo from Cloudinary: ${oldLogoPublicId}`);
+            await deleteFromCloudinary(oldImagePublicId);
+            console.log(`🗑️ Deleted old school image from Cloudinary: ${oldImagePublicId}`);
           } catch (err) {
-            console.warn(`Could not delete old logo from Cloudinary: ${err.message}`);
+            console.warn(`⚠️ Could not delete old school image from Cloudinary: ${err.message}`);
           }
         }
         
       } catch (error) {
-        console.error('Error handling logo upload:', error);
+        console.error('❌ Error handling school image upload:', error);
         // Clean up temp files on error
         deleteLocalFile(req.file.path);
         if (tempCompressedPath) {
@@ -2048,7 +1957,7 @@ exports.getAllSchoolsStats = async (req, res) => {
     const School = require('../models/School');
     
     // Get all schools
-    const schools = await School.find({ isActive: true }, 'code name');
+    const schools = await School.find({ isActive: true }, 'code name').lean();
     console.log(`📋 Found ${schools.length} active schools`);
     
     let totalUsers = 0;
@@ -2164,18 +2073,6 @@ exports.toggleSchoolStatus = async (req, res) => {
       return res.status(403).json({ message: 'Only super admin can toggle school status' });
     }
 
-    const school = await School.findById(schoolId);
-    if (!school) {
-      return res.status(404).json({ message: 'School not found' });
-    }
-
-    school.isActive = !school.isActive;
-    await school.save();
-
-    res.json({ 
-      message: `School ${school.isActive ? 'activated' : 'deactivated'} successfully`,
-      school: { id: school._id, name: school.name, isActive: school.isActive }
-    });
   } catch (error) {
     console.error('Error toggling school status:', error);
     res.status(500).json({ message: 'Error toggling school status', error: error.message });
@@ -2190,7 +2087,7 @@ exports.deleteSchool = async (req, res) => {
     console.log('Request body:', req.body);
     console.log('Request headers:', req.headers);
     console.log('Request user:', req.user);
-    
+
     const { schoolId } = req.params;
     
     console.log(`[DELETE REQUEST] School ID: ${schoolId}, User: ${req.user?.email || 'UNKNOWN'}, Role: ${req.user?.role || 'UNKNOWN'}`);
@@ -2207,7 +2104,7 @@ exports.deleteSchool = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only super admin can delete schools' });
     }
 
-    const school = await School.findById(schoolId);
+    const school = await School.findById(schoolId).lean();
     console.log('[DELETE DEBUG] School found:', school);
     if (!school) {
       console.log('[DELETE ERROR] School not found');
@@ -2465,7 +2362,7 @@ exports.syncAllSchoolsToDatabase = async (req, res) => {
       return res.status(403).json({ message: 'Access denied. Only superadmins can sync school data.' });
     }
 
-    const schools = await School.find({ databaseCreated: true });
+    const schools = await School.find({ databaseCreated: true }).lean();
     const syncResults = [];
 
     for (const school of schools) {
@@ -2520,12 +2417,12 @@ exports.getClassesForSchool = async (req, res) => {
     // Resolve school by ID or by code (case-insensitive)
     let school = null;
     try {
-      school = await School.findById(schoolIdOrCode);
+      school = await School.findById(schoolIdOrCode).lean();
     } catch (e) {
       school = null;
     }
     if (!school) {
-      school = await School.findOne({ code: new RegExp(`^${schoolIdOrCode}$`, 'i') });
+      school = await School.findOne({ code: new RegExp(`^${schoolIdOrCode}$`, 'i') }).lean();
     }
 
     if (!school) {
@@ -2580,3 +2477,89 @@ exports.getClassesForSchool = async (req, res) => {
     });
   }
 };
+
+// Function to handle school image uploads similar to student images.
+async function uploadSchoolImage(sourcePath, schoolId, schoolCode) {
+  console.log(`🔍 uploadSchoolImage called with: sourcePath="${sourcePath}", schoolId="${schoolId}", schoolCode="${schoolCode}"`);
+
+  if (!sourcePath || String(sourcePath).trim() === '') {
+    console.warn(`Empty image path provided. Skipping.`);
+    return '';
+  }
+
+  try {
+    let imageBuffer;
+    let cleanSourcePath = sourcePath.trim();
+    if (cleanSourcePath.startsWith('?')) {
+      cleanSourcePath = cleanSourcePath.substring(1);
+      console.log(`🧹 Cleaned path: "${sourcePath}" -> "${cleanSourcePath}"`);
+    }
+
+    if (cleanSourcePath.startsWith('http://') || cleanSourcePath.startsWith('https://')) {
+      console.log(`📸 Downloading image from URL: ${cleanSourcePath}`);
+      const response = await axios.get(cleanSourcePath, { 
+        responseType: 'arraybuffer',
+        timeout: 30000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      imageBuffer = Buffer.from(response.data);
+      console.log(`✅ Downloaded ${imageBuffer.length} bytes from URL`);
+    } else {
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
+      if (isProduction) {
+        console.warn(`⚠️ Local file path provided in production environment: ${cleanSourcePath}`);
+        return '';
+      }
+
+      console.log(`📁 Reading image from local path: ${cleanSourcePath}`);
+      if (!fs.existsSync(cleanSourcePath)) {
+        console.error(`❌ Local image file not found: ${cleanSourcePath}`);
+        throw new Error(`Local image file not found: ${cleanSourcePath}`);
+      }
+
+      const stats = fs.statSync(cleanSourcePath);
+      if (!stats.isFile()) {
+        throw new Error(`Path is not a file: ${cleanSourcePath}`);
+      }
+
+      imageBuffer = fs.readFileSync(cleanSourcePath);
+      console.log(`✅ Read ${imageBuffer.length} bytes from local file`);
+    }
+
+    console.log('🔄 Compressing image with Sharp...');
+    const compressedImageBuffer = await sharp(imageBuffer)
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+
+    console.log(`✅ Compressed image in memory: ${(compressedImageBuffer.length / 1024).toFixed(2)}KB`);
+
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      throw new Error('Cloudinary configuration missing. Please check environment variables.');
+    }
+
+    const timestamp = Date.now();
+    const cloudinaryFolder = `schools/${schoolCode.toUpperCase()}`;
+    const publicId = `${schoolId}_${timestamp}`;
+
+    console.log(`☁️ Uploading to Cloudinary: ${cloudinaryFolder}/${publicId}`);
+    const uploadResult = await uploadBufferToCloudinary(
+      compressedImageBuffer,
+      cloudinaryFolder,
+      publicId
+    );
+
+    if (!uploadResult || !uploadResult.secure_url) {
+      throw new Error('Cloudinary upload failed - no secure_url returned');
+    }
+
+    console.log(`✅ School image uploaded successfully: ${uploadResult.secure_url}`);
+    return uploadResult.secure_url;
+
+  } catch (error) {
+    console.error(`❌ Error processing school image from ${sourcePath}:`, error.message);
+    return '';
+  }
+}

@@ -14,6 +14,49 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }
 
+// Configure multer for school image uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '..', 'uploads', 'temp'));
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'school-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit (before compression)
+  },
+  fileFilter: (req, file, cb) => {
+    console.log('📎 File upload attempt:', {
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    });
+    
+    // Check mimetype
+    const allowedMimeTypes = [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/gif',
+      'image/webp'
+    ];
+    
+    if (allowedMimeTypes.includes(file.mimetype.toLowerCase())) {
+      console.log('✅ File type accepted:', file.mimetype);
+      return cb(null, true);
+    } else {
+      console.log('❌ File type rejected:', file.mimetype);
+      return cb(new Error('Only image files (JPEG, PNG, GIF, WebP) are allowed!'));
+    }
+  }
+});
+
 // Upload config for logos - store in temp for compression
 const logoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -45,7 +88,7 @@ const logoUpload = multer({
 });
 
 // Upload config for other files (Excel imports, etc.)
-const storage = multer.diskStorage({
+const fileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, path.join(__dirname, '..', 'uploads'));
   },
@@ -55,7 +98,7 @@ const storage = multer.diskStorage({
     cb(null, `upload-${unique}${ext}`);
   }
 });
-const upload = multer({ storage });
+const fileUpload = multer({ storage: fileStorage });
 
 // Apply authentication middleware to all routes
 router.use(authMiddleware.auth);
@@ -89,8 +132,13 @@ router.get('/:schoolId', setSchoolContext, validateSchoolAccess(['admin', 'super
 // Direct school info route (bypasses school-specific database issues)
 router.get('/:schoolId/info', authMiddleware.auth, schoolController.getSchoolInfo);
 // Get school info from school_info collection in school's database
-router.get('/database/school-info', authMiddleware.auth, schoolController.getSchoolInfoFromDatabase);
-router.put('/:schoolId', schoolController.updateSchool);
+// router.get('/database/school-info', authMiddleware.auth, schoolController.getSchoolInfoFromDatabase); // Commented out - function removed
+router.put('/:schoolId',
+  authMiddleware.auth,
+  setMainDbContext,
+  upload.single('schoolImage'), // Handle single file upload with field name 'schoolImage'
+  schoolController.updateSchool
+);
 router.patch('/:schoolId/access-matrix', setMainDbContext, requireSuperAdmin, schoolController.updateAccessMatrix);
 router.delete('/:schoolId', setMainDbContext, requireSuperAdmin, schoolController.deleteSchool);
 // Update only bank details
@@ -104,12 +152,12 @@ router.get('/:schoolId/classes', schoolController.getClassesForSchool);
 router.get('/:schoolId/users', schoolController.getSchoolUsers);
 router.post('/:schoolId/users', schoolController.addUser);
 router.post('/:schoolId/admins', schoolController.addAdminToSchool);
-router.post('/:schoolId/users/import', upload.single('file'), schoolController.importUsers);
+router.post('/:schoolId/users/import', fileUpload.single('file'), schoolController.importUsers);
 router.get('/:schoolId/users/export', schoolController.exportUsers);
 
 // Comprehensive export/import routes
 router.get('/:schoolCode/export/users', exportImportController.exportUsers);
-router.post('/:schoolCode/import/users', upload.single('file'), exportImportController.importUsers);
+router.post('/:schoolCode/import/users', fileUpload.single('file'), exportImportController.importUsers);
 router.get('/:schoolCode/template/:role', exportImportController.generateTemplate);
 router.put('/:schoolId/users/:userId', schoolController.updateUser);
 router.delete('/:schoolId/users/:userId', schoolController.deleteUser);

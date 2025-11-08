@@ -9,11 +9,11 @@ const resolveSchoolCode = async (schoolIdentifier) => {
   console.log(`🔍 Resolving school identifier: ${schoolIdentifier}`);
   
   // First, try to find school by code (direct match)
-  let school = await School.findOne({ code: schoolIdentifier.toUpperCase() });
+  let school = await School.findOne({ code: schoolIdentifier.toUpperCase() }).lean();
   
   if (!school) {
     // If not found by code, try to find by name
-    school = await School.findOne({ name: { $regex: new RegExp(`^${schoolIdentifier}$`, 'i') } });
+    school = await School.findOne({ name: { $regex: new RegExp(`^${schoolIdentifier}$`, 'i') } }).lean();
   }
   
   if (!school) {
