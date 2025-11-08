@@ -17,6 +17,7 @@ const User = require('../models/User');
 const Subject = require('../models/Subject');
 const Class = require('../models/Class');
 const { gradeSystem, gradeUtils } = require('../utils/gradeSystem');
+const { getCurrentAcademicYear } = require('../utils/academicYearHelper');
 
 // -----------------------------
 // Core: Create / Update Result

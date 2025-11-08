@@ -132,8 +132,19 @@ exports.bulkPromotion = async (req, res) => {
 
     console.log(`🎓 Final year class detected: ${finalYearClass}`);
 
+    // 🔥 CRITICAL FIX: Get all available classes in school to validate promotions
+    const classesCollection = schoolConnection.collection('classes');
+    const availableClasses = await classesCollection.find({
+      schoolCode: schoolCode,
+      isActive: true
+    }).toArray();
+    
+    const availableClassNames = new Set(availableClasses.map(c => c.className));
+    console.log(`📚 Available classes in school: ${Array.from(availableClassNames).join(', ')}`);
+
     let promotedCount = 0;
     let graduatedCount = 0;
+    let skippedCount = 0;
     let errors = [];
 
     // Process each student
@@ -167,7 +178,7 @@ exports.bulkPromotion = async (req, res) => {
                 $set: {
                   isActive: false,
                   'studentDetails.status': 'alumni',
-                  'studentDetails.academic.academicYear': toYear,
+                  'studentDetails.academicYear': toYear,
                   updatedAt: new Date()
                 }
               }
@@ -210,12 +221,26 @@ exports.bulkPromotion = async (req, res) => {
             continue;
           }
 
+          // 🔥 CRITICAL FIX: Check if next class exists in school
+          if (!availableClassNames.has(nextClass)) {
+            console.log(`⚠️ Skipping ${student.userId}: Next class ${nextClass} not available in school`);
+            errors.push({ 
+              userId: student.userId, 
+              currentClass: currentClass,
+              nextClass: nextClass,
+              error: `Cannot promote to Class ${nextClass} - class not configured in school`,
+              action: 'skipped'
+            });
+            skippedCount++;
+            continue;
+          }
+
           await usersCollection.updateOne(
             { _id: student._id },
             {
               $set: {
-                'studentDetails.academic.currentClass': nextClass,
-                'studentDetails.academic.academicYear': toYear,
+                'studentDetails.currentClass': nextClass,
+                'studentDetails.academicYear': toYear,
                 updatedAt: new Date()
               },
               $push: {
@@ -239,9 +264,13 @@ exports.bulkPromotion = async (req, res) => {
       }
     }
 
-    const message = finalYearAction === 'graduate'
+    let message = finalYearAction === 'graduate'
       ? `Successfully promoted ${promotedCount} students and graduated ${graduatedCount} students.`
       : `Successfully promoted ${promotedCount} students. Class request sent to SuperAdmin for final year students.`;
+    
+    if (skippedCount > 0) {
+      message += ` ${skippedCount} student(s) were skipped because their next class is not configured in the school.`;
+    }
 
     res.status(200).json({
       success: true,
@@ -249,11 +278,13 @@ exports.bulkPromotion = async (req, res) => {
       data: {
         promoted: promotedCount,
         graduated: graduatedCount,
+        skipped: skippedCount,
         errors: errors.length > 0 ? errors : undefined,
         fromYear,
         toYear,
         finalYearClass,
-        finalYearAction
+        finalYearAction,
+        warning: skippedCount > 0 ? 'Some students were not promoted because their next class does not exist in the school. Please add the required classes in School Settings.' : undefined
       }
     });
 
@@ -271,7 +302,7 @@ exports.bulkPromotion = async (req, res) => {
 exports.sectionPromotion = async (req, res) => {
   try {
     const { schoolCode } = req.params;
-    const { fromYear, toYear, className, section, holdBackSequenceIds = [] } = req.body;
+    const { fromYear, toYear, className, section, holdBackSequenceIds = [], graduateStudents = false } = req.body;
 
     console.log('📢 Section Promotion Request:', { schoolCode, fromYear, toYear, className, section, holdBackSequenceIds });
 
@@ -361,14 +392,55 @@ exports.sectionPromotion = async (req, res) => {
       });
     }
 
+    // 🔥 CRITICAL FIX: Check if next class exists in school configuration
+    const classesCollection = schoolConnection.collection('classes');
+    const alumniCollection = schoolConnection.collection('alumni');
+    const nextClassExists = await classesCollection.findOne({
+      schoolCode: schoolCode,
+      className: nextClass,
+      isActive: true
+    });
+
+    // If next class doesn't exist and graduateStudents is not set, return error with options
+    if (!nextClassExists && !graduateStudents) {
+      console.log(`⚠️ Next class ${nextClass} does not exist in school ${schoolCode}`);
+      
+      // Check if this is a final year scenario (Class 10, 11, or 12)
+      const isFinalYearClass = ['10', '11', '12'].includes(className);
+      
+      return res.status(400).json({
+        success: false,
+        message: `Cannot promote to Class ${nextClass}. This class is not configured in your school.`,
+        errorCode: 'CLASS_NOT_FOUND',
+        details: {
+          currentClass: className,
+          nextClass: nextClass,
+          suggestion: isFinalYearClass 
+            ? `Class ${className} appears to be your school's final year. You can mark students as "Passed Out" instead.`
+            : `Please add Class ${nextClass} in School Settings before promoting students from Class ${className}.`,
+          isFinalYear: isFinalYearClass,
+          canGraduate: true,
+          requiresClassCreation: !isFinalYearClass
+        }
+      });
+    }
+
+    if (nextClassExists) {
+      console.log(`✅ Next class ${nextClass} exists in school. Proceeding with promotion.`);
+    } else if (graduateStudents) {
+      console.log(`✅ Graduating students from Class ${className} (final year).`);
+    }
+
     let promotedCount = 0;
     let heldBackCount = 0;
+    let graduatedCount = 0;
     let errors = [];
 
     // Process each student
     for (const student of students) {
       try {
         const userId = student.userId;
+        const currentSection = student.studentDetails?.currentSection || student.studentDetails?.academic?.currentSection;
 
         // Check if student should be held back
         if (holdBackSequenceIds.includes(userId)) {
@@ -377,7 +449,7 @@ exports.sectionPromotion = async (req, res) => {
             { _id: student._id },
             {
               $set: {
-                'studentDetails.academic.academicYear': toYear,
+                'studentDetails.academicYear': toYear,
                 updatedAt: new Date()
               },
               $push: {
@@ -394,14 +466,50 @@ exports.sectionPromotion = async (req, res) => {
 
           heldBackCount++;
           console.log(`⏸️ Held back: ${userId} in Class ${className}`);
+        } else if (graduateStudents) {
+          // Graduate student (move to alumni or mark as passed out)
+          const alumniRecord = {
+            ...student,
+            graduationYear: toYear,
+            graduationClass: className,
+            graduationSection: currentSection,
+            movedToAlumniAt: new Date(),
+            originalStudentId: student._id,
+            status: 'passedOut'
+          };
+
+          await alumniCollection.insertOne(alumniRecord);
+          await usersCollection.updateOne(
+            { _id: student._id },
+            {
+              $set: {
+                isActive: false,
+                'studentDetails.status': 'passedOut',
+                'studentDetails.academicYear': toYear,
+                updatedAt: new Date()
+              },
+              $push: {
+                'studentDetails.academicHistory': {
+                  academicYear: fromYear,
+                  class: className,
+                  section: section,
+                  result: 'passedOut',
+                  passedOutAt: new Date()
+                }
+              }
+            }
+          );
+
+          graduatedCount++;
+          console.log(`🎓 Graduated/Passed Out: ${userId} from Class ${className}`);
         } else {
           // Promote to next class
           await usersCollection.updateOne(
             { _id: student._id },
             {
               $set: {
-                'studentDetails.academic.currentClass': nextClass,
-                'studentDetails.academic.academicYear': toYear,
+                'studentDetails.currentClass': nextClass,
+                'studentDetails.academicYear': toYear,
                 updatedAt: new Date()
               },
               $push: {
@@ -425,18 +533,33 @@ exports.sectionPromotion = async (req, res) => {
       }
     }
 
+    let message = '';
+    if (graduateStudents) {
+      message = `Successfully marked ${graduatedCount} student(s) as Passed Out.`;
+      if (heldBackCount > 0) {
+        message += ` ${heldBackCount} student(s) held back.`;
+      }
+    } else {
+      message = `Successfully promoted ${promotedCount} students to Class ${nextClass}.`;
+      if (heldBackCount > 0) {
+        message += ` ${heldBackCount} student(s) held back.`;
+      }
+    }
+
     res.status(200).json({
       success: true,
-      message: `Successfully promoted ${promotedCount} students. ${heldBackCount} student(s) held back.`,
+      message: message,
       data: {
         promoted: promotedCount,
+        graduated: graduatedCount,
         heldBack: heldBackCount,
         errors: errors.length > 0 ? errors : undefined,
         fromYear,
         toYear,
         className,
         section,
-        nextClass
+        nextClass: graduateStudents ? 'Passed Out' : nextClass,
+        action: graduateStudents ? 'graduated' : 'promoted'
       }
     });
 

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Calendar, GraduationCap, Clock, Users, Award, BookOpen, ChevronDown, ChevronRight, FileText } from 'lucide-react';
+import { Save, Calendar, GraduationCap, Clock, Users, Award, BookOpen, ChevronDown, ChevronRight, FileText, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../../../services/api';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import PromotionTab from '../components/PromotionTab';
 import UniversalTemplate from '../components/UniversalTemplate';
 
@@ -28,6 +29,7 @@ interface ClassData {
 }
 
 const SchoolSettings: React.FC = () => {
+  const { refreshAcademicYear } = useAcademicYear();
   const [activeTab, setActiveTab] = useState('academic');
   const [tests, setTests] = useState<TestData[]>([]);
   const [classes, setClasses] = useState<ClassData[]>([]);
@@ -41,13 +43,17 @@ const SchoolSettings: React.FC = () => {
   const [academicYearEnd, setAcademicYearEnd] = useState('2025-03-31');
 
   // Promotion state
-  const [promotionMode, setPromotionMode] = useState<'bulk' | 'manual'>('bulk');
   const [fromYear, setFromYear] = useState('2024-25');
   const [toYear, setToYear] = useState('');
-  const [finalYearAction, setFinalYearAction] = useState<'graduate' | 'request' | ''>('');
-  const [selectedPromotionClass, setSelectedPromotionClass] = useState('');
-  const [selectedPromotionSection, setSelectedPromotionSection] = useState('');
-  const [holdBackSeqIds, setHoldBackSeqIds] = useState('');
+  const [isAcademicYearSaved, setIsAcademicYearSaved] = useState(false);
+  const [savedAcademicYear, setSavedAcademicYear] = useState('');
+  
+  // Reset saved state when academic year is modified
+  useEffect(() => {
+    if (savedAcademicYear && currentAcademicYear !== savedAcademicYear) {
+      setIsAcademicYearSaved(false);
+    }
+  }, [currentAcademicYear, savedAcademicYear]);
 
   // Get school code and token from localStorage
   const getAuthData = () => {
@@ -288,49 +294,6 @@ const SchoolSettings: React.FC = () => {
     }
   };
 
-  // Handle bulk promotion
-  const handleBulkPromotion = async () => {
-    const { schoolCode, token } = getAuthData();
-    if (!schoolCode || !token) {
-      toast.error('Authentication error. Please login again.');
-      return;
-    }
-
-    if (!finalYearAction) {
-      toast.error('Please select an option for final-year students.');
-      return;
-    }
-
-    if (!confirm(`Are you sure you want to promote all students from ${fromYear} to ${toYear}?`)) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const endpoint = `/admin/promotion/${schoolCode}/bulk`;
-      const response = await api.post(endpoint, {
-        fromYear,
-        toYear,
-        finalYearAction
-      });
-
-      if (response.data.success) {
-        toast.success(response.data.message || 'Students promoted successfully!');
-        console.log('✅ Bulk promotion result:', response.data);
-        // Reset state
-        setFinalYearAction('');
-        await fetchClasses();
-      } else {
-        toast.error(response.data.message || 'Failed to promote students');
-      }
-    } catch (error: any) {
-      console.error('❌ Error promoting students:', error);
-      toast.error(error.response?.data?.message || 'Failed to promote students');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Fetch academic year settings
   const fetchAcademicYear = async () => {
     const { schoolCode, token } = getAuthData();
@@ -344,6 +307,8 @@ const SchoolSettings: React.FC = () => {
         setAcademicYearStart(startDate ? startDate.split('T')[0] : '2024-04-01');
         setAcademicYearEnd(endDate ? endDate.split('T')[0] : '2025-03-31');
         setFromYear(currentYear || '2024-2025');
+        setSavedAcademicYear(currentYear || '2024-2025');
+        setIsAcademicYearSaved(true);
       }
     } catch (error: any) {
       console.error('Error fetching academic year:', error);
@@ -378,63 +343,21 @@ const SchoolSettings: React.FC = () => {
           const updatedCount = migrationResponse.data.data?.updated || 0;
           toast.success(`Academic year updated! ${updatedCount} student(s) updated.`);
           setFromYear(currentAcademicYear);
+          setSavedAcademicYear(currentAcademicYear);
+          setIsAcademicYearSaved(true);
         } else {
           toast.success('Academic year updated successfully!');
           setFromYear(currentAcademicYear);
+          setSavedAcademicYear(currentAcademicYear);
+          setIsAcademicYearSaved(true);
         }
+        
+        // Refresh academic year context so all pages get the new year
+        await refreshAcademicYear();
       }
     } catch (error: any) {
       console.error('Error saving academic year:', error);
       toast.error('Failed to save academic year');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle manual section promotion
-  const handleManualPromotion = async () => {
-    const { schoolCode, token } = getAuthData();
-    if (!schoolCode || !token) {
-      toast.error('Authentication error. Please login again.');
-      return;
-    }
-
-    if (!selectedPromotionClass || !selectedPromotionSection) {
-      toast.error('Please select both class and section.');
-      return;
-    }
-
-    const holdBackIds = holdBackSeqIds.split(',').map(id => id.trim()).filter(id => id);
-
-    if (!confirm(`Promote Class ${selectedPromotionClass}-${selectedPromotionSection} (except ${holdBackIds.length} student(s))?`)) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const endpoint = `/admin/promotion/${schoolCode}/section`;
-      const response = await api.post(endpoint, {
-        fromYear,
-        toYear,
-        className: selectedPromotionClass,
-        section: selectedPromotionSection,
-        holdBackSequenceIds: holdBackIds
-      });
-
-      if (response.data.success) {
-        toast.success(response.data.message || 'Section promoted successfully!');
-        console.log('✅ Manual promotion result:', response.data);
-        // Reset state
-        setSelectedPromotionClass('');
-        setSelectedPromotionSection('');
-        setHoldBackSeqIds('');
-        await fetchClasses();
-      } else {
-        toast.error(response.data.message || 'Failed to promote section');
-      }
-    } catch (error: any) {
-      console.error('❌ Error promoting section:', error);
-      toast.error(error.response?.data?.message || 'Failed to promote section');
     } finally {
       setLoading(false);
     }
@@ -498,7 +421,7 @@ const SchoolSettings: React.FC = () => {
 
   const tabs = [
     { id: 'academic', name: 'Academic Year', icon: Calendar },
-    { id: 'promotion', name: 'Promotion', icon: GraduationCap },
+    { id: 'promotion', name: 'Promotion', icon: GraduationCap, disabled: !isAcademicYearSaved },
     { id: 'scoring', name: 'Scoring System', icon: GraduationCap },
     { id: 'classes', name: 'Class Structure', icon: Users },
     { id: 'templates', name: 'Templates', icon: FileText },
@@ -526,15 +449,20 @@ const SchoolSettings: React.FC = () => {
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => !tab.disabled && setActiveTab(tab.id)}
+                disabled={tab.disabled}
                 className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center transition-colors ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
+                    : tab.disabled
+                    ? 'border-transparent text-gray-400 cursor-not-allowed'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
+                title={tab.disabled ? 'Please save Academic Year first' : ''}
               >
                 <tab.icon className="h-4 w-4 mr-2" />
                 {tab.name}
+                {tab.disabled && <span className="ml-1 text-xs">🔒</span>}
               </button>
             ))}
           </nav>
@@ -544,7 +472,22 @@ const SchoolSettings: React.FC = () => {
         <div className="p-6">
           {activeTab === 'academic' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Academic Year Configuration</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900">Academic Year Configuration</h3>
+                {isAcademicYearSaved && (
+                  <span className="flex items-center text-sm text-green-600">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Saved: {savedAcademicYear}
+                  </span>
+                )}
+              </div>
+              {!isAcademicYearSaved && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-800">
+                    <strong>⚠️ Important:</strong> Please save the academic year before proceeding to promotion. This ensures all students are properly assigned to the correct academic year.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Current Academic Year</label>
@@ -585,25 +528,29 @@ const SchoolSettings: React.FC = () => {
           )}
 
           {activeTab === 'promotion' && (
-            <PromotionTab
-              promotionMode={promotionMode}
-              setPromotionMode={setPromotionMode}
-              fromYear={fromYear}
-              setFromYear={setFromYear}
-              toYear={toYear}
-              finalYearAction={finalYearAction}
-              setFinalYearAction={setFinalYearAction}
-              classes={classes}
-              selectedPromotionClass={selectedPromotionClass}
-              setSelectedPromotionClass={setSelectedPromotionClass}
-              selectedPromotionSection={selectedPromotionSection}
-              setSelectedPromotionSection={setSelectedPromotionSection}
-              holdBackSeqIds={holdBackSeqIds}
-              setHoldBackSeqIds={setHoldBackSeqIds}
-              onBulkPromote={handleBulkPromotion}
-              onManualPromote={handleManualPromotion}
-              loading={loading}
-            />
+            <>
+              {!isAcademicYearSaved ? (
+                <div className="text-center py-12">
+                  <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Academic Year Not Set</h3>
+                  <p className="text-gray-600 mb-4">Please save the academic year in the Academic Year tab before proceeding with promotion.</p>
+                  <button
+                    onClick={() => setActiveTab('academic')}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Go to Academic Year Settings
+                  </button>
+                </div>
+              ) : (
+                <PromotionTab
+                  fromYear={fromYear}
+                  setFromYear={setFromYear}
+                  toYear={toYear}
+                  classes={classes}
+                  loading={loading}
+                />
+              )}
+            </>
           )}
 
           {activeTab === 'scoring' && (

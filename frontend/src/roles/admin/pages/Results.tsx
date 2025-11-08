@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Edit, Save, Check, X } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import { testDetailsAPI } from '../../../api/testDetails';
 import { resultsAPI } from '../../../services/api';
 import { toast } from 'react-hot-toast';
@@ -22,6 +23,7 @@ interface StudentResult {
 
 const Results: React.FC = () => {
   const { user, token } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
 
   // Use the useSchoolClasses hook to fetch classes configured by superadmin
   const {
@@ -402,7 +404,9 @@ const Results: React.FC = () => {
         const filtered = rawStudents.filter((s: any) => {
           const sClass = s.studentDetails?.currentClass || s.currentclass || s.class || s.className;
           const sSection = s.studentDetails?.currentSection || s.currentsection || s.section;
-          return String(sClass) === String(selectedClass) && String(sSection).toUpperCase() === String(selectedSection).toUpperCase();
+          const studentAcademicYear = s.studentDetails?.academicYear || s.academicYear;
+          const matchesAcademicYear = studentAcademicYear === viewingAcademicYear;
+          return String(sClass) === String(selectedClass) && String(sSection).toUpperCase() === String(selectedSection).toUpperCase() && matchesAcademicYear;
         });
 
         const students = filtered.map((student: any, index: number) => ({
@@ -990,9 +994,35 @@ const Results: React.FC = () => {
         )}
       </div>
 
+      {/* Academic Year Selector */}
+      {isViewingHistoricalYear && (
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+          <p className="text-sm text-yellow-800">
+            <strong>📚 Viewing Historical Data:</strong> You are viewing data from {viewingAcademicYear}. This data is read-only.
+          </p>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
         <div className="flex flex-wrap gap-4">
+          {/* Academic Year Selection */}
+          <div className="flex flex-col">
+            <label htmlFor="year-select" className="text-sm font-medium text-gray-700">Academic Year</label>
+            <select
+              id="year-select"
+              value={viewingAcademicYear}
+              onChange={(e) => setViewingYear(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
+            >
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year} {year === currentAcademicYear && '(Current)'}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Class Selection */}
           <div className="flex flex-col">
             <label htmlFor="class-select" className="text-sm font-medium text-gray-700">Class</label>

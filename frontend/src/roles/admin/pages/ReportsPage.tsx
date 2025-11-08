@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Download, TrendingUp, DollarSign, Users, UserCheck, AlertCircle, CheckCircle, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import ClassSectionSelect from '../components/ClassSectionSelect';
 import api from '../../../api/axios';
 import { 
@@ -44,6 +45,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 const ReportsPage: React.FC = () => {
   const { user } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
   
   // Filter state
   const [selectedClass, setSelectedClass] = useState('ALL');
@@ -93,6 +95,7 @@ const ReportsPage: React.FC = () => {
   const handleExportToCSV = async () => {
     try {
       const params = {
+        academicYear: viewingAcademicYear,
         class: selectedClass !== 'ALL' ? selectedClass : undefined,
         section: selectedSection !== 'ALL' ? selectedSection : undefined,
         search: searchTerm || undefined,
@@ -129,6 +132,7 @@ const ReportsPage: React.FC = () => {
       setError(null);
       
       const params = {
+        academicYear: viewingAcademicYear,
         class: selectedClass !== 'ALL' ? selectedClass : undefined,
         section: selectedSection !== 'ALL' ? selectedSection : undefined,
         page: pagination.page,
@@ -155,7 +159,7 @@ const ReportsPage: React.FC = () => {
     } finally {
       setLoadingDues(false);
     }
-  }, [selectedClass, selectedSection, pagination.page, pagination.limit, searchTerm, statusFilter]);
+  }, [viewingAcademicYear, selectedClass, selectedSection, pagination.page, pagination.limit, searchTerm, statusFilter]);
 
   // Fetch class and section wise student counts - simplified version
   const fetchClassWiseCounts = useCallback(async () => {
@@ -169,6 +173,7 @@ const ReportsPage: React.FC = () => {
       console.log('Trying /reports/class-summary endpoint...');
       const response = await api.get('/reports/class-summary', {
         params: {
+          academicYear: viewingAcademicYear,
           class: selectedClass !== 'ALL' ? selectedClass : undefined,
           section: selectedSection !== 'ALL' ? selectedSection : undefined
         }
@@ -304,7 +309,7 @@ const ReportsPage: React.FC = () => {
       setError(errorMessage);
       setClassWiseCounts([]);
     }
-  }, [selectedClass, selectedSection]);
+  }, [viewingAcademicYear, selectedClass, selectedSection]);
 
   // Fetch school summary data
   const fetchSchoolSummary = useCallback(async () => {
@@ -323,7 +328,7 @@ const ReportsPage: React.FC = () => {
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       
       const response = await getSchoolSummary({
-        academicYear: `${now.getFullYear()}-${now.getFullYear() + 1}`,
+        academicYear: viewingAcademicYear,
         class: selectedClass === 'ALL' ? undefined : selectedClass,
         section: selectedSection === 'ALL' ? undefined : selectedSection,
         from: firstDay.toISOString().split('T')[0],
@@ -394,7 +399,7 @@ const ReportsPage: React.FC = () => {
       setLoading(false);
       setSummaryLoading(false);
     }
-  }, [selectedClass, selectedSection, fetchClassWiseCounts]);
+  }, [viewingAcademicYear, selectedClass, selectedSection, fetchClassWiseCounts]);
 
   // Fetch students for a specific class and section
   const fetchStudentsForClassSection = useCallback(async (className: string, section: string) => {
@@ -616,9 +621,35 @@ const ReportsPage: React.FC = () => {
         </div>
 
         <div className="p-6">
+          {/* Academic Year Warning Banner */}
+          {isViewingHistoricalYear && (
+            <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6">
+              <p className="text-sm text-yellow-800">
+                <strong>📚 Viewing Historical Data:</strong> You are viewing data from {viewingAcademicYear}. This data is read-only.
+              </p>
+            </div>
+          )}
+
           {/* Global Filters */}
           <div className="mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {/* Academic Year Selection */}
+              <div className="flex flex-col">
+                <label htmlFor="year-select" className="text-sm font-medium text-gray-700 mb-2">Academic Year</label>
+                <select
+                  id="year-select"
+                  value={viewingAcademicYear}
+                  onChange={(e) => setViewingYear(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {availableYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year} {year === currentAcademicYear && '(Current)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <ClassSectionSelect
                 schoolId={user?.schoolId}
                 valueClass={selectedClass}

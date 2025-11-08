@@ -5,6 +5,7 @@ const User = require('../models/User');
 const School = require('../models/School');
 const DatabaseManager = require('../utils/databaseManager');
 const { uploadPDFToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
+const { getCurrentAcademicYear } = require('../utils/academicYearHelper');
 const path = require('path');
 const fs = require('fs');
 
@@ -130,20 +131,9 @@ exports.createAssignment = async (req, res) => {
       }
     }
 
-    // Set current academic year if not provided
-    const getCurrentAcademicYear = () => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth() + 1; // Jan is 0, Dec is 11
-
-      // If current month is before April, use previous year as start of academic year
-      // Example: March 2024 would be in 2023-24 academic year
-      if (month < 4) {
-        return `${year - 1}-${year.toString().substr(2, 2)}`;
-      } else {
-        return `${year}-${(year + 1).toString().substr(2, 2)}`;
-      }
-    };
+    // Fetch current academic year from school settings if not provided
+    const resolvedAcademicYear = academicYear || await getCurrentAcademicYear(schoolCode);
+    console.log(`[ASSIGNMENT] Using academic year: ${resolvedAcademicYear}`);
 
     // Create assignment either in school-specific database or main database
     let assignment;
@@ -180,7 +170,7 @@ exports.createAssignment = async (req, res) => {
         dueDate: new Date(dueDate),
         instructions: instructions || description || '',
         attachments: processedAttachments,
-        academicYear: academicYear || getCurrentAcademicYear(),
+        academicYear: resolvedAcademicYear,
         term: term || 'Term 1',
         totalStudents,
         status: 'active',
@@ -213,7 +203,7 @@ exports.createAssignment = async (req, res) => {
         dueDate: new Date(dueDate),
         instructions: instructions || description || '',
         attachments: processedAttachments,
-        academicYear: academicYear || getCurrentAcademicYear(),
+        academicYear: resolvedAcademicYear,
         term: term || 'Term 1',
         totalStudents,
         status: 'active',

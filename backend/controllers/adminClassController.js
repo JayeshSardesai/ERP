@@ -1,10 +1,10 @@
 const School = require('../models/School');
 const { ObjectId } = require('mongodb');
+const DatabaseManager = require('../utils/databaseManager');
 
 // Get school database connection
 async function getSchoolConnectionWithFallback(schoolCode) {
   try {
-    const DatabaseManager = require('../utils/databaseManager');
     return await DatabaseManager.getSchoolConnection(schoolCode);
   } catch (error) {
     console.error(`Error connecting to school database ${schoolCode}:`, error);
@@ -28,17 +28,50 @@ exports.getSchoolClassesAndSections = async (req, res) => {
       });
     }
 
+    console.log(`📋 School found: ${school.name}, ID: ${school._id}`);
+
     // Get school database connection
     const schoolConnection = await getSchoolConnectionWithFallback(schoolCode);
     const classesCollection = schoolConnection.collection('classes');
 
-    // Fetch all active classes with their sections
-    const classes = await classesCollection.find({
-      schoolId: school._id.toString(),
+    // Try multiple query formats to handle different data structures
+    let classes = [];
+    
+    // First, try with schoolCode field (most common)
+    classes = await classesCollection.find({
+      schoolCode: schoolCode.toUpperCase(),
       isActive: true
     }).sort({ className: 1 }).toArray();
 
-    console.log(`📚 Found ${classes.length} classes for school ${schoolCode}`);
+    console.log(`📊 Query 1 (schoolCode): Found ${classes.length} classes`);
+
+    // If no results, try with schoolId as string
+    if (classes.length === 0) {
+      classes = await classesCollection.find({
+        schoolId: school._id.toString(),
+        isActive: true
+      }).sort({ className: 1 }).toArray();
+      console.log(`📊 Query 2 (schoolId string): Found ${classes.length} classes`);
+    }
+
+    // If still no results, try with schoolId as ObjectId
+    if (classes.length === 0) {
+      classes = await classesCollection.find({
+        schoolId: school._id,
+        isActive: true
+      }).sort({ className: 1 }).toArray();
+      console.log(`📊 Query 3 (schoolId ObjectId): Found ${classes.length} classes`);
+    }
+
+    // If still no results, get all active classes (fallback)
+    if (classes.length === 0) {
+      classes = await classesCollection.find({
+        isActive: true
+      }).sort({ className: 1 }).toArray();
+      console.log(`📊 Query 4 (all active): Found ${classes.length} classes`);
+    }
+
+    console.log(`📚 Final result: ${classes.length} classes for school ${schoolCode}`);
 
     // Transform classes for frontend use
     const formattedClasses = classes.map(cls => ({
