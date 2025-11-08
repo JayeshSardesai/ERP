@@ -211,14 +211,71 @@ function normalizeAcademicSettings(doc) {
   }
 }
 
-// Post-init hook to normalize academicSettings when reading from database
+// Helper function to normalize settings field
+function normalizeSettings(doc) {
+  // If settings is a string, parse it
+  if (typeof doc.settings === 'string') {
+    try {
+      doc.settings = JSON.parse(doc.settings);
+    } catch (error) {
+      console.error('Error parsing settings string:', error);
+      doc.settings = {};
+    }
+  }
+  
+  // Ensure settings is an object
+  if (!doc.settings || typeof doc.settings !== 'object') {
+    doc.settings = {};
+  }
+  
+  // Ensure nested objects exist
+  if (!doc.settings.academicYear || typeof doc.settings.academicYear !== 'object') {
+    doc.settings.academicYear = {
+      currentYear: new Date().getFullYear().toString(),
+      startDate: new Date(`${new Date().getFullYear()}-04-01`),
+      endDate: new Date(`${new Date().getFullYear() + 1}-03-31`)
+    };
+  }
+  
+  if (!doc.settings.workingHours || typeof doc.settings.workingHours !== 'object') {
+    doc.settings.workingHours = {
+      start: '08:00',
+      end: '15:00'
+    };
+  }
+  
+  // Ensure arrays exist
+  if (!Array.isArray(doc.settings.classes)) {
+    doc.settings.classes = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+  }
+  
+  if (!Array.isArray(doc.settings.sections)) {
+    doc.settings.sections = ['A', 'B', 'C', 'D'];
+  }
+  
+  if (!Array.isArray(doc.settings.subjects)) {
+    doc.settings.subjects = ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi'];
+  }
+  
+  if (!Array.isArray(doc.settings.workingDays)) {
+    doc.settings.workingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  }
+  
+  if (!Array.isArray(doc.settings.holidays)) {
+    doc.settings.holidays = [];
+  }
+}
+
+// Post-init hook to normalize fields when reading from database
 schoolSchema.post('init', function(doc) {
   normalizeAcademicSettings(doc);
+  normalizeSettings(doc);
 });
 
-// Pre-save hook to ensure academicSettings is properly initialized
+// Pre-save hook to ensure fields are properly initialized
 schoolSchema.pre('save', function(next) {
   normalizeAcademicSettings(this);
+  normalizeSettings(this);
   next();
 });
 

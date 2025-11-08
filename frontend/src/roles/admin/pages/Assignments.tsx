@@ -5,6 +5,7 @@ import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import EditAssignmentModal from '../components/EditAssignmentModal';
 import { Plus, Search, Download, Calendar, Clock, FileText, Users, Edit, Trash2 } from 'lucide-react';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 
 interface Assignment {
   _id: string;
@@ -19,6 +20,7 @@ interface Assignment {
   submissions: number;
   totalStudents: number;
   description: string;
+  academicYear?: string;
 }
 
 const Assignments: React.FC = () => {
@@ -30,6 +32,9 @@ const Assignments: React.FC = () => {
     getClassOptions,
     getSectionsByClass
   } = useSchoolClasses();
+
+  // Academic year context
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears } = useAcademicYear();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
@@ -315,10 +320,11 @@ const Assignments: React.FC = () => {
     const matchesFilter = selectedFilter === 'all' || status === selectedFilter;
     const matchesClass = !selectedClass || assignmentClass === selectedClass;
     const matchesSubject = !selectedSubject || subject === selectedSubject;
+    const matchesAcademicYear = !viewingAcademicYear || assignment.academicYear === viewingAcademicYear;
     
     // Note: Section filtering would require section data in assignment model
     
-    return matchesSearch && matchesFilter && matchesClass && matchesSubject;
+    return matchesSearch && matchesFilter && matchesClass && matchesSubject && matchesAcademicYear;
   });
 
   return (
@@ -395,6 +401,17 @@ const Assignments: React.FC = () => {
             />
           </div>
           <div className="flex flex-1 gap-3">
+            <select
+              value={viewingAcademicYear}
+              onChange={(e) => setViewingYear(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year} {year === currentAcademicYear && '(Current)'}
+                </option>
+              ))}
+            </select>
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}

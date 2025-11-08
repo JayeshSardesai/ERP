@@ -890,26 +890,6 @@ exports.createSchool = async (req, res) => {
         }
       })(),
       
-      // Parse settings if it's a string, otherwise use directly
-      settings: (() => {
-        try {
-          return typeof settings === 'string' ? JSON.parse(settings) : settings;
-        } catch (error) {
-          console.error('Error parsing settings:', error, 'Raw settings:', settings);
-          return {};
-        }
-      })(),
-      
-      // Parse features if it's a string, otherwise use directly
-      features: (() => {
-        try {
-          return typeof features === 'string' ? JSON.parse(features) : features;
-        } catch (error) {
-          console.error('Error parsing features:', error, 'Raw features:', features);
-          return {};
-        }
-      })(),
-      
       // Additional school information
       schoolType: schoolType?.trim() || 'Public',
       establishedYear: parseInt(establishedYear) || new Date().getFullYear(),
@@ -917,31 +897,77 @@ exports.createSchool = async (req, res) => {
       website: (website || '').trim(),
       secondaryContact: (secondaryContact || '').trim(),
       
-      // Default settings and features
-      settings: {
-        academicYear: {
-          currentYear: new Date().getFullYear().toString(),
-          startDate: new Date(`${new Date().getFullYear()}-04-01`),
-          endDate: new Date(`${new Date().getFullYear() + 1}-03-31`)
-        },
-        classes: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
-        sections: ['A', 'B', 'C', 'D'],
-        subjects: ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi'],
-        workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-        workingHours: {
-          start: '08:00',
-          end: '15:00'
-        },
-        holidays: []
-      },
+      // Parse and merge settings with defaults
+      settings: (() => {
+        try {
+          const parsedSettings = typeof settings === 'string' ? JSON.parse(settings) : settings;
+          const defaultSettings = {
+            academicYear: {
+              currentYear: new Date().getFullYear().toString(),
+              startDate: new Date(`${new Date().getFullYear()}-04-01`),
+              endDate: new Date(`${new Date().getFullYear() + 1}-03-31`)
+            },
+            classes: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+            sections: ['A', 'B', 'C', 'D'],
+            subjects: ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi'],
+            workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+            workingHours: {
+              start: '08:00',
+              end: '15:00'
+            },
+            holidays: []
+          };
+          // Merge parsed settings with defaults, giving priority to parsed settings
+          return parsedSettings && typeof parsedSettings === 'object' 
+            ? { ...defaultSettings, ...parsedSettings }
+            : defaultSettings;
+        } catch (error) {
+          console.error('Error parsing settings:', error, 'Raw settings:', settings);
+          return {
+            academicYear: {
+              currentYear: new Date().getFullYear().toString(),
+              startDate: new Date(`${new Date().getFullYear()}-04-01`),
+              endDate: new Date(`${new Date().getFullYear() + 1}-03-31`)
+            },
+            classes: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+            sections: ['A', 'B', 'C', 'D'],
+            subjects: ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi'],
+            workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+            workingHours: {
+              start: '08:00',
+              end: '15:00'
+            },
+            holidays: []
+          };
+        }
+      })(),
       
-      features: {
-        hasTransport: false,
-        hasCanteen: false,
-        hasLibrary: true,
-        hasSports: true,
-        hasComputerLab: false
-      },
+      // Parse and merge features with defaults
+      features: (() => {
+        try {
+          const parsedFeatures = typeof features === 'string' ? JSON.parse(features) : features;
+          const defaultFeatures = {
+            hasTransport: false,
+            hasCanteen: false,
+            hasLibrary: true,
+            hasSports: true,
+            hasComputerLab: false
+          };
+          // Merge parsed features with defaults, giving priority to parsed features
+          return parsedFeatures && typeof parsedFeatures === 'object'
+            ? { ...defaultFeatures, ...parsedFeatures }
+            : defaultFeatures;
+        } catch (error) {
+          console.error('Error parsing features:', error, 'Raw features:', features);
+          return {
+            hasTransport: false,
+            hasCanteen: false,
+            hasLibrary: true,
+            hasSports: true,
+            hasComputerLab: false
+          };
+        }
+      })(),
       
       // File upload handling with compression
       logoUrl: undefined, // Will be set after compression
