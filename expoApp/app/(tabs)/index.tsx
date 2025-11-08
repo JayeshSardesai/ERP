@@ -25,10 +25,16 @@ export default function HomeScreen() {
   const loadData = async () => {
     try {
       // Ensure session exists before fetching
-      const [token, userData] = await AsyncStorage.multiGet(['authToken', 'userData']).then(entries => entries.map(e => e[1]));
+      const [token, userData, userRole] = await AsyncStorage.multiGet(['authToken', 'userData', 'role']).then(entries => entries.map(e => e[1]));
       if (!token || !userData) {
         // Not logged in yet – send to login and stop
         router.replace('/login');
+        return;
+      }
+
+      // Check user role and redirect teachers to teacher home
+      if (userRole === 'teacher') {
+        router.replace('/teacher-home');
         return;
       }
 
@@ -36,6 +42,7 @@ export default function HomeScreen() {
       const user = JSON.parse(userData);
       const displayName = user.name?.displayName || user.name?.firstName || 'Student';
       setStudentName(displayName);
+      setRole(userRole);
 
       // Fetch all student data (now authenticated)
       // For home page, fetch current month's attendance to ensure we get today's data

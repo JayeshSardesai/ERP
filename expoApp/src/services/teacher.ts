@@ -263,7 +263,7 @@ export async function getTeacherAssignments(): Promise<Assignment[]> {
  */
 export async function getTeacherMessages(): Promise<Message[]> {
   try {
-    const response = await api.get('/messages/teacher');
+    const response = await api.get('/messages/teacher/messages');
     
     const messages = response.data?.data?.messages || response.data?.messages || response.data?.data || [];
     
