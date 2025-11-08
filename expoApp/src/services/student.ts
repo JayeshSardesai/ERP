@@ -597,7 +597,12 @@ export async function getStudentResults(): Promise<Result[]> {
 
 export async function getStudentMessages(): Promise<Message[]> {
   try {
+    console.log('[STUDENT SERVICE] Fetching student messages...');
+    
+    // Use the correct endpoint for student messages
     const response = await api.get('/messages/student');
+
+    console.log('[STUDENT SERVICE] Messages response:', response.data);
 
     // Backend returns { success: true, data: { messages: [...], pagination: {...} } }
     const messages = response.data?.data?.messages || response.data?.messages || response.data?.data || [];
@@ -619,8 +624,10 @@ export async function getStudentMessages(): Promise<Message[]> {
       messageAge: msg.messageAge,
       urgencyIndicator: msg.urgencyIndicator
     }));
-  } catch (error) {
-    console.error('Error fetching messages:', error);
+  } catch (error: any) {
+    console.error('[STUDENT SERVICE] Error fetching messages:', error);
+    console.error('[STUDENT SERVICE] Error response:', error?.response?.data);
+    console.error('[STUDENT SERVICE] Error status:', error?.response?.status);
     return [];
   }
 }

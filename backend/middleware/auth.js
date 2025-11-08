@@ -100,9 +100,10 @@ const auth = async (req, res, next) => {
       schoolCode: user.schoolCode,
       // Preserve student details for filtering
       studentDetails: user.studentDetails,
-      // Set class/section at the root level for easy access
-      class: user.studentDetails?.class || user.class,
-      section: user.studentDetails?.section || user.section
+      // Set class/section at the root level for easy access - prioritize token values for students
+      class: decoded.class || user.studentDetails?.academic?.currentClass || user.studentDetails?.class || user.class,
+      section: decoded.section || user.studentDetails?.academic?.currentSection || user.studentDetails?.section || user.section,
+      academicYear: decoded.academicYear || user.studentDetails?.academic?.academicYear
     };
     next();
   } catch (error) {

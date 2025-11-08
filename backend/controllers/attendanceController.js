@@ -1235,20 +1235,17 @@ exports.getMyAttendance = async (req, res) => {
       });
     }
 
-    // Get student's class and section
-    const studentClass = req.user.studentDetails?.currentClass ||
-      req.user.studentDetails?.academic?.currentClass ||
-      req.user.class;
-    const studentSection = req.user.studentDetails?.currentSection ||
-      req.user.studentDetails?.academic?.currentSection ||
-      req.user.section;
+    // Get student's class and section (now properly set in auth middleware)
+    const studentClass = req.user.class;
+    const studentSection = req.user.section;
 
     console.log(`[GET MY ATTENDANCE] Class: ${studentClass}, Section: ${studentSection}`);
+    console.log(`[GET MY ATTENDANCE] User role: ${req.user.role}, UserID: ${studentUserId}`);
 
     if (!studentClass || !studentSection) {
       return res.status(400).json({
         success: false,
-        message: 'Student class/section information not found'
+        message: 'Student class/section information not found. Please contact your administrator to update your academic details.'
       });
     }
 

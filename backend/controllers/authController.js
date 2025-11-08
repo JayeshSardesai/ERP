@@ -227,16 +227,22 @@ exports.schoolLogin = async (req, res) => {
     const accessMatrix = await accessCollection.findOne({ _id: 'school_permissions' });
 
     // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: user.userId,
-        role: user.role,
-        schoolCode: schoolCode,
-        userType: 'school_user'
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    // Prepare token payload with additional details for students
+    const tokenPayload = {
+      userId: user.userId,
+      role: user.role,
+      schoolCode: schoolCode,
+      userType: 'school_user'
+    };
+
+    // Add student-specific details to token for easier access
+    if (user.role === 'student' && user.studentDetails?.academic) {
+      tokenPayload.class = user.studentDetails.academic.currentClass;
+      tokenPayload.section = user.studentDetails.academic.currentSection;
+      tokenPayload.academicYear = user.studentDetails.academic.academicYear;
+    }
+
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: '24h' });
 
     console.log(`[SCHOOL LOGIN SUCCESS] User: ${user.userId} (${user.role}) from school: ${schoolCode}`);
     console.log(`[SCHOOL LOGIN DEBUG] User object keys:`, Object.keys(user));
