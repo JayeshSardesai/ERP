@@ -275,7 +275,28 @@ export async function getTeacherProfile(): Promise<TeacherProfile | null> {
 }
 
 /**
- * Get subjects assigned to teacher
+ * Get class subjects for a specific class
+ */
+export async function getClassSubjects(className: string): Promise<any[]> {
+  try {
+    console.log('[TEACHER SERVICE] Fetching class subjects for:', className);
+    const response = await api.get(`/class-subjects/class/${className}`);
+    
+    console.log('[TEACHER SERVICE] Class subjects response:', response.data);
+    
+    if (response.data?.success && response.data?.data?.subjects) {
+      return response.data.data.subjects.filter((subject: any) => subject.isActive !== false);
+    }
+    
+    return response.data?.subjects || [];
+  } catch (error: any) {
+    console.error('[TEACHER SERVICE] Error fetching class subjects:', error);
+    return [];
+  }
+}
+
+/**
+ * Get subjects assigned to teacher, with fallback to class subjects
  */
 export async function getTeacherSubjects(): Promise<any[]> {
   try {
@@ -283,13 +304,56 @@ export async function getTeacherSubjects(): Promise<any[]> {
     if (!userData) throw new Error('No user data found');
     
     const user = JSON.parse(userData);
-    const response = await api.get(`/subjects/teacher/${user._id || user.userId}`);
+    const teacherId = user._id || user.userId;
     
-    if (response.data?.success && response.data?.data) {
-      return response.data.data;
+    console.log('[TEACHER SERVICE] Fetching subjects for teacher:', teacherId);
+    
+    // First try to get teacher-specific subjects
+    try {
+      const response = await api.get(`/subjects/teacher/${teacherId}`);
+      console.log('[TEACHER SERVICE] Teacher subjects response:', response.data);
+      
+      if (response.data?.success && response.data?.data && response.data.data.length > 0) {
+        console.log('[TEACHER SERVICE] Found teacher-specific subjects:', response.data.data.length);
+        return response.data.data;
+      }
+    } catch (teacherSubjectsError: any) {
+      console.log('[TEACHER SERVICE] No teacher-specific subjects found, trying class subjects');
     }
     
-    return response.data || [];
+    // If no teacher-specific subjects, try to get subjects from teacher's classes
+    console.log('[TEACHER SERVICE] Attempting to fetch class subjects as fallback');
+    
+    // Get teacher's classes first
+    const classesResponse = await getClasses();
+    console.log('[TEACHER SERVICE] Teacher classes:', classesResponse);
+    
+    if (classesResponse && classesResponse.length > 0) {
+      // Get subjects from the first class as fallback
+      const firstClass = classesResponse[0];
+      const className = firstClass.className;
+      
+      if (className) {
+        console.log('[TEACHER SERVICE] Fetching subjects for class:', className);
+        const classSubjects = await getClassSubjects(className);
+        
+        if (classSubjects && classSubjects.length > 0) {
+          console.log('[TEACHER SERVICE] Found class subjects as fallback:', classSubjects.length);
+          // Transform class subjects to match teacher subjects format
+          return classSubjects.map((subject: any) => ({
+            _id: subject._id || subject.name,
+            name: subject.name || subject.subjectName,
+            subjectName: subject.name || subject.subjectName,
+            className: className,
+            isClassSubject: true // Flag to indicate this is a class subject, not teacher-assigned
+          }));
+        }
+      }
+    }
+    
+    console.log('[TEACHER SERVICE] No subjects found - neither teacher-specific nor class subjects');
+    return [];
+    
   } catch (error: any) {
     console.error('[TEACHER SERVICE] Error fetching subjects:', error);
     return [];

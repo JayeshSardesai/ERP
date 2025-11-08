@@ -130,17 +130,24 @@ export const usePermissions = () => {
   useEffect(() => {
     loadPermissions();
     
-    // Set up periodic refresh to check for permission changes
+    // Set up periodic refresh to check for permission changes (reduced frequency)
     const refreshInterval = setInterval(() => {
       console.log('[PERMISSIONS] Periodic refresh check');
       loadPermissions();
-    }, 30000); // Refresh every 30 seconds
+    }, 300000); // Refresh every 5 minutes instead of 30 seconds
     
     // Listen for app state changes to refresh permissions when app comes to foreground
+    // But add throttling to prevent excessive calls
+    let lastRefreshTime = 0;
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'active') {
-        console.log('[PERMISSIONS] App became active, refreshing permissions');
-        loadPermissions();
+        const now = Date.now();
+        // Only refresh if more than 60 seconds have passed since last refresh
+        if (now - lastRefreshTime > 60000) {
+          console.log('[PERMISSIONS] App became active, refreshing permissions');
+          loadPermissions();
+          lastRefreshTime = now;
+        }
       }
     };
     
@@ -152,8 +159,14 @@ export const usePermissions = () => {
     };
   }, []);
 
-  const loadPermissions = async () => {
+  const loadPermissions = async (forceRefresh: boolean = false) => {
     try {
+      // Check if we already have permissions and don't need to refresh
+      if (!forceRefresh && state.permissions && Object.keys(state.permissions).length > 0 && !state.loading) {
+        console.log('[PERMISSIONS] Using cached permissions');
+        return;
+      }
+
       setState(prev => ({ ...prev, loading: true, error: null }));
 
       // Get user data from storage
@@ -271,7 +284,7 @@ export const usePermissions = () => {
    * Refresh permissions from backend
    */
   const refreshPermissions = () => {
-    loadPermissions();
+    loadPermissions(true); // Force refresh
   };
 
   return {

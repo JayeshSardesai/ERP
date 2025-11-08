@@ -233,7 +233,7 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
             _id: dateStr,
             date: sessionRecord.date || new Date(dateStr).toISOString(),
             dateString: dateStr,
-            status: sessionRecord.status, // Use the backend status directly
+            status: sessionRecord.status || 'no-class', // Use the backend status or default to 'no-class'
             sessions: { morning: null, afternoon: null }
           };
 
@@ -278,10 +278,32 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
           dayRecordsMap.set(dateStr, dayRecord);
           return; // Skip the rest of processing for this record
         }
-        // If no sessions object found, skip this record
+        // If no sessions object found, create a basic attendance record
         else {
-          console.log('[STUDENT SERVICE] No sessions object found for record:', sessionRecord._id);
-          return;
+          console.log('[STUDENT SERVICE] No sessions object found, creating basic record for:', sessionRecord._id);
+          
+          // Create a basic day record with the status from the record itself
+          const basicStatus = sessionRecord.status || 'no-class';
+          const dayRecord = dayRecordsMap.get(dateStr) || {
+            _id: dateStr,
+            date: sessionRecord.date || new Date(dateStr).toISOString(),
+            dateString: dateStr,
+            status: basicStatus,
+            sessions: { morning: null, afternoon: null }
+          };
+          
+          // If we have a direct status, use it
+          if (sessionRecord.status && ['present', 'absent', 'half_day', 'no-class'].includes(sessionRecord.status)) {
+            dayRecord.status = sessionRecord.status;
+          }
+          
+          console.log('[STUDENT SERVICE] Created basic day record:', {
+            date: dayRecord.dateString,
+            status: dayRecord.status,
+            originalStatus: sessionRecord.status
+          });
+          
+          dayRecordsMap.set(dateStr, dayRecord);
         }
       });
 

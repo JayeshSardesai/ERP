@@ -84,10 +84,18 @@ export default function LoginScreen() {
 
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email or Student ID</Text>
+              <Text style={styles.inputLabel}>
+                {selectedRole === 'Student' ? 'Email or Student ID' : 
+                 selectedRole === 'Teacher' ? 'Email or Teacher ID' : 
+                 'Email or User ID'}
+              </Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email or student ID"
+                placeholder={
+                  selectedRole === 'Student' ? 'Enter your email or student ID' :
+                  selectedRole === 'Teacher' ? 'Enter your email or teacher ID' :
+                  'Enter your email or user ID'
+                }
                 placeholderTextColor={isDark ? '#6B7280' : '#93C5FD'}
                 value={email}
                 onChangeText={setEmail}
