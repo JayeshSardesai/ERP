@@ -347,7 +347,7 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
         </View>
 
         {/* Date Pickers */}
-        {showStartDatePicker && (
+        {showStartDatePicker && Platform.OS !== 'web' && (
           <DateTimePicker
             value={startDate}
             mode="date"
@@ -361,7 +361,7 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
           />
         )}
 
-        {showDueDatePicker && (
+        {showDueDatePicker && Platform.OS !== 'web' && (
           <DateTimePicker
             value={dueDate}
             mode="date"
@@ -373,6 +373,63 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
               }
             }}
           />
+        )}
+
+        {/* Web Date Picker Fallback */}
+        {showStartDatePicker && Platform.OS === 'web' && (
+          <Modal visible={true} transparent={true} animationType="fade">
+            <View style={styles.pickerModalContainer}>
+              <View style={styles.pickerModal}>
+                <Text style={styles.pickerModalTitle}>Select Start Date</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={startDate.toISOString().split('T')[0]}
+                  onChangeText={(text) => {
+                    const newDate = new Date(text);
+                    if (!isNaN(newDate.getTime())) {
+                      setStartDate(newDate);
+                    }
+                  }}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                />
+                <TouchableOpacity
+                  style={styles.pickerCloseButton}
+                  onPress={() => setShowStartDatePicker(false)}
+                >
+                  <Text style={styles.pickerCloseButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        )}
+
+        {showDueDatePicker && Platform.OS === 'web' && (
+          <Modal visible={true} transparent={true} animationType="fade">
+            <View style={styles.pickerModalContainer}>
+              <View style={styles.pickerModal}>
+                <Text style={styles.pickerModalTitle}>Select Due Date</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={dueDate.toISOString().split('T')[0]}
+                  onChangeText={(text) => {
+                    const newDate = new Date(text);
+                    if (!isNaN(newDate.getTime())) {
+                      setDueDate(newDate);
+                    }
+                  }}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                />
+                <TouchableOpacity
+                  style={styles.pickerCloseButton}
+                  onPress={() => setShowDueDatePicker(false)}
+                >
+                  <Text style={styles.pickerCloseButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         )}
 
         {/* Subject Picker Modal */}

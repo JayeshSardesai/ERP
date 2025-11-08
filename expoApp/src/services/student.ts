@@ -233,7 +233,7 @@ export async function getStudentAttendance(startDate?: string, endDate?: string)
             _id: dateStr,
             date: sessionRecord.date || new Date(dateStr).toISOString(),
             dateString: dateStr,
-            status: sessionRecord.status || 'no-class',
+            status: sessionRecord.status, // Use the backend status directly
             sessions: { morning: null, afternoon: null }
           };
 

@@ -51,9 +51,7 @@ export interface Assignment {
   class: string;
   section: string;
   status?: 'pending' | 'submitted' | 'graded' | 'published' | 'draft';
-  totalSubmissions?: number;
-  pendingSubmissions?: number;
-  gradedSubmissions?: number;
+  maxMarks?: number;
   attachments?: Array<{
     path: string;
     originalName: string;
@@ -451,38 +449,4 @@ export async function deleteAssignment(assignmentId: string): Promise<boolean> {
   }
 }
 
-/**
- * Get assignment submissions for teacher
- */
-export async function getAssignmentSubmissions(assignmentId: string): Promise<any[]> {
-  try {
-    const response = await api.get(`/assignments/${assignmentId}/submissions`);
-    
-    if (response.data?.success && response.data?.data) {
-      return response.data.data;
-    }
-    
-    return response.data?.submissions || response.data?.data || [];
-  } catch (error: any) {
-    console.error('[TEACHER SERVICE] Error fetching submissions:', error);
-    return [];
-  }
-}
-
-/**
- * Grade assignment submission
- */
-export async function gradeSubmission(submissionId: string, grade: number, feedback?: string): Promise<boolean> {
-  try {
-    const response = await api.put(`/assignments/submissions/${submissionId}/grade`, {
-      grade,
-      feedback
-    });
-    
-    return response.data?.success || false;
-  } catch (error: any) {
-    console.error('[TEACHER SERVICE] Error grading submission:', error);
-    return false;
-  }
-}
 

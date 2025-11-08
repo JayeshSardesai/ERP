@@ -196,6 +196,7 @@ export default function AssignmentsScreen() {
     setSelectedAssignment(null);
   };
 
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -251,7 +252,7 @@ export default function AssignmentsScreen() {
                 activeOpacity={0.7}
               >
                 <View style={styles.assignmentLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: getStatusBgColor(assignment.status) }]}>
+                  <View style={[styles.iconContainer, { backgroundColor: getStatusBgColor(assignment.status || 'pending') }]}>
                     <Text style={styles.iconText}>📄</Text>
                   </View>
                   <View style={styles.assignmentInfo}>
@@ -266,9 +267,9 @@ export default function AssignmentsScreen() {
                   </View>
                 </View>
                 <View style={styles.assignmentRight}>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(assignment.status) }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(assignment.status) }]}>
-                      {getStatusLabel(assignment.status)}
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(assignment.status || 'pending') }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(assignment.status || 'pending') }]}>
+                      {getStatusLabel(assignment.status || 'pending')}
                     </Text>
                   </View>
                   {assignment.status === 'pending' && <Text style={styles.urgentIndicator}>!</Text>}
@@ -339,9 +340,9 @@ export default function AssignmentsScreen() {
 
                 <View style={styles.detailSection}>
                   <Text style={styles.detailLabel}>Status</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(selectedAssignment.status) }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(selectedAssignment.status) }]}>
-                      {getStatusLabel(selectedAssignment.status)}
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(selectedAssignment.status || 'pending') }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(selectedAssignment.status || 'pending') }]}>
+                      {getStatusLabel(selectedAssignment.status || 'pending')}
                     </Text>
                   </View>
                 </View>
@@ -379,6 +380,7 @@ export default function AssignmentsScreen() {
           </View>
         </SafeAreaView>
       </Modal>
+
     </SafeAreaView>
   );
 }
