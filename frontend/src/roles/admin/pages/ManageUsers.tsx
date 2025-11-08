@@ -11,6 +11,7 @@ import { exportImportAPI } from '../../../services/api';
 
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import { exportUsers, generateImportTemplate } from '../../../utils/userImportExport';
 import { User, UserFormData, getDefaultFormData, transformUserToFormData } from '../../../types/user'; // Keep original User for form types
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
@@ -406,6 +407,7 @@ interface OldAddUserFormData {
 
 const ManageUsers: React.FC = () => {
   const { user } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
   // Use the school classes hook to get dynamic data
   const {
     classesData,
@@ -1837,7 +1839,7 @@ const ManageUsers: React.FC = () => {
   useEffect(() => {
     fetchUsers();
     fetchSchoolDetails();
-  }, []);
+  }, []); // Fetch once on mount - filtering happens client-side
 
   // Generate ID and password when add modal opens for the first time
   useEffect(() => {
@@ -3770,7 +3772,25 @@ const ManageUsers: React.FC = () => {
     const matchesRole = user.role === activeTab;
     const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || user.studentDetails?.currentClass === selectedGrade;
     const matchesSection = activeTab !== 'student' || selectedSection === 'all' || user.studentDetails?.currentSection === selectedSection;
-    return matchesSearch && matchesRole && matchesGrade && matchesSection;
+    
+    // Filter students by viewing academic year
+    const matchesAcademicYear = activeTab !== 'student' || 
+      (user.studentDetails?.academicYear === viewingAcademicYear);
+    
+    // Debug logging for academic year filtering
+    if (activeTab === 'student' && user.userId === 'AVM-S-0063') {
+      console.log('🔍 Filtering AVM-S-0063:', {
+        studentAcademicYear: user.studentDetails?.academicYear,
+        viewingAcademicYear,
+        matchesAcademicYear,
+        matchesGrade,
+        matchesSection,
+        currentClass: user.studentDetails?.currentClass,
+        selectedGrade
+      });
+    }
+    
+    return matchesSearch && matchesRole && matchesGrade && matchesSection && matchesAcademicYear;
   }).sort((a, b) => {
     // Sort students by userId (Student ID) in ascending order
     if (a.role === 'student' && b.role === 'student') {
@@ -5962,6 +5982,15 @@ const ManageUsers: React.FC = () => {
   try {
     return (
       <div className="space-y-6">
+        {/* Academic Year Warning */}
+        {isViewingHistoricalYear && activeTab === 'student' && (
+          <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              <strong>📚 Viewing Historical Data:</strong> You are viewing students from {viewingAcademicYear}. This data is read-only.
+            </p>
+          </div>
+        )}
+
         {/* Header */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-4">
@@ -6056,6 +6085,17 @@ const ManageUsers: React.FC = () => {
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
                     <Filter className="h-5 w-5 text-gray-400" />
+                    <select
+                      value={viewingAcademicYear}
+                      onChange={(e) => setViewingYear(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {availableYears.map((year) => (
+                        <option key={year} value={year}>
+                          {year} {year === currentAcademicYear && '(Current)'}
+                        </option>
+                      ))}
+                    </select>
                     <select
                       value={selectedGrade}
                       onChange={(e) => handleGradeChange(e.target.value)}

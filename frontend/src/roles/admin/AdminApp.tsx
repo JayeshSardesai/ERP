@@ -42,20 +42,21 @@ import { PermissionGuard } from '../../components/PermissionGuard'
 
 import { PermissionProvider } from '../../hooks/usePermissions'
 
+import { AcademicYearProvider } from '../../contexts/AcademicYearContext'
 export function AdminApp() {
 
   return (
     <PermissionProvider>
-      <AdminLayout>
-        <Routes>
-          <Route index element={<Dashboard />} />
+      <AcademicYearProvider>
+        <AdminLayout>
+          <Routes>
+            <Route index element={<Dashboard />} />
 
-          {/* User Management - Requires manageUsers permission */}
-          <Route path="users" element={
-            <PermissionGuard permission="manageUsers" permissionName="User Management">
-              <ManageUsers />
-            </PermissionGuard>
-
+            {/* User Management - Requires manageUsers permission */}
+            <Route path="users" element={
+              <PermissionGuard permission="manageUsers" permissionName="User Management">
+                <ManageUsers />
+              </PermissionGuard>
           } />
           
           <Route path="manage-users" element={
@@ -175,6 +176,7 @@ export function AdminApp() {
           <Route path="*" element={<Navigate to="/admin" />} />
         </Routes>
       </AdminLayout>
+      </AcademicYearProvider>
     </PermissionProvider>
 
   )
