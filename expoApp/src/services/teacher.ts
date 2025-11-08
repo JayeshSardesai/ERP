@@ -268,9 +268,20 @@ export async function getTeacherAssignments(): Promise<Assignment[]> {
  */
 export async function getTeacherMessages(): Promise<Message[]> {
   try {
+    console.log('[TEACHER SERVICE] Fetching teacher messages...');
+    
     const response = await api.get('/messages/teacher');
     
+    console.log('[TEACHER SERVICE] Messages response:', {
+      success: response.data?.success,
+      hasData: !!response.data?.data,
+      hasMessages: !!response.data?.messages,
+      messagesCount: (response.data?.data?.messages || response.data?.messages || response.data?.data || []).length
+    });
+    
     const messages = response.data?.data?.messages || response.data?.messages || response.data?.data || [];
+    
+    console.log('[TEACHER SERVICE] Fetched', messages.length, 'messages for teacher');
     
     return messages.map((msg: any) => ({
       _id: msg.id || msg._id,
@@ -287,6 +298,8 @@ export async function getTeacherMessages(): Promise<Message[]> {
     }));
   } catch (error: any) {
     console.error('[TEACHER SERVICE] Error fetching messages:', error);
+    console.error('[TEACHER SERVICE] Error response:', error?.response?.data);
+    console.error('[TEACHER SERVICE] Error status:', error?.response?.status);
     return [];
   }
 }
@@ -564,3 +577,4 @@ export async function cancelAssignment(assignmentId: string): Promise<boolean> {
     return false;
   }
 }
+

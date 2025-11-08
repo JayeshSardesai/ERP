@@ -599,7 +599,7 @@ export default function ResultsScreen() {
                 {students.map((student) => {
                   const frozen = isResultFrozen(student.userId);
                   const hasMarks = hasExistingMarks(student.userId);
-                  const isReadOnly = frozen || hasMarks;
+                  const isReadOnly = frozen; // Only lock if frozen, not if has marks
                   
                   return (
                     <View key={student.userId} style={styles.studentMarksRow}>
