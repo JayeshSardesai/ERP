@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Save, Trash2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import ClassSectionSelect from '../components/ClassSectionSelect';
 import { feesAPI } from '../../../services/api';
 
@@ -13,6 +14,7 @@ interface Installment {
 
 const FeeStructureTab: React.FC = () => {
   const { user } = useAuth();
+  const { currentAcademicYear, availableYears, loading: academicYearLoading } = useAcademicYear();
   
   // Form state
   const [selectedClass, setSelectedClass] = useState('ALL');
@@ -20,7 +22,7 @@ const FeeStructureTab: React.FC = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
-  const [academicYear, setAcademicYear] = useState('2024-25');
+  const [academicYear, setAcademicYear] = useState(currentAcademicYear || '2024-25');
   const [installments, setInstallments] = useState<Installment[]>([
     {
       name: '',
@@ -46,6 +48,13 @@ const FeeStructureTab: React.FC = () => {
   });
 
   console.log('FeeStructureTab render');
+
+  // Update academic year when currentAcademicYear changes
+  React.useEffect(() => {
+    if (currentAcademicYear) {
+      setAcademicYear(currentAcademicYear);
+    }
+  }, [currentAcademicYear]);
 
   // Load existing fee structures
   React.useEffect(() => {
@@ -174,6 +183,7 @@ const FeeStructureTab: React.FC = () => {
           dueDate: i.dueDate,
           description: i.description
         })),
+        academicYear,
         applyToStudents,
       };
       const res = await feesAPI.createFeeStructure(payload);
@@ -317,15 +327,20 @@ const FeeStructureTab: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Academic Year
+                Academic Year *
               </label>
-              <input
-                type="text"
+              <select
                 value={academicYear}
-                readOnly
-                disabled
+                onChange={(e) => setAcademicYear(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              />
+                disabled={academicYearLoading}
+              >
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year} {year === currentAcademicYear && '(Current)'}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

@@ -16,18 +16,13 @@ exports.sendMessage = async (req, res) => {
     }
     
     // Validate required fields according to new schema
-    const { title, subject, message, class: targetClass, section: targetSection, academicYear } = req.body;
+    let { title, subject, message, class: targetClass, section: targetSection, academicYear } = req.body;
     
     if (!title || !subject || !message || !targetClass || !targetSection) {
       return res.status(400).json({
         success: false,
         message: 'Title, subject, message, class, and section are required'
       });
-    }
-    
-    // Log if academic year is missing (for debugging)
-    if (!academicYear) {
-      console.warn('⚠️ Message being sent without academic year - will not be filterable by year');
     }
 
     // Verify school ownership - use schoolId from authenticated user
@@ -52,6 +47,27 @@ exports.sendMessage = async (req, res) => {
     
     const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
+    
+    // If academic year is not provided, fetch it from school settings
+    if (!academicYear) {
+      console.log('📅 Academic year not provided, fetching from school settings...');
+      try {
+        const schoolInfoCollection = db.collection('school_info');
+        const schoolInfo = await schoolInfoCollection.findOne({});
+        
+        if (schoolInfo && schoolInfo.academicYear) {
+          academicYear = schoolInfo.academicYear;
+          console.log(`✅ Fetched academic year from school settings: ${academicYear}`);
+        } else {
+          console.warn('⚠️ No academic year found in school settings, message will be saved without academic year');
+        }
+      } catch (error) {
+        console.error('❌ Error fetching academic year from school settings:', error);
+        console.warn('⚠️ Message will be saved without academic year');
+      }
+    } else {
+      console.log(`📅 Academic year provided in request: ${academicYear}`);
+    }
     
     // Build student query to handle all possible data structures:
     // 1. class/section at root level (populateSchoolP.js)
@@ -167,6 +183,21 @@ exports.sendMessage = async (req, res) => {
     const result = await messagesCollection.insertOne(messageData);
     
     console.log(`✅ Message sent successfully to ${students.length} students, stored in school database`);
+    console.log(`💾 Inserted message ID: ${result.insertedId}`);
+    console.log(`📦 Database: ${db.databaseName}, Collection: messages`);
+    
+    // Verify the message was inserted
+    const verifyMessage = await messagesCollection.findOne({ _id: result.insertedId });
+    console.log('🔍 Verification - Message exists in DB:', verifyMessage ? 'YES' : 'NO');
+    if (verifyMessage) {
+      console.log('📝 Verified message data:', {
+        id: verifyMessage._id,
+        title: verifyMessage.title,
+        class: verifyMessage.class,
+        section: verifyMessage.section,
+        academicYear: verifyMessage.academicYear
+      });
+    }
     
     // Dispatch background job for notifications (FCM, email, etc.)
     console.log('📱 Dispatching background notification job...');
@@ -191,6 +222,95 @@ exports.sendMessage = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to send message',
+      error: error.message
+    });
+  }
+};
+
+// Utility function to update all messages without academicYear
+// This can be called once to migrate existing messages
+exports.updateMessagesWithAcademicYear = async (req, res) => {
+  try {
+    console.log('🔄 [UPDATE MESSAGES] Starting migration to add academic year to existing messages...');
+    
+    // Get school connection
+    const schoolCode = req.user.schoolCode;
+    if (!schoolCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'School code not found in user profile'
+      });
+    }
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const db = connection.db;
+    
+    // Get current academic year from school settings
+    const schoolInfoCollection = db.collection('school_info');
+    const schoolInfo = await schoolInfoCollection.findOne({});
+    
+    if (!schoolInfo || !schoolInfo.academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'No academic year found in school settings. Please set it first.'
+      });
+    }
+    
+    const currentAcademicYear = schoolInfo.academicYear;
+    console.log(`📅 [UPDATE MESSAGES] Current academic year from settings: ${currentAcademicYear}`);
+    
+    // Find all messages without academicYear
+    const messagesCollection = db.collection('messages');
+    const messagesToUpdate = await messagesCollection.find({
+      $or: [
+        { academicYear: { $exists: false } },
+        { academicYear: null }
+      ]
+    }).toArray();
+    
+    console.log(`📊 [UPDATE MESSAGES] Found ${messagesToUpdate.length} messages without academic year`);
+    
+    if (messagesToUpdate.length === 0) {
+      return res.json({
+        success: true,
+        message: 'All messages already have academic year assigned',
+        data: {
+          updated: 0,
+          total: 0
+        }
+      });
+    }
+    
+    // Update all messages without academicYear
+    const result = await messagesCollection.updateMany(
+      {
+        $or: [
+          { academicYear: { $exists: false } },
+          { academicYear: null }
+        ]
+      },
+      {
+        $set: { academicYear: currentAcademicYear }
+      }
+    );
+    
+    console.log(`✅ [UPDATE MESSAGES] Updated ${result.modifiedCount} messages with academic year: ${currentAcademicYear}`);
+    
+    res.json({
+      success: true,
+      message: `Successfully updated ${result.modifiedCount} messages with academic year ${currentAcademicYear}`,
+      data: {
+        updated: result.modifiedCount,
+        total: messagesToUpdate.length,
+        academicYear: currentAcademicYear
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ [UPDATE MESSAGES] Error updating messages:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update messages with academic year',
       error: error.message
     });
   }
@@ -317,20 +437,30 @@ exports.previewMessage = async (req, res) => {
 // Get messages with filtering
 exports.getMessages = async (req, res) => {
   try {
-    console.log('Fetching messages with filters:', req.query);
+    console.log('📥 [GET MESSAGES] Starting fetch...');
+    console.log('📥 [GET MESSAGES] Query params:', req.query);
+    console.log('📥 [GET MESSAGES] User:', { 
+      userId: req.user.userId, 
+      role: req.user.role, 
+      schoolCode: req.user.schoolCode 
+    });
+    
     const { class: filterClass, section: filterSection, academicYear: filterAcademicYear, page = 1, limit = 20 } = req.query;
 
     // Get school connection for message queries
     const schoolCode = req.user.schoolCode;
     if (!schoolCode) {
+      console.error('❌ [GET MESSAGES] No school code found in user profile');
       return res.status(400).json({
         success: false,
         message: 'School code not found in user profile'
       });
     }
     
+    console.log(`🔗 [GET MESSAGES] Connecting to school database: ${schoolCode}`);
     const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
+    console.log(`✅ [GET MESSAGES] Connected to database: ${db.databaseName}`);
 
     // Build query for new schema
     const query = {};
@@ -347,55 +477,127 @@ exports.getMessages = async (req, res) => {
       
       if (studentClass) {
         query.class = studentClass;
-        console.log(`[GET MESSAGES] Filtering for student class: ${studentClass}`);
+        console.log(`🎓 [GET MESSAGES] Filtering for student class: ${studentClass}`);
       }
       if (studentSection) {
         query.section = studentSection;
-        console.log(`[GET MESSAGES] Filtering for student section: ${studentSection}`);
+        console.log(`📚 [GET MESSAGES] Filtering for student section: ${studentSection}`);
       }
       
       if (!studentClass || !studentSection) {
-        console.warn(`[GET MESSAGES] Student ${req.user.userId} missing class/section data`);
+        console.warn(`⚠️ [GET MESSAGES] Student ${req.user.userId} missing class/section data`);
       }
     } else {
       // For admin/teachers, use filter parameters
-      if (filterClass && filterClass !== 'ALL') query.class = filterClass;
-      if (filterSection && filterSection !== 'ALL') query.section = filterSection;
+      if (filterClass && filterClass !== 'ALL') {
+        query.class = filterClass;
+        console.log(`🎓 [GET MESSAGES] Admin filter - class: ${filterClass}`);
+      }
+      if (filterSection && filterSection !== 'ALL') {
+        query.section = filterSection;
+        console.log(`📚 [GET MESSAGES] Admin filter - section: ${filterSection}`);
+      }
     }
     
     // Filter by academic year for all users
+    // NOTE: Messages without academicYear should be treated as belonging to current year
     if (filterAcademicYear) {
-      query.academicYear = filterAcademicYear;
-      console.log(`[GET MESSAGES] Filtering by academic year: ${filterAcademicYear}`);
+      // If we already have conditions in the query, we need to use $and
+      const yearConditions = [
+        { academicYear: filterAcademicYear },
+        { academicYear: { $exists: false } }, // Include messages without academicYear field
+        { academicYear: null } // Include messages with null academicYear
+      ];
+      
+      // If query already has $or or other conditions, wrap everything properly
+      if (Object.keys(query).length > 0) {
+        const existingConditions = { ...query };
+        query.$and = [
+          existingConditions,
+          { $or: yearConditions }
+        ];
+        // Remove the old conditions since they're now in $and
+        Object.keys(existingConditions).forEach(key => {
+          if (key !== '$and') delete query[key];
+        });
+      } else {
+        query.$or = yearConditions;
+      }
+      
+      console.log(`📅 [GET MESSAGES] Filtering by academic year: ${filterAcademicYear} (including messages without year)`);
     }
 
+    console.log('🔍 [GET MESSAGES] Final query:', JSON.stringify(query, null, 2));
+    
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const messagesCollection = db.collection('messages');
     
+    console.log(`📊 [GET MESSAGES] Pagination - page: ${page}, limit: ${limit}, skip: ${skip}`);
+    
+    // Check if collection exists and has documents
+    const collectionExists = await db.listCollections({ name: 'messages' }).hasNext();
+    console.log(`📦 [GET MESSAGES] Messages collection exists: ${collectionExists}`);
+    
+    if (!collectionExists) {
+      console.warn('⚠️ [GET MESSAGES] Messages collection does not exist yet');
+      return res.json({
+        success: true,
+        data: {
+          messages: [],
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total: 0,
+            pages: 0
+          }
+        }
+      });
+    }
+    
     // Get messages from school database with pagination
+    console.log('🔎 [GET MESSAGES] Executing find query...');
     const messages = await messagesCollection.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .toArray();
     
+    console.log(`📨 [GET MESSAGES] Found ${messages.length} messages`);
+    
     const totalMessages = await messagesCollection.countDocuments(query);
+    console.log(`📊 [GET MESSAGES] Total messages matching query: ${totalMessages}`);
 
     // Since we're using native MongoDB driver, we need to manually create virtual fields
-    const formattedMessages = messages.map(msg => ({
-      id: msg._id,
-      class: msg.class,
-      section: msg.section,
-      adminId: msg.adminId,
-      title: msg.title,
-      subject: msg.subject,
-      message: msg.message,
-      academicYear: msg.academicYear, // Include academic year in response
-      createdAt: msg.createdAt,
-      // Manual virtual fields calculation
-      messageAge: calculateMessageAge(msg.createdAt),
-      urgencyIndicator: 'normal' // Default since we don't have priority in simplified schema
-    }));
+    console.log('🔄 [GET MESSAGES] Formatting messages...');
+    const formattedMessages = messages.map((msg, index) => {
+      console.log(`📝 [GET MESSAGES] Message ${index + 1}:`, {
+        id: msg._id,
+        title: msg.title,
+        class: msg.class,
+        section: msg.section,
+        academicYear: msg.academicYear,
+        createdAt: msg.createdAt
+      });
+      
+      return {
+        id: msg._id,
+        _id: msg._id, // Include both for compatibility
+        class: msg.class,
+        section: msg.section,
+        adminId: msg.adminId,
+        title: msg.title,
+        subject: msg.subject,
+        message: msg.message,
+        academicYear: msg.academicYear, // Include academic year in response
+        createdAt: msg.createdAt,
+        // Manual virtual fields calculation
+        messageAge: calculateMessageAge(msg.createdAt),
+        urgencyIndicator: 'normal' // Default since we don't have priority in simplified schema
+      };
+    });
+
+    console.log(`✅ [GET MESSAGES] Returning ${formattedMessages.length} messages to frontend`);
+    console.log(`📄 [GET MESSAGES] Pagination: page ${page}, total ${totalMessages}, pages ${Math.ceil(totalMessages / parseInt(limit))}`);
 
     res.json({
       success: true,
@@ -410,7 +612,8 @@ exports.getMessages = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching messages:', error);
+    console.error('❌ [GET MESSAGES] Error fetching messages:', error);
+    console.error('❌ [GET MESSAGES] Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch messages',

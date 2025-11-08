@@ -61,4 +61,10 @@ router.delete('/:messageId',
   messagesController.deleteMessage
 );
 
+// Utility route to update all messages with current academic year
+router.post('/migrate/academic-year',
+  checkPermission('messageStudentsParents'),
+  messagesController.updateMessagesWithAcademicYear
+);
+
 module.exports = router;

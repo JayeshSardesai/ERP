@@ -1518,58 +1518,107 @@ exports.getAllSchools = async (req, res) => {
     }
 
     console.log('[getAllSchools] Fetching schools from database...');
-    console.log('[getAllSchools] Mongoose connection state:', mongoose.connection.readyState);
-    console.log('[getAllSchools] Database name:', mongoose.connection.name);
     
     let schools;
     try {
+      // Use lean() to get raw data and skip Mongoose hydration (which causes the error)
       schools = await School.find({}).select('-__v').lean();
       console.log('[getAllSchools] Found', schools.length, 'schools');
+      
+      // Manually normalize settings for each school
+      schools = schools.map(school => {
+        // Ensure settings is an object, not a string
+        if (typeof school.settings === 'string') {
+          try {
+            school.settings = JSON.parse(school.settings);
+            console.log(`[getAllSchools] Parsed settings string for school ${school.code}`);
+          } catch (e) {
+            console.error(`[getAllSchools] Error parsing settings for school ${school.code}:`, e);
+            school.settings = {
+              academicYear: {
+                currentYear: new Date().getFullYear().toString(),
+                startDate: new Date(`${new Date().getFullYear()}-04-01`),
+                endDate: new Date(`${new Date().getFullYear() + 1}-03-31`)
+              },
+              classes: [],
+              sections: [],
+              subjects: [],
+              workingDays: [],
+              workingHours: { start: '08:00', end: '15:00' },
+              holidays: []
+            };
+          }
+        }
+        
+        // Ensure settings has required structure
+        if (!school.settings || typeof school.settings !== 'object') {
+          school.settings = {
+            academicYear: {
+              currentYear: new Date().getFullYear().toString(),
+              startDate: new Date(`${new Date().getFullYear()}-04-01`),
+              endDate: new Date(`${new Date().getFullYear() + 1}-03-31`)
+            },
+            classes: [],
+            sections: [],
+            subjects: [],
+            workingDays: [],
+            workingHours: { start: '08:00', end: '15:00' },
+            holidays: []
+          };
+        }
+        
+        // Ensure academicSettings is an object
+        if (typeof school.academicSettings === 'string') {
+          try {
+            school.academicSettings = JSON.parse(school.academicSettings);
+          } catch (e) {
+            school.academicSettings = {
+              schoolTypes: [],
+              customGradeNames: {},
+              gradeLevels: {}
+            };
+          }
+        }
+        
+        return school;
+      });
+      
     } catch (dbError) {
       console.error('[getAllSchools] Database query error:', dbError);
-      console.error('[getAllSchools] Error name:', dbError.name);
-      console.error('[getAllSchools] Error code:', dbError.code);
       console.error('[getAllSchools] Error stack:', dbError.stack);
       throw dbError;
     }
 
-    // Map all fields needed for frontend with safe fallbacks
-    const mappedSchools = schools.map(school => {
-      try {
-        return {
-          _id: school._id,
-          id: school._id,
-          name: school.name || 'Unknown School',
-          code: school.code || 'N/A',
-          logoUrl: school.logoUrl || null,
-          address: school.address || {},
-          contact: school.contact || {},
-          area: school.address?.area || school.address?.street || '',
-          district: school.address?.district || school.address?.city || '',
-          pinCode: school.address?.pinCode || school.address?.zipCode || '',
-          mobile: school.mobile || school.contact?.phone || '',
-          principalName: school.principalName || '',
-          principalEmail: school.principalEmail || school.contact?.email || '',
-          bankDetails: school.bankDetails || {},
-          accessMatrix: school.accessMatrix || {},
-          features: school.features || {},
-          settings: school.settings || {},
-          stats: school.stats || {},
-          isActive: school.isActive !== false,
-          establishedDate: school.establishedDate || null,
-          createdAt: school.createdAt || null,
-          updatedAt: school.updatedAt || null,
-          schoolType: school.schoolType || 'Private',
-          establishedYear: school.establishedYear || new Date().getFullYear(),
-          affiliationBoard: school.affiliationBoard || 'State Board',
-          website: school.website || '',
-          secondaryContact: school.secondaryContact || ''
-        };
-      } catch (mapError) {
-        console.error('[getAllSchools] Error mapping school:', school._id, mapError);
-        return null;
-      }
-    }).filter(Boolean);
+    // Map all fields needed for frontend
+    const mappedSchools = schools.map(school => ({
+      _id: school._id,
+      id: school._id,
+      name: school.name,
+      code: school.code,
+      logoUrl: school.logoUrl,
+      address: school.address,
+      contact: school.contact,
+      area: school.address?.area || school.address?.street || '',
+      district: school.address?.district || school.address?.city || '',
+      pinCode: school.address?.pinCode || school.address?.zipCode || '',
+      mobile: school.mobile || school.contact?.phone || '',
+      principalName: school.principalName || '',
+      principalEmail: school.principalEmail || school.contact?.email || '',
+      bankDetails: school.bankDetails || {},
+      accessMatrix: school.accessMatrix || {},
+      features: school.features || {},
+      settings: school.settings || {},
+      stats: school.stats || {},
+      isActive: school.isActive,
+      establishedDate: school.establishedDate,
+      createdAt: school.createdAt,
+      updatedAt: school.updatedAt,
+      schoolType: school.schoolType,
+      establishedYear: school.establishedYear,
+      affiliationBoard: school.affiliationBoard,
+      website: school.website,
+      secondaryContact: school.secondaryContact
+    }));
 
     console.log(`[getAllSchools] Successfully fetched ${mappedSchools.length} schools for superadmin`);
     res.json(mappedSchools);

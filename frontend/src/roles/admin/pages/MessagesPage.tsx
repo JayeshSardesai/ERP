@@ -103,6 +103,7 @@ const MessagesPage: React.FC = () => {
 
   // Fetch messages from the backend
   const fetchMessages = useCallback(async (page: number, currentClass: string, currentSection: string) => {
+    console.log('📥 [FRONTEND] fetchMessages called with:', { page, currentClass, currentSection, viewingAcademicYear });
     setMessagesLoading(true);
     setMessagesError(null);
 
@@ -115,43 +116,41 @@ const MessagesPage: React.FC = () => {
         academicYear: viewingAcademicYear, // Always filter by viewing academic year
       };
 
-      console.log('🔍 Fetching messages with params:', params);
+      console.log('🔍 [FRONTEND] Fetching messages with params:', params);
       const result = await getMessages(params);
+      console.log('📦 [FRONTEND] API Response:', result);
+      console.log('📨 [FRONTEND] Messages received:', result.data?.messages?.length || 0);
 
-      // Get all messages
+      // Get all messages - backend already filters by academic year
       let allMessages = result.data.messages || [];
+      console.log('📋 [FRONTEND] All messages from API:', allMessages);
+      console.log(`📊 [FRONTEND] Received ${allMessages.length} messages for academic year: ${viewingAcademicYear}`);
       
-      // Client-side filtering by academic year (in case backend doesn't filter)
-      const filteredMessages = allMessages.filter((msg: Message) => {
-        const messageYear = msg.academicYear;
-        
-        // If message doesn't have academicYear, show it in current academic year only
-        if (!messageYear) {
-          const isCurrentYear = viewingAcademicYear === currentAcademicYear;
-          console.log(`📋 Message: "${msg.title}" - Year: NONE (showing in current year only), Viewing: ${viewingAcademicYear}, Match: ${isCurrentYear}`);
-          return isCurrentYear;
-        }
-        
-        const yearMatch = messageYear === viewingAcademicYear;
-        console.log(`📋 Message: "${msg.title}" - Year: ${messageYear}, Viewing: ${viewingAcademicYear}, Match: ${yearMatch}`);
-        
-        return yearMatch;
+      // Backend already handles filtering, so we can use messages directly
+      // But let's log each message for debugging
+      allMessages.forEach((msg: Message, index: number) => {
+        console.log(`📝 [FRONTEND] Message ${index + 1}:`, {
+          title: msg.title,
+          class: msg.class,
+          section: msg.section,
+          academicYear: msg.academicYear || 'NONE (treated as current year)',
+          createdAt: msg.createdAt
+        });
       });
-
-      console.log(`✅ Filtered ${filteredMessages.length} messages out of ${allMessages.length} for year ${viewingAcademicYear}`);
       
-      setMessages(filteredMessages);
+      setMessages(allMessages);
       setCurrentPage(result.data.pagination?.page || 1);
       setTotalPages(result.data.pagination?.pages || 1);
 
     } catch (err: any) {
-      console.error('Error fetching messages:', err);
+      console.error('❌ [FRONTEND] Error fetching messages:', err);
+      console.error('❌ [FRONTEND] Error response:', err.response);
       setMessagesError('Failed to load sent messages.');
       toast.error('Failed to load sent messages.');
     } finally {
       setMessagesLoading(false);
     }
-  }, [viewingAcademicYear]);
+  }, [viewingAcademicYear, currentAcademicYear]);
 
   // Initial fetch of messages and refetch on filter change
   useEffect(() => {
@@ -262,18 +261,18 @@ const MessagesPage: React.FC = () => {
         throw new Error('Please select a specific Class and Section to send a message.');
       }
 
-      // Include academic year when sending message
+      // Include academic year when sending message - use CURRENT academic year from school settings
       const payload = {
         class: selectedClass,
         section: selectedSection,
         title,
         subject,
         message,
-        academicYear: viewingAcademicYear // Save with current viewing academic year
+        academicYear: currentAcademicYear // Save with CURRENT academic year from school settings
       };
 
       console.log('📤 Sending message with payload:', payload);
-      console.log('📤 Academic Year being sent:', viewingAcademicYear);
+      console.log('📤 Academic Year being sent (from school settings):', currentAcademicYear);
 
       const response = await sendMessageAPI(payload);
       console.log('✅ Backend response:', response);
