@@ -93,7 +93,7 @@ const auth = async (req, res, next) => {
     // Ensure user object is a plain object with role property
     req.user = {
       ...user,
-      role: user.role || 'admin', // Fallback to admin if role is missing
+      role: user.role, // Don't fallback to admin - let it be undefined if missing
       _id: user._id,
       userId: user.userId,
       schoolId: user.schoolId,

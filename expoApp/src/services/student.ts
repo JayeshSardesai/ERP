@@ -597,7 +597,7 @@ export async function getStudentResults(): Promise<Result[]> {
 
 export async function getStudentMessages(): Promise<Message[]> {
   try {
-    const response = await api.get('/messages');
+    const response = await api.get('/messages/student');
 
     // Backend returns { success: true, data: { messages: [...], pagination: {...} } }
     const messages = response.data?.data?.messages || response.data?.messages || response.data?.data || [];
