@@ -887,6 +887,7 @@ const ReportsPage: React.FC = () => {
                                         ) : students.length > 0 ? (
                                           <div className="space-y-2">
                                             <h4 className="text-sm font-semibold text-gray-700 mb-3">Student Details</h4>
+                                            {console.log('📊 [ReportsPage] Displaying students:', students)}
                                             <table className="min-w-full divide-y divide-gray-200">
                                               <thead className="bg-gray-100">
                                                 <tr>
@@ -908,10 +909,14 @@ const ReportsPage: React.FC = () => {
                                                       {student.studentName}
                                                     </td>
                                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                                                      {student.avgMarks > 0 ? `${student.avgMarks.toFixed(1)}%` : 'N/A'}
+                                                      {student.avgMarks !== undefined && student.avgMarks !== null 
+                                                        ? `${Number(student.avgMarks).toFixed(1)}%` 
+                                                        : 'N/A'}
                                                     </td>
                                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                                                      {student.avgAttendance > 0 ? `${student.avgAttendance.toFixed(1)}%` : 'N/A'}
+                                                      {student.avgAttendance !== undefined && student.avgAttendance !== null 
+                                                        ? `${Number(student.avgAttendance).toFixed(1)}%` 
+                                                        : 'N/A'}
                                                     </td>
                                                   </tr>
                                                 ))}
