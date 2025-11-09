@@ -128,9 +128,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         return dueDate >= today;
       }).length;
       
-      const totalLeaves = leaveRequests.length;
-      const pendingLeaves = leaveRequests.filter((l: any) => l.status === 'pending').length;
-      const approvedLeaves = leaveRequests.filter((l: any) => l.status === 'approved').length;
+      const totalLeaves = leaveRequestsArray.length;
+      const pendingLeaves = leaveRequestsArray.filter((l: any) => l.status === 'pending').length;
+      const approvedLeaves = leaveRequestsArray.filter((l: any) => l.status === 'approved').length;
 
       console.log('📈 Calculated stats:', {
         totalAssignments,
