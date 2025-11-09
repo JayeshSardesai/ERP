@@ -47,7 +47,7 @@ const Results: React.FC = () => {
   const [configuredMaxMarks, setConfiguredMaxMarks] = useState<number | null>(null);
 
   // Subject selection replaces Max Marks input in UI
-  const [subjects, setSubjects] = useState<{ label: string; value: string }[]>([]);
+  const [subjects, setSubjects] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
   // Keep maxMarks internally for backend compatibility (default 100)
   const [maxMarks, setMaxMarks] = useState<number | ''>(100);
