@@ -18,6 +18,10 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  'doc.text.fill': 'assignment',
+  'calendar.badge.checkmark': 'event-available',
+  'chart.bar.fill': 'bar-chart',
+  'message.fill': 'message',
 } as IconMapping;
 
 /**
@@ -31,11 +35,14 @@ export function IconSymbol({
   color,
   style,
 }: {
-  name: IconSymbolName;
+  name: IconSymbolName | string; // Allow any string to prevent TypeScript errors
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
 }) {
-  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+  // Get the mapped icon name, fallback to 'help' if not found
+  const iconName = (MAPPING as any)[name] || 'help';
+  
+  return <MaterialIcons color={color} size={size} name={iconName} style={style} />;
 }

@@ -1,32 +1,102 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSchoolInfo, SchoolInfo } from '@/src/services/student';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function MenuScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = getStyles(isDark);
   const router = useRouter();
+  const { theme, toggleTheme: toggleGlobalTheme } = useTheme();
+  
+  const [showIntro, setShowIntro] = useState(true);
+  const [school, setSchool] = useState<SchoolInfo | null>(null);
+  const [userName, setUserName] = useState<string>('');
+  const [schoolAddressText, setSchoolAddressText] = useState<string>('BY SPANDHAN TECHNOLOGIES');
+  
+  const isDark = theme === 'dark';
+  const styles = getStyles(isDark);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [schoolInfo, userDataStr] = await Promise.all([
+          getSchoolInfo(),
+          AsyncStorage.getItem('userData')
+        ]);
+        setSchool(schoolInfo);
+        if (schoolInfo && (schoolInfo as any).address) {
+          const addr: any = (schoolInfo as any).address;
+          const parts = [addr.city, addr.district, addr.taluka, addr.state, addr.country, addr.zipCode || addr.pinCode]
+            .filter(Boolean)
+            .map((p: any) => String(p));
+          if (parts.length > 0) setSchoolAddressText(parts.join(', '));
+        } else if (schoolInfo?.address && typeof schoolInfo.address === 'string') {
+          setSchoolAddressText(String(schoolInfo.address));
+        }
+        if (userDataStr) {
+          const userData = JSON.parse(userDataStr);
+          const rawName = userData?.name ?? userData?.fullName ?? userData?.displayName;
+          let display = '';
+          if (typeof rawName === 'string') {
+            display = rawName;
+          } else if (rawName && typeof rawName === 'object') {
+            display = rawName.displayName || [rawName.firstName, rawName.middleName, rawName.lastName].filter(Boolean).join(' ');
+          } else {
+            display = [userData?.firstName, userData?.middleName, userData?.lastName].filter(Boolean).join(' ');
+          }
+          setUserName(display || 'Student');
+        }
+      } catch (e) {
+        // no-op; keep graceful defaults
+      }
+    };
+    loadData();
+  }, []);
 
   const menuItems = [
-    { id: 1, title: 'My Profile', icon: '👤', iconBg: '#FECACA', route: 'Profile' },
-    { id: 2, title: 'My School', icon: '🏫', iconBg: '#DBEAFE', route: 'School' },
-    { id: 3, title: 'My Fees', icon: '💰', iconBg: '#D1FAE5', route: 'Fees' },
-    { id: 4, title: 'Settings', icon: '⚙️', iconBg: '#E9D5FF', route: 'Settings' },
+    { id: 1, title: 'My Profile', icon: '👤', iconBg: '#FECACA', route: '/profile' },
+    { id: 2, title: 'My School', icon: '🏫', iconBg: '#DBEAFE', route: '/school' },
+    { id: 3, title: theme === 'dark' ? 'Light Mode' : 'Dark Mode', icon: theme === 'dark' ? '☀️' : '🌙', iconBg: '#FEF3C7', route: 'theme-toggle' },
   ];
 
   const handleMenuPress = (route: string) => {
-    console.log(`Navigate to ${route}`);
+    if (route === 'theme-toggle') {
+      toggleGlobalTheme();
+    } else {
+      router.push(route as any);
+    }
   };
 
-  const handleLogout = () => {
-    router.back();
+  const handleLogout = async () => {
+    try {
+      // Clear all stored authentication data
+      await AsyncStorage.multiRemove(['authToken', 'userData', 'schoolCode']);
+
+      // Navigate to the role selection screen (first page) and reset the navigation stack
+      router.replace('/role');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Even if there's an error clearing storage, still navigate to role selection
+      router.replace('/role');
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      <Modal transparent visible={showIntro} animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{school?.schoolName || 'Welcome'}</Text>
+              <Text style={styles.modalSubtitle}>Hi {userName}, explore your menu</Text>
+            </View>
+            <TouchableOpacity style={styles.modalButton} onPress={() => setShowIntro(false)}>
+              <Text style={styles.modalButtonText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -34,14 +104,6 @@ export default function MenuScreen() {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Menu</Text>
           <View style={styles.placeholder} />
-        </View>
-
-        <View style={styles.logoContainer}>
-          <View style={styles.logoPlaceholder}>
-            <Text style={styles.logoText}>🎓</Text>
-            <Text style={styles.logoTitle}>EduLogix</Text>
-            <Text style={styles.logoSubtitle}>BY SPANDHAN TECHNOLOGIES</Text>
-          </View>
         </View>
 
         <View style={styles.menuContainer}>
@@ -66,14 +128,14 @@ export default function MenuScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 function getStyles(isDark: boolean) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: isDark ? '#0B0F14' : '#E0F2FE' },
-    scrollView: { flex: 1 },
+    container: { flex: 1, backgroundColor: isDark ? '#0B0F14' : '#E0F2FE', paddingTop: 0 },
+    scrollView: { flex: 1, paddingTop: 20 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
     backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
     backIcon: { fontSize: 28, color: isDark ? '#93C5FD' : '#1E3A8A' },
@@ -81,7 +143,6 @@ function getStyles(isDark: boolean) {
     placeholder: { width: 40 },
     logoContainer: { alignItems: 'center', marginTop: 20, marginBottom: 40 },
     logoPlaceholder: { alignItems: 'center' },
-    logoText: { fontSize: 60, marginBottom: 10 },
     logoTitle: { fontSize: 28, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', marginBottom: 4 },
     logoSubtitle: { fontSize: 9, color: isDark ? '#93C5FD' : '#1E3A8A', letterSpacing: 1.5 },
     menuContainer: { paddingHorizontal: 20, gap: 16 },
@@ -94,7 +155,15 @@ function getStyles(isDark: boolean) {
     logoutContainer: { paddingHorizontal: 20, marginTop: 32 },
     logoutButton: { backgroundColor: '#EF4444', borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
     logoutText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    modalCard: { width: '84%', backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderRadius: 16, padding: 20, borderWidth: 2, borderColor: isDark ? '#1F2937' : '#93C5FD' },
+    modalHeader: { alignItems: 'center', marginBottom: 16 },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: isDark ? '#E5E7EB' : '#1E3A8A', marginTop: 8 },
+    modalSubtitle: { fontSize: 12, color: isDark ? '#9CA3AF' : '#475569', marginTop: 4 },
+    modalButton: { backgroundColor: '#3B82F6', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
+    modalButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    profileStrip: { flexDirection: 'row', alignItems: 'center', marginTop: 24, paddingHorizontal: 20, gap: 12 },
+    profileName: { fontSize: 16, fontWeight: '700', color: isDark ? '#E5E7EB' : '#1F2937' },
+    profileSub: { fontSize: 12, color: isDark ? '#9CA3AF' : '#6B7280' },
   });
 }
-
-
