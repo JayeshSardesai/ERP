@@ -850,7 +850,8 @@ exports.getStudentFeeRecords = async (req, res) => {
       page = 1, 
       limit = 20,
       search,
-      status
+      status,
+      academicYear
     } = req.query;
     
     const schoolCode = req.user.schoolCode;
@@ -861,6 +862,11 @@ exports.getStudentFeeRecords = async (req, res) => {
     // Build query (robust matching for class/section)
     const query = { schoolId: new ObjectId(req.user.schoolId) };
     const andFilters = [];
+
+    // Filter by academic year if provided
+    if (academicYear) {
+      query.academicYear = academicYear;
+    }
 
     if (targetClass && targetClass !== 'ALL') {
       const clsRaw = String(targetClass).trim();

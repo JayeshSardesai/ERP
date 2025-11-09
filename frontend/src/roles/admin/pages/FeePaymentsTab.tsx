@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, X, FileText, Receipt, Eye } from 'lucide-react';
+import { Search, Plus, X, FileText, Receipt, Eye, Filter } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import ClassSectionSelect from '../components/ClassSectionSelect';
 import { feesAPI, userAPI, schoolAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
@@ -9,6 +10,7 @@ import ViewChalan from '../../../components/fees/ViewChalan';
 
 const FeePaymentsTab: React.FC = () => {
   const { user } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [selectedSection, setSelectedSection] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -180,7 +182,8 @@ const FeePaymentsTab: React.FC = () => {
       console.log('Fetching fee records with params:', {
         class: selectedClass,
         section: selectedSection,
-        search: searchTerm
+        search: searchTerm,
+        academicYear: viewingAcademicYear
       });
       
       // Fetch fee records and student details in parallel
@@ -188,7 +191,8 @@ const FeePaymentsTab: React.FC = () => {
       const studentFilters: any = {
         search: searchTerm,
         limit: 50,
-        fields: '_id,userId,name,studentId,class,section,admissionNumber'
+        fields: '_id,userId,name,studentId,class,section,admissionNumber',
+        academicYear: viewingAcademicYear
       };
       
       if (selectedClass && selectedClass !== 'ALL') {
@@ -204,6 +208,7 @@ const FeePaymentsTab: React.FC = () => {
           class: selectedClass,
           section: selectedSection,
           search: searchTerm,
+          academicYear: viewingAcademicYear,
           limit: 50,
           fields: 'studentId,installments,totalAmount,paidAmount,balance'
         }),
@@ -1268,14 +1273,14 @@ hasSchoolLogo: !!(data.logoUrl || data.logo || schoolData.schoolLogo),
 
     fetchSchoolDetails();
     fetchRecords();
-  }, [user?.schoolId, selectedClass, selectedSection, searchTerm]);
+  }, [user?.schoolId, selectedClass, selectedSection, searchTerm, viewingAcademicYear]);
 
   // naive debounce for search
   React.useEffect(() => {
     const t = setTimeout(() => fetchRecords(), 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm]);
+  }, [searchTerm, viewingAcademicYear]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1376,7 +1381,26 @@ return (
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Fee Payments Management</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Filter className="inline h-4 w-4 mr-1" />
+              Academic Year
+            </label>
+            <select
+              value={viewingAcademicYear}
+              onChange={(e) => setViewingYear(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              disabled={academicYearLoading}
+            >
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year} {year === currentAcademicYear && '(Current)'}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <ClassSectionSelect
             schoolCode={user?.schoolCode}
             valueClass={selectedClass}
@@ -1386,7 +1410,10 @@ return (
           />
 
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Search
+            </label>
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" style={{ top: '28px' }}>
               <Search className="h-5 w-5 text-gray-400" />
 </div>
             <input

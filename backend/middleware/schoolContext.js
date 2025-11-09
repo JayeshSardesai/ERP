@@ -1,136 +1,148 @@
 const School = require('../models/School');
-const DatabaseManager = require('../utils/databaseManager');
+const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
 
 /**
- * Middleware to set school context for multi-tenant operations
- * This middleware ensures that users can only access data from their assigned school
+ * Middleware to set school context from various sources
+ * Tries to extract school information from:
+ * 1. Request body (schoolCode)
+ * 2. Request params (schoolCode, schoolId)
+ * 3. Request query (schoolCode)
+ * 4. User object (schoolCode)
  */
 const setSchoolContext = async (req, res, next) => {
   try {
-    let schoolId = null;
-    let schoolCode = null;
+    console.log('🏫 Setting school context...');
     
-    // Try to get school identifier from multiple sources
-    if (req.headers['x-school-id']) {
-      schoolId = req.headers['x-school-id'];
-    } else if (req.headers['x-school-code']) {
-      schoolCode = req.headers['x-school-code'];
-    } else if (req.body.schoolId) {
-      schoolId = req.body.schoolId;
-    } else if (req.body.schoolCode) {
-      schoolCode = req.body.schoolCode;
-    } else if (req.params.schoolId) {
-      schoolId = req.params.schoolId;
-    } else if (req.params.schoolCode) {
-      schoolCode = req.params.schoolCode;
-    } else if (req.user && req.user.schoolId && req.user.role !== 'superadmin') {
-      // Get from authenticated user (except superadmin)
-      schoolId = req.user.schoolId;
-      schoolCode = req.user.schoolCode;
+    // Try to get school code from various sources
+    let schoolCode = req.body?.schoolCode || 
+                     req.params?.schoolCode || 
+                     req.params?.schoolId ||
+                     req.query?.schoolCode ||
+                     req.user?.schoolCode;
+    
+    if (!schoolCode) {
+      console.log('⚠️ No school code found in request, continuing without school context');
+      return next();
     }
     
-    // For superadmin, school context is optional for some operations
-    // but when provided, it should be validated and set
-    if (req.user && req.user.role === 'superadmin') {
-      if (!schoolId && !schoolCode) {
-        // For super admin routes that don't require specific school context
-        // (like listing all schools), we can proceed without school context
-        console.log('🔧 Super admin operation without specific school context');
-        return next();
-      }
-    } else if (!schoolId && !schoolCode) {
-      // For non-superadmin users, school context is always required
-      return res.status(400).json({
-        success: false,
-        message: 'School identifier is required. Please provide schoolId or schoolCode in headers or request body.'
-      });
-    }
+    console.log(`🔍 Found school identifier: ${schoolCode}`);
     
-    // Find school by ID or code
-    let school;
-    if (schoolId) {
-      school = await School.findById(schoolId);
-    } else if (schoolCode) {
-      school = await School.findOne({ code: new RegExp(`^${schoolCode}$`, 'i') });
+    // Resolve school identifier to school object
+    let school = await School.findOne({ code: schoolCode.toUpperCase() });
+    
+    if (!school) {
+      // Try finding by name
+      school = await School.findOne({ name: { $regex: new RegExp(`^${schoolCode}$`, 'i') } });
     }
     
     if (!school) {
-      return res.status(404).json({
-        success: false,
-        message: 'School not found'
-      });
-    }
-    
-    // Verify user has access to this school (except for superadmin)
-    if (req.user && req.user.role !== 'superadmin') {
-      if (req.user.schoolId && req.user.schoolId.toString() !== school._id.toString()) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied: You do not have permission to access this school data'
-        });
+      // Try finding by _id if it looks like an ObjectId
+      if (schoolCode.match(/^[0-9a-fA-F]{24}$/)) {
+        school = await School.findById(schoolCode);
       }
     }
     
-    // Set school context
-    req.school = school;
-    req.schoolCode = school.code;
-    req.schoolId = school._id;
-    
-    // Get school database connection
-    try {
-      req.schoolDb = await DatabaseManager.getSchoolConnection(school.code);
-      console.log(`📍 School context set: ${school.name} (${school.code}) for ${req.user.role}`);
-    } catch (error) {
-      console.error(`Error getting school database connection:`, error);
-      return res.status(500).json({
-        success: false,
-        message: 'Error accessing school database'
-      });
+    if (school) {
+      req.schoolCode = school.code.toLowerCase();
+      req.schoolId = school._id;
+      req.school = school;
+      console.log(`✅ School context set: ${school.name} (${school.code})`);
+    } else {
+      console.log(`⚠️ School not found for identifier: ${schoolCode}`);
     }
     
     next();
   } catch (error) {
-    console.error('Error in school context middleware:', error);
+    console.error('❌ Error setting school context:', error);
+    next(); // Continue even if there's an error
+  }
+};
+
+/**
+ * Middleware to require school context
+ * Returns 400 if school context is not set
+ */
+const requireSchoolContext = async (req, res, next) => {
+  try {
+    console.log('🔒 Requiring school context...');
+    
+    // Try to set school context if not already set
+    if (!req.schoolCode) {
+      await setSchoolContext(req, res, () => {});
+    }
+    
+    if (!req.schoolCode) {
+      console.error('❌ School context required but not found');
+      return res.status(400).json({
+        success: false,
+        message: 'School context is required. Please provide schoolCode in request.'
+      });
+    }
+    
+    console.log(`✅ School context verified: ${req.schoolCode}`);
+    next();
+  } catch (error) {
+    console.error('❌ Error requiring school context:', error);
     res.status(500).json({
       success: false,
-      message: 'Error setting school context',
+      message: 'Error validating school context',
       error: error.message
     });
   }
 };
 
 /**
- * Middleware to validate school access for specific roles
+ * Middleware to validate school access based on user roles
+ * @param {Array<string>} allowedRoles - Array of roles allowed to access
  */
 const validateSchoolAccess = (allowedRoles = []) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
-      // Skip validation for superadmin
-      if (req.user && req.user.role === 'superadmin') {
+      console.log('🔐 Validating school access...');
+      console.log('User role:', req.user?.role);
+      console.log('Allowed roles:', allowedRoles);
+      
+      if (!req.user) {
+        console.error('❌ No user found in request');
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+      
+      // Superadmin has access to everything
+      if (req.user.role === 'superadmin') {
+        console.log('✅ Superadmin access granted');
         return next();
       }
       
-      // Check if user role is allowed
-      if (allowedRoles.length > 0 && !allowedRoles.includes(req.user.role)) {
+      // Check if user's role is in allowed roles
+      if (!allowedRoles.includes(req.user.role)) {
+        console.error(`❌ Access denied. User role "${req.user.role}" not in allowed roles:`, allowedRoles);
         return res.status(403).json({
           success: false,
-          message: `Access denied: ${req.user.role} role is not authorized for this operation`
+          message: `Access denied. Required roles: ${allowedRoles.join(', ')}`
         });
       }
       
-      // Ensure school context is set
-      if (!req.school || !req.schoolDb) {
-        return res.status(400).json({
-          success: false,
-          message: 'School context not properly set'
-        });
+      // For school-specific roles, verify school context matches
+      if (req.schoolCode && req.user.schoolCode) {
+        if (req.schoolCode.toLowerCase() !== req.user.schoolCode.toLowerCase()) {
+          console.error(`❌ School mismatch. User school: ${req.user.schoolCode}, Request school: ${req.schoolCode}`);
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. You do not have access to this school.'
+          });
+        }
       }
       
+      console.log(`✅ Access granted for role: ${req.user.role}`);
       next();
     } catch (error) {
+      console.error('❌ Error validating school access:', error);
       res.status(500).json({
         success: false,
-        message: 'Error validating school access',
+        message: 'Error validating access',
         error: error.message
       });
     }
@@ -138,137 +150,56 @@ const validateSchoolAccess = (allowedRoles = []) => {
 };
 
 /**
- * Middleware specifically for superadmin operations
- */
-const requireSuperAdmin = (req, res, next) => {
-  try {
-    console.log('🔐 requireSuperAdmin middleware called');
-    console.log('Request method:', req.method);
-    console.log('Request URL:', req.originalUrl);
-    console.log('Request user:', req.user);
-    
-    if (!req.user || req.user.role !== 'superadmin') {
-      console.error('Authorization failed: User is not a superadmin');
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized: Superadmin access required'
-      });
-    }
-    console.log('Superadmin access granted for user:', req.user);
-    next();
-  } catch (error) {
-    console.error('Error in requireSuperAdmin middleware:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error validating superadmin access',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Middleware for operations that require main database context
+ * Middleware to set main database context
+ * Used for operations that need to work with the main database
  */
 const setMainDbContext = (req, res, next) => {
   try {
-    console.log('[setMainDbContext] Initializing main database context');
-    req.mainDb = DatabaseManager.getMainConnection();
-    console.log('[setMainDbContext] Main database context set successfully');
+    console.log('🗄️ Setting main database context...');
+    const mongoose = require('mongoose');
+    req.mainDb = mongoose.connection;
+    console.log('✅ Main database context set');
     next();
   } catch (error) {
-    console.error('[setMainDbContext ERROR] Failed to set main database context:', error);
+    console.error('❌ Error setting main database context:', error);
     res.status(500).json({
       success: false,
-      message: 'Error setting main database context',
+      message: 'Error setting database context',
       error: error.message
     });
   }
 };
 
 /**
- * Middleware for operations that require school context (stricter version)
+ * Middleware to require superadmin role
  */
-const requireSchoolContext = async (req, res, next) => {
+const requireSuperAdmin = (req, res, next) => {
   try {
-    let schoolId = null;
-    let schoolCode = null;
+    console.log('👑 Requiring superadmin access...');
     
-    // Try to get school identifier from multiple sources
-    if (req.headers['x-school-id']) {
-      schoolId = req.headers['x-school-id'];
-    } else if (req.headers['x-school-code']) {
-      schoolCode = req.headers['x-school-code'];
-    } else if (req.body.schoolId) {
-      schoolId = req.body.schoolId;
-    } else if (req.body.schoolCode) {
-      schoolCode = req.body.schoolCode;
-    } else if (req.params.schoolId) {
-      schoolId = req.params.schoolId;
-    } else if (req.params.schoolCode) {
-      schoolCode = req.params.schoolCode;
-    } else if (req.user && req.user.schoolId && req.user.role !== 'superadmin') {
-      // Get from authenticated user (except superadmin)
-      schoolId = req.user.schoolId;
-      schoolCode = req.user.schoolCode;
-    }
-    
-    // School context is always required for this middleware
-    if (!schoolId && !schoolCode) {
-      return res.status(400).json({
+    if (!req.user) {
+      console.error('❌ No user found in request');
+      return res.status(401).json({
         success: false,
-        message: 'School identifier is required. Please provide schoolId or schoolCode in headers (x-school-id or x-school-code) or request body.',
-        hint: 'For super admin: Add "x-school-code: SCHOOL_CODE" to your request headers'
+        message: 'Authentication required'
       });
     }
     
-    // Find school by ID or code
-    let school;
-    if (schoolId) {
-      school = await School.findById(schoolId);
-    } else if (schoolCode) {
-      school = await School.findOne({ code: new RegExp(`^${schoolCode}$`, 'i') });
-    }
-    
-    if (!school) {
-      return res.status(404).json({
+    if (req.user.role !== 'superadmin') {
+      console.error(`❌ Access denied. User role: ${req.user.role}`);
+      return res.status(403).json({
         success: false,
-        message: `School not found with ${schoolId ? 'ID' : 'code'}: ${schoolId || schoolCode}`
+        message: 'Access denied. Superadmin role required.'
       });
     }
     
-    // Verify user has access to this school (except for superadmin)
-    if (req.user && req.user.role !== 'superadmin') {
-      if (req.user.schoolId && req.user.schoolId.toString() !== school._id.toString()) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied: You do not have permission to access this school data'
-        });
-      }
-    }
-    
-    // Set school context
-    req.school = school;
-    req.schoolCode = school.code;
-    req.schoolId = school._id;
-    
-    // Get school database connection
-    try {
-      req.schoolDb = await DatabaseManager.getSchoolConnection(school.code);
-      console.log(`📍 School context required and set: ${school.name} (${school.code}) for ${req.user.role}`);
-    } catch (error) {
-      console.error(`Error getting school database connection:`, error);
-      return res.status(500).json({
-        success: false,
-        message: 'Error accessing school database'
-      });
-    }
-    
+    console.log('✅ Superadmin access granted');
     next();
   } catch (error) {
-    console.error('Error in require school context middleware:', error);
+    console.error('❌ Error requiring superadmin:', error);
     res.status(500).json({
       success: false,
-      message: 'Error setting school context',
+      message: 'Error validating superadmin access',
       error: error.message
     });
   }
@@ -278,6 +209,6 @@ module.exports = {
   setSchoolContext,
   requireSchoolContext,
   validateSchoolAccess,
-  requireSuperAdmin,
-  setMainDbContext
+  setMainDbContext,
+  requireSuperAdmin
 };

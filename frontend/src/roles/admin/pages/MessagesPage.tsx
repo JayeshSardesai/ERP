@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
 import {
   getMessages,
@@ -37,6 +38,7 @@ interface Message {
   // Add these for delete functionality
   _id?: string; // MongoDB _id field
   schoolId?: string;
+  academicYear?: string;
 }
 
 const MessagesPage: React.FC = () => {
@@ -49,6 +51,9 @@ const MessagesPage: React.FC = () => {
     error: classesError,
     hasClasses
   } = useSchoolClasses();
+
+  // Academic year context
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears } = useAcademicYear();
 
   // Form state (for sending a new message) - defaults to empty string to enforce selection
   const [title, setTitle] = useState('');
@@ -98,6 +103,7 @@ const MessagesPage: React.FC = () => {
 
   // Fetch messages from the backend
   const fetchMessages = useCallback(async (page: number, currentClass: string, currentSection: string) => {
+    console.log('📥 [FRONTEND] fetchMessages called with:', { page, currentClass, currentSection, viewingAcademicYear });
     setMessagesLoading(true);
     setMessagesError(null);
 
@@ -107,22 +113,44 @@ const MessagesPage: React.FC = () => {
         limit: LIMIT,
         class: currentClass === 'ALL' ? undefined : currentClass,
         section: currentSection === 'ALL' ? undefined : currentSection,
+        academicYear: viewingAcademicYear, // Always filter by viewing academic year
       };
 
+      console.log('🔍 [FRONTEND] Fetching messages with params:', params);
       const result = await getMessages(params);
+      console.log('📦 [FRONTEND] API Response:', result);
+      console.log('📨 [FRONTEND] Messages received:', result.data?.messages?.length || 0);
 
-      setMessages(result.data.messages || []);
+      // Get all messages - backend already filters by academic year
+      let allMessages = result.data.messages || [];
+      console.log('📋 [FRONTEND] All messages from API:', allMessages);
+      console.log(`📊 [FRONTEND] Received ${allMessages.length} messages for academic year: ${viewingAcademicYear}`);
+      
+      // Backend already handles filtering, so we can use messages directly
+      // But let's log each message for debugging
+      allMessages.forEach((msg: Message, index: number) => {
+        console.log(`📝 [FRONTEND] Message ${index + 1}:`, {
+          title: msg.title,
+          class: msg.class,
+          section: msg.section,
+          academicYear: msg.academicYear || 'NONE (treated as current year)',
+          createdAt: msg.createdAt
+        });
+      });
+      
+      setMessages(allMessages);
       setCurrentPage(result.data.pagination?.page || 1);
       setTotalPages(result.data.pagination?.pages || 1);
 
     } catch (err: any) {
-      console.error('Error fetching messages:', err);
+      console.error('❌ [FRONTEND] Error fetching messages:', err);
+      console.error('❌ [FRONTEND] Error response:', err.response);
       setMessagesError('Failed to load sent messages.');
       toast.error('Failed to load sent messages.');
     } finally {
       setMessagesLoading(false);
     }
-  }, []);
+  }, [viewingAcademicYear, currentAcademicYear]);
 
   // Initial fetch of messages and refetch on filter change
   useEffect(() => {
@@ -183,7 +211,6 @@ const MessagesPage: React.FC = () => {
     }
   }, [selectedClass, selectedSection]);
 
-
   const previewRecipients = async (targetClass: string, targetSection: string) => {
     try {
       // Backend gets schoolId from req.user.schoolId, no need to send it
@@ -234,16 +261,21 @@ const MessagesPage: React.FC = () => {
         throw new Error('Please select a specific Class and Section to send a message.');
       }
 
-      // Only send required fields as per new backend schema
+      // Include academic year when sending message - use CURRENT academic year from school settings
       const payload = {
         class: selectedClass,
         section: selectedSection,
         title,
         subject,
-        message
+        message,
+        academicYear: currentAcademicYear // Save with CURRENT academic year from school settings
       };
 
+      console.log('📤 Sending message with payload:', payload);
+      console.log('📤 Academic Year being sent (from school settings):', currentAcademicYear);
+
       const response = await sendMessageAPI(payload);
+      console.log('✅ Backend response:', response);
 
       if (response.success) {
         setSuccess('Message sent successfully!');
@@ -304,7 +336,6 @@ const MessagesPage: React.FC = () => {
   };
 
   // Preview message details
-  // Preview message details
   const previewMessageDetails = (message: Message) => {
     // Create a safe message object with fallbacks
     const safeMessage = {
@@ -332,7 +363,6 @@ const MessagesPage: React.FC = () => {
     }
   };
 
-  // Helper function to truncate text
   // Helper function to truncate text
   const truncateText = (text: string, maxLength: number) => {
     if (!text || typeof text !== 'string') return '';
@@ -469,6 +499,25 @@ const MessagesPage: React.FC = () => {
 
     return (
       <div className="flex space-x-4 mb-4">
+        {/* Academic Year Filter */}
+        <div className="w-1/3">
+          <label htmlFor="filter-academic-year" className="block text-xs font-medium text-gray-500 mb-1">
+            Filter by Academic Year
+          </label>
+          <select
+            id="filter-academic-year"
+            value={viewingAcademicYear}
+            onChange={(e) => setViewingYear(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {availableYears.map((year) => (
+              <option key={`filter-year-${year}`} value={year}>
+                {year} {year === currentAcademicYear && '(Current)'}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Class Filter */}
         <div className="w-1/3">
           <label htmlFor="filter-class" className="block text-xs font-medium text-gray-500 mb-1">
@@ -681,7 +730,6 @@ const MessagesPage: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Messages Table */}
             {/* Messages Table */}
             <div className="overflow-x-auto shadow-sm border border-gray-200 rounded-lg">
               <table className="min-w-full divide-y divide-gray-200">

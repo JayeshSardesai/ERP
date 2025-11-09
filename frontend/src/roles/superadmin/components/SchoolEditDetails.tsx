@@ -1,11 +1,12 @@
 // NOTE: This file contained duplicate implementations. Keeping the full editor implementation below.
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Save, X, MapPin, Phone, Settings as SettingsIcon, Building } from 'lucide-react';
+import { ArrowLeft, Save, X, MapPin, Phone, Settings as SettingsIcon, Building, Image as ImageIcon, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import api from '../../../api/axios';
 import LocationSelector from '../../../components/LocationSelector';
 import { State, District, Taluka } from '../../../services/locationAPI';
+import { compressImage } from '../../../utils/schoolConfig';
 
 const SchoolEditDetails: React.FC = () => {
   const { selectedSchoolId, setCurrentView, updateSchool } = useApp();
@@ -13,6 +14,8 @@ const SchoolEditDetails: React.FC = () => {
   const [form, setForm] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   console.log('[SchoolEditDetails] Component rendered, selectedSchoolId:', selectedSchoolId);
 
@@ -88,6 +91,47 @@ const SchoolEditDetails: React.FC = () => {
     });
   };
 
+  const handleImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      console.log('📸 Image selected:', file.name, 'Size:', (file.size / 1024).toFixed(2), 'KB');
+      
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
+        return;
+      }
+
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Image size should be less than 10MB');
+        return;
+      }
+
+      // Compress the image before storing
+      const compressedFile = await compressImage(file);
+      console.log('✅ Image compressed:', (compressedFile.size / 1024).toFixed(2), 'KB');
+      
+      // Store the compressed file for upload
+      setSelectedImage(compressedFile);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(compressedFile);
+      
+      console.log('✅ Image ready for upload');
+    } catch (error) {
+      console.error('❌ Error processing image:', error);
+      alert('Error processing image. Please try again.');
+    }
+  };
+
   // Location handlers
   const handleStateChange = (stateId: number, state: State) => {
     update('address.stateId', stateId);
@@ -127,8 +171,51 @@ const SchoolEditDetails: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.put(`/schools/${selectedSchoolId}`, form);
+      console.log('💾 Saving school data...');
+      
+      // Create FormData for multipart/form-data submission
+      const formData = new FormData();
+      
+      // If there's a new image, append it
+      if (selectedImage) {
+        formData.append('schoolImage', selectedImage);
+        console.log('📸 Image attached to form data');
+      }
+      
+      // Append only the fields we want to update (exclude read-only fields)
+      const fieldsToExclude = ['_id', 'id', 'createdAt', 'updatedAt', '__v', 'databaseName', 'databaseCreated', 'databaseCreatedAt', 'fullAddress', 'admins', 'stats', 'features'];
+      
+      Object.keys(form).forEach(key => {
+        // Skip excluded fields
+        if (fieldsToExclude.includes(key)) {
+          return;
+        }
+        
+        const value = form[key];
+        if (value !== null && value !== undefined) {
+          if (typeof value === 'object' && !Array.isArray(value)) {
+            // For nested objects, stringify them
+            formData.append(key, JSON.stringify(value));
+          } else if (Array.isArray(value)) {
+            // For arrays, stringify them
+            formData.append(key, JSON.stringify(value));
+          } else {
+            // For primitive values, convert to string
+            formData.append(key, String(value));
+          }
+        }
+      });
+      
+      console.log('📤 Sending update request...');
+      const res = await api.put(`/schools/${selectedSchoolId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
       const updated = (res.data as any)?.school || res.data;
+      console.log('✅ School updated successfully:', updated);
+      
       setProfile(updated);
       await updateSchool({
         id: updated._id || updated.id || selectedSchoolId,
@@ -150,10 +237,12 @@ const SchoolEditDetails: React.FC = () => {
         website: updated.contact?.website || '',
         secondaryContact: updated.secondaryContact || ''
       } as any);
-      alert('School updated');
+      
+      alert('School updated successfully!');
       setCurrentView('school-details');
     } catch (e: any) {
-      setError(e?.message || 'Failed to save');
+      console.error('❌ Error saving school:', e);
+      setError(e?.response?.data?.message || e?.message || 'Failed to save');
     } finally {
       setLoading(false);
     }
@@ -397,6 +486,76 @@ const SchoolEditDetails: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Last Updated</label>
               <p className="px-3 py-2 bg-gray-50 rounded-lg text-gray-900">{profile.updatedAt ? new Date(profile.updatedAt).toLocaleString() : '—'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <ImageIcon className="h-6 w-6 text-orange-600" />
+            <h2 className="text-lg font-semibold text-gray-900">School Image</h2>
+          </div>
+          
+          <div className="space-y-4">
+            {/* Current Image Display */}
+            {profile?.logoUrl && !imagePreview && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Current Image</label>
+                <div className="relative w-48 h-48 border-2 border-gray-200 rounded-lg overflow-hidden">
+                  <img 
+                    src={profile.logoUrl} 
+                    alt="Current school image" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200?text=No+Image';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {/* Image Preview */}
+            {imagePreview && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">New Image Preview</label>
+                <div className="relative w-48 h-48 border-2 border-green-500 rounded-lg overflow-hidden">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
+                    New
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Upload Button */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {imagePreview ? 'Change Image' : 'Upload New Image'}
+              </label>
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer transition-colors">
+                  <Upload className="h-4 w-4" />
+                  <span>Choose Image</span>
+                  <input 
+                    type="file" 
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" 
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                </label>
+                {selectedImage && (
+                  <span className="text-sm text-gray-600">
+                    {selectedImage.name} ({(selectedImage.size / 1024).toFixed(2)} KB)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Supported formats: JPEG, PNG, GIF, WebP (Max 10MB). Image will be compressed automatically.
+              </p>
             </div>
           </div>
         </div>

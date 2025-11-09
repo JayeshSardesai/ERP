@@ -1508,12 +1508,86 @@ exports.updateUserPassword = async (req, res) => {
 // Get all schools (for super admin)
 exports.getAllSchools = async (req, res) => {
   try {
+    console.log('[getAllSchools] Request received');
+    console.log('[getAllSchools] User:', req.user);
+    console.log('[getAllSchools] User role:', req.user?.role);
+    
     if (req.user.role !== 'superadmin') {
+      console.log('[getAllSchools] Access denied - not superadmin');
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const schools = await School.find({})
-      .select('-__v');
+    console.log('[getAllSchools] Fetching schools from database...');
+    
+    let schools;
+    try {
+      // Use lean() to get raw data and skip Mongoose hydration (which causes the error)
+      schools = await School.find({}).select('-__v').lean();
+      console.log('[getAllSchools] Found', schools.length, 'schools');
+      
+      // Manually normalize settings for each school
+      schools = schools.map(school => {
+        // Ensure settings is an object, not a string
+        if (typeof school.settings === 'string') {
+          try {
+            school.settings = JSON.parse(school.settings);
+            console.log(`[getAllSchools] Parsed settings string for school ${school.code}`);
+          } catch (e) {
+            console.error(`[getAllSchools] Error parsing settings for school ${school.code}:`, e);
+            school.settings = {
+              academicYear: {
+                currentYear: new Date().getFullYear().toString(),
+                startDate: new Date(`${new Date().getFullYear()}-04-01`),
+                endDate: new Date(`${new Date().getFullYear() + 1}-03-31`)
+              },
+              classes: [],
+              sections: [],
+              subjects: [],
+              workingDays: [],
+              workingHours: { start: '08:00', end: '15:00' },
+              holidays: []
+            };
+          }
+        }
+        
+        // Ensure settings has required structure
+        if (!school.settings || typeof school.settings !== 'object') {
+          school.settings = {
+            academicYear: {
+              currentYear: new Date().getFullYear().toString(),
+              startDate: new Date(`${new Date().getFullYear()}-04-01`),
+              endDate: new Date(`${new Date().getFullYear() + 1}-03-31`)
+            },
+            classes: [],
+            sections: [],
+            subjects: [],
+            workingDays: [],
+            workingHours: { start: '08:00', end: '15:00' },
+            holidays: []
+          };
+        }
+        
+        // Ensure academicSettings is an object
+        if (typeof school.academicSettings === 'string') {
+          try {
+            school.academicSettings = JSON.parse(school.academicSettings);
+          } catch (e) {
+            school.academicSettings = {
+              schoolTypes: [],
+              customGradeNames: {},
+              gradeLevels: {}
+            };
+          }
+        }
+        
+        return school;
+      });
+      
+    } catch (dbError) {
+      console.error('[getAllSchools] Database query error:', dbError);
+      console.error('[getAllSchools] Error stack:', dbError.stack);
+      throw dbError;
+    }
 
     // Map all fields needed for frontend
     const mappedSchools = schools.map(school => ({
@@ -1546,11 +1620,18 @@ exports.getAllSchools = async (req, res) => {
       secondaryContact: school.secondaryContact
     }));
 
-    console.log(`Successfully fetched ${mappedSchools.length} schools for superadmin`);
+    console.log(`[getAllSchools] Successfully fetched ${mappedSchools.length} schools for superadmin`);
     res.json(mappedSchools);
   } catch (error) {
-    console.error('Error fetching schools:', error);
-    res.status(500).json({ message: 'Error fetching schools', error: error.message });
+    console.error('[getAllSchools] Error fetching schools:', error);
+    console.error('[getAllSchools] Error message:', error.message);
+    console.error('[getAllSchools] Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching schools', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

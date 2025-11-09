@@ -7,6 +7,7 @@ const messageSchema = new mongoose.Schema({
   title: { type: String, required: true },
   subject: { type: String, required: true },
   message: { type: String, required: true },
+  academicYear: { type: String }, // Academic year when message was created (optional for backward compatibility)
   createdAt: { type: Date, default: Date.now }
 });
 
