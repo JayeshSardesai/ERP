@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Users, UserCheck, BookOpen, TrendingUp, Calendar, Clock, AlertCircle, Building, Phone, Mail, MapPin, RefreshCw, Bug } from 'lucide-react';
+import { Users, UserCheck, BookOpen, TrendingUp, Calendar, Clock, AlertCircle, Building, Phone, Mail, MapPin, RefreshCw, Bug, AlertTriangle } from 'lucide-react';
 import { schoolAPI } from '../../../services/api';
 import { schoolUserAPI } from '../../../api/schoolUsers';
 import api from '../../../services/api';
 import { useAuth } from '../../../auth/AuthContext';
+import { io, Socket } from 'socket.io-client';
+import { toast } from 'react-hot-toast';
 
 interface School {
   _id: string;
@@ -110,6 +112,9 @@ const Dashboard: React.FC = () => {
   const [morningAttendance, setMorningAttendance] = useState<{ present: number, absent: number }>({ present: 0, absent: 0 });
   const [afternoonAttendance, setAfternoonAttendance] = useState<{ present: number, absent: number }>({ present: 0, absent: 0 });
   const [classPerformance, setClassPerformance] = useState<Array<{ name: string, percentage: number, studentCount: number }>>([]);
+  const [sosAlerts, setSOSAlerts] = useState<Array<any>>([]);
+  const socketRef = useRef<Socket | null>(null);
+  const [showSOSAlerts, setShowSOSAlerts] = useState(true);
 
   // Get auth token - improved to use AuthContext first
   const getAuthToken = () => {
@@ -288,6 +293,101 @@ const Dashboard: React.FC = () => {
     };
 
     fetchSchoolAndUsers();
+
+    // Initialize Socket.IO connection for SOS alerts
+    console.log('[DASHBOARD] User data:', user);
+    console.log('[DASHBOARD] School code:', user?.schoolCode);
+    console.log('[DASHBOARD] Socket ref exists:', !!socketRef.current);
+    
+    if (user?.schoolCode && !socketRef.current) {
+      const socketUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050';
+      console.log('🔌 [DASHBOARD] Connecting to socket server:', socketUrl);
+      console.log('🔌 [DASHBOARD] Will join school room:', user.schoolCode);
+      
+      socketRef.current = io(socketUrl, {
+        transports: ['polling', 'websocket'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        timeout: 10000
+      });
+
+      socketRef.current.on('connect', () => {
+        console.log('✅ [DASHBOARD] Socket connected! ID:', socketRef.current?.id);
+        if (user.schoolCode) {
+          socketRef.current?.emit('join-school', user.schoolCode);
+          console.log('📚 [DASHBOARD] Emitted join-school event for:', user.schoolCode);
+        }
+      });
+
+      socketRef.current.on('connect_error', (error) => {
+        console.error('❌ [DASHBOARD] Socket connection error:', error.message);
+      });
+
+      socketRef.current.on('sos-alert', (alert: any) => {
+        console.log('🚨🚨🚨 [DASHBOARD] SOS ALERT RECEIVED!', alert);
+        console.log('[DASHBOARD] Current alerts before adding:', sosAlerts);
+        
+        // Add to alerts list
+        setSOSAlerts(prev => {
+          console.log('[DASHBOARD] Adding alert to list. Previous:', prev);
+          const newAlerts = [alert, ...prev];
+          console.log('[DASHBOARD] New alerts list:', newAlerts);
+          return newAlerts;
+        });
+        
+        // Show toast notification
+        console.log('[DASHBOARD] Showing toast notification...');
+        toast.error(
+          `🚨 EMERGENCY: ${alert.studentName} (${alert.studentClass}) has sent an SOS alert!`,
+          {
+            duration: 10000,
+            position: 'top-center',
+            style: {
+              background: '#DC2626',
+              color: '#fff',
+              fontWeight: 'bold',
+              fontSize: '16px',
+              padding: '16px',
+              borderRadius: '8px'
+            }
+          }
+        );
+        console.log('[DASHBOARD] Toast notification triggered');
+
+        // Play alert sound if available
+        try {
+          const audio = new Audio('/alert-sound.mp3');
+          audio.play().catch(e => console.log('Could not play alert sound:', e));
+        } catch (e) {
+          console.log('Audio not available');
+        }
+      });
+
+      socketRef.current.on('sos-acknowledged', (data: any) => {
+        console.log('✅ [DASHBOARD] SOS acknowledged:', data);
+        setSOSAlerts(prev => prev.filter(alert => alert.id !== data.alertId));
+        toast.success(`SOS alert acknowledged by ${data.adminName}`);
+      });
+
+      socketRef.current.on('disconnect', (reason) => {
+        console.log('🔌 [DASHBOARD] Socket disconnected. Reason:', reason);
+      });
+
+      console.log('✅ [DASHBOARD] Socket event listeners registered');
+    } else {
+      console.log('⚠️ [DASHBOARD] Socket not initialized. Reasons:');
+      console.log('  - Has schoolCode?', !!user?.schoolCode);
+      console.log('  - Socket already exists?', !!socketRef.current);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
   }, [user]);
   console.log(user);
 
@@ -548,6 +648,26 @@ const Dashboard: React.FC = () => {
     return logoPath;
   };
 
+  // Handle SOS alert acknowledgment
+  const handleAcknowledgeSOS = (alertId: string) => {
+    if (!socketRef.current || !user) return;
+
+    socketRef.current.emit('acknowledge-sos', {
+      alertId,
+      schoolCode: user.schoolCode,
+      adminId: user._id,
+      adminName: user.name || 'Admin'
+    });
+
+    // Remove from local state
+    setSOSAlerts(prev => prev.filter(alert => alert.id !== alertId));
+  };
+
+  // Dismiss SOS alert without acknowledging
+  const handleDismissSOS = (alertId: string) => {
+    setSOSAlerts(prev => prev.filter(alert => alert.id !== alertId));
+  };
+
   // Calculate stats from actual user data
   const totalStudents = users.filter(user => user.role === 'student').length;
   const totalTeachers = users.filter(user => user.role === 'teacher').length;
@@ -660,6 +780,74 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* SOS Alerts Section */}
+          {sosAlerts.length > 0 && showSOSAlerts && (
+            <div className="space-y-3">
+              {sosAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="bg-red-50 border-2 border-red-500 rounded-lg p-4 shadow-lg animate-pulse"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3 flex-1">
+                      <div className="flex-shrink-0">
+                        <AlertTriangle className="h-8 w-8 text-red-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h3 className="text-lg font-bold text-red-900">
+                            🚨 EMERGENCY SOS ALERT
+                          </h3>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-600 text-white animate-pulse">
+                            URGENT
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-sm text-red-800">
+                          <p className="font-semibold text-base">
+                            Student: <span className="text-red-900">{alert.studentName}</span>
+                          </p>
+                          <p>
+                            Class: <span className="font-medium">{alert.studentClass}</span>
+                            {alert.studentRollNo && (
+                              <span className="ml-3">Roll No: <span className="font-medium">{alert.studentRollNo}</span></span>
+                            )}
+                          </p>
+                          {alert.studentMobile && alert.studentMobile !== 'N/A' && (
+                            <p>
+                              Mobile: <a href={`tel:${alert.studentMobile}`} className="font-medium text-red-900 hover:underline">{alert.studentMobile}</a>
+                            </p>
+                          )}
+                          <p>
+                            Time: <span className="font-medium">{new Date(alert.timestamp).toLocaleString()}</span>
+                          </p>
+                          {alert.location && (
+                            <p>
+                              Location: <span className="font-medium">{alert.location}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col space-y-2 ml-4">
+                      <button
+                        onClick={() => handleAcknowledgeSOS(alert.id)}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                      >
+                        Acknowledge
+                      </button>
+                      <button
+                        onClick={() => handleDismissSOS(alert.id)}
+                        className="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* School Info Header */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">

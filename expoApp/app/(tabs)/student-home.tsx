@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getStudentMessages, getStudentAssignments, getStudentAttendance, getStudentResults } from '@/src/services/student';
+import { io, Socket } from 'socket.io-client';
+import ENV from '@/src/config/env';
 
 export default function StudentHomeScreen() {
   const { theme } = useTheme();
@@ -20,6 +22,10 @@ export default function StudentHomeScreen() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showSOSModal, setShowSOSModal] = useState(false);
+  const [sendingSOSAlert, setSendingSOSAlert] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  const [userData, setUserData] = useState<any>(null);
 
   const loadData = async () => {
     try {
@@ -35,6 +41,58 @@ export default function StudentHomeScreen() {
       const user = JSON.parse(userData);
       const displayName = user.name?.displayName || user.name?.firstName || 'Student';
       setStudentName(displayName);
+      setUserData(user);
+
+      // Initialize Socket.IO connection
+      if (!socketRef.current) {
+        try {
+          const socketUrl = ENV.API_BASE_URL.replace('/api', '');
+          console.log('[SOCKET] Connecting to:', socketUrl);
+          
+          socketRef.current = io(socketUrl, {
+            transports: ['polling', 'websocket'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            timeout: 10000,
+            forceNew: true
+          });
+
+          socketRef.current.on('connect', () => {
+            console.log('[SOCKET] Connected to server:', socketRef.current?.id);
+            if (user.schoolCode) {
+              socketRef.current?.emit('join-school', user.schoolCode);
+              console.log('[SOCKET] Joined school room:', user.schoolCode);
+            }
+          });
+
+          socketRef.current.on('connect_error', (error) => {
+            console.error('[SOCKET] Connection error:', error.message);
+          });
+
+          socketRef.current.on('sos-success', (data) => {
+            console.log('[SOCKET] SOS Success:', data);
+            setSendingSOSAlert(false);
+          });
+
+          socketRef.current.on('sos-error', (error) => {
+            console.error('[SOCKET] SOS Error:', error);
+            const errorMsg = error.details || error.message || 'Failed to send SOS alert';
+            Alert.alert(
+              'SOS Alert Failed',
+              `${errorMsg}\n\nPlease try again or contact school directly.`,
+              [{ text: 'OK', style: 'default' }]
+            );
+            setSendingSOSAlert(false);
+          });
+
+          socketRef.current.on('disconnect', (reason) => {
+            console.log('[SOCKET] Disconnected:', reason);
+          });
+        } catch (error) {
+          console.error('[SOCKET] Failed to initialize:', error);
+        }
+      }
 
       // Fetch all student data (now authenticated)
       // For home page, fetch current month's attendance to ensure we get today's data
@@ -93,7 +151,114 @@ export default function StudentHomeScreen() {
 
   useEffect(() => {
     loadData();
+
+    // Cleanup socket on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
   }, []);
+
+  const handleSOSPress = () => {
+    setShowSOSModal(true);
+  };
+
+  const handleSOSConfirm = async () => {
+    if (!userData || !socketRef.current) {
+      Alert.alert('Error', 'Unable to send SOS alert. Please try again.');
+      return;
+    }
+
+    setSendingSOSAlert(true);
+    setShowSOSModal(false);
+
+    try {
+      console.log('[SOS] User data:', userData);
+      console.log('[SOS] Socket connected:', socketRef.current.connected);
+      console.log('[SOS] Socket ID:', socketRef.current.id);
+      
+      // Debug: Log all possible locations for class and roll number
+      console.log('[SOS] Checking class from:');
+      console.log('  - userData.studentDetails?.class:', userData.studentDetails?.class);
+      console.log('  - userData.academicInfo?.class:', userData.academicInfo?.class);
+      console.log('  - userData.class:', userData.class);
+      console.log('  - userData.collection:', userData.collection);
+      
+      console.log('[SOS] Checking roll number from:');
+      console.log('  - userData.studentDetails?.rollNumber:', userData.studentDetails?.rollNumber);
+      console.log('  - userData.studentDetails?.rollNo:', userData.studentDetails?.rollNo);
+      console.log('  - userData.academicInfo?.rollNumber:', userData.academicInfo?.rollNumber);
+      console.log('  - userData.rollNumber:', userData.rollNumber);
+      console.log('  - userData.rollNo:', userData.rollNo);
+
+      // Extract class and roll number from various possible locations
+      // Try multiple nested paths based on the actual data structure
+      const studentClass = userData.studentDetails?.class || 
+                          userData.academicInfo?.class || 
+                          userData.class || 
+                          userData.section || // Sometimes stored as section
+                          (typeof userData.studentDetails === 'object' && userData.studentDetails !== null ? 
+                            Object.values(userData.studentDetails).find(v => typeof v === 'string' && /^[0-9]{1,2}[A-Z]?$/.test(v)) : null) ||
+                          'N/A';
+      
+      const studentRollNo = userData.studentDetails?.rollNumber || 
+                           userData.studentDetails?.rollNo ||
+                           userData.studentDetails?.admissionNumber ||
+                           userData.academicInfo?.rollNumber || 
+                           userData.rollNumber ||
+                           userData.rollNo ||
+                           userData.admissionNumber ||
+                           userData.userId?.split('-').pop() || // Extract from userId like AB-S-0006
+                           'N/A';
+      
+      console.log('[SOS] Final extracted values:');
+      console.log('  - Class:', studentClass);
+      console.log('  - Roll No:', studentRollNo);
+
+      const sosData = {
+        schoolCode: userData.schoolCode,
+        studentId: userData._id,
+        studentName: userData.name?.displayName || `${userData.name?.firstName} ${userData.name?.lastName}`,
+        studentClass,
+        studentRollNo,
+        location: 'Mobile App',
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('[SOS] Sending alert with data:', JSON.stringify(sosData, null, 2));
+      
+      if (!sosData.schoolCode) {
+        throw new Error('School code is missing from user data');
+      }
+      if (!sosData.studentId) {
+        throw new Error('Student ID is missing from user data');
+      }
+      if (!sosData.studentName) {
+        throw new Error('Student name is missing from user data');
+      }
+
+      socketRef.current.emit('student-sos', sosData);
+
+      // Show success message
+      Alert.alert(
+        'SOS Alert Sent',
+        'Your emergency alert has been sent to all school administrators. Help is on the way.',
+        [{ text: 'OK', style: 'default' }]
+      );
+
+      setSendingSOSAlert(false);
+    } catch (error) {
+      console.error('[SOS] Error sending alert:', error);
+      Alert.alert('Error', 'Failed to send SOS alert. Please try again.');
+      setSendingSOSAlert(false);
+    }
+  };
+
+  const handleSOSCancel = () => {
+    setShowSOSModal(false);
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -149,8 +314,12 @@ export default function StudentHomeScreen() {
             <Text style={styles.welcomeText}>Hi, {studentName}</Text>
             <Text style={styles.dateText}>{getCurrentDateTime()}</Text>
           </View>
-          <TouchableOpacity style={styles.sosButton}>
-            <Text style={styles.sosText}>SOS</Text>
+          <TouchableOpacity 
+            style={[styles.sosButton, sendingSOSAlert && styles.sosButtonDisabled]} 
+            onPress={handleSOSPress}
+            disabled={sendingSOSAlert}
+          >
+            <Text style={styles.sosText}>{sendingSOSAlert ? 'SENDING...' : 'SOS'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -325,6 +494,54 @@ export default function StudentHomeScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* SOS Confirmation Modal */}
+      <Modal
+        visible={showSOSModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleSOSCancel}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalIcon}>🚨</Text>
+              <Text style={styles.modalTitle}>Emergency SOS Alert</Text>
+            </View>
+            <Text style={styles.modalMessage}>
+              SOS alert will be sent automatically in {sosCountdown} seconds.
+              {' \n\n'}
+              This will immediately notify all school administrators about your emergency.
+              {' \n\n'}
+              <Text style={styles.modalWarning}>Press CANCEL to stop the alert.</Text>
+            </Text>
+            
+            {/* Countdown Timer */}
+            <View style={styles.countdownContainer}>
+              <Text style={styles.countdownText}>{sosCountdown}</Text>
+              <Text style={styles.countdownLabel}>seconds remaining</Text>
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={handleSOSCancel}
+              >
+                <Text style={styles.modalButtonTextCancel}>CANCEL ALERT</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleSOSConfirm}
+                disabled={sendingSOSAlert}
+              >
+                <Text style={styles.modalButtonTextConfirm}>
+                  {sendingSOSAlert ? 'Sending...' : 'SEND NOW'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -393,6 +610,15 @@ function getStyles(isDark: boolean) {
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 20,
+      shadowColor: '#EF4444',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    sosButtonDisabled: {
+      backgroundColor: '#9CA3AF',
+      opacity: 0.6,
     },
     sosText: {
       color: '#FFFFFF',
@@ -661,6 +887,115 @@ function getStyles(isDark: boolean) {
     filterButtonText: {
       fontSize: 14,
       color: isDark ? '#9CA3AF' : '#6B7280',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    modalContainer: {
+      backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+      borderRadius: 24,
+      padding: 32,
+      width: '100%',
+      maxWidth: 400,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.4,
+      shadowRadius: 16,
+      elevation: 12,
+      borderWidth: 2,
+      borderColor: '#EF4444',
+    },
+    modalHeader: {
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    modalIcon: {
+      fontSize: 64,
+      marginBottom: 12,
+    },
+    modalTitle: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: '#EF4444',
+      textAlign: 'center',
+      letterSpacing: 0.5,
+    },
+    modalMessage: {
+      fontSize: 17,
+      color: isDark ? '#D1D5DB' : '#4B5563',
+      textAlign: 'center',
+      lineHeight: 26,
+      marginBottom: 28,
+      fontWeight: '500',
+    },
+    modalWarning: {
+      fontWeight: '700',
+      color: '#EF4444',
+    },
+    countdownContainer: {
+      alignItems: 'center',
+      marginVertical: 20,
+      padding: 20,
+      backgroundColor: '#FEE2E2',
+      borderRadius: 16,
+      borderWidth: 3,
+      borderColor: '#EF4444',
+    },
+    countdownText: {
+      fontSize: 56,
+      fontWeight: '900',
+      color: '#DC2626',
+      textShadowColor: 'rgba(220, 38, 38, 0.3)',
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 4,
+    },
+    countdownLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#991B1B',
+      marginTop: 4,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    modalButtons: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    modalButton: {
+      flex: 1,
+      paddingVertical: 16,
+      paddingHorizontal: 24,
+      borderRadius: 14,
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    modalButtonCancel: {
+      backgroundColor: isDark ? '#374151' : '#F3F4F6',
+      borderWidth: 2,
+      borderColor: isDark ? '#4B5563' : '#D1D5DB',
+    },
+    modalButtonConfirm: {
+      backgroundColor: '#EF4444',
+      borderWidth: 2,
+      borderColor: '#DC2626',
+    },
+    modalButtonTextCancel: {
+      color: isDark ? '#E5E7EB' : '#374151',
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    modalButtonTextConfirm: {
+      color: '#FFFFFF',
+      fontSize: 17,
+      fontWeight: '700',
     },
   });
 }

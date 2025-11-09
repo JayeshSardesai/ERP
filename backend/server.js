@@ -8,6 +8,8 @@ require('dotenv').config();
 const path = require('path'); // Import path module
 const multer = require('multer'); // <-- Import multer
 const fs = require('fs'); // Import fs module for file operations
+const http = require('http'); // For Socket.IO
+const { Server } = require('socket.io'); // Socket.IO server
 
 // Import your controller
 const exportImportController = require('./controllers/exportImportController'); // <-- Import exportImportController
@@ -19,6 +21,242 @@ const { setMainDbContext } = require('./middleware/schoolContext'); // <-- Impor
 
 const app = express();
 const PORT = process.env.PORT || 5050;
+
+// Create HTTP server for Socket.IO
+const server = http.createServer(app);
+
+// Initialize Socket.IO with CORS
+const io = new Server(server, {
+  cors: {
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:8081',
+      'http://localhost:5173',
+      'https://erp-host-1.web.app',
+      'https://erp-host-1.firebaseapp.com',
+      'https://erpedulogix.web.app',
+      'https://jayesh-erp.web.app',
+      'https://erpedulogix.firebaseapp.com',
+      'https://erp-backend-1jtx.onrender.com'
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('🔌 Client connected:', socket.id);
+
+  // Join school-specific room
+  socket.on('join-school', (schoolCode) => {
+    // Normalize to lowercase for consistent room names
+    const normalizedSchoolCode = schoolCode.toLowerCase();
+    socket.join(`school-${normalizedSchoolCode}`);
+    console.log(`📚 Socket ${socket.id} joined school room: school-${normalizedSchoolCode} (original: ${schoolCode})`);
+    
+    // Log all sockets in this room
+    const room = io.sockets.adapter.rooms.get(`school-${normalizedSchoolCode}`);
+    console.log(`📊 Total sockets in school-${normalizedSchoolCode}:`, room ? room.size : 0);
+    if (room) {
+      console.log(`📊 Socket IDs in room:`, Array.from(room));
+    }
+  });
+
+  // Handle SOS alert from student
+  socket.on('student-sos', async (data) => {
+    console.log('🚨 SOS Alert received:', data);
+    const { schoolCode, studentId, studentName, studentClass, studentRollNo, location } = data;
+
+    try {
+      // Validate required fields
+      if (!schoolCode) {
+        throw new Error('School code is required');
+      }
+      if (!studentId) {
+        throw new Error('Student ID is required');
+      }
+      if (!studentName) {
+        throw new Error('Student name is required');
+      }
+
+      console.log('📡 Getting school connection for:', schoolCode);
+      // Get school connection and save SOS alert to database
+      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+      
+      if (!schoolConn) {
+        throw new Error(`Failed to get database connection for school: ${schoolCode}`);
+      }
+      
+      console.log('📝 Creating SOS Alert model...');
+      const SOSAlert = require('./models/SOSAlert').getModelForConnection(schoolConn);
+      
+      // Try to fetch student details from database if class/rollNo/mobile are missing
+      let finalClass = studentClass || 'N/A';
+      let finalRollNo = studentRollNo || 'N/A';
+      let finalMobile = 'N/A';
+      
+      if (finalClass === 'N/A' || finalRollNo === 'N/A') {
+        try {
+          console.log('🔍 Fetching student details from database for:', studentId);
+          const studentCollection = schoolConn.collection('students');
+          const mongoose = require('mongoose');
+          
+          // Try to convert to ObjectId if it's a valid ObjectId string
+          let objectId = null;
+          try {
+            objectId = new mongoose.Types.ObjectId(studentId);
+          } catch (e) {
+            console.log('🔍 studentId is not a valid ObjectId, will search by userId');
+          }
+          
+          const studentDoc = await studentCollection.findOne({ 
+            $or: [
+              objectId ? { _id: objectId } : null,
+              { userId: studentId },
+              { _id: studentId }
+            ].filter(Boolean)
+          });
+          
+          if (studentDoc) {
+            console.log('✅ Found student document!');
+            console.log('✅ Student fields:', Object.keys(studentDoc));
+            console.log('✅ studentDetails:', studentDoc.studentDetails);
+            
+            // Extract class from various possible locations
+            finalClass = studentDoc.studentDetails?.currentClass ||  // ← Primary location
+                        studentDoc.studentDetails?.class || 
+                        studentDoc.class || 
+                        studentDoc.academicInfo?.class ||
+                        finalClass;
+            
+            // Extract roll number from various possible locations  
+            finalRollNo = studentDoc.studentDetails?.rollNumber || 
+                         studentDoc.studentDetails?.rollNo ||
+                         studentDoc.rollNumber || 
+                         studentDoc.rollNo ||
+                         studentDoc.userId ||
+                         finalRollNo;
+            
+            // Extract mobile number from various possible locations
+            finalMobile = studentDoc.contact?.primaryPhone ||
+                         studentDoc.studentDetails?.fatherPhone ||
+                         studentDoc.studentDetails?.motherPhone ||
+                         studentDoc.fatherPhone ||
+                         studentDoc.motherPhone ||
+                         studentDoc.phone ||
+                         'N/A';
+            
+            console.log('✅ Extracted class:', finalClass);
+            console.log('✅ Extracted rollNo:', finalRollNo);
+            console.log('✅ Extracted mobile:', finalMobile);
+          } else {
+            console.log('⚠️ Student document not found in database');
+            console.log('⚠️ Tried queries with studentId:', studentId);
+          }
+        } catch (err) {
+          console.error('❌ Error fetching student details:', err.message);
+          console.error('❌ Error stack:', err.stack);
+        }
+      }
+      
+      const sosAlertData = {
+        schoolCode,
+        studentId,
+        studentName,
+        studentClass: finalClass,
+        studentRollNo: finalRollNo,
+        studentMobile: finalMobile,
+        location: location || 'Unknown',
+        status: 'active',
+        timestamp: new Date()
+      };
+      
+      console.log('💾 Saving SOS Alert:', sosAlertData);
+      const sosAlert = new SOSAlert(sosAlertData);
+
+      await sosAlert.save();
+      console.log('✅ SOS Alert saved to database:', sosAlert._id);
+
+      // Broadcast to all admins in the school
+      const alertPayload = {
+        id: sosAlert._id.toString(),
+        schoolCode,
+        studentId,
+        studentName,
+        studentClass: finalClass,
+        studentRollNo: finalRollNo,
+        studentMobile: finalMobile,
+        location: location || 'Unknown',
+        status: 'active',
+        timestamp: sosAlert.timestamp
+      };
+      
+      // Check how many sockets are in the room before broadcasting
+      // Normalize to lowercase for consistent room names
+      const normalizedSchoolCode = schoolCode.toLowerCase();
+      const room = io.sockets.adapter.rooms.get(`school-${normalizedSchoolCode}`);
+      console.log(`📢 Broadcasting to school-${normalizedSchoolCode} (original: ${schoolCode})`);
+      console.log(`📢 Sockets in room:`, room ? room.size : 0);
+      if (room) {
+        console.log(`📢 Socket IDs:`, Array.from(room));
+      }
+      
+      io.to(`school-${normalizedSchoolCode}`).emit('sos-alert', alertPayload);
+      console.log(`✅ SOS Alert broadcasted to school-${schoolCode}`);
+      console.log(`✅ Alert payload:`, JSON.stringify(alertPayload, null, 2));
+      
+      // Send success confirmation back to student
+      socket.emit('sos-success', { message: 'SOS alert sent successfully', alertId: sosAlert._id });
+    } catch (error) {
+      console.error('❌ Error handling SOS alert:', error);
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Error details:', {
+        message: error.message,
+        name: error.name,
+        code: error.code
+      });
+      socket.emit('sos-error', { 
+        message: 'Failed to process SOS alert',
+        details: error.message 
+      });
+    }
+  });
+
+  // Handle SOS acknowledgment from admin
+  socket.on('acknowledge-sos', async (data) => {
+    const { alertId, schoolCode, adminId, adminName } = data;
+    
+    try {
+      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+      const SOSAlert = require('./models/SOSAlert').getModelForConnection(schoolConn);
+      
+      await SOSAlert.findByIdAndUpdate(alertId, {
+        status: 'acknowledged',
+        acknowledgedBy: adminId,
+        acknowledgedAt: new Date()
+      });
+
+      // Notify all admins that SOS was acknowledged
+      io.to(`school-${schoolCode}`).emit('sos-acknowledged', {
+        alertId,
+        adminName,
+        timestamp: new Date()
+      });
+
+      console.log(`✅ SOS Alert ${alertId} acknowledged by ${adminName}`);
+    } catch (error) {
+      console.error('❌ Error acknowledging SOS:', error);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log('🔌 Client disconnected:', socket.id);
+  });
+});
+
+// Make io available to routes
+app.set('io', io);
 
 // Middleware
 app.use(cors({
@@ -34,7 +272,8 @@ app.use(cors({
       'https://erpedulogix.web.app',
       'https://jayesh-erp.web.app',
       'https://erpedulogix.firebaseapp.com',
-      'https://erp-backend-1jtx.onrender.com' // Add the production backend URL
+      'https://erp-backend-1jtx.onrender.com',// Add the production backend URL
+      'http://localhost:5173',
     ];
 
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -315,9 +554,10 @@ mongoose.connect(MONGODB_URI, {
     console.log('🚀 Server ready for multi-tenant operations');
 
     // Start server only after successful DB connection and initialization
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🌐 Server running on port ${PORT}`);
       console.log(`🏫 Multi-tenant school ERP system ready`);
+      console.log(`🔌 Socket.IO server ready for real-time communication`);
 
       // Start temp folder cleanup task (runs every 30 seconds)
       startTempFolderCleanup();

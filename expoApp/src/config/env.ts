@@ -11,7 +11,8 @@ const RUNTIME_BASE_URL = (typeof process !== 'undefined' && process.env?.EXPO_PU
 
 // Sensible defaults per platform
 const DEFAULT_BASE_URL = Platform.select({
-  web: 'https://erp-backend-kfut.onrender.com/api',
+  // web: 'https://erp-backend-kfut.onrender.com/api',
+  web: 'http://localhost:5050/api',
   android: 'https://erp-backend-kfut.onrender.com/api',
   ios: 'http://localhost:5050/api',
   default: 'http://localhost:5050/api',
