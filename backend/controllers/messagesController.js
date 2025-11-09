@@ -500,31 +500,9 @@ exports.getMessages = async (req, res) => {
     }
     
     // Filter by academic year for all users
-    // NOTE: Messages without academicYear should be treated as belonging to current year
     if (filterAcademicYear) {
-      // If we already have conditions in the query, we need to use $and
-      const yearConditions = [
-        { academicYear: filterAcademicYear },
-        { academicYear: { $exists: false } }, // Include messages without academicYear field
-        { academicYear: null } // Include messages with null academicYear
-      ];
-      
-      // If query already has $or or other conditions, wrap everything properly
-      if (Object.keys(query).length > 0) {
-        const existingConditions = { ...query };
-        query.$and = [
-          existingConditions,
-          { $or: yearConditions }
-        ];
-        // Remove the old conditions since they're now in $and
-        Object.keys(existingConditions).forEach(key => {
-          if (key !== '$and') delete query[key];
-        });
-      } else {
-        query.$or = yearConditions;
-      }
-      
-      console.log(`📅 [GET MESSAGES] Filtering by academic year: ${filterAcademicYear} (including messages without year)`);
+      query.academicYear = filterAcademicYear;
+      console.log(`📅 [GET MESSAGES] Filtering by academic year: ${filterAcademicYear}`);
     }
 
     console.log('🔍 [GET MESSAGES] Final query:', JSON.stringify(query, null, 2));
@@ -770,28 +748,11 @@ exports.getTeacherMessages = async (req, res) => {
     const currentAcademicYear = school?.settings?.academicYear?.currentYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
     console.log(`📅 School's current academic year: ${currentAcademicYear}`);
     
-    // Helper function to normalize academic year format (handles both 2024-2025 and 2024-25)
-    const normalizeAcademicYear = (year) => {
-      if (!year) return null;
-      const yearStr = String(year).trim();
-      // If format is 2024-25, convert to 2024-2025
-      const match = yearStr.match(/^(\d{4})-(\d{2})$/);
-      if (match) {
-        return `${match[1]}-20${match[2]}`;
-      }
-      // If format is 2024-2025, keep as is
-      if (yearStr.match(/^\d{4}-\d{4}$/)) {
-        return yearStr;
-      }
-      return yearStr;
-    };
-
     // Build query - use provided academicYear or default to current academic year
     const query = {};
     const yearToFilter = academicYear || currentAcademicYear;
-    const normalizedAY = normalizeAcademicYear(yearToFilter);
-    query.academicYear = normalizedAY;
-    console.log(`📅 Filtering messages by Academic Year: ${yearToFilter} (normalized: ${normalizedAY})`);
+    query.academicYear = yearToFilter;
+    console.log(`📅 Filtering messages by Academic Year: ${yearToFilter}`);
     
     // Fetch messages from the teacher's school (sorted by newest first)
     const messages = await messagesCollection.find(query)
