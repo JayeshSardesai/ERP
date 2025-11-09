@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useLocalSearchParams } from 'expo-router';
 import { getStudentsByClassSection, Student, getClasses } from '@/src/services/teacher';
 
 export default function StudentsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const styles = getStyles(isDark);
   const params = useLocalSearchParams<{ className?: string; section?: string }>();
 

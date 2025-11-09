@@ -1,21 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSchoolInfo, SchoolInfo } from '@/src/services/student';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function MenuScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = getStyles(isDark);
   const router = useRouter();
-
+  const { theme, toggleTheme: toggleGlobalTheme } = useTheme();
+  
   const [showIntro, setShowIntro] = useState(true);
   const [school, setSchool] = useState<SchoolInfo | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [schoolAddressText, setSchoolAddressText] = useState<string>('BY SPANDHAN TECHNOLOGIES');
+  
+  const isDark = theme === 'dark';
+  const styles = getStyles(isDark);
 
   useEffect(() => {
     const loadData = async () => {
@@ -57,10 +57,15 @@ export default function MenuScreen() {
   const menuItems = [
     { id: 1, title: 'My Profile', icon: '👤', iconBg: '#FECACA', route: '/profile' },
     { id: 2, title: 'My School', icon: '🏫', iconBg: '#DBEAFE', route: '/school' },
+    { id: 3, title: theme === 'dark' ? 'Light Mode' : 'Dark Mode', icon: theme === 'dark' ? '☀️' : '🌙', iconBg: '#FEF3C7', route: 'theme-toggle' },
   ];
 
   const handleMenuPress = (route: string) => {
-    router.push(route as any);
+    if (route === 'theme-toggle') {
+      toggleGlobalTheme();
+    } else {
+      router.push(route as any);
+    }
   };
 
   const handleLogout = async () => {
@@ -78,7 +83,7 @@ export default function MenuScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <Modal transparent visible={showIntro} animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -101,13 +106,6 @@ export default function MenuScreen() {
           <View style={styles.placeholder} />
         </View>
 
-        <View style={styles.logoContainer}>
-          <View style={styles.logoPlaceholder}>
-            <Text style={styles.logoTitle}>{school?.schoolName || 'EduLogix'}</Text>
-            <Text style={styles.logoSubtitle}>{schoolAddressText}</Text>
-          </View>
-        </View>
-
         <View style={styles.menuContainer}>
           {menuItems.map((item) => (
             <TouchableOpacity key={item.id} style={styles.menuItem} onPress={() => handleMenuPress(item.route)}>
@@ -122,13 +120,6 @@ export default function MenuScreen() {
           ))}
         </View>
 
-        <View style={styles.profileStrip}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.profileName}>{userName}</Text>
-            <Text style={styles.profileSub}>{school?.schoolName || school?.schoolCode || ''}</Text>
-          </View>
-        </View>
-
         <View style={styles.logoutContainer}>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
@@ -137,14 +128,14 @@ export default function MenuScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 function getStyles(isDark: boolean) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: isDark ? '#0B0F14' : '#E0F2FE' },
-    scrollView: { flex: 1 },
+    container: { flex: 1, backgroundColor: isDark ? '#0B0F14' : '#E0F2FE', paddingTop: 0 },
+    scrollView: { flex: 1, paddingTop: 20 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
     backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
     backIcon: { fontSize: 28, color: isDark ? '#93C5FD' : '#1E3A8A' },

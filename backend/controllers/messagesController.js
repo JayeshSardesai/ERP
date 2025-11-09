@@ -552,7 +552,8 @@ exports.getTeacherMessages = async (req, res) => {
     const { limit = 20, page = 1 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    // Fetch messages from the teacher's school (sorted by newest first)
+    // Fetch all messages from the teacher's school (sorted by newest first)
+    // Teachers can see all messages sent to any class or the entire school
     const messages = await messagesCollection.find({})
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -560,6 +561,11 @@ exports.getTeacherMessages = async (req, res) => {
       .toArray();
     
     console.log(`✅ Found ${messages.length} messages for teacher`);
+    
+    // Log first message for debugging
+    if (messages.length > 0) {
+      console.log('📋 Sample raw message:', JSON.stringify(messages[0], null, 2));
+    }
     
     // Format messages for frontend (compatible with teacher dashboard expectations)
     const formattedMessages = messages
@@ -584,6 +590,11 @@ exports.getTeacherMessages = async (req, res) => {
         recipient: [`Class ${msg.class || 'Unknown'}-${msg.section || 'Unknown'}`],
         recipientType: `Class ${msg.class || 'Unknown'}-${msg.section || 'Unknown'}` // Add recipientType for dashboard compatibility
       }));
+    
+    console.log(`📤 Sending ${formattedMessages.length} formatted messages to teacher`);
+    if (formattedMessages.length > 0) {
+      console.log('📋 Sample formatted message:', JSON.stringify(formattedMessages[0], null, 2));
+    }
     
     res.json({
       success: true,

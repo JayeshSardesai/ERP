@@ -3,15 +3,15 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { getStudentResults, Result } from '@/src/services/student';
 import { getClasses, getStudentsByClassSection, getClassSubjects, Student } from '@/src/services/teacher';
 import { usePermissions } from '@/src/hooks/usePermissions';
 import api from '@/src/services/api';
 
 export default function ResultsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const styles = getStyles(isDark);
   const { hasPermission } = usePermissions();
 

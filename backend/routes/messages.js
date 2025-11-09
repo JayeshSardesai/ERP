@@ -32,9 +32,9 @@ router.get('/teacher/messages',
   messagesController.getTeacherMessages
 );
 
-// Student-accessible routes - students can view messages sent to them
+// Student-accessible routes - students and teachers can view messages sent to students
 router.get('/student',
-  roleCheck(['student']),
+  roleCheck(['student', 'teacher']),
   messagesController.getStudentMessages
 );
 

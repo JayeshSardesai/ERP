@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { getStudentAssignments, Assignment as StudentAssignment } from '@/src/services/student';
 import { getTeacherAssignments, Assignment as TeacherAssignment, cancelAssignment } from '@/src/services/teacher';
 import CreateAssignmentModal from '@/components/CreateAssignmentModal';
@@ -12,8 +12,8 @@ type Assignment = StudentAssignment | TeacherAssignment;
 import { downloadFile, formatFileSize } from '@/src/utils/fileDownload';
 
 export default function AssignmentsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const styles = getStyles(isDark);
   const { hasPermission, loading: permissionsLoading } = usePermissions();
 

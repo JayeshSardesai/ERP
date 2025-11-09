@@ -2,15 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { getStudentAttendance, AttendanceRecord } from '@/src/services/student';
 import { getClassAttendance, getClasses, getStudentsByClassSection, markSessionAttendance, AttendanceRecord as TeacherAttendanceRecord } from '@/src/services/teacher';
 import { usePermissions } from '@/src/hooks/usePermissions';
 
 export default function AttendanceScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const styles = getStyles(isDark);
   const calendarStyles = getCalendarStyles(isDark);
   const { hasPermission } = usePermissions();

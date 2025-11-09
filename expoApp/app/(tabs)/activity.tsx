@@ -1,95 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getStudentMessages, Message as StudentMessage } from '@/src/services/student';
-import { getTeacherMessages, Message as TeacherMessage } from '@/src/services/teacher';
-
-type Message = StudentMessage | TeacherMessage;
+import { getStudentMessages, Message } from '@/src/services/student';
 
 export default function ActivityScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const styles = getStyles(isDark);
 
-  const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [role, setRole] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<string>('all'); // 'all', 'assignment', 'grade', 'reminder', 'announcement'
-  const [filterSender, setFilterSender] = useState<string>('all'); // 'all', 'admin', 'teacher'
 
   useEffect(() => {
-    checkRole();
+    checkRoleAndFetch();
   }, []);
 
-  const checkRole = async () => {
+  const checkRoleAndFetch = async () => {
     try {
       const storedRole = await AsyncStorage.getItem('role');
+      console.log('[ACTIVITY] User role:', storedRole);
       setRole(storedRole);
+      // Fetch messages after role is set
+      await fetchMessages(storedRole);
     } catch (error) {
       console.error('Error checking role:', error);
+      setLoading(false);
     }
   };
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (userRole?: string | null) => {
     try {
-      let data: Message[] = [];
-      if (role === 'teacher') {
-        data = await getTeacherMessages();
-      } else {
-        data = await getStudentMessages();
-      }
-      setAllMessages(data);
-      applyFilters(data, filterType, filterSender);
+      const currentRole = userRole || role;
+      console.log('[ACTIVITY] Fetching messages for role:', currentRole);
+      
+      // Both teachers and students use the same student messages endpoint
+      // This ensures they see the same messages
+      console.log('[ACTIVITY] Calling getStudentMessages for', currentRole);
+      const data = await getStudentMessages();
+      
+      console.log('[ACTIVITY] Received', data.length, 'messages');
+      
+      // Sort by date (newest first)
+      data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setMessages(data);
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      console.error('[ACTIVITY] Error fetching messages:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
-
-  const applyFilters = (data: Message[], typeFilter: string, senderFilter: string) => {
-    let filtered = [...data];
-
-    // Apply type filter
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter((msg) => {
-        const lowerSubject = msg.subject.toLowerCase();
-        if (typeFilter === 'assignment') return lowerSubject.includes('assignment');
-        if (typeFilter === 'grade') return lowerSubject.includes('grade') || lowerSubject.includes('result');
-        if (typeFilter === 'reminder') return lowerSubject.includes('reminder');
-        if (typeFilter === 'announcement') return lowerSubject.includes('announcement');
-        return true;
-      });
-    }
-
-    // Apply sender filter
-    if (senderFilter !== 'all') {
-      filtered = filtered.filter((msg) => {
-        const senderRole = (msg.senderRole || '').toLowerCase();
-        return senderRole === senderFilter.toLowerCase();
-      });
-    }
-
-    // Sort by date (newest first)
-    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    setMessages(filtered);
-  };
-
-  useEffect(() => {
-    if (allMessages.length > 0) {
-      applyFilters(allMessages, filterType, filterSender);
-    }
-  }, [filterType, filterSender]);
-
-  useEffect(() => {
-    fetchMessages();
-  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -122,7 +86,7 @@ export default function ActivityScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
           <ActivityIndicator size="large" color="#60A5FA" />
-          <Text style={[styles.headerTitle, { marginTop: 12, fontSize: 16 }]}>Loading activity...</Text>
+          <Text style={[styles.headerTitle, { marginTop: 12, fontSize: 16 }]}>Loading messages...</Text>
         </View>
       </SafeAreaView>
     );
@@ -136,46 +100,13 @@ export default function ActivityScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#60A5FA" />}
       >
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Activity</Text>
-        </View>
-
-        {/* Filter Section */}
-        <View style={styles.filtersContainer}>
-          <TouchableOpacity 
-            style={[styles.filterButton, filterType !== 'all' && styles.filterButtonActive]} 
-            onPress={() => {
-              const filters = ['all', 'assignment', 'grade', 'reminder', 'announcement'];
-              const currentIndex = filters.indexOf(filterType);
-              const nextIndex = (currentIndex + 1) % filters.length;
-              setFilterType(filters[nextIndex]);
-            }}
-          >
-            <Text style={styles.filterButtonText}>
-              {filterType === 'all' ? 'All Types' : filterType.charAt(0).toUpperCase() + filterType.slice(1)}
-            </Text>
-            <Text style={styles.filterIcon}>▼</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.filterButton, filterSender !== 'all' && styles.filterButtonActive]} 
-            onPress={() => {
-              const filters = ['all', 'admin', 'teacher'];
-              const currentIndex = filters.indexOf(filterSender);
-              const nextIndex = (currentIndex + 1) % filters.length;
-              setFilterSender(filters[nextIndex]);
-            }}
-          >
-            <Text style={styles.filterButtonText}>
-              {filterSender === 'all' ? 'All Senders' : filterSender.charAt(0).toUpperCase() + filterSender.slice(1)}
-            </Text>
-            <Text style={styles.filterIcon}>▼</Text>
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Messages</Text>
         </View>
 
         <View style={styles.section}>
           {messages.length === 0 ? (
             <View style={styles.noDataContainer}>
-              <Text style={styles.noDataText}>No activity to display</Text>
+              <Text style={styles.noDataText}>No messages to display</Text>
             </View>
           ) : (
             messages.map((message) => {

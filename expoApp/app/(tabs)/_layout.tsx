@@ -7,7 +7,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import PermissionRefreshIndicator from '@/components/PermissionRefreshIndicator';
 
 /**
@@ -15,7 +15,8 @@ import PermissionRefreshIndicator from '@/components/PermissionRefreshIndicator'
  * Returns completely different tab configurations based on user role
  */
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { theme } = useTheme();
+  const colorScheme = theme;
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -94,16 +95,9 @@ export default function TabLayout() {
               tabBarIcon: ({ color }) => <IconSymbol size={28} name="message.fill" color={color} />,
             }}
           />
-          
-          <Tabs.Screen
-            name="explore"
-            options={{
-              title: 'Explore',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="chevron.left.forwardslash.chevron.right" color={color} />,
-            }}
-          />
 
-          {/* Hide teacher screens */}
+          {/* Hide teacher screens and explore */}
+          <Tabs.Screen name="explore" options={{ href: null }} />
           <Tabs.Screen name="classes" options={{ href: null }} />
           <Tabs.Screen name="students" options={{ href: null }} />
           <Tabs.Screen name="teacher-home" options={{ href: null }} />
@@ -177,8 +171,8 @@ export default function TabLayout() {
           <Tabs.Screen
             name="activity"
             options={{
-              title: 'Activity',
-              tabBarIcon: ({ color }) => <Ionicons name="notifications" size={28} color={color} />,
+              title: 'Messages',
+              tabBarIcon: ({ color }) => <Ionicons name="mail" size={28} color={color} />,
             }}
           />
 

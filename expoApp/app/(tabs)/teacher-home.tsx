@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getTeacherMessages, getTeacherAssignments, getClasses, Message, Assignment, Class } from '@/src/services/teacher';
+import { getTeacherAssignments, getClasses, Assignment, Class } from '@/src/services/teacher';
+import { getStudentMessages, Message } from '@/src/services/student';
 
 export default function TeacherHomeScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const router = useRouter();
   const styles = getStyles(isDark);
 
@@ -52,15 +53,19 @@ export default function TeacherHomeScreen() {
         console.error('[TEACHER HOME] Error fetching classes:', error);
       }
 
-      // Fetch messages
+      // Fetch messages - use student messages endpoint to see the same messages
       try {
-        messagesData = await getTeacherMessages();
+        console.log('[TEACHER HOME] Calling getStudentMessages (same as students see)...');
+        messagesData = await getStudentMessages();
         console.log('[TEACHER HOME] Fetched messages:', messagesData.length);
         if (messagesData.length > 0) {
           console.log('[TEACHER HOME] Sample message:', messagesData[0]);
+        } else {
+          console.log('[TEACHER HOME] No messages returned from API');
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('[TEACHER HOME] Error fetching messages:', error);
+        console.error('[TEACHER HOME] Error details:', error?.response?.data);
       }
 
       setMessages(messagesData.slice(0, 3));

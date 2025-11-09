@@ -270,7 +270,7 @@ export async function getTeacherMessages(): Promise<Message[]> {
   try {
     console.log('[TEACHER SERVICE] Fetching teacher messages...');
     
-    const response = await api.get('/messages/teacher');
+    const response = await api.get('/teacher/messages');
     
     console.log('[TEACHER SERVICE] Messages response:', {
       success: response.data?.success,
@@ -288,13 +288,16 @@ export async function getTeacherMessages(): Promise<Message[]> {
       id: msg.id || msg._id,
       title: msg.title || msg.subject,
       subject: msg.subject || msg.title || 'No Subject',
-      message: msg.message || '',
-      sender: msg.sender || 'School Admin',
+      message: msg.message || msg.content || '',
+      sender: msg.sender || msg.senderName || 'School Admin',
       senderRole: msg.senderRole || 'admin',
+      adminId: msg.adminId,
       class: msg.class,
       section: msg.section,
-      createdAt: msg.createdAt,
-      isRead: msg.isRead || false,
+      createdAt: msg.createdAt || msg.timestamp,
+      isRead: msg.isRead !== undefined ? msg.isRead : true,
+      messageAge: msg.messageAge,
+      urgencyIndicator: msg.urgencyIndicator
     }));
   } catch (error: any) {
     console.error('[TEACHER SERVICE] Error fetching messages:', error);
