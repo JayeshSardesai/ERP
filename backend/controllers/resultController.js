@@ -1399,6 +1399,153 @@ exports.getClassPerformanceStats = async (req, res) => {
 };
 
 // ---------------------------------------------------------
+// Get results statistics for Reports page
+// ---------------------------------------------------------
+exports.getResultsStats = async (req, res) => {
+  try {
+    const { academicYear } = req.query;
+    const schoolCode = req.user?.schoolCode;
+
+    if (!schoolCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'School code is required'
+      });
+    }
+
+    console.log(`[RESULTS STATS] Fetching stats for school: ${schoolCode}, academic year: ${academicYear || 'all'}`);
+
+    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
+    const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const resultsCollection = schoolConnection.collection('results');
+
+    // Build query
+    const query = {};
+    if (academicYear) {
+      query.academicYear = academicYear;
+    }
+
+    const results = await resultsCollection.find(query).toArray();
+
+    console.log(`[RESULTS STATS] Found ${results.length} result documents`);
+
+    if (results.length === 0) {
+      return res.json({
+        success: true,
+        subjectStats: [],
+        gradeDistribution: [],
+        totalStudents: 0,
+        averagePercentage: 0
+      });
+    }
+
+    // Calculate subject-wise statistics
+    const subjectMap = {};
+    const gradeMap = {
+      'A+ (90-100)': 0,
+      'A (80-89)': 0,
+      'B (70-79)': 0,
+      'C (60-69)': 0,
+      'D (Below 60)': 0
+    };
+    let totalStudents = 0;
+    let totalPercentage = 0;
+    let studentCount = 0;
+
+    results.forEach(result => {
+      // Process subjects array
+      if (result.subjects && Array.isArray(result.subjects)) {
+        result.subjects.forEach(subject => {
+          const subjectName = subject.subjectName || subject.name || 'Unknown';
+          
+          if (!subjectMap[subjectName]) {
+            subjectMap[subjectName] = {
+              subject: subjectName,
+              totalMarks: 0,
+              totalObtained: 0,
+              studentCount: 0,
+              average: 0
+            };
+          }
+
+          const obtained = parseFloat(subject.obtainedMarks || subject.marks || 0);
+          const total = parseFloat(subject.totalMarks || subject.maxMarks || 100);
+
+          if (total > 0) {
+            subjectMap[subjectName].totalObtained += obtained;
+            subjectMap[subjectName].totalMarks += total;
+            subjectMap[subjectName].studentCount++;
+          }
+        });
+
+        // Calculate grade distribution based on overall percentage
+        const overallPercentage = parseFloat(result.percentage || result.overallPercentage || 0);
+        if (overallPercentage > 0) {
+          if (overallPercentage >= 90) {
+            gradeMap['A+ (90-100)']++;
+          } else if (overallPercentage >= 80) {
+            gradeMap['A (80-89)']++;
+          } else if (overallPercentage >= 70) {
+            gradeMap['B (70-79)']++;
+          } else if (overallPercentage >= 60) {
+            gradeMap['C (60-69)']++;
+          } else {
+            gradeMap['D (Below 60)']++;
+          }
+
+          totalPercentage += overallPercentage;
+          studentCount++;
+        }
+      }
+
+      totalStudents++;
+    });
+
+    // Calculate subject averages
+    const subjectStats = Object.values(subjectMap).map(subject => {
+      const average = subject.totalMarks > 0
+        ? ((subject.totalObtained / subject.totalMarks) * 100).toFixed(1)
+        : 0;
+      
+      return {
+        subject: subject.subject,
+        average: parseFloat(average),
+        students: subject.studentCount
+      };
+    }).sort((a, b) => b.average - a.average);
+
+    // Format grade distribution
+    const gradeDistribution = [
+      { name: 'A+ (90-100)', value: gradeMap['A+ (90-100)'], color: '#10B981' },
+      { name: 'A (80-89)', value: gradeMap['A (80-89)'], color: '#3B82F6' },
+      { name: 'B (70-79)', value: gradeMap['B (70-79)'], color: '#F59E0B' },
+      { name: 'C (60-69)', value: gradeMap['C (60-69)'], color: '#EF4444' },
+      { name: 'D (Below 60)', value: gradeMap['D (Below 60)'], color: '#6B7280' }
+    ];
+
+    const averagePercentage = studentCount > 0 ? (totalPercentage / studentCount).toFixed(1) : 0;
+
+    console.log(`[RESULTS STATS] Calculated stats for ${totalStudents} students, ${subjectStats.length} subjects`);
+
+    res.json({
+      success: true,
+      subjectStats,
+      gradeDistribution,
+      totalStudents,
+      averagePercentage: parseFloat(averagePercentage)
+    });
+
+  } catch (error) {
+    console.error('Error fetching results stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching results stats',
+      error: error.message
+    });
+  }
+};
+
+// ---------------------------------------------------------
 // Module exports (explicit)
 // ---------------------------------------------------------
 module.exports = {
@@ -1410,5 +1557,6 @@ module.exports = {
   updateResult: exports.updateResult,
   freezeResults: exports.freezeResults,
   getResultsForTeacher: exports.getResultsForTeacher,
-  getClassPerformanceStats: exports.getClassPerformanceStats
+  getClassPerformanceStats: exports.getClassPerformanceStats,
+  getResultsStats: exports.getResultsStats
 };

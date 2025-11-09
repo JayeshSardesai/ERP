@@ -2,48 +2,92 @@ import React, { useState, useEffect } from 'react';
 import { Download, Calendar, BarChart3, Users, TrendingUp, FileText, Filter } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../../../auth/AuthContext';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
+import api from '../../../services/api';
 
 const Reports: React.FC = () => {
   const { user, token } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear } = useAcademicYear();
   const [selectedReport, setSelectedReport] = useState('attendance');
   const [dateRange, setDateRange] = useState('month');
   const [attendanceRate, setAttendanceRate] = useState<string>('0.0%');
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
+  const [academicData, setAcademicData] = useState<any[]>([]);
+  const [gradeDistribution, setGradeDistribution] = useState<any[]>([]);
 
-  // Fetch attendance statistics
+  // Fetch attendance and results statistics for the academic year
   useEffect(() => {
-    const fetchAttendanceStats = async () => {
+    const fetchReportsData = async () => {
       try {
-        const authToken = token || localStorage.getItem('erp.auth') ? JSON.parse(localStorage.getItem('erp.auth') || '{}').token : null;
-        if (!authToken || !user?.schoolCode) return;
+        if (!user?.schoolCode) {
+          console.log('⚠️ No school code, skipping reports fetch');
+          return;
+        }
 
-        const response = await fetch(
-          `/api/attendance/stats`,
-          {
-            headers: {
-              'Authorization': `Bearer ${authToken}`,
-              'Content-Type': 'application/json'
+        if (!viewingAcademicYear) {
+          console.log('⚠️ No academic year set, skipping reports fetch');
+          return;
+        }
+
+        console.log('📊 Fetching reports data for academic year:', viewingAcademicYear);
+
+        // Fetch attendance stats with academic year filter
+        try {
+          const attendanceResponse = await api.get('/attendance/stats', {
+            params: {
+              academicYear: viewingAcademicYear
+            }
+          });
+          const attendanceStatsData = attendanceResponse.data;
+          
+          if (attendanceStatsData.success && attendanceStatsData.attendanceRate) {
+            setAttendanceRate(attendanceStatsData.attendanceRate);
+          } else if (attendanceStatsData.averageAttendance !== undefined) {
+            setAttendanceRate(`${attendanceStatsData.averageAttendance}%`);
+          }
+
+          // If monthly data is available, use it
+          if (attendanceStatsData.monthlyData && Array.isArray(attendanceStatsData.monthlyData)) {
+            setAttendanceData(attendanceStatsData.monthlyData);
+          }
+        } catch (err) {
+          console.error('Error fetching attendance stats:', err);
+          setAttendanceRate('94.2%'); // Fallback to default
+        }
+
+        // Fetch results/academic stats with academic year filter
+        try {
+          const resultsResponse = await api.get('/results/stats', {
+            params: {
+              academicYear: viewingAcademicYear
+            }
+          });
+          const resultsData = resultsResponse.data;
+          
+          if (resultsData.success) {
+            // Set subject-wise performance data
+            if (resultsData.subjectStats && Array.isArray(resultsData.subjectStats)) {
+              setAcademicData(resultsData.subjectStats);
+            }
+
+            // Set grade distribution data
+            if (resultsData.gradeDistribution && Array.isArray(resultsData.gradeDistribution)) {
+              setGradeDistribution(resultsData.gradeDistribution);
             }
           }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.attendanceRate) {
-            setAttendanceRate(data.attendanceRate);
-          } else if (data.averageAttendance !== undefined) {
-            setAttendanceRate(`${data.averageAttendance}%`);
-          }
+        } catch (err) {
+          console.error('Error fetching results stats:', err);
         }
       } catch (err) {
-        console.error('Error fetching attendance stats:', err);
-        setAttendanceRate('94.2%'); // Fallback to default
+        console.error('Error fetching reports data:', err);
       }
     };
 
-    fetchAttendanceStats();
-  }, [user, token]);
+    fetchReportsData();
+  }, [user, token, viewingAcademicYear]);
 
-  const attendanceData = [
+  // Fallback data if API doesn't return data
+  const defaultAttendanceData = [
     { month: 'Sep', rate: 94.2 },
     { month: 'Oct', rate: 92.8 },
     { month: 'Nov', rate: 95.1 },
@@ -51,7 +95,7 @@ const Reports: React.FC = () => {
     { month: 'Jan', rate: 94.5 },
   ];
 
-  const academicData = [
+  const defaultAcademicData = [
     { subject: 'Math', average: 82.4, students: 247 },
     { subject: 'English', average: 84.6, students: 247 },
     { subject: 'Science', average: 85.4, students: 247 },
@@ -60,13 +104,18 @@ const Reports: React.FC = () => {
     { subject: 'Chemistry', average: 81.2, students: 156 },
   ];
 
-  const gradeDistribution = [
+  const defaultGradeDistribution = [
     { name: 'A+ (90-100)', value: 18, color: '#10B981' },
     { name: 'A (80-89)', value: 32, color: '#3B82F6' },
     { name: 'B (70-79)', value: 28, color: '#F59E0B' },
     { name: 'C (60-69)', value: 15, color: '#EF4444' },
     { name: 'D (Below 60)', value: 7, color: '#6B7280' },
   ];
+
+  // Use fetched data or fallback to defaults
+  const displayAttendanceData = attendanceData.length > 0 ? attendanceData : defaultAttendanceData;
+  const displayAcademicData = academicData.length > 0 ? academicData : defaultAcademicData;
+  const displayGradeDistribution = gradeDistribution.length > 0 ? gradeDistribution : defaultGradeDistribution;
 
   const teacherPerformance = [
     { name: 'Mr. Smith', subjects: 'Math, Physics', classes: 5, avgScore: 84.2, attendance: 96.3 },
@@ -190,7 +239,7 @@ const Reports: React.FC = () => {
               </button>
             </div>
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={attendanceData}>
+              <LineChart data={displayAttendanceData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis domain={['dataMin - 2', 'dataMax + 2']} />
@@ -288,7 +337,7 @@ const Reports: React.FC = () => {
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Subject-wise Performance</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={academicData}>
+                <BarChart data={displayAcademicData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="subject" />
                   <YAxis />
@@ -303,14 +352,14 @@ const Reports: React.FC = () => {
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={gradeDistribution}
+                    data={displayGradeDistribution}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
                     outerRadius={100}
                     dataKey="value"
                   >
-                    {gradeDistribution.map((entry, index) => (
+                    {displayGradeDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -318,7 +367,7 @@ const Reports: React.FC = () => {
                 </PieChart>
               </ResponsiveContainer>
               <div className="grid grid-cols-2 gap-2 mt-4">
-                {gradeDistribution.map((item) => (
+                {displayGradeDistribution.map((item) => (
                   <div key={item.name} className="flex items-center text-sm">
                     <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.color }}></div>
                     <span className="text-gray-600">{item.name}: {item.value}</span>

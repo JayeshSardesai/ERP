@@ -452,50 +452,40 @@ const Results: React.FC = () => {
 
       // Fallback: try school-users endpoint pattern used elsewhere
       try {
-        const altResp = await fetch(`/api/school-users/${schoolCode}/users`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+        const altResp = await api.get(`/school-users/${schoolCode}/users`);
+        const altData = altResp.data;
+        const users = (altData?.data || []) as any[];
+        const filtered = users.filter((u: any) => {
+          const isStudent = u.role === 'student';
+          const uClass = u.studentDetails?.currentClass || u.currentclass || u.class || u.className;
+          const uSection = u.studentDetails?.currentSection || u.currentsection || u.section;
+          return isStudent && String(uClass) === String(selectedClass) && String(uSection).toUpperCase() === String(selectedSection).toUpperCase();
         });
 
-        if (altResp.ok) {
-          const altData = await altResp.json();
-          const users = (altData?.data || []) as any[];
-          const filtered = users.filter((u: any) => {
-            const isStudent = u.role === 'student';
-            const uClass = u.studentDetails?.currentClass || u.currentclass || u.class || u.className;
-            const uSection = u.studentDetails?.currentSection || u.currentsection || u.section;
-            return isStudent && String(uClass) === String(selectedClass) && String(uSection).toUpperCase() === String(selectedSection).toUpperCase();
-          });
+        const students = filtered.map((student: any, index: number) => ({
+          id: student._id || student.id,
+          name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.fullName || 'Unknown',
+          userId: student.userId || student.user_id || 'N/A',
+          rollNumber: student.studentDetails?.rollNumber
+            || student.studentDetails?.currentRollNumber
+            || student.rollNumber
+            || student.sequenceId
+            || `${schoolCode}-${selectedSection}-${String(index + 1).padStart(4, '0')}`,
+          class: selectedClass,
+          section: selectedSection,
+          totalMarks: configuredMaxMarks,
+          obtainedMarks: null,
+          grade: null
+        }));
 
-          const students = filtered.map((student: any, index: number) => ({
-            id: student._id || student.id,
-            name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.fullName || 'Unknown',
-            userId: student.userId || student.user_id || 'N/A',
-            rollNumber: student.studentDetails?.rollNumber
-              || student.studentDetails?.currentRollNumber
-              || student.rollNumber
-              || student.sequenceId
-              || `${schoolCode}-${selectedSection}-${String(index + 1).padStart(4, '0')}`,
-            class: selectedClass,
-            section: selectedSection,
-            totalMarks: configuredMaxMarks,
-            obtainedMarks: null,
-            grade: null
-          }));
-
-          if (students.length > 0) {
-            setStudentResults(sortStudentsByUserId(students));
-            setShowResultsTable(true);
-            const initialSavedState: { [key: string]: boolean } = {};
-            students.forEach((student: StudentResult) => { initialSavedState[student.id] = false; });
-            setSavedRows(initialSavedState);
-            toast.success(`Loaded ${students.length} students via fallback API`);
-            return;
-          }
-        } else {
-          console.warn('Fallback school-users API failed', altResp.status, altResp.statusText);
+        if (students.length > 0) {
+          setStudentResults(sortStudentsByUserId(students));
+          setShowResultsTable(true);
+          const initialSavedState: { [key: string]: boolean } = {};
+          students.forEach((student: StudentResult) => { initialSavedState[student.id] = false; });
+          setSavedRows(initialSavedState);
+          toast.success(`Loaded ${students.length} students via fallback API`);
+          return;
         }
       } catch (altErr) {
         console.error('Fallback school-users API error:', altErr);

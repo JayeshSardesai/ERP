@@ -66,4 +66,10 @@ router.get('/class-performance-stats',
   resultController.getClassPerformanceStats
 );
 
+// Get results statistics for Reports page - requires viewResults permission
+router.get('/stats',
+  checkPermission('viewResults'),
+  resultController.getResultsStats
+);
+
 module.exports = router;

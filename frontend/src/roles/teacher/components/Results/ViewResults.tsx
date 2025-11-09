@@ -4,6 +4,7 @@ import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { resultsAPI } from '../../../../services/api';
+import api from '../../../../services/api';
 import { toast } from 'react-hot-toast';
 
 const ViewResults: React.FC = () => {
@@ -121,14 +122,9 @@ const ViewResults: React.FC = () => {
 
         // Primary API
         try {
-          const resp = await fetch('/api/class-subjects/classes', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'x-school-code': schoolCode.toUpperCase()
-            }
-          });
-          if (resp.ok) {
-            const data = await resp.json();
+          const resp = await api.get('/class-subjects/classes');
+          const data = resp.data;
+          if (data && data.success) {
             const classData = data?.data?.classes?.find((c: any) => c.className === selectedClass && c.section === selectedSection);
             const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
             const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
@@ -142,13 +138,9 @@ const ViewResults: React.FC = () => {
 
         // Fallback API
         try {
-          const resp2 = await fetch(`/api/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`, {
-            headers: {
-              'x-school-code': schoolCode.toUpperCase()
-            }
-          });
-          if (resp2.ok) {
-            const data2 = await resp2.json();
+          const resp2 = await api.get(`/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`);
+          const data2 = resp2.data;
+          if (data2 && data2.success) {
             const subjectNames = (data2?.data?.subjects || []).map((s: any) => s.name).filter(Boolean);
             setSubjects(subjectNames);
             setSelectedSubject('');

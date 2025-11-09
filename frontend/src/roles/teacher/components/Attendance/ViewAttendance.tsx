@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as attendanceAPI from '../../../../api/attendance';
 import { useAuth } from '../../../../auth/AuthContext';
+import api from '../../../../services/api';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, Clock } from 'lucide-react';
@@ -87,20 +88,8 @@ const ViewAttendance: React.FC = () => {
         queryParams.append('academicYear', currentAcademicYear);
       }
 
-      const response = await fetch(
-        `/api/users/role/student?${queryParams.toString()}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'x-school-code': user.schoolCode
-          }
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch students');
-
-      const data = await response.json();
+      const response = await api.get(`/users/role/student?${queryParams.toString()}`);
+      const data = response.data;
       const users = data.data || data || [];
       console.log(`👥 [ViewAttendance] Total users received from API (already filtered by backend): ${users.length}`);
 

@@ -6,6 +6,7 @@ import EditAssignmentModal from '../components/EditAssignmentModal';
 import { Plus, Search, Download, Calendar, Clock, FileText, Users, Edit, Trash2 } from 'lucide-react';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import { useAcademicYear } from '../../../contexts/AcademicYearContext';
+import api from '../../../services/api';
 
 interface Assignment {
   _id: string;
@@ -67,7 +68,7 @@ const Assignments: React.FC = () => {
     }
   }, [assignments]);
 
-  // Fetch subjects when class changes
+  // Fetch subjects when class or academic year changes
   useEffect(() => {
     if (selectedClass) {
       fetchSubjectsForClass(selectedClass);
@@ -75,7 +76,7 @@ const Assignments: React.FC = () => {
       setSubjects([]);
       setSelectedSubject('');
     }
-  }, [selectedClass]);
+  }, [selectedClass, viewingAcademicYear]);
 
   const fetchAssignments = async () => {
     try {
@@ -86,9 +87,12 @@ const Assignments: React.FC = () => {
       let data;
       try {
         // Try the regular endpoint first with academic year parameter
-        data = await assignmentAPI.fetchAssignments({ 
-          academicYear: viewingAcademicYear 
+        const response = await api.get('/assignments', {
+          params: {
+            academicYear: viewingAcademicYear
+          }
         });
+        data = response.data;
         console.log('✅ Assignments fetched from regular endpoint:', data);
       } catch (regularError) {
         console.error('❌ Error with regular endpoint:', regularError);
@@ -114,19 +118,8 @@ const Assignments: React.FC = () => {
           schoolCode: userSchoolCode,
           ...(viewingAcademicYear && { academicYear: viewingAcademicYear })
         });
-        const response = await fetch(`/api/direct-test/assignments?${params.toString()}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-School-Code': userSchoolCode
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Direct endpoint failed with status: ${response.status}`);
-        }
-        
-        data = await response.json();
+        const response = await api.get(`/direct-test/assignments?${params.toString()}`);
+        data = response.data;
         console.log('✅ Assignments fetched from direct endpoint:', data);
       }
       
@@ -161,8 +154,9 @@ const Assignments: React.FC = () => {
   const fetchStats = async () => {
     try {
       // Try to fetch from assignment stats endpoint
-      const statsData = await assignmentAPI.getAssignmentStats();
-      setStats(statsData);
+      const response = await api.get('/assignment-stats');
+      const data = response.data;
+      setStats(data);
     } catch (err) {
       console.error('Error fetching stats:', err);
       // Fallback: calculate stats from assignments data
@@ -213,37 +207,28 @@ const Assignments: React.FC = () => {
 
   const fetchSubjectsForClass = async (className: string) => {
     try {
-      console.log(`🔍 Fetching subjects for class: ${className}`);
+      console.log(`🔍 Fetching subjects for class: ${className}, academic year: ${viewingAcademicYear}`);
       
       // Get school code from localStorage or auth
       const schoolCode = localStorage.getItem('erp.schoolCode') || '';
-      const authData = localStorage.getItem('erp.auth');
-      let token = '';
       
-      if (authData) {
-        const parsedAuth = JSON.parse(authData);
-        token = parsedAuth.token || '';
-      }
-      
-      // Try the class-subjects API
-      const response = await fetch(`/api/class-subjects/class/${encodeURIComponent(className)}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'x-school-code': schoolCode.toUpperCase(),
-          'Content-Type': 'application/json'
+      // Try the class-subjects API with academic year filter
+      const response = await api.get(`/class-subjects/class/${encodeURIComponent(className)}`, {
+        params: {
+          academicYear: viewingAcademicYear
         }
       });
+      const data = response.data;
       
-      if (response.ok) {
-        const data = await response.json();
+      if (data && data.success) {
         const subjectNames = (data?.data?.subjects || [])
           .filter((s: any) => s.isActive !== false)
           .map((s: any) => s.name)
           .filter(Boolean);
         setSubjects(subjectNames);
-        console.log('✅ Subjects loaded:', subjectNames);
+        console.log('✅ Subjects loaded for academic year:', subjectNames);
       } else {
-        console.warn('Failed to fetch subjects:', response.status);
+        console.warn('Failed to fetch subjects');
         setSubjects([]);
       }
     } catch (err) {

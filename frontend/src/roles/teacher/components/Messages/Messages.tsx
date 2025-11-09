@@ -3,6 +3,7 @@ import { Users, User, MessageCircle, Clock, Calendar } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
+import api from '../../../../services/api';
 
 interface Message {
   id: string;
@@ -39,18 +40,13 @@ const Messages: React.FC = () => {
     try {
       console.log('🔍 Fetching messages from teacher endpoint');
 
-      const response = await fetch('/api/messages/teacher/messages', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
+      const response = await api.get('/messages/teacher/messages');
+      
+      if (!response.data) {
         throw new Error('Failed to fetch messages');
       }
 
-      const data = await response.json();
+      const data = response.data;
       
       if (data.success) {
         // Backend returns messages in both data.messages and data.data.messages

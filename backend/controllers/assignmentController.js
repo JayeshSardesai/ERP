@@ -352,8 +352,29 @@ exports.getAssignments = async (req, res) => {
 
     // Filter by academic year - use provided or default to current
     const yearToFilter = academicYear || currentAcademicYear;
-    query.academicYear = yearToFilter;
-    console.log(`[GET ASSIGNMENTS] Filtering by academic year: ${yearToFilter}`);
+    
+    // Normalize academic year format to handle both "2024-25" and "2024-2025"
+    // Create a regex that matches both formats
+    if (yearToFilter) {
+      const parts = yearToFilter.split('-');
+      if (parts.length === 2) {
+        const startYear = parts[0];
+        const endYear = parts[1].length === 2 ? parts[1] : parts[1].slice(-2); // Get last 2 digits
+        const fullEndYear = parts[1].length === 4 ? parts[1] : `20${parts[1]}`; // Expand to 4 digits
+        
+        // Match both "2024-25" and "2024-2025" formats
+        query.academicYear = {
+          $in: [
+            `${startYear}-${endYear}`,      // Short format: 2024-25
+            `${startYear}-${fullEndYear}`   // Long format: 2024-2025
+          ]
+        };
+        console.log(`[GET ASSIGNMENTS] Filtering by academic year (both formats): ${startYear}-${endYear} OR ${startYear}-${fullEndYear}`);
+      } else {
+        query.academicYear = yearToFilter;
+        console.log(`[GET ASSIGNMENTS] Filtering by academic year: ${yearToFilter}`);
+      }
+    }
 
     if (status) {
       query.status = status;
@@ -417,6 +438,9 @@ exports.getAssignments = async (req, res) => {
     let assignments = [];
     let total = 0;
 
+    // Log the complete query for debugging
+    console.log(`[GET ASSIGNMENTS] Complete query:`, JSON.stringify(query, null, 2));
+
     // Try to get assignments from school-specific database first
     if (schoolCode) {
       try {
@@ -431,7 +455,7 @@ exports.getAssignments = async (req, res) => {
 
         total = await SchoolAssignment.countDocuments(query);
 
-        console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in school-specific database`);
+        console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in school-specific database (total: ${total})`);
       } catch (error) {
         console.error(`[GET ASSIGNMENTS] Error accessing school-specific database: ${error.message}`);
       }

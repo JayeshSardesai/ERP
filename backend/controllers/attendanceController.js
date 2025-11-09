@@ -858,7 +858,7 @@ exports.getDailyAttendanceStats = async (req, res) => {
 // Get attendance statistics
 exports.getAttendanceStats = async (req, res) => {
   try {
-    const { class: className, section, startDate, endDate, date } = req.query;
+    const { class: className, section, startDate, endDate, date, academicYear } = req.query;
 
     // Check if user has access (more flexible role checking)
     if (!req.user) {
@@ -867,10 +867,13 @@ exports.getAttendanceStats = async (req, res) => {
 
     const schoolCode = req.user.schoolCode;
 
+    console.log(`[ATTENDANCE STATS] Fetching stats for school: ${schoolCode}, academic year: ${academicYear || 'all'}`);
+
     // Build match query
     const matchQuery = {};
     if (className && className !== 'all') matchQuery.class = className;
     if (section) matchQuery.section = section;
+    if (academicYear) matchQuery.academicYear = academicYear;
 
     // Support single date query (for today's attendance)
     if (date) {

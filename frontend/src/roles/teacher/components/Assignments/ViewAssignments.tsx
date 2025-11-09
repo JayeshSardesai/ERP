@@ -3,6 +3,7 @@ import { Search, Edit, Trash2, Calendar, X, Plus } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
+import api from '../../../../services/api';
 import * as assignmentAPI from '../../../../api/assignment';
 
 interface Assignment {
@@ -76,8 +77,8 @@ const ViewAssignments: React.FC = () => {
       
       try {
         // Try the regular endpoint first
-        data = await assignmentAPI.fetchAssignments();
-        console.log('✅ Raw API response:', data);
+        const response = await api.get('/assignments');
+        data = response.data;
         
         // Handle different response structures
         if (data.data && Array.isArray(data.data)) {
@@ -96,19 +97,13 @@ const ViewAssignments: React.FC = () => {
         const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
         console.log('🔍 Trying direct endpoint with schoolCode:', schoolCode);
         
-        const response = await fetch(`/api/direct-test/assignments?schoolCode=${schoolCode}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-School-Code': schoolCode
-          }
-        });
+        const response = await api.get(`/direct-test/assignments?schoolCode=${schoolCode}`);
+        data = response.data;
         
-        if (!response.ok) {
+        if (data && data.success) {
           throw new Error(`Direct endpoint failed with status: ${response.status}`);
         }
         
-        data = await response.json();
         console.log('✅ Direct endpoint response:', data);
         
         // Handle different response structures
@@ -173,15 +168,10 @@ const ViewAssignments: React.FC = () => {
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
       
-      const resp = await fetch('/api/class-subjects/classes', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('erp.token')}`,
-          'x-school-code': schoolCode.toUpperCase()
-        }
-      });
+      const resp = await api.get('/class-subjects/classes');
+      const data = resp.data;
       
-      if (resp.ok) {
-        const data = await resp.json();
+      if (data && data.success) {
         const classData = data?.data?.classes?.find((c: any) => 
           c.className === selectedClass && c.section === selectedSection
         );
@@ -480,15 +470,10 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, o
       try {
         const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
         
-        const resp = await fetch('/api/class-subjects/classes', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('erp.token')}`,
-            'x-school-code': schoolCode.toUpperCase()
-          }
-        });
+        const resp = await api.get('/class-subjects/classes');
+        const data = resp.data;
         
-        if (resp.ok) {
-          const data = await resp.json();
+        if (data && data.success) {
           const classData = data?.data?.classes?.find((c: any) => 
             c.className === formData.class && c.section === formData.section
           );

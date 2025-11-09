@@ -8,6 +8,7 @@ import {
 import { schoolUserAPI, User as ApiUser } from '../../../api/schoolUsers';
 // Keep other imports
 import { exportImportAPI } from '../../../services/api';
+import api from '../../../services/api';
 
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
@@ -1888,28 +1889,11 @@ const ManageUsers: React.FC = () => {
       try {
         console.log(`\n🔍 Testing ${role.toUpperCase()} endpoint...`);
 
-        const headers: Record<string, string> = {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        };
-
-        if (user?.schoolCode) {
-          headers['x-school-code'] = user.schoolCode;
-        }
-
-        const response = await fetch(`/api/users/next-id/${role}`, {
-          method: 'GET',
-          headers
-        });
-
-        console.log(`📊 ${role} Response Status:`, response.status, response.statusText);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`✅ ${role.toUpperCase()} Next ID:`, data);
-        } else {
-          const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-          console.log(`❌ ${role.toUpperCase()} Error:`, errorData);
+        try {
+          const response = await api.get(`/users/next-id/${role}`);
+          console.log(`✅ ${role.toUpperCase()} Next ID:`, response.data);
+        } catch (error: any) {
+          console.log(`❌ ${role.toUpperCase()} Error:`, error.response?.data || error.message);
         }
 
       } catch (error) {
@@ -2137,62 +2121,35 @@ const ManageUsers: React.FC = () => {
 
       if (!token) {
         console.error('❌ No authentication token available');
-        toast.error('Authentication required. Please login again.');
-        return '';
-      }
-
-      // Include school context header
-      const headers: Record<string, string> = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      // Add school context if available
-      if (user?.schoolCode) {
-        headers['x-school-code'] = user.schoolCode;
-        console.log(`🏫 Adding school context: ${user.schoolCode}`);
-      } else {
-        console.log('⚠️ No school code available in user context');
-      }
-
-      console.log('📡 Making API request to:', `/api/users/next-id/${role}`);
-      console.log('📋 Request headers:', headers);
-
-      const response = await fetch(`/api/users/next-id/${role}`, {
-        method: 'GET',
-        headers
-      });
-
-      console.log(`📊 Response status: ${response.status} ${response.statusText}`);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ API Response data:', data);
-
-        if (data.success && data.nextUserId) {
-          const fetchedId = data.nextUserId;
-          setNextUserId(fetchedId);
-          // Update formData immediately with the fetched ID
-          setFormData(prev => ({ ...prev, userId: fetchedId }));
-          console.log(`✅ Successfully fetched next ${role} ID: ${fetchedId}`);
-          toast.success(`Next available ID: ${fetchedId}`);
-          return fetchedId;
-        } else {
-          console.error('❌ Invalid response format:', data);
-          toast.error(data.message || 'Invalid response from server');
-          setNextUserId('');
-          return '';
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Server error' }));
-        console.error('❌ Failed to fetch next user ID:', response.status, errorData);
-        toast.error(errorData.message || `Failed to fetch next user ID (${response.status})`);
+        toast.error('Authentication required');
         setNextUserId('');
         return '';
       }
-    } catch (error) {
+
+      console.log('📡 Making API request to:', `/users/next-id/${role}`);
+
+      const response = await api.get(`/users/next-id/${role}`);
+      const data = response.data;
+      
+      console.log('✅ API Response data:', data);
+
+      if (data.success && data.nextUserId) {
+        const fetchedId = data.nextUserId;
+        setNextUserId(fetchedId);
+        // Update formData immediately with the fetched ID
+        setFormData(prev => ({ ...prev, userId: fetchedId }));
+        console.log(`✅ Successfully fetched next ${role} ID: ${fetchedId}`);
+        toast.success(`Next available ID: ${fetchedId}`);
+        return fetchedId;
+      } else {
+        console.error('❌ Invalid response format:', data);
+        toast.error(data.message || 'Invalid response from server');
+        setNextUserId('');
+        return '';
+      }
+    } catch (error: any) {
       console.error('❌ Error fetching next user ID:', error);
-      toast.error(`Network error: ${error.message}`);
+      toast.error(`Network error: ${error.response?.data?.message || error.message}`);
       setNextUserId('');
       return '';
     } finally {

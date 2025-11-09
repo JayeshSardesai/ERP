@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, CheckCircle, XCircle, Calendar, Sun, Moon, Users as UsersIcon, Lock } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
+import api from '../../../../services/api';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
@@ -72,22 +73,8 @@ const MarkAttendance: React.FC = () => {
         }
 
         // Use the same API endpoint as admin - teachers have access via validateSchoolAccess(['admin', 'teacher'])
-        const response = await fetch(
-          `/api/users/role/student?${queryParams.toString()}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'x-school-code': user.schoolCode
-            }
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch students');
-        }
-
-        const data = await response.json();
+        const response = await api.get(`/users/role/student?${queryParams.toString()}`);
+        const data = response.data;
         console.log('📊 API Response:', data);
         
         const users = data.data || data || [];
