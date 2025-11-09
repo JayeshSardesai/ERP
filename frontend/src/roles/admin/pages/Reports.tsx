@@ -17,7 +17,7 @@ const Reports: React.FC = () => {
         if (!authToken || !user?.schoolCode) return;
 
         const response = await fetch(
-          `http://localhost:5050/api/attendance/stats`,
+          `/api/attendance/stats`,
           {
             headers: {
               'Authorization': `Bearer ${authToken}`,

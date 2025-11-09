@@ -76,7 +76,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       }
       
       // Fetch leave requests
-      const leaveRes = await fetch('http://localhost:5050/api/leave-requests/teacher/my-requests', {
+      const leaveRes = await fetch('/api/leave-requests/teacher/my-requests', {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

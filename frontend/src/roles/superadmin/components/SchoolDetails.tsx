@@ -944,7 +944,7 @@ function SchoolDetailsContent() {
                               <div className="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full overflow-hidden">
                                 {user.profileImage ? (
                                   <img
-                                    src={`http://localhost:5050${user.profileImage}`}
+                                    src={user.profileImage.startsWith('http') ? user.profileImage : `${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || ''}${user.profileImage}`}
                                     alt={user.name?.displayName || 'User'}
                                     className="h-full w-full object-cover"
                                     onError={(e) => {

@@ -80,10 +80,10 @@ const FeePaymentsTab: React.FC = () => {
             finalLogoUrl: schoolData.logoUrl ? 
               (schoolData.logoUrl.startsWith('http') ? 
                 schoolData.logoUrl : 
-                `http://localhost:5050${schoolData.logoUrl}`) : 
+                `${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || ''}${schoolData.logoUrl}`) : 
               '',
             rawLogoUrl: schoolData.logoUrl || '',
-            apiBase: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050/api'
+            apiBase: import.meta.env.VITE_API_BASE_URL || '/api'
           },
           bankDetails: schoolData.bankDetails || {
             accountName: 'School Account',
@@ -461,7 +461,7 @@ const FeePaymentsTab: React.FC = () => {
               email: data.email || data.contact?.email || data.principalEmail || schoolData.email,
               website: data.website || schoolData.website,
 hasSchoolLogo: !!(data.logoUrl || data.logo || schoolData.schoolLogo),
-              schoolLogo: data.logoUrl ? (data.logoUrl.startsWith('http') ? data.logoUrl : `http://localhost:5050${data.logoUrl}`) : schoolData.schoolLogo,
+              schoolLogo: data.logoUrl ? (data.logoUrl.startsWith('http') ? data.logoUrl : `${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || ''}${data.logoUrl}`) : schoolData.schoolLogo,
               principalName: data.principalName || ''
             };
             
@@ -483,7 +483,7 @@ hasSchoolLogo: !!(data.logoUrl || data.logo || schoolData.schoolLogo),
             schoolData.email = templateSettings.email || schoolData.email;
             schoolData.website = templateSettings.website || schoolData.website;
             const logoUrl = templateSettings.logoUrl;
-            schoolData.schoolLogo = logoUrl ? `http://localhost:5050${logoUrl}` : schoolData.schoolLogo;
+            schoolData.schoolLogo = logoUrl ? (logoUrl.startsWith('http') ? logoUrl : `${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || ''}${logoUrl}`) : schoolData.schoolLogo;
             schoolData.hasSchoolLogo = !!schoolData.schoolLogo;
           }
         } catch (settingsError) {

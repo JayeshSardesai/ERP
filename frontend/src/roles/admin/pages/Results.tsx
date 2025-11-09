@@ -452,7 +452,7 @@ const Results: React.FC = () => {
 
       // Fallback: try school-users endpoint pattern used elsewhere
       try {
-        const altResp = await fetch(`http://localhost:5050/api/school-users/${schoolCode}/users`, {
+        const altResp = await fetch(`/api/school-users/${schoolCode}/users`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

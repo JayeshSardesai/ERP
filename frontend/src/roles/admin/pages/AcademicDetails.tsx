@@ -677,7 +677,7 @@ const AcademicDetails: React.FC = () => {
 
       // Try to fetch real students from API
       try {
-        const response = await fetch(`http://localhost:5050/api/users/role/student`, {
+        const response = await fetch(`/api/users/role/student`, {
           headers: {
             'Authorization': `Bearer ${authToken}`,
             'X-School-Code': schoolCode.toUpperCase(),
@@ -744,7 +744,7 @@ const AcademicDetails: React.FC = () => {
       try {
         console.log('🔄 Trying school-users endpoint pattern...');
 
-        const altResponse = await fetch(`http://localhost:5050/api/school-users/${schoolCode}/users`, {
+        const altResponse = await fetch(`/api/school-users/${schoolCode}/users`, {
           headers: {
             'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
@@ -837,7 +837,7 @@ const AcademicDetails: React.FC = () => {
 
       // Use the same API pattern as hall tickets
       try {
-        const response = await fetch(`http://localhost:5050/api/users/role/student`, {
+        const response = await fetch(`/api/users/role/student`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'X-School-Code': schoolCode.toUpperCase(),

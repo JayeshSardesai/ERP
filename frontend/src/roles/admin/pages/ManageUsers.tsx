@@ -1897,7 +1897,7 @@ const ManageUsers: React.FC = () => {
           headers['x-school-code'] = user.schoolCode;
         }
 
-        const response = await fetch(`http://localhost:5050/api/users/next-id/${role}`, {
+        const response = await fetch(`/api/users/next-id/${role}`, {
           method: 'GET',
           headers
         });
@@ -1980,7 +1980,7 @@ const ManageUsers: React.FC = () => {
       }
 
       console.log('Fetching users for school:', schoolCode);
-      console.log('API URL will be:', `http://localhost:5050/api/school-users/${schoolCode}/users`);
+      console.log('API URL will be:', `/api/school-users/${schoolCode}/users`);
       console.log('Token being used:', token ? 'Present' : 'Missing');
 
       try {
@@ -2155,10 +2155,10 @@ const ManageUsers: React.FC = () => {
         console.log('⚠️ No school code available in user context');
       }
 
-      console.log('📡 Making API request to:', `http://localhost:5050/api/users/next-id/${role}`);
+      console.log('📡 Making API request to:', `/api/users/next-id/${role}`);
       console.log('📋 Request headers:', headers);
 
-      const response = await fetch(`http://localhost:5050/api/users/next-id/${role}`, {
+      const response = await fetch(`/api/users/next-id/${role}`, {
         method: 'GET',
         headers
       });
@@ -3564,7 +3564,7 @@ const ManageUsers: React.FC = () => {
         console.log('Sending FormData with image...');
 
         // Make fetch call with FormData
-        const response = await fetch(`http://localhost:5050/api/user-management/${schoolCode}/users/${editingUser._id}`, {
+        const response = await fetch(`/api/user-management/${schoolCode}/users/${editingUser._id}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -8161,9 +8161,9 @@ const ManageUsers: React.FC = () => {
                     {/* Image Preview */}
                     <div className="flex-shrink-0">
                       <div className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50">
-                        {profileImagePreview || (editingUser.profileImage && `http://localhost:5050${editingUser.profileImage}`) ? (
+                        {profileImagePreview || editingUser.profileImage ? (
                           <img
-                            src={profileImagePreview || `http://localhost:5050${editingUser.profileImage}`}
+                            src={profileImagePreview || (editingUser.profileImage?.startsWith('http') ? editingUser.profileImage : `${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || ''}${editingUser.profileImage}`)}
                             alt="Profile preview"
                             className="w-full h-full object-cover"
                           />
