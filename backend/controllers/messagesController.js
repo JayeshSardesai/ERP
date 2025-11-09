@@ -615,10 +615,10 @@ exports.getTeacherMessages = async (req, res) => {
   }
 };
 
-// Get messages for students (read-only, filtered by their class/section)
+// Get messages for students and teachers (read-only, filtered by class/section for students, all messages for teachers)
 exports.getStudentMessages = async (req, res) => {
   try {
-    console.log('📨 Student fetching messages:', req.user);
+    console.log('📨 Fetching messages for user:', req.user.role, req.user.userId);
     
     // Get school connection for message queries
     const schoolCode = req.user.schoolCode;
@@ -626,17 +626,6 @@ exports.getStudentMessages = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'School code not found in user profile'
-      });
-    }
-    
-    // Get student's class and section from user profile
-    const studentClass = req.user.studentDetails?.currentClass || req.user.studentDetails?.class;
-    const studentSection = req.user.studentDetails?.currentSection || req.user.studentDetails?.section;
-    
-    if (!studentClass || !studentSection) {
-      return res.status(400).json({
-        success: false,
-        message: 'Student class/section not found in profile'
       });
     }
     
@@ -648,20 +637,42 @@ exports.getStudentMessages = async (req, res) => {
     const { limit = 20, page = 1 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    // Fetch messages for the student's class and section (sorted by newest first)
-    const messages = await messagesCollection.find({
-      $or: [
-        { class: studentClass, section: studentSection },
-        { class: studentClass, section: 'All' }, // Messages sent to entire class
-        { class: 'All', section: 'All' } // Messages sent to entire school
-      ]
-    })
+    let query = {};
+    
+    // If user is a teacher, fetch ALL messages from the school
+    if (req.user.role === 'teacher') {
+      console.log('📨 Teacher - fetching all school messages');
+      query = {}; // No filter - get all messages
+    } else {
+      // For students, filter by their class and section
+      const studentClass = req.user.studentDetails?.currentClass || req.user.studentDetails?.class;
+      const studentSection = req.user.studentDetails?.currentSection || req.user.studentDetails?.section;
+      
+      if (!studentClass || !studentSection) {
+        return res.status(400).json({
+          success: false,
+          message: 'Student class/section not found in profile'
+        });
+      }
+      
+      console.log(`📨 Student - fetching messages for class ${studentClass}-${studentSection}`);
+      query = {
+        $or: [
+          { class: studentClass, section: studentSection },
+          { class: studentClass, section: 'All' }, // Messages sent to entire class
+          { class: 'All', section: 'All' } // Messages sent to entire school
+        ]
+      };
+    }
+    
+    // Fetch messages (sorted by newest first)
+    const messages = await messagesCollection.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .toArray();
     
-    console.log(`✅ Found ${messages.length} messages for student in class ${studentClass}-${studentSection}`);
+    console.log(`✅ Found ${messages.length} messages for ${req.user.role}`);
     
     // Format messages for frontend
     const formattedMessages = messages
