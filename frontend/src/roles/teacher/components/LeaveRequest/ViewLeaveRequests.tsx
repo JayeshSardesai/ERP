@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Filter } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
-import api from '../../../../api/axios';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
 
@@ -34,10 +33,18 @@ const ViewLeaveRequests: React.FC = () => {
   const fetchLeaveRequests = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/leave-requests/teacher/my-requests');
-      const data = response.data;
-      if (data.success) {
-        setLeaveRequests(data.data.leaveRequests);
+      const response = await fetch('/api/leave-requests/teacher/my-requests', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setLeaveRequests(data.data.leaveRequests);
+        }
       } else {
         toast.error('Failed to fetch leave requests');
       }
@@ -105,83 +112,87 @@ const ViewLeaveRequests: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-6">
       {/* Statistics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs sm:text-sm text-gray-600">Total Requests</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-sm text-gray-600">Total Requests</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             </div>
-            <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+            <Calendar className="h-8 w-8 text-blue-600" />
           </div>
         </div>
-        <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs sm:text-sm text-gray-600">Pending</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-yellow-600">{stats.pending}</p>
+              <p className="text-sm text-gray-600">Pending</p>
+              <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
             </div>
-            <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600" />
+            <Clock className="h-8 w-8 text-yellow-600" />
           </div>
         </div>
-        <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs sm:text-sm text-gray-600">Approved</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600">{stats.approved}</p>
+              <p className="text-sm text-gray-600">Approved</p>
+              <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
             </div>
-            <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
+            <CheckCircle className="h-8 w-8 text-green-600" />
           </div>
         </div>
-        <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs sm:text-sm text-gray-600">Rejected</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-red-600">{stats.rejected}</p>
+              <p className="text-sm text-gray-600">Rejected</p>
+              <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
             </div>
-            <XCircle className="h-6 w-6 sm:h-8 sm:w-8 text-red-600" />
+            <XCircle className="h-8 w-8 text-red-600" />
           </div>
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-        <div className="grid grid-cols-2 sm:flex sm:space-x-2 gap-2 sm:gap-0">
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="flex space-x-2">
           <button
             onClick={() => setFilter('all')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${filter === 'all'
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+            }`}
           >
             All
           </button>
           <button
             onClick={() => setFilter('pending')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${filter === 'pending'
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'pending'
                 ? 'bg-yellow-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+            }`}
           >
             Pending
           </button>
           <button
             onClick={() => setFilter('approved')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${filter === 'approved'
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'approved'
                 ? 'bg-green-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+            }`}
           >
             Approved
           </button>
           <button
             onClick={() => setFilter('rejected')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${filter === 'rejected'
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'rejected'
                 ? 'bg-red-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+            }`}
           >
             Rejected
           </button>

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, Clock } from 'lucide-react';
+import * as attendanceAPI from '../../../../api/attendance';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
-import api from '../../../../api/axios';
-import * as attendanceAPI from '../../../../api/attendance';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, Clock } from 'lucide-react';
 
@@ -71,9 +69,9 @@ const ViewAttendance: React.FC = () => {
       setLoading(true);
       setError('');
 
-      console.log('🔍 [ViewAttendance] Fetching students for:', {
-        class: selectedClass,
-        section: selectedSection,
+      console.log('🔍 [ViewAttendance] Fetching students for:', { 
+        class: selectedClass, 
+        section: selectedSection, 
         date: selectedDate,
         session,
         academicYear: currentAcademicYear
@@ -84,13 +82,13 @@ const ViewAttendance: React.FC = () => {
         class: selectedClass,
         section: selectedSection
       });
-
+      
       if (currentAcademicYear) {
         queryParams.append('academicYear', currentAcademicYear);
       }
 
-      const response = await api.get(
-        `/users/role/student?${queryParams.toString()}`,
+      const response = await fetch(
+        `/api/users/role/student?${queryParams.toString()}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -100,7 +98,9 @@ const ViewAttendance: React.FC = () => {
         }
       );
 
-      const data = response.data;
+      if (!response.ok) throw new Error('Failed to fetch students');
+
+      const data = await response.json();
       const users = data.data || data || [];
       console.log(`👥 [ViewAttendance] Total users received from API (already filtered by backend): ${users.length}`);
 
@@ -281,10 +281,11 @@ const ViewAttendance: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSession('morning')}
-                className={`flex-1 py-2 px-3 text-sm font-medium rounded-l-lg flex items-center justify-center ${session === 'morning'
+                className={`flex-1 py-2 px-3 text-sm font-medium rounded-l-lg flex items-center justify-center ${
+                  session === 'morning'
                     ? 'bg-blue-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
+                }`}
               >
                 <Sun className="h-4 w-4 mr-1" />
                 Morning
@@ -292,10 +293,11 @@ const ViewAttendance: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSession('afternoon')}
-                className={`flex-1 py-2 px-3 text-sm font-medium rounded-r-lg flex items-center justify-center ${session === 'afternoon'
+                className={`flex-1 py-2 px-3 text-sm font-medium rounded-r-lg flex items-center justify-center ${
+                  session === 'afternoon'
                     ? 'bg-blue-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
+                }`}
               >
                 <Moon className="h-4 w-4 mr-1" />
                 Afternoon

@@ -4,7 +4,6 @@ import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import * as assignmentAPI from '../../../../api/assignment';
-import api from '../../../../api/axios';
 
 interface Assignment {
   _id: string;
@@ -18,7 +17,6 @@ interface Assignment {
   description?: string;
   teacher?: any;
   status?: string;
-  _placeholder?: boolean;
 }
 
 const ViewAssignments: React.FC = () => {
@@ -68,63 +66,51 @@ const ViewAssignments: React.FC = () => {
     }
   }, [selectedClass, selectedSection, assignments]);
 
-  // Remove the effect that refetches on filter changes - we'll filter locally instead
-
   const fetchAssignments = async () => {
     try {
       setLoading(true);
       console.log('🔍 Fetching assignments...');
-
+      
       let data;
       let assignmentsArray = [];
-
+      
       try {
-        // Fetch all assignments without filters for local filtering
-        console.log('🔍 Teacher fetching all assignments for local filtering');
-
-        // Try the regular endpoint first without filters
+        // Try the regular endpoint first
         data = await assignmentAPI.fetchAssignments();
         console.log('✅ Raw API response:', data);
-        console.log('🔍 API response structure:', {
-          hasData: !!data.data,
-          hasAssignments: !!data.assignments,
-          isArray: Array.isArray(data),
-          keys: Object.keys(data || {}),
-          dataLength: Array.isArray(data.data) ? data.data.length : 'not array',
-          assignmentsLength: Array.isArray(data.assignments) ? data.assignments.length : 'not array'
-        });
-
+        
         // Handle different response structures
         if (data.data && Array.isArray(data.data)) {
           assignmentsArray = data.data;
-          console.log('📦 Using data.data:', assignmentsArray.length);
         } else if (data.assignments && Array.isArray(data.assignments)) {
           assignmentsArray = data.assignments;
-          console.log('📦 Using data.assignments:', assignmentsArray.length);
         } else if (Array.isArray(data)) {
           assignmentsArray = data;
-          console.log('📦 Using direct array:', assignmentsArray.length);
-        } else if (data && typeof data === 'object') {
-          // Try to find any array property
-          const arrayProps = Object.keys(data).filter(key => Array.isArray(data[key]));
-          if (arrayProps.length > 0) {
-            assignmentsArray = data[arrayProps[0]];
-            console.log(`📦 Using ${arrayProps[0]}:`, assignmentsArray.length);
-          }
         }
-
+        
         console.log('✅ Extracted assignments array:', assignmentsArray);
       } catch (regularError) {
         console.error('❌ Error with regular endpoint:', regularError);
-
+        
         // If the regular endpoint fails, try the direct endpoint
         const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
         console.log('🔍 Trying direct endpoint with schoolCode:', schoolCode);
-
-        const response = await api.get(`/direct-test/assignments?schoolCode=${schoolCode}`);
-        data = response.data;
+        
+        const response = await fetch(`/api/direct-test/assignments?schoolCode=${schoolCode}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-School-Code': schoolCode
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Direct endpoint failed with status: ${response.status}`);
+        }
+        
+        data = await response.json();
         console.log('✅ Direct endpoint response:', data);
-
+        
         // Handle different response structures
         if (data.data && Array.isArray(data.data)) {
           assignmentsArray = data.data;
@@ -134,27 +120,32 @@ const ViewAssignments: React.FC = () => {
           assignmentsArray = data;
         }
       }
-
+      
       console.log(`📊 Total assignments before filtering: ${assignmentsArray.length}`);
-
+      
       // Validate each assignment has required fields and filter by academic year
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') {
           console.log('❌ Invalid assignment (not an object):', assignment);
           return false;
         }
-
-        // Check for assignment ID (required for operations)
-        const hasId = assignment._id || assignment.id;
-        if (!hasId) {
-          console.log('❌ Invalid assignment (missing ID):', assignment);
+        const hasTitle = assignment.title && assignment.title.trim() !== '';
+        const hasClass = assignment.class && assignment.class.trim() !== '';
+        const hasSubject = assignment.subject && assignment.subject.trim() !== '';
+        
+        if (!hasTitle || !hasClass || !hasSubject) {
+          console.log('❌ Invalid assignment (missing fields):', {
+            title: assignment.title,
+            class: assignment.class,
+            subject: assignment.subject
+          });
           return false;
         }
-
+        
         // Filter by current academic year
         const assignmentAY = assignment.academicYear;
         const matchesAcademicYear = !currentAcademicYear || !assignmentAY || assignmentAY === currentAcademicYear;
-
+        
         if (!matchesAcademicYear) {
           console.log('⏭️ Skipping assignment from different academic year:', {
             title: assignment.title,
@@ -162,18 +153,12 @@ const ViewAssignments: React.FC = () => {
             currentAcademicYear
           });
         }
-
+        
         return matchesAcademicYear;
       });
-
+      
       console.log(`✅ Loaded ${validAssignments.length} valid assignments out of ${assignmentsArray.length} total`);
       console.log('📋 Valid assignments:', validAssignments);
-
-      // If we have assignments but they're all placeholders, inform the user
-      if (assignmentsArray.length > 0 && validAssignments.length === 0) {
-        console.log('ℹ️ INFO: All assignments are placeholders - no real assignments found');
-      }
-
       setAssignments(validAssignments);
     } catch (err: any) {
       console.error('❌ Error fetching assignments:', err);
@@ -186,14 +171,24 @@ const ViewAssignments: React.FC = () => {
 
   const fetchSubjectsForClassSection = async () => {
     try {
-      const response = await api.get('/class-subjects/classes');
-      const data = response.data;
-      const classData = data?.data?.classes?.find((c: any) =>
-        c.className === selectedClass && c.section === selectedSection
-      );
-      const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
-      const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
-      setAvailableSubjects(subjectNames);
+      const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
+      
+      const resp = await fetch('/api/class-subjects/classes', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('erp.token')}`,
+          'x-school-code': schoolCode.toUpperCase()
+        }
+      });
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        const classData = data?.data?.classes?.find((c: any) => 
+          c.className === selectedClass && c.section === selectedSection
+        );
+        const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
+        const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
+        setAvailableSubjects(subjectNames);
+      }
     } catch (err) {
       console.error('Error fetching subjects:', err);
       setAvailableSubjects([]);
@@ -201,54 +196,25 @@ const ViewAssignments: React.FC = () => {
   };
 
   const filterAssignments = () => {
-    // Filter assignments - empty filters mean "show all"
-    let filtered = assignments.filter(assignment => {
-      if (!assignment || typeof assignment !== 'object') return false;
+    let filtered = [...assignments];
 
-      // Normalize data with null checks
-      const title = (assignment?.title || '').toString().trim();
-      const subject = (assignment?.subject || '').toString().trim();
-      const assignmentClass = (assignment?.class || '').toString().trim();
-      const assignmentSection = (assignment?.section || '').toString().trim();
+    if (searchTerm) {
+      filtered = filtered.filter(a => 
+        a.title.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
 
-      // Search filter - search in title and subject (empty = show all)
-      const matchesSearch = !searchTerm || searchTerm.trim() === '' ||
-        title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        subject.toLowerCase().includes(searchTerm.toLowerCase());
+    if (selectedClass) {
+      filtered = filtered.filter(a => a.class === selectedClass);
+    }
 
-      // Class filter - empty selectedClass means "All Classes" (show all)
-      // Also show assignments with no class data when "All Classes" is selected
-      const matchesClass = !selectedClass || selectedClass === '' ||
-        assignmentClass === selectedClass ||
-        (assignmentClass === '' && (!selectedClass || selectedClass === ''));
+    if (selectedSection) {
+      filtered = filtered.filter(a => a.section === selectedSection);
+    }
 
-      // Section filter - empty selectedSection means "All Sections" (show all)
-      // Also show assignments with no section data when "All Sections" is selected
-      const matchesSection = !selectedSection || selectedSection === '' ||
-        assignmentSection === selectedSection ||
-        (assignmentSection === '' && (!selectedSection || selectedSection === ''));
-
-      // Subject filter - empty selectedSubject means "All Subjects" (show all)
-      // Also show assignments with no subject data when "All Subjects" is selected
-      const matchesSubject = !selectedSubject || selectedSubject === '' ||
-        subject === selectedSubject ||
-        (subject === '' && (!selectedSubject || selectedSubject === ''));
-
-      return matchesSearch && matchesClass && matchesSection && matchesSubject;
-    });
-
-    console.log('🔍 FILTERING DEBUG:', {
-      totalAssignments: assignments.length,
-      filteredCount: filtered.length,
-      filters: { searchTerm, selectedClass, selectedSection, selectedSubject },
-      sampleAssignment: assignments[0] ? {
-        title: assignments[0].title,
-        class: assignments[0].class,
-        section: assignments[0].section,
-        subject: assignments[0].subject,
-        _placeholder: assignments[0]._placeholder
-      } : null
-    });
+    if (selectedSubject) {
+      filtered = filtered.filter(a => a.subject === selectedSubject);
+    }
 
     setFilteredAssignments(filtered);
   };
@@ -263,7 +229,7 @@ const ViewAssignments: React.FC = () => {
 
     try {
       const formDataToSend = new FormData();
-
+      
       formDataToSend.append('title', updatedData.title);
       formDataToSend.append('subject', updatedData.subject);
       formDataToSend.append('class', updatedData.class);
@@ -278,7 +244,7 @@ const ViewAssignments: React.FC = () => {
       }
 
       await assignmentAPI.updateAssignment(editingAssignment._id, formDataToSend);
-
+      
       alert('Assignment updated successfully');
       setShowEditModal(false);
       setEditingAssignment(null);
@@ -310,81 +276,10 @@ const ViewAssignments: React.FC = () => {
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
-  // Calculate days until deadline
-  const getDeadlineStatus = (dueDate: string) => {
-    if (!dueDate) {
-      return {
-        text: 'No due date',
-        color: 'text-gray-700',
-        bgColor: 'bg-gray-100',
-        priority: 'low'
-      };
-    }
-
-    const due = new Date(dueDate);
-    const today = new Date();
-
-    // Check if date is valid
-    if (isNaN(due.getTime())) {
-      return {
-        text: 'Invalid date',
-        color: 'text-red-700',
-        bgColor: 'bg-red-100',
-        priority: 'urgent'
-      };
-    }
-
-    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
-    due.setHours(23, 59, 59, 999); // Set to end of due date
-
-    const diffTime = due.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      const overdueDays = Math.abs(diffDays);
-      return {
-        text: `${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue`,
-        color: 'text-red-700',
-        bgColor: 'bg-red-100',
-        priority: 'urgent'
-      };
-    }
-    if (diffDays === 0) return {
-      text: 'Due Today',
-      color: 'text-orange-700',
-      bgColor: 'bg-orange-100',
-      priority: 'high'
-    };
-    if (diffDays === 1) return {
-      text: 'Due Tomorrow',
-      color: 'text-yellow-700',
-      bgColor: 'bg-yellow-100',
-      priority: 'medium'
-    };
-    if (diffDays <= 3) return {
-      text: `${diffDays} days left`,
-      color: 'text-amber-700',
-      bgColor: 'bg-amber-50',
-      priority: 'medium'
-    };
-    if (diffDays <= 7) return {
-      text: `${diffDays} days left`,
-      color: 'text-blue-700',
-      bgColor: 'bg-blue-50',
-      priority: 'normal'
-    };
-    return {
-      text: `${diffDays} days left`,
-      color: 'text-green-700',
-      bgColor: 'bg-green-50',
-      priority: 'low'
-    };
-  };
-
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
@@ -392,7 +287,7 @@ const ViewAssignments: React.FC = () => {
             placeholder="Search assignments..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
@@ -403,7 +298,7 @@ const ViewAssignments: React.FC = () => {
             setSelectedSection('');
             setSelectedSubject('');
           }}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">All Classes</option>
           {classList.map((cls) => (
@@ -438,37 +333,25 @@ const ViewAssignments: React.FC = () => {
 
       {/* Assignments Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {/* Table Header with Total Count */}
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Assignments</h3>
-            <div className="flex items-center space-x-3 sm:space-x-4 text-xs sm:text-sm text-gray-600">
-              <span>Total: <span className="font-semibold text-gray-900">{assignments.length}</span></span>
-              {(searchTerm || selectedClass || selectedSection || selectedSubject) && (
-                <span>Filtered: <span className="font-semibold text-blue-600">{filteredAssignments.length}</span></span>
-              )}
-            </div>
-          </div>
-        </div>
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Assignment
               </th>
-              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Class
               </th>
-              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Section
               </th>
-              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Subject
               </th>
-              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Due Date
               </th>
-              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -476,66 +359,52 @@ const ViewAssignments: React.FC = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-3 sm:px-6 py-6 sm:py-8 text-center text-xs sm:text-sm text-gray-500">
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                   Loading assignments...
                 </td>
               </tr>
             ) : filteredAssignments.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 sm:px-6 py-6 sm:py-8 text-center text-xs sm:text-sm text-gray-500">
-                  {assignments.length === 0
-                    ? "No assignments created yet. Create your first assignment to get started!"
-                    : "No assignments match your current filters. Try adjusting your search criteria."}
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  No assignments found
                 </td>
               </tr>
             ) : (
               filteredAssignments.map((assignment) => (
                 <tr key={assignment._id} className="hover:bg-gray-50">
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                    <div className="text-xs sm:text-sm font-medium text-gray-900">{assignment.title || assignment.subject || 'Untitled Assignment'}</div>
-                    <div className="text-xs text-gray-500 sm:hidden mt-1">
-                      {assignment.class && `Class ${assignment.class}`}
-                      {assignment.section && ` • Section ${assignment.section}`}
-                      {assignment.subject && ` • ${assignment.subject}`}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{assignment.title}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{assignment.class}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{assignment.section || 'N/A'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{assignment.subject}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center text-sm text-gray-900">
+                      <Calendar className="h-4 w-4 mr-1 text-gray-400" />
+                      {formatDate(assignment.dueDate)}
                     </div>
                   </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden sm:table-cell">
-                    <div className="text-xs sm:text-sm text-gray-900">{assignment.class || 'N/A'}</div>
-                  </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                    <div className="text-xs sm:text-sm text-gray-900">{assignment.section || 'N/A'}</div>
-                  </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
-                    <div className="text-xs sm:text-sm text-gray-900">{assignment.subject || 'N/A'}</div>
-                  </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col space-y-1">
-                      <div className="flex items-center text-xs sm:text-sm text-gray-900">
-                        <Calendar className="h-3 sm:h-4 w-3 sm:w-4 mr-1 text-gray-400" />
-                        <span className="truncate">{formatDate(assignment.dueDate)}</span>
-                      </div>
-                      {assignment.dueDate && (
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getDeadlineStatus(assignment.dueDate).bgColor} ${getDeadlineStatus(assignment.dueDate).color}`}>
-                          {getDeadlineStatus(assignment.dueDate).text}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center space-x-2 sm:space-x-3">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center space-x-3">
                       <button
                         onClick={() => handleEdit(assignment)}
-                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                        className="text-blue-600 hover:text-blue-900"
                         title="Edit"
                       >
-                        <Edit className="h-3 sm:h-4 w-3 sm:w-4" />
+                        <Edit className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(assignment._id)}
-                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                        className="text-red-600 hover:text-red-900"
                         title="Delete"
                       >
-                        <Trash2 className="h-3 sm:h-4 w-3 sm:w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </td>
@@ -571,7 +440,7 @@ interface EditAssignmentModalProps {
 const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, onClose, onUpdate }) => {
   const { user } = useAuth();
   const { classesData, getSectionsByClass } = useSchoolClasses();
-
+  
   const [formData, setFormData] = useState({
     title: assignment.title || '',
     description: assignment.instructions || assignment.description || '',
@@ -609,14 +478,24 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, o
 
       setLoadingSubjects(true);
       try {
-        const response = await api.get('/class-subjects/classes');
-        const data = response.data;
-        const classData = data?.data?.classes?.find((c: any) =>
-          c.className === formData.class && c.section === formData.section
-        );
-        const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
-        const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
-        setAvailableSubjects(subjectNames);
+        const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
+        
+        const resp = await fetch('/api/class-subjects/classes', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('erp.token')}`,
+            'x-school-code': schoolCode.toUpperCase()
+          }
+        });
+        
+        if (resp.ok) {
+          const data = await resp.json();
+          const classData = data?.data?.classes?.find((c: any) => 
+            c.className === formData.class && c.section === formData.section
+          );
+          const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
+          const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
+          setAvailableSubjects(subjectNames);
+        }
       } catch (err) {
         console.error('Error fetching subjects:', err);
         setAvailableSubjects([]);
@@ -630,9 +509,9 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, o
 
   const handleSubmit = async () => {
     // Validate required fields
-    if (!formData.title || !formData.description || !formData.class ||
-      !formData.section || !formData.subject || !formData.startDate ||
-      !formData.dueDate) {
+    if (!formData.title || !formData.description || !formData.class || 
+        !formData.section || !formData.subject || !formData.startDate || 
+        !formData.dueDate) {
       alert('Please fill in all required fields');
       return;
     }
@@ -717,10 +596,10 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, o
                 disabled={!formData.section || loadingSubjects}
               >
                 <option value="">
-                  {!formData.class ? 'Select Class First' :
-                    !formData.section ? 'Select Section First' :
-                      loadingSubjects ? 'Loading subjects...' :
-                        'Select Subject'}
+                  {!formData.class ? 'Select Class First' : 
+                   !formData.section ? 'Select Section First' :
+                   loadingSubjects ? 'Loading subjects...' : 
+                   'Select Subject'}
                 </option>
                 {availableSubjects.map((subject) => (
                   <option key={subject} value={subject}>{subject}</option>

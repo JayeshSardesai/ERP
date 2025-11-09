@@ -5,14 +5,12 @@ import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
 import * as attendanceAPI from '../../../../api/attendance';
-import api from '../../../../api/axios';
-import toast from 'react-hot-toast';
 
 const MarkAttendance: React.FC = () => {
   const { user, token } = useAuth();
   const { classesData, loading: classesLoading, getSectionsByClass } = useSchoolClasses();
   const { currentAcademicYear } = useAcademicYear();
-
+  
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
@@ -55,9 +53,9 @@ const MarkAttendance: React.FC = () => {
 
       setLoading(true);
       try {
-        console.log('🔍 Fetching students for:', {
-          class: selectedClass,
-          section: selectedSection,
+        console.log('🔍 Fetching students for:', { 
+          class: selectedClass, 
+          section: selectedSection, 
           schoolCode: user.schoolCode,
           academicYear: currentAcademicYear
         });
@@ -68,14 +66,14 @@ const MarkAttendance: React.FC = () => {
           class: selectedClass,
           section: selectedSection
         });
-
+        
         if (currentAcademicYear) {
           queryParams.append('academicYear', currentAcademicYear);
         }
 
         // Use the same API endpoint as admin - teachers have access via validateSchoolAccess(['admin', 'teacher'])
-        const response = await api.get(
-          `/users/role/student?${queryParams.toString()}`,
+        const response = await fetch(
+          `/api/users/role/student?${queryParams.toString()}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -85,9 +83,13 @@ const MarkAttendance: React.FC = () => {
           }
         );
 
-        const data = response.data;
-        console.log('📊 API Response:', data);
+        if (!response.ok) {
+          throw new Error('Failed to fetch students');
+        }
 
+        const data = await response.json();
+        console.log('📊 API Response:', data);
+        
         const users = data.data || data || [];
         console.log(`👥 Total users received from API (already filtered by backend): ${users.length}`);
 
@@ -96,7 +98,7 @@ const MarkAttendance: React.FC = () => {
         const filtered = users.filter((u: any) => u.role === 'student');
 
         console.log(`✅ Students for AY ${currentAcademicYear}: ${filtered.length}`);
-
+        
         // Map to consistent format
         const mappedStudents = filtered.map((student: any) => ({
           _id: student._id,
@@ -108,7 +110,7 @@ const MarkAttendance: React.FC = () => {
         }));
 
         setStudents(mappedStudents);
-
+        
         // Don't initialize any attendance - let teacher mark each student
         setAttendance({});
 
@@ -286,7 +288,7 @@ const MarkAttendance: React.FC = () => {
     const present = records.filter(r => r === 'present').length;
     const absent = records.filter(r => r === 'absent').length;
     const total = students.length;
-
+    
     return { present, absent, total };
   };
 
@@ -296,7 +298,7 @@ const MarkAttendance: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Mark Attendance</h2>
-
+        
         <div className="flex flex-wrap gap-2 mt-4 sm:mt-0">
           {sessionStatus.isFrozen && (
             <div className="flex items-center px-3 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm font-medium">
@@ -396,20 +398,22 @@ const MarkAttendance: React.FC = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => setSelectedSession('morning')}
-                className={`flex-1 flex items-center justify-center px-3 py-2 rounded-lg border-2 transition-colors ${selectedSession === 'morning'
+                className={`flex-1 flex items-center justify-center px-3 py-2 rounded-lg border-2 transition-colors ${
+                  selectedSession === 'morning'
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
-                  }`}
+                }`}
               >
                 <Sun className="h-4 w-4 mr-1" />
                 Morning
               </button>
               <button
                 onClick={() => setSelectedSession('afternoon')}
-                className={`flex-1 flex items-center justify-center px-3 py-2 rounded-lg border-2 transition-colors ${selectedSession === 'afternoon'
+                className={`flex-1 flex items-center justify-center px-3 py-2 rounded-lg border-2 transition-colors ${
+                  selectedSession === 'afternoon'
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
-                  }`}
+                }`}
               >
                 <Moon className="h-4 w-4 mr-1" />
                 Afternoon
@@ -452,7 +456,7 @@ const MarkAttendance: React.FC = () => {
               </div>
             </div>
           </div>
-
+          
           <div className="divide-y divide-gray-200">
             {students.map((student, index) => (
               <div key={student._id} className="p-6 hover:bg-gray-50 transition-colors">
@@ -476,27 +480,29 @@ const MarkAttendance: React.FC = () => {
                     <button
                       onClick={() => handleStatusChange(student._id, 'present')}
                       disabled={sessionStatus.isFrozen}
-                      className={`flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${attendance[student._id] === 'present'
-                          ? 'bg-green-100 text-green-800 border-green-200'
+                      className={`flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        attendance[student._id] === 'present'
+                          ? 'bg-green-100 text-green-800 border-green-200' 
                           : attendance[student._id] === 'absent'
-                            ? 'bg-white text-gray-400 border-gray-200'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-green-50'
-                        } ${sessionStatus.isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          ? 'bg-white text-gray-400 border-gray-200'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-green-50'
+                      } ${sessionStatus.isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
                       title={sessionStatus.isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
                     >
                       <CheckCircle className="h-4 w-4 mr-1" />
                       Present
                     </button>
-
+                    
                     <button
                       onClick={() => handleStatusChange(student._id, 'absent')}
                       disabled={sessionStatus.isFrozen}
-                      className={`flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${attendance[student._id] === 'absent'
-                          ? 'bg-red-100 text-red-800 border-red-200'
+                      className={`flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        attendance[student._id] === 'absent'
+                          ? 'bg-red-100 text-red-800 border-red-200' 
                           : attendance[student._id] === 'present'
-                            ? 'bg-white text-gray-400 border-gray-200'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-red-50'
-                        } ${sessionStatus.isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          ? 'bg-white text-gray-400 border-gray-200'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-red-50'
+                      } ${sessionStatus.isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
                       title={sessionStatus.isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
                     >
                       <XCircle className="h-4 w-4 mr-1" />

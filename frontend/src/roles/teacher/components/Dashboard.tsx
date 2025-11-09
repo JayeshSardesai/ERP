@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../../api/axios';
 import {
   Users,
   BookOpen,
@@ -31,8 +30,6 @@ interface DashboardStats {
     total: number;
     pending: number;
     approved: number;
-    rejected: number;
-    year: number;
   };
   todayAttendance: {
     marked: boolean;
@@ -46,7 +43,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [stats, setStats] = useState<DashboardStats>({
     totalAssignments: 0,
     activeAssignments: 0,
-    leaveRequests: { total: 0, pending: 0, approved: 0, rejected: 0, year: new Date().getFullYear() },
+    leaveRequests: { total: 0, pending: 0, approved: 0 },
     todayAttendance: { marked: false, classesCount: 0 }
   });
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -61,113 +58,68 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     setLoading(true);
     try {
       console.log('📊 Fetching dashboard data...');
-
+      
       // Fetch assignments (the /api/assignments endpoint already filters by teacher role)
+      const assignmentsRes = await fetch('/api/assignments?limit=100', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
       let assignmentsData: any = { assignments: [] };
-      try {
-        const assignmentsRes = await api.get('/assignments?limit=100');
-        assignmentsData = assignmentsRes.data;
+      if (assignmentsRes.ok) {
+        assignmentsData = await assignmentsRes.json();
         console.log('✅ Assignments data:', assignmentsData);
-
-        // Also try direct endpoint if main endpoint fails or returns empty
-        if (!assignmentsData || (!assignmentsData.data && !assignmentsData.assignments && !Array.isArray(assignmentsData))) {
-          console.log('🔄 Trying direct assignments endpoint...');
-          const directRes = await api.get('/assignments');
-          const directData = directRes.data;
-          console.log('✅ Direct assignments data:', directData);
-          if (directData) {
-            assignmentsData = directData;
-          }
-        }
-      } catch (error) {
-        console.warn('⚠️ Assignments API failed:', error);
-        // Try fallback endpoint
-        try {
-          console.log('🔄 Trying fallback assignments endpoint...');
-          const fallbackRes = await api.get('/assignments');
-          assignmentsData = fallbackRes.data;
-          console.log('✅ Fallback assignments data:', assignmentsData);
-        } catch (fallbackError) {
-          console.error('❌ All assignment endpoints failed:', fallbackError);
-        }
+      } else {
+        console.warn('⚠️ Assignments API failed:', assignmentsRes.status);
       }
-
+      
       // Fetch leave requests
+      const leaveRes = await fetch('http://localhost:5050/api/leave-requests/teacher/my-requests', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
       let leaveData: any = { success: false, data: { leaveRequests: [] } };
-      try {
-        const leaveRes = await api.get('/leave-requests/teacher/my-requests');
-        leaveData = leaveRes.data;
+      if (leaveRes.ok) {
+        leaveData = await leaveRes.json();
         console.log('✅ Leave requests data:', leaveData);
-      } catch (error) {
-        console.warn('⚠️ Leave requests API failed:', error);
+      } else {
+        console.warn('⚠️ Leave requests API failed:', leaveRes.status);
       }
 
       // Fetch latest message (teacher-specific endpoint)
-      try {
-        const messagesRes = await api.get('/messages/teacher/messages?limit=1');
-        const messagesData = messagesRes.data;
+      const messagesRes = await fetch('/api/messages/teacher/messages?limit=1', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (messagesRes.ok) {
+        const messagesData = await messagesRes.json();
         console.log('✅ Messages data:', messagesData);
         if (messagesData.messages && messagesData.messages.length > 0) {
           setLatestMessage(messagesData.messages[0]);
         }
-      } catch (error) {
-        console.warn('⚠️ Messages API failed:', error);
+      } else {
+        console.warn('⚠️ Messages API failed:', messagesRes.status);
       }
 
-      // Calculate stats - handle different response structures
-      let assignmentsArray = [];
-      console.log('🔍 DEBUG: Raw assignmentsData structure:', {
-        hasData: !!assignmentsData.data,
-        hasAssignments: !!assignmentsData.assignments,
-        isArray: Array.isArray(assignmentsData),
-        keys: Object.keys(assignmentsData || {}),
-        type: typeof assignmentsData
-      });
-
-      if (assignmentsData.data && Array.isArray(assignmentsData.data)) {
-        assignmentsArray = assignmentsData.data;
-        console.log('📦 Using assignmentsData.data:', assignmentsArray.length);
-      } else if (assignmentsData.assignments && Array.isArray(assignmentsData.assignments)) {
-        assignmentsArray = assignmentsData.assignments;
-        console.log('📦 Using assignmentsData.assignments:', assignmentsArray.length);
-      } else if (Array.isArray(assignmentsData)) {
-        assignmentsArray = assignmentsData;
-        console.log('📦 Using direct array:', assignmentsArray.length);
-      } else if (assignmentsData && typeof assignmentsData === 'object') {
-        // Try to find any array property
-        const arrayProps = Object.keys(assignmentsData).filter(key => Array.isArray(assignmentsData[key]));
-        if (arrayProps.length > 0) {
-          assignmentsArray = assignmentsData[arrayProps[0]];
-          console.log(`📦 Using ${arrayProps[0]}:`, assignmentsArray.length);
-        }
-      }
-
-      // Filter out placeholder and invalid assignments
-      const validAssignments = assignmentsArray.filter((assignment: any) => {
-        if (!assignment || typeof assignment !== 'object') return false;
-        if (assignment._placeholder === true) {
-          console.log('⏭️ Skipping placeholder assignment in dashboard:', assignment._id);
-          return false;
-        }
-        if (!assignment.title && !assignment.subject && !assignment.class) {
-          console.log('⏭️ Skipping incomplete assignment in dashboard:', assignment._id);
-          return false;
-        }
-        return true;
-      });
-
-      console.log('📊 Valid assignments for dashboard:', validAssignments.length);
-      assignmentsArray = validAssignments;
-
+      // Calculate stats
+      const assignmentsArray = assignmentsData.assignments || [];
       const leaveRequestsArray = leaveData.data?.leaveRequests || [];
-
+      
       console.log('📦 Extracted assignments:', assignmentsArray.length);
       console.log('📦 Extracted leave requests:', leaveRequestsArray.length);
-
+      
       // Store in state for widgets
       setAssignments(assignmentsArray);
       setLeaveRequests(leaveRequestsArray);
-
+      
       const totalAssignments = assignmentsArray.length;
       const activeAssignments = assignmentsArray.filter((a: any) => {
         const dueDate = new Date(a.dueDate);
@@ -175,28 +127,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         today.setHours(0, 0, 0, 0);
         return dueDate >= today;
       }).length;
+      
+      const totalLeaves = leaveRequestsArray.length;
+      const pendingLeaves = leaveRequestsArray.filter((l: any) => l.status === 'pending').length;
+      const approvedLeaves = leaveRequestsArray.filter((l: any) => l.status === 'approved').length;
 
-      const currentYear = new Date().getFullYear();
-      const yearlyLeaveRequests = leaveRequestsArray.filter((l: any) => {
-        if (!l.startDate) return false;
-        const leaveYear = new Date(l.startDate).getFullYear();
-        return leaveYear === currentYear;
-      });
-
-      const totalLeaves = yearlyLeaveRequests.length;
-      const pendingLeaves = yearlyLeaveRequests.filter((l: any) => l.status === 'pending').length;
-      const approvedLeaves = yearlyLeaveRequests.filter((l: any) => l.status === 'approved').length;
-      const rejectedLeaves = yearlyLeaveRequests.filter((l: any) => l.status === 'rejected').length;
-
-      // Debug leave request statuses
-      console.log('🔍 Leave request statuses:', leaveRequestsArray.map((l: any) => ({ id: l._id, status: l.status, startDate: l.startDate })));
-      console.log(`📅 Yearly (${currentYear}) leave stats:`, {
-        totalYearlyLeaves: totalLeaves,
-        pendingLeaves,
-        approvedLeaves,
-        rejectedLeaves,
-        allTimeTotal: leaveRequestsArray.length
-      });
       console.log('📈 Calculated stats:', {
         totalAssignments,
         activeAssignments,
@@ -211,9 +146,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         leaveRequests: {
           total: totalLeaves,
           pending: pendingLeaves,
-          approved: approvedLeaves,
-          rejected: rejectedLeaves,
-          year: currentYear
+          approved: approvedLeaves
         },
         todayAttendance: { marked: false, classesCount: 0 }
       });
@@ -234,7 +167,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       onClick: () => onNavigate('assignments')
     },
     {
-      name: `Leave Requests (${stats.leaveRequests.year})`,
+      name: 'Leave Requests',
       value: stats.leaveRequests.total.toString(),
       icon: Calendar,
       color: 'bg-green-500',
@@ -242,11 +175,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       onClick: () => onNavigate('leave-request')
     },
     {
-      name: `Approved Leaves (${stats.leaveRequests.year})`,
+      name: 'Approved Leaves',
       value: stats.leaveRequests.approved.toString(),
       icon: CheckCircle,
       color: 'bg-emerald-500',
-      change: `${stats.leaveRequests.rejected} rejected`,
+      change: 'This year',
       onClick: () => onNavigate('leave-request')
     },
     {
@@ -259,82 +192,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     }
   ];
 
-  // Calculate days until next deadline with enhanced information
+  // Calculate days until next deadline
   const getDeadlineStatus = (dueDate: string) => {
-    // Add debugging to identify NaN issues
-    console.log('🔍 DEBUG: Processing dueDate:', dueDate, 'Type:', typeof dueDate);
-
-    if (!dueDate) {
-      console.warn('⚠️ WARNING: dueDate is null, undefined, or empty');
-      return {
-        text: 'No due date',
-        color: 'text-gray-700',
-        bgColor: 'bg-gray-100',
-        priority: 'low'
-      };
-    }
-
     const due = new Date(dueDate);
     const today = new Date();
-
-    // Check if date is valid
-    if (isNaN(due.getTime())) {
-      console.error('❌ ERROR: Invalid date format:', dueDate);
-      return {
-        text: 'Invalid date',
-        color: 'text-red-700',
-        bgColor: 'bg-red-100',
-        priority: 'urgent'
-      };
-    }
-
-    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
-    due.setHours(23, 59, 59, 999); // Set to end of due date
-
     const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    console.log('🔍 DEBUG: Calculated diffDays:', diffDays, 'for assignment due:', due.toDateString());
-
-    if (diffDays < 0) {
-      const overdueDays = Math.abs(diffDays);
-      return {
-        text: `${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue`,
-        color: 'text-red-700',
-        bgColor: 'bg-red-100',
-        priority: 'urgent'
-      };
-    }
-    if (diffDays === 0) return {
-      text: 'Due Today',
-      color: 'text-orange-700',
-      bgColor: 'bg-orange-100',
-      priority: 'high'
-    };
-    if (diffDays === 1) return {
-      text: 'Due Tomorrow',
-      color: 'text-yellow-700',
-      bgColor: 'bg-yellow-100',
-      priority: 'medium'
-    };
-    if (diffDays <= 3) return {
-      text: `${diffDays} days left`,
-      color: 'text-amber-700',
-      bgColor: 'bg-amber-50',
-      priority: 'medium'
-    };
-    if (diffDays <= 7) return {
-      text: `${diffDays} days left`,
-      color: 'text-blue-700',
-      bgColor: 'bg-blue-50',
-      priority: 'normal'
-    };
-    return {
-      text: `${diffDays} days left`,
-      color: 'text-green-700',
-      bgColor: 'bg-green-50',
-      priority: 'low'
-    };
+    
+    if (diffDays < 0) return { text: 'Overdue', color: 'text-red-600', bgColor: 'bg-red-50' };
+    if (diffDays === 0) return { text: 'Due Today', color: 'text-orange-600', bgColor: 'bg-orange-50' };
+    if (diffDays === 1) return { text: 'Due Tomorrow', color: 'text-yellow-600', bgColor: 'bg-yellow-50' };
+    return { text: `${diffDays} days left`, color: 'text-blue-600', bgColor: 'bg-blue-50' };
   };
 
   return (
@@ -354,10 +222,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="flex items-center bg-white bg-opacity-20 rounded-lg px-4 py-2">
             <Clock className="h-5 w-5 mr-2" />
             <span className="font-medium">
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'short',
-                day: 'numeric'
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                month: 'short', 
+                day: 'numeric' 
               })}
             </span>
           </div>
@@ -407,7 +275,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Upcoming Deadlines</h2>
-            <button
+            <button 
               onClick={() => onNavigate('assignments')}
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
@@ -428,213 +296,174 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {assignments
-                  .slice(0, 6) // Show more assignments
-                  .sort((a: any, b: any) => {
-                    // Sort by priority: urgent -> high -> medium -> normal -> low
-                    const priorityOrder = { urgent: 0, high: 1, medium: 2, normal: 3, low: 4 };
-                    const aPriority = getDeadlineStatus(a.dueDate).priority;
-                    const bPriority = getDeadlineStatus(b.dueDate).priority;
-                    return priorityOrder[aPriority] - priorityOrder[bPriority];
-                  })
-                  .map((assignment: any, index: number) => {
-                    const deadline = getDeadlineStatus(assignment.dueDate);
-                    const isUrgent = deadline.priority === 'urgent' || deadline.priority === 'high';
-
-                    return (
-                      <div
-                        key={index}
-                        className={`p-4 hover:bg-gray-50 transition-colors ${isUrgent ? 'border-l-4 border-red-400 bg-red-50' : ''
-                          }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-medium text-gray-900 text-sm">
-                                {assignment.title || assignment.subject || 'Untitled Assignment'}
-                              </h4>
-                              {isUrgent && (
-                                <AlertCircle className="h-4 w-4 text-red-500" />
-                              )}
-                            </div>
-                            <div className="flex items-center space-x-3 text-xs text-gray-500 mb-2">
-                              {assignment.subject && (
-                                <span className="flex items-center">
-                                  <BookOpen className="h-3 w-3 mr-1" />
-                                  {assignment.subject}
-                                </span>
-                              )}
-                              {(assignment.class || assignment.section) && (
-                                <span className="flex items-center">
-                                  <Users className="h-3 w-3 mr-1" />
-                                  {assignment.class ? `Class ${assignment.class}` : ''}
-                                  {assignment.class && assignment.section ? '-' : ''}
-                                  {assignment.section || ''}
-                                </span>
-                              )}
-                              <span className="flex items-center">
-                                <Calendar className="h-3 w-3 mr-1" />
-                                {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric'
-                                }) : 'No due date'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${deadline.bgColor} ${deadline.color}`}>
-                              {deadline.text}
+                {assignments.slice(0, 4).map((assignment: any, index: number) => {
+                  const deadline = getDeadlineStatus(assignment.dueDate);
+                  return (
+                    <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900 text-sm mb-1">
+                            {assignment.title}
+                          </h4>
+                          <div className="flex items-center space-x-3 text-xs text-gray-500">
+                            <span className="flex items-center">
+                              <BookOpen className="h-3 w-3 mr-1" />
+                              {assignment.subject}
                             </span>
-                            {isUrgent && (
-                              <span className="text-xs text-red-600 font-medium">
-                                Action Required
-                              </span>
-                            )}
+                            <span className="flex items-center">
+                              <Users className="h-3 w-3 mr-1" />
+                              Class {assignment.class}-{assignment.section}
+                            </span>
                           </div>
                         </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${deadline.bgColor} ${deadline.color}`}>
+                          {deadline.text}
+                        </span>
                       </div>
-                    );
-                  })}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
-        </div>
 
-        {/* Recent Messages */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Recent Messages</h2>
-            <button
-              onClick={() => onNavigate('messages')}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-            >
-              View All →
-            </button>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-            {!latestMessage ? (
-              <div className="p-6 text-center">
-                <MessageSquare className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-500 text-xs">No messages yet</p>
-                <button
-                  onClick={() => onNavigate('messages')}
-                  className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Send a message
-                </button>
-              </div>
-            ) : (
-              <div className="p-4 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onNavigate('messages')}>
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                      <span className="text-white font-semibold text-sm">
-                        {latestMessage.senderName?.charAt(0).toUpperCase() || 'U'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {latestMessage.senderName || 'Unknown Sender'}
-                      </p>
-                      <span className="text-xs text-gray-500">
-                        {new Date(latestMessage.createdAt).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    </div>
-                    <p className="text-sm font-medium text-gray-700 mb-1">
-                      {latestMessage.subject}
-                    </p>
-                    <p className="text-xs text-gray-500 line-clamp-2">
-                      {latestMessage.message}
-                    </p>
-                    {latestMessage.recipientType && (
-                      <span className="inline-block mt-2 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">
-                        To: {latestMessage.recipientType}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Leave Status & Quick Info */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Leave Status</h2>
-        <div className="space-y-4">
-          {/* Pending Leaves */}
-          {stats.leaveRequests.pending > 0 && (
-            <div className="bg-yellow-50 rounded-xl p-4 border-2 border-yellow-200">
-              <div className="flex items-start space-x-3">
-                <div className="p-2 rounded-lg bg-yellow-100">
-                  <Clock className="h-5 w-5 text-yellow-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-yellow-900 text-sm">
-                    {stats.leaveRequests.pending} Pending Leave Request{stats.leaveRequests.pending > 1 ? 's' : ''}
-                  </h3>
-                  <p className="text-xs text-yellow-700 mt-1">
-                    Awaiting admin approval
-                  </p>
+          {/* Recent Messages */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Recent Messages</h2>
+              <button 
+                onClick={() => onNavigate('messages')}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                View All →
+              </button>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+              {!latestMessage ? (
+                <div className="p-6 text-center">
+                  <MessageSquare className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500 text-xs">No messages yet</p>
                   <button
-                    onClick={() => onNavigate('leave-request')}
-                    className="mt-2 text-xs text-yellow-800 hover:text-yellow-900 font-medium"
+                    onClick={() => onNavigate('messages')}
+                    className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
                   >
-                    View Details →
+                    Send a message
                   </button>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Recent Leave Requests */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-            <div className="p-4 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-900 text-sm">Recent Leave Requests</h3>
-            </div>
-            {leaveRequests.length === 0 ? (
-              <div className="p-6 text-center">
-                <Calendar className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-500 text-xs">No leave requests</p>
-                <button
-                  onClick={() => onNavigate('leave-request')}
-                  className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Apply for leave
-                </button>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {leaveRequests.slice(0, 3).map((leave: any, index: number) => (
-                  <div key={index} className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{leave.subjectLine}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(leave.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(leave.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          <span className="mx-1">•</span>
-                          {leave.numberOfDays} day{leave.numberOfDays > 1 ? 's' : ''}
-                        </p>
+              ) : (
+                <div className="p-4 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onNavigate('messages')}>
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                        <span className="text-white font-semibold text-sm">
+                          {latestMessage.senderName?.charAt(0).toUpperCase() || 'U'}
+                        </span>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${leave.status === 'approved' ? 'bg-green-100 text-green-700' :
-                        leave.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                        {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
-                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {latestMessage.senderName || 'Unknown Sender'}
+                        </p>
+                        <span className="text-xs text-gray-500">
+                          {new Date(latestMessage.createdAt).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-700 mb-1">
+                        {latestMessage.subject}
+                      </p>
+                      <p className="text-xs text-gray-500 line-clamp-2">
+                        {latestMessage.message}
+                      </p>
+                      {latestMessage.recipientType && (
+                        <span className="inline-block mt-2 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">
+                          To: {latestMessage.recipientType}
+                        </span>
+                      )}
                     </div>
                   </div>
-                ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Leave Status & Quick Info */}
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Leave Status</h2>
+          <div className="space-y-4">
+            {/* Pending Leaves */}
+            {stats.leaveRequests.pending > 0 && (
+              <div className="bg-yellow-50 rounded-xl p-4 border-2 border-yellow-200">
+                <div className="flex items-start space-x-3">
+                  <div className="p-2 rounded-lg bg-yellow-100">
+                    <Clock className="h-5 w-5 text-yellow-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-yellow-900 text-sm">
+                      {stats.leaveRequests.pending} Pending Leave Request{stats.leaveRequests.pending > 1 ? 's' : ''}
+                    </h3>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Awaiting admin approval
+                    </p>
+                    <button
+                      onClick={() => onNavigate('leave-request')}
+                      className="mt-2 text-xs text-yellow-800 hover:text-yellow-900 font-medium"
+                    >
+                      View Details →
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
+
+            {/* Recent Leave Requests */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+              <div className="p-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-900 text-sm">Recent Leave Requests</h3>
+              </div>
+              {leaveRequests.length === 0 ? (
+                <div className="p-6 text-center">
+                  <Calendar className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500 text-xs">No leave requests</p>
+                  <button
+                    onClick={() => onNavigate('leave-request')}
+                    className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Apply for leave
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {leaveRequests.slice(0, 3).map((leave: any, index: number) => (
+                    <div key={index} className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">{leave.subjectLine}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(leave.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(leave.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            <span className="mx-1">•</span>
+                            {leave.numberOfDays} day{leave.numberOfDays > 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          leave.status === 'approved' ? 'bg-green-100 text-green-700' :
+                          leave.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

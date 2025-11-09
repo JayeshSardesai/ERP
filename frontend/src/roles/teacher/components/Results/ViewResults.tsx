@@ -5,7 +5,6 @@ import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { resultsAPI } from '../../../../services/api';
 import { toast } from 'react-hot-toast';
-import api from '../../../../api/axios';
 
 const ViewResults: React.FC = () => {
   const { user, token } = useAuth();
@@ -122,26 +121,39 @@ const ViewResults: React.FC = () => {
 
         // Primary API
         try {
-          const response = await api.get('/class-subjects/classes');
-          const data = response.data;
-          const classData = data?.data?.classes?.find((c: any) => c.className === selectedClass && c.section === selectedSection);
-          const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
-          const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
-          setSubjects(subjectNames);
-          setSelectedSubject('');
-          return;
+          const resp = await fetch('/api/class-subjects/classes', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'x-school-code': schoolCode.toUpperCase()
+            }
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            const classData = data?.data?.classes?.find((c: any) => c.className === selectedClass && c.section === selectedSection);
+            const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
+            const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
+            setSubjects(subjectNames);
+            setSelectedSubject('');
+            return;
+          }
         } catch (_) {
           // fall through to fallback
         }
 
         // Fallback API
         try {
-          const response2 = await api.get(`/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`);
-          const data2 = response2.data;
-          const subjectNames = (data2?.data?.subjects || []).map((s: any) => s.name).filter(Boolean);
-          setSubjects(subjectNames);
-          setSelectedSubject('');
-          return;
+          const resp2 = await fetch(`/api/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`, {
+            headers: {
+              'x-school-code': schoolCode.toUpperCase()
+            }
+          });
+          if (resp2.ok) {
+            const data2 = await resp2.json();
+            const subjectNames = (data2?.data?.subjects || []).map((s: any) => s.name).filter(Boolean);
+            setSubjects(subjectNames);
+            setSelectedSubject('');
+            return;
+          }
         } catch (_) {
           // ignore
         }
@@ -281,48 +293,6 @@ const ViewResults: React.FC = () => {
     lowestScore: results.length > 0 ? Math.min(...results.map(student => student.obtainedMarks || 0)) : 0
   };
 
-  const handleExportResults = async () => {
-    if (results.length === 0) {
-      toast.error('No results to export');
-      return;
-    }
-
-    try {
-      // Create CSV content
-      const headers = ['Student ID', 'Student Name', 'Subject', 'Test Type', 'Obtained Marks', 'Total Marks', 'Percentage', 'Grade', 'Date'];
-      const csvContent = [
-        headers.join(','),
-        ...results.map(result => [
-          result.userId || '',
-          result.studentName || result.name || '',
-          result.subject || selectedSubject || '',
-          result.testType || selectedExam || '',
-          result.obtainedMarks || 0,
-          result.totalMarks || result.maxMarks || 0,
-          result.totalMarks ? Math.round((result.obtainedMarks / result.totalMarks) * 100) : 0,
-          calculateGrade(result.obtainedMarks, result.totalMarks || result.maxMarks),
-          result.createdAt ? new Date(result.createdAt).toLocaleDateString() : ''
-        ].join(','))
-      ].join('\n');
-
-      // Create and download file
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `results_${selectedClass}_${selectedSection}_${selectedSubject}_${selectedExam}_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast.success('Results exported successfully!');
-    } catch (error) {
-      console.error('Error exporting results:', error);
-      toast.error('Failed to export results');
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
@@ -331,11 +301,7 @@ const ViewResults: React.FC = () => {
           <p className="text-gray-600">Student performance reports for your subjects</p>
         </div>
 
-        <button
-          onClick={handleExportResults}
-          disabled={results.length === 0}
-          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mt-4 sm:mt-0 disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
+        <button className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mt-4 sm:mt-0">
           <Download className="h-4 w-4 mr-2" />
           Export Results
         </button>
@@ -440,7 +406,7 @@ const ViewResults: React.FC = () => {
                     return;
                   }
 
-                  console.log('Fetching results with params:', {
+                  console.log('🔍 Fetching results with params:', {
                     schoolCode,
                     class: selectedClass,
                     section: selectedSection,
@@ -460,7 +426,7 @@ const ViewResults: React.FC = () => {
 
                   if (response.data.success && response.data.data) {
                     const resultsData = response.data.data || [];
-
+                    
                     // Check if results are frozen
                     const firstResult = resultsData[0];
                     const frozen = firstResult?.frozen || false;
