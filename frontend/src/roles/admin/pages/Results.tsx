@@ -251,29 +251,7 @@ const Results: React.FC = () => {
   }, [selectedClass, classesData]);
 
   // Fetch subjects for selected class and section (aligned with superadmin-created subjects)
-  useEffect(() => {
-    const fetchSubjects = async () => {
-      setSubjects([]);
-      setSelectedSubject('');
-      if (!selectedClass || !selectedSection) return;
-      try {
-        // Use class-subjects route to get subjects for grade/section
-        const res = await api.get(`/class-subjects/grade/${encodeURIComponent(selectedClass)}/section/${encodeURIComponent(selectedSection)}`);
-        // Expecting res.data.subjects or res.data.data; support both
-        const items = (res.data?.subjects || res.data?.data || []) as any[];
-        const mapped = items.map((s: any) => ({
-          label: s.subjectName || s.name || s.subject || s,
-          value: s.subjectCode || s.code || s.subjectName || s.name || s
-        })).filter((x: any) => x.label && x.value);
-        setSubjects(mapped);
-        if (mapped.length > 0) setSelectedSubject(mapped[0].value);
-      } catch (err) {
-        console.error('Error fetching subjects for class/section:', err);
-        toast.error('Failed to load subjects for selected class/section');
-      }
-    };
-    fetchSubjects();
-  }, [selectedClass, selectedSection]);
+  // Removed old fetchSubjects useEffect - now using the newer implementation below (lines 309-373)
 
   // Fetch test types when selected class changes
   useEffect(() => {
