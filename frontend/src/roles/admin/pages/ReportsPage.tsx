@@ -241,19 +241,64 @@ const ReportsPage: React.FC = () => {
         sectionData.students.push(student);
       });
       
-      // Convert to the expected format
-      const formattedData = Array.from(classMap.values()).map(classData => ({
-        className: classData.className,
-        sections: Array.from(classData.sections.entries()).map(([name, data]) => ({
-          name,
-          count: data.count,
-          avgMarks: 0, // Will be calculated from actual data if available
-          avgAttendance: 0 // Will be calculated from actual data if available
-        })),
-        total: classData.total
-      }));
+      // Fetch attendance and results stats for each class-section combination
+      console.log('📊 Fetching attendance and results stats for each class-section...');
+      const formattedDataPromises = Array.from(classMap.values()).map(async (classData) => {
+        const sectionsWithStats = await Promise.all(
+          Array.from(classData.sections.entries()).map(async ([name, data]) => {
+            let avgAttendance = 0;
+            let avgMarks = 0;
+            
+            try {
+              // Fetch attendance stats
+              const attendanceParams = {
+                class: classData.className,
+                section: name,
+                academicYear: viewingAcademicYear
+              };
+              
+              console.log(`📈 Fetching attendance for Class ${classData.className} Section ${name}:`, attendanceParams);
+              const attendanceResponse = await api.get('/attendance/stats', { params: attendanceParams });
+              avgAttendance = attendanceResponse.data?.averageAttendance || 0;
+              console.log(`✅ Class ${classData.className} Section ${name}: ${avgAttendance}% attendance`);
+            } catch (error) {
+              console.error(`❌ Error fetching attendance for ${classData.className}-${name}:`, error);
+            }
+            
+            try {
+              // Fetch results stats
+              const resultsParams = {
+                class: classData.className,
+                section: name,
+                academicYear: viewingAcademicYear
+              };
+              
+              const resultsResponse = await api.get('/results/stats', { params: resultsParams });
+              avgMarks = resultsResponse.data?.averagePercentage || 0;
+              console.log(`✅ Class ${classData.className} Section ${name}: ${avgMarks}% marks`);
+            } catch (error) {
+              console.error(`❌ Error fetching results for ${classData.className}-${name}:`, error);
+            }
+            
+            return {
+              name,
+              count: data.count,
+              avgMarks: avgMarks,
+              avgAttendance: avgAttendance
+            };
+          })
+        );
+        
+        return {
+          className: classData.className,
+          sections: sectionsWithStats,
+          total: classData.total
+        };
+      });
       
-      console.log('Formatted class-wise data:', formattedData);
+      const formattedData = await Promise.all(formattedDataPromises);
+      
+      console.log('Formatted class-wise data with stats:', formattedData);
       setClassWiseCounts(formattedData);
       setError(null);
       
@@ -328,10 +373,49 @@ const ReportsPage: React.FC = () => {
       // Calculate summary statistics
       const totalStudents = filteredStudents.length;
       
-      // For now, set default values for attendance and marks
-      // These would need to be fetched from actual attendance/marks data
-      const avgAttendance = 0;
-      const avgMarks = 0;
+      // Fetch overall attendance stats
+      let avgAttendance = 0;
+      try {
+        const attendanceParams: any = {
+          academicYear: viewingAcademicYear
+        };
+        
+        if (selectedClass !== 'ALL') {
+          attendanceParams.class = selectedClass;
+        }
+        if (selectedSection !== 'ALL') {
+          attendanceParams.section = selectedSection;
+        }
+        
+        console.log('📊 Fetching overall attendance stats:', attendanceParams);
+        const attendanceResponse = await api.get('/attendance/stats', { params: attendanceParams });
+        avgAttendance = attendanceResponse.data?.averageAttendance || 0;
+        console.log('✅ Overall attendance:', avgAttendance);
+      } catch (error) {
+        console.error('❌ Error fetching overall attendance:', error);
+      }
+      
+      // Fetch overall results/marks stats
+      let avgMarks = 0;
+      try {
+        const resultsParams: any = {
+          academicYear: viewingAcademicYear
+        };
+        
+        if (selectedClass !== 'ALL') {
+          resultsParams.class = selectedClass;
+        }
+        if (selectedSection !== 'ALL') {
+          resultsParams.section = selectedSection;
+        }
+        
+        console.log('📊 Fetching overall results stats:', resultsParams);
+        const resultsResponse = await api.get('/results/stats', { params: resultsParams });
+        avgMarks = resultsResponse.data?.averagePercentage || 0;
+        console.log('✅ Overall average marks:', avgMarks);
+      } catch (error) {
+        console.error('❌ Error fetching overall results:', error);
+      }
       
       setSummary({
         totalStudents,

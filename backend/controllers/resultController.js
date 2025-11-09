@@ -1403,31 +1403,20 @@ exports.getClassPerformanceStats = async (req, res) => {
 // ---------------------------------------------------------
 exports.getResultsStats = async (req, res) => {
   try {
-    const { academicYear } = req.query;
+    const { academicYear, class: className, section } = req.query;
     const schoolCode = req.user?.schoolCode;
 
-    console.log(`[RESULTS STATS] Request received from user:`, {
-      userId: req.user?.userId,
-      role: req.user?.role,
-      schoolCode: schoolCode,
-      academicYear: academicYear
-    });
-
     if (!schoolCode) {
-      console.error('[RESULTS STATS] No school code found in user object');
       return res.status(400).json({
         success: false,
         message: 'School code is required'
       });
     }
 
-    console.log(`[RESULTS STATS] Fetching stats for school: ${schoolCode}, academic year: ${academicYear || 'all'}`);
-
     const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
     const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     
     if (!schoolConnection) {
-      console.error(`[RESULTS STATS] Failed to get school connection for: ${schoolCode}`);
       return res.status(500).json({
         success: false,
         message: 'Failed to connect to school database'
@@ -1438,6 +1427,16 @@ exports.getResultsStats = async (req, res) => {
 
     // Build query
     const query = {};
+    
+    // Filter by class if provided
+    if (className && className !== 'all') {
+      query.class = className;
+    }
+    
+    // Filter by section if provided
+    if (section) {
+      query.section = section;
+    }
     
     // Normalize academic year format to handle both "2024-25" and "2024-2025"
     if (academicYear) {
@@ -1454,7 +1453,6 @@ exports.getResultsStats = async (req, res) => {
             `${startYear}-${fullEndYear}`
           ]
         };
-        console.log(`[RESULTS STATS] Filtering by academic year (both formats): ${startYear}-${endYear} OR ${startYear}-${fullEndYear}`);
       } else {
         query.academicYear = academicYear;
       }
