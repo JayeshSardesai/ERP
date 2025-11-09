@@ -1428,9 +1428,9 @@ exports.getResultsStats = async (req, res) => {
     // Build query
     const query = {};
     
-    // Filter by class if provided
+    // Filter by class if provided (results use 'className' field)
     if (className && className !== 'all') {
-      query.class = className;
+      query.className = className;
     }
     
     // Filter by section if provided
