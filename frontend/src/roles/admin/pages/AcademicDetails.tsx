@@ -5,7 +5,7 @@ import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import { renderToString } from 'react-dom/server';
 import AdmitCardTemplate from '../../../components/templates/AdmitCardTemplate';
 import SimpleIDCardGenerator from '../../../components/SimpleIDCardGenerator';
-import { useTemplateData } from '../hooks/useTemplateData';
+import { useTemplateData } from '../../../components/templates/hooks/useTemplateData';
 import { useAuth } from '../../../auth/AuthContext';
 import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import api from '../../../services/api';
