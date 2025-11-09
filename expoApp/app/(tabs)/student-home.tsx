@@ -24,6 +24,7 @@ export default function StudentHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showSOSModal, setShowSOSModal] = useState(false);
   const [sendingSOSAlert, setSendingSOSAlert] = useState(false);
+  const [sosCountdown, setSosCountdown] = useState(5);
   const socketRef = useRef<Socket | null>(null);
   const [userData, setUserData] = useState<any>(null);
 
@@ -161,8 +162,36 @@ export default function StudentHomeScreen() {
     };
   }, []);
 
+  // SOS Countdown Timer
+  useEffect(() => {
+    let countdownInterval: ReturnType<typeof setInterval>;
+    
+    if (showSOSModal && sosCountdown > 0) {
+      countdownInterval = setInterval(() => {
+        setSosCountdown((prev) => {
+          if (prev <= 1) {
+            // Auto-send SOS when countdown reaches 0
+            handleSOSConfirm();
+            return 5; // Reset for next time
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (!showSOSModal) {
+      // Reset countdown when modal closes
+      setSosCountdown(5);
+    }
+
+    return () => {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+    };
+  }, [showSOSModal, sosCountdown]);
+
   const handleSOSPress = () => {
     setShowSOSModal(true);
+    setSosCountdown(5); // Reset countdown when opening modal
   };
 
   const handleSOSConfirm = async () => {
