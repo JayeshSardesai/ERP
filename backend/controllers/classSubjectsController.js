@@ -391,16 +391,27 @@ const getSubjectsForClass = async (req, res) => {
     
     const { className } = req.params;
     const schoolCode = req.user.schoolCode;
-    const { academicYear = '2024-25' } = req.query;
+    const { academicYear = '2024-25', section } = req.query;
+
+    console.log(`[GET CLASS SUBJECTS] Fetching subjects for class: ${className}, section: ${section || 'ALL'}, academicYear: ${academicYear}`);
+
+    // Build query object
+    const query = {
+      schoolCode,
+      className,
+      academicYear,
+      isActive: true
+    };
+
+    // Add section filter if provided and not "ALL"
+    if (section && section !== 'ALL') {
+      query.section = section;
+      console.log(`[GET CLASS SUBJECTS] Filtering by section: ${section}`);
+    }
 
     // Try main database first since admin-added subjects are stored there
     try {
-      const mainClassSubjects = await ClassSubjectsSimple.findOne({
-        schoolCode,
-        className,
-        academicYear,
-        isActive: true
-      });
+      const mainClassSubjects = await ClassSubjectsSimple.findOne(query);
 
       if (mainClassSubjects) {
         console.log(`[GET CLASS SUBJECTS] Found class "${className}" in main database with ${mainClassSubjects.totalSubjects} subjects`);
@@ -430,12 +441,7 @@ const getSubjectsForClass = async (req, res) => {
         try {
           const SchoolClassSubjects = ClassSubjectsSimple.getModelForConnection(schoolConn);
           
-          const classSubjects = await SchoolClassSubjects.findOne({
-            schoolCode,
-            className,
-            academicYear,
-            isActive: true
-          });
+          const classSubjects = await SchoolClassSubjects.findOne(query);
 
           if (classSubjects) {
             console.log(`[GET CLASS SUBJECTS] Found class "${className}" in school database with ${classSubjects.totalSubjects} subjects`);

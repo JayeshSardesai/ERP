@@ -1421,8 +1421,26 @@ exports.getResultsStats = async (req, res) => {
 
     // Build query
     const query = {};
+    
+    // Normalize academic year format to handle both "2024-25" and "2024-2025"
     if (academicYear) {
-      query.academicYear = academicYear;
+      const parts = academicYear.split('-');
+      if (parts.length === 2) {
+        const startYear = parts[0];
+        const endYear = parts[1].length === 2 ? parts[1] : parts[1].slice(-2);
+        const fullEndYear = parts[1].length === 4 ? parts[1] : `20${parts[1]}`;
+        
+        // Match both formats
+        query.academicYear = {
+          $in: [
+            `${startYear}-${endYear}`,
+            `${startYear}-${fullEndYear}`
+          ]
+        };
+        console.log(`[RESULTS STATS] Filtering by academic year (both formats): ${startYear}-${endYear} OR ${startYear}-${fullEndYear}`);
+      } else {
+        query.academicYear = academicYear;
+      }
     }
 
     const results = await resultsCollection.find(query).toArray();

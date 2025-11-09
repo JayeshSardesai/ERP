@@ -68,7 +68,7 @@ const Assignments: React.FC = () => {
     }
   }, [assignments]);
 
-  // Fetch subjects when class or academic year changes
+  // Fetch subjects when class, section, or academic year changes
   useEffect(() => {
     if (selectedClass) {
       fetchSubjectsForClass(selectedClass);
@@ -76,7 +76,7 @@ const Assignments: React.FC = () => {
       setSubjects([]);
       setSelectedSubject('');
     }
-  }, [selectedClass, viewingAcademicYear]);
+  }, [selectedClass, selectedSection, viewingAcademicYear]);
 
   const fetchAssignments = async () => {
     try {
@@ -207,16 +207,24 @@ const Assignments: React.FC = () => {
 
   const fetchSubjectsForClass = async (className: string) => {
     try {
-      console.log(`🔍 Fetching subjects for class: ${className}, academic year: ${viewingAcademicYear}`);
+      console.log(`🔍 Fetching subjects for class: ${className}, section: ${selectedSection || 'ALL'}, academic year: ${viewingAcademicYear}`);
       
       // Get school code from localStorage or auth
       const schoolCode = localStorage.getItem('erp.schoolCode') || '';
       
-      // Try the class-subjects API with academic year filter
+      // Build params object
+      const params: any = {
+        academicYear: viewingAcademicYear
+      };
+      
+      // Add section if selected and not empty
+      if (selectedSection && selectedSection !== '') {
+        params.section = selectedSection;
+      }
+      
+      // Try the class-subjects API with academic year and section filter
       const response = await api.get(`/class-subjects/class/${encodeURIComponent(className)}`, {
-        params: {
-          academicYear: viewingAcademicYear
-        }
+        params
       });
       const data = response.data;
       
