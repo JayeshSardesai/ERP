@@ -237,14 +237,6 @@ exports.updateMessagesWithAcademicYear = async (req, res) => {
     const schoolCode = req.user.schoolCode;
     if (!schoolCode) {
       return res.status(400).json({
-        success: false,
-        message: 'School code not found in user profile'
-      });
-    }
-
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-    const db = connection.db;
-
     // Get current academic year from school settings
     const schoolInfoCollection = db.collection('school_info');
     const schoolInfo = await schoolInfoCollection.findOne({});
@@ -458,7 +450,7 @@ exports.getMessages = async (req, res) => {
     }
 
     console.log(`🔗 [GET MESSAGES] Connecting to school database: ${schoolCode}`);
-    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     console.log(`✅ [GET MESSAGES] Connected to database: ${db.databaseName}`);
 
