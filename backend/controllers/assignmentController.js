@@ -321,7 +321,7 @@ const sendAssignmentNotifications = async (assignment, schoolId) => {
 // Get all assignments for a school
 exports.getAssignments = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, subject, class: className, search = '' } = req.query;
+    const { page = 1, limit = 10, status, subject, class: className, search = '', academicYear } = req.query;
 
     // Check if user has access
     if (!['admin', 'teacher', 'student', 'parent'].includes(req.user.role)) {
@@ -338,11 +338,22 @@ exports.getAssignments = async (req, res) => {
 
     console.log(`[GET ASSIGNMENTS] Getting assignments for school: ${schoolCode || schoolId}`);
 
+    // Get school's current academic year if not provided
+    const School = require('../models/School');
+    const school = await School.findOne({ code: schoolCode });
+    const currentAcademicYear = school?.settings?.academicYear?.currentYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+    console.log(`[GET ASSIGNMENTS] School's current academic year: ${currentAcademicYear}`);
+
     // Build query
     const query = {};
     if (schoolId) {
       query.schoolId = schoolId;
     }
+
+    // Filter by academic year - use provided or default to current
+    const yearToFilter = academicYear || currentAcademicYear;
+    query.academicYear = yearToFilter;
+    console.log(`[GET ASSIGNMENTS] Filtering by academic year: ${yearToFilter}`);
 
     if (status) {
       query.status = status;

@@ -136,7 +136,7 @@ const ViewAttendance: React.FC = () => {
             );
 
             if (sessionDoc && sessionDoc.students) {
-              studentsWithAttendance = studentsWithAttendance.map(student => {
+              studentsWithAttendance = studentsWithAttendance.map((student: Student) => {
                 const existingRecord = sessionDoc.students.find(
                   (record: any) => record.studentId === student.userId
                 );

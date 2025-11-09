@@ -406,60 +406,57 @@ const ViewResults: React.FC = () => {
                     return;
                   }
 
-                  // Build query params including academic year
-                  const queryParams = new URLSearchParams({
+                  console.log('🔍 Fetching results with params:', {
+                    schoolCode,
+                    class: selectedClass,
+                    section: selectedSection,
+                    subject: selectedSubject,
+                    testType: selectedExam,
+                    academicYear: currentAcademicYear
+                  });
+
+                  // Use the same API method as admin
+                  const response = await resultsAPI.getResults({
                     schoolCode,
                     class: selectedClass,
                     section: selectedSection,
                     subject: selectedSubject,
                     testType: selectedExam
                   });
-                  
-                  if (currentAcademicYear) {
-                    queryParams.append('academicYear', currentAcademicYear);
-                  }
 
-                  console.log('🔍 Fetching results with params:', Object.fromEntries(queryParams));
-
-                  const response = await fetch(
-                    `/api/results/teacher/view?${queryParams.toString()}`,
-                    {
-                      headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                      }
-                    }
-                  );
-
-                  if (!response.ok) {
-                    throw new Error('Failed to fetch results');
-                  }
-
-                  const data = await response.json();
-
-                  if (data.success) {
-                    const resultsData = data.data.results || [];
-                    setResults(resultsData);
-
+                  if (response.data.success && response.data.data) {
+                    const resultsData = response.data.data || [];
+                    
                     // Check if results are frozen
                     const firstResult = resultsData[0];
                     const frozen = firstResult?.frozen || false;
                     setIsFrozen(frozen);
 
+                    // Map results to expected format
+                    const formattedResults = resultsData.map((r: any) => ({
+                      ...r,
+                      id: r._id || r.id,
+                      studentName: r.studentName || r.name,
+                      grade: calculateGrade(r.obtainedMarks, r.totalMarks || r.maxMarks)
+                    }));
+
+                    setResults(formattedResults);
+
                     if (frozen) {
-                      toast.error(`⚠️ Results are FROZEN and cannot be edited. Loaded ${resultsData.length} result(s).`, { duration: 5000 });
+                      toast.error(`⚠️ Results are FROZEN and cannot be edited. Loaded ${formattedResults.length} result(s).`, { duration: 5000 });
                     } else {
-                      toast.success(`Found ${resultsData.length} results`);
+                      toast.success(`Found ${formattedResults.length} results`);
                     }
                   } else {
-                    toast.error(data.message || 'Failed to fetch results');
+                    toast.error('No results found for the selected filters');
                     setResults([]);
                     setIsFrozen(false);
                   }
-                } catch (error) {
+                } catch (error: any) {
                   console.error('Error fetching results:', error);
-                  toast.error('Failed to fetch results');
+                  toast.error(error.response?.data?.message || 'Failed to fetch results');
                   setResults([]);
+                  setIsFrozen(false);
                 } finally {
                   setLoading(false);
                 }

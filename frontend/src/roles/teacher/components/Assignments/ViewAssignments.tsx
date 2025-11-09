@@ -40,7 +40,7 @@ const ViewAssignments: React.FC = () => {
 
   useEffect(() => {
     fetchAssignments();
-  }, []);
+  }, [currentAcademicYear]);
 
   useEffect(() => {
     filterAssignments();
@@ -51,19 +51,20 @@ const ViewAssignments: React.FC = () => {
       const sections = getSectionsByClass(selectedClass);
       setAvailableSections(sections);
     } else {
+      // When "All Classes" is selected, clear sections but don't reset filters
       setAvailableSections([]);
-      setSelectedSection('');
     }
-  }, [selectedClass, classesData]);
+  }, [selectedClass, classesData, getSectionsByClass]);
 
   useEffect(() => {
     if (selectedClass && selectedSection) {
       fetchSubjectsForClassSection();
     } else {
-      setAvailableSubjects([]);
-      setSelectedSubject('');
+      // When no specific class/section, get all unique subjects from assignments
+      const uniqueSubjects = [...new Set(assignments.map(a => a.subject).filter(Boolean))];
+      setAvailableSubjects(uniqueSubjects);
     }
-  }, [selectedClass, selectedSection]);
+  }, [selectedClass, selectedSection, assignments]);
 
   const fetchAssignments = async () => {
     try {
@@ -309,13 +310,11 @@ const ViewAssignments: React.FC = () => {
           value={selectedSection}
           onChange={(e) => {
             setSelectedSection(e.target.value);
-            setSelectedSubject('');
           }}
-          disabled={!selectedClass}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">All Sections</option>
-          {availableSections.map((section) => (
+          {selectedClass && availableSections.map((section) => (
             <option key={section.value} value={section.value}>Section {section.section}</option>
           ))}
         </select>
@@ -323,8 +322,7 @@ const ViewAssignments: React.FC = () => {
         <select
           value={selectedSubject}
           onChange={(e) => setSelectedSubject(e.target.value)}
-          disabled={!selectedSection}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">All Subjects</option>
           {availableSubjects.map((subject) => (

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, UserCheck, Eye, GraduationCap } from 'lucide-react';
+import { Calendar, UserCheck, Eye, GraduationCap, AlertCircle } from 'lucide-react';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import MarkAttendance from './MarkAttendance';
 import ViewAttendance from './ViewAttendance';
@@ -10,7 +10,14 @@ interface AttendanceProps {
 
 const Attendance: React.FC<AttendanceProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'mark' | 'view'>('mark');
-  const { currentAcademicYear, loading: ayLoading } = useAcademicYear();
+  const { 
+    currentAcademicYear, 
+    viewingAcademicYear, 
+    isViewingHistoricalYear, 
+    setViewingYear, 
+    availableYears, 
+    loading: ayLoading 
+  } = useAcademicYear();
 
   return (
     <div className="space-y-6">
@@ -23,7 +30,7 @@ const Attendance: React.FC<AttendanceProps> = ({ onNavigate }) => {
           <h1 className="text-2xl font-bold text-gray-900">Attendance Management</h1>
         </div>
         
-        {/* Academic Year Badge */}
+        {/* Academic Year Badge (Read-only) */}
         <div className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg shadow-md">
           <GraduationCap className="h-5 w-5" />
           <div className="flex flex-col">

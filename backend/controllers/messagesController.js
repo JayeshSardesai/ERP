@@ -764,6 +764,12 @@ exports.getTeacherMessages = async (req, res) => {
     const { limit = 20, page = 1, academicYear } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
+    // Get school's current academic year from settings
+    const School = require('../models/School');
+    const school = await School.findOne({ code: schoolCode });
+    const currentAcademicYear = school?.settings?.academicYear?.currentYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+    console.log(`📅 School's current academic year: ${currentAcademicYear}`);
+    
     // Helper function to normalize academic year format (handles both 2024-2025 and 2024-25)
     const normalizeAcademicYear = (year) => {
       if (!year) return null;
@@ -780,13 +786,12 @@ exports.getTeacherMessages = async (req, res) => {
       return yearStr;
     };
 
-    // Build query with optional academic year filter
+    // Build query - use provided academicYear or default to current academic year
     const query = {};
-    if (academicYear) {
-      const normalizedAY = normalizeAcademicYear(academicYear);
-      query.academicYear = normalizedAY;
-      console.log(`📅 Filtering messages by Academic Year: ${academicYear} (normalized: ${normalizedAY})`);
-    }
+    const yearToFilter = academicYear || currentAcademicYear;
+    const normalizedAY = normalizeAcademicYear(yearToFilter);
+    query.academicYear = normalizedAY;
+    console.log(`📅 Filtering messages by Academic Year: ${yearToFilter} (normalized: ${normalizedAY})`);
     
     // Fetch messages from the teacher's school (sorted by newest first)
     const messages = await messagesCollection.find(query)

@@ -37,19 +37,9 @@ const Messages: React.FC = () => {
   const fetchMessages = async () => {
     setLoading(true);
     try {
-      // Build query params including academic year
-      const queryParams = new URLSearchParams();
-      if (currentAcademicYear) {
-        queryParams.append('academicYear', currentAcademicYear);
-      }
+      console.log('🔍 Fetching messages from teacher endpoint');
 
-      const url = queryParams.toString() 
-        ? `/api/messages/teacher/messages?${queryParams.toString()}`
-        : '/api/messages/teacher/messages';
-
-      console.log('🔍 Fetching messages for academic year:', currentAcademicYear);
-
-      const response = await fetch(url, {
+      const response = await fetch('/api/messages/teacher/messages', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -63,8 +53,12 @@ const Messages: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        setMessages(data.data.messages || []);
-        console.log('✅ Fetched messages:', data.data.messages);
+        // Backend returns messages in both data.messages and data.data.messages
+        const fetchedMessages = data.messages || data.data?.messages || [];
+        setMessages(fetchedMessages);
+        console.log('✅ Fetched messages for academic year:', currentAcademicYear);
+        console.log('✅ Total messages:', fetchedMessages.length);
+        console.log('✅ Messages:', fetchedMessages);
       } else {
         toast.error(data.message || 'Failed to fetch messages');
       }
@@ -91,8 +85,8 @@ const Messages: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Messages</h1>
-          <p className="text-gray-600">View your messages</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">School Messages</h1>
+          <p className="text-gray-600">Messages sent by admins to students</p>
         </div>
         
         {/* Academic Year Badge */}
@@ -112,7 +106,10 @@ const Messages: React.FC = () => {
         <div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Recent Messages</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Messages from Admin</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Viewing messages for academic year: <span className="font-semibold text-indigo-600">{currentAcademicYear}</span>
+              </p>
             </div>
 
             {loading ? (

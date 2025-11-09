@@ -356,7 +356,7 @@ const MarkAttendance: React.FC = () => {
               value={currentAcademicYear || 'Loading...'}
               readOnly
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold cursor-not-allowed"
-              title="Academic Year is set by Admin and cannot be changed"
+              title="Current academic year (set by Admin)"
             />
           </div>
 
