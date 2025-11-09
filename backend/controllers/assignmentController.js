@@ -908,6 +908,7 @@ exports.deleteAssignment = async (req, res) => {
     }
 
     res.json({
+      success: true,
       message: 'Assignment deleted successfully',
       deletedFrom: deletedFromSchoolDB ? 'school-specific database' : 'main database'
     });
