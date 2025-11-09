@@ -1652,51 +1652,12 @@ const FeePaymentsTab: React.FC = () => {
                               console.log('student.studentDetails.admissionNumber:', student.studentDetails.admissionNumber);
                             }
 
-                            // Find the first installment with chalan info, or use the first installment
-                            const chalanInstallment = student.installments.find((i: any) => i.chalanNumber) || student.installments[0];
+                            // Find the first unpaid installment with chalan info, or use the first unpaid installment
+                            const unpaidInstallments = student.installments.filter((i: any) => i.status !== 'paid');
+                            const chalanInstallment = unpaidInstallments.find((i: any) => i.chalanNumber) || unpaidInstallments[0];
                             console.log('Selected installment for chalan:', chalanInstallment);
 
                             if (chalanInstallment) {
-                              // Enhanced debug logging
-                              console.log('=== DEBUG: Student Object ===');
-                              console.log(JSON.stringify(student, null, 2)); // Pretty print the entire student object
-
-                              // Log all fields that might contain ID
-                              console.log('Potential ID fields:', {
-                                userId: student.userId,
-                                studentId: student.studentId,
-                                admissionNumber: student.admissionNumber,
-                                rollNumber: student.rollNumber,
-                                id: student.id,
-                                _id: student._id,
-                                // Check nested objects if they exist
-                                studentDetails: student.studentDetails ? {
-                                  userId: student.studentDetails.userId,
-                                  admissionNumber: student.studentDetails.admissionNumber,
-                                  rollNumber: student.studentDetails.rollNumber
-                                } : 'No studentDetails',
-                                // Check if there's a nested student object
-                                student: student.student ? {
-                                  userId: student.student.userId,
-                                  studentId: student.student.studentId,
-                                  admissionNumber: student.student.admissionNumber
-                                } : 'No nested student object'
-                              });
-                              console.log('=== DEBUG: Student Installments ===', student.installments);
-
-                              // Debug: Check if userId is in a nested object
-                              if (!student.userId && student.studentDetails) {
-                                console.log('=== DEBUG: student.studentDetails ===', student.studentDetails);
-                                console.log('student.studentDetails.userId:', student.studentDetails.userId);
-                                console.log('student.studentDetails.admissionNumber:', student.studentDetails.admissionNumber);
-                              }
-
-                              // Find the first unpaid installment with chalan info, or use the first unpaid installment
-                              const unpaidInstallments = student.installments.filter((i: any) => i.status !== 'paid');
-                              const chalanInstallment = unpaidInstallments.find((i: any) => i.chalanNumber) || unpaidInstallments[0];
-                              console.log('Selected installment for chalan:', chalanInstallment);
-
-                              if (chalanInstallment) {
                                 // Enhanced debug logging
                                 console.log('=== DEBUG: Student Object ===');
                                 console.log(JSON.stringify(student, null, 2)); // Pretty print the entire student object
@@ -1760,22 +1721,21 @@ const FeePaymentsTab: React.FC = () => {
                                     branch: schoolDetails.bankDetails.branch,
                                     accountHolderName: (schoolDetails.bankDetails as any).accountHolderName ||
                                       schoolDetails.bankDetails.accountName
-                                  } : null
-                                },
+                                  } : null,
 
                                   // Chalan Details - Format: SCHOOLCODE-YYYYMM-####
                                   // Let the backend handle the chalan number generation
                                   // We'll pass null and let the server generate it
                                   chalanNumber: chalanInstallment.chalanNumber || null,
-                                    chalanDate: chalanInstallment.chalanDate || chalanInstallment.dueDate || new Date().toISOString().split('T')[0],
-                      chalanBank: chalanInstallment.chalanBank || 'School Bank',
-                      chalanStatus: chalanInstallment.chalanStatus || 'generated',
+                                  chalanDate: chalanInstallment.chalanDate || chalanInstallment.dueDate || new Date().toISOString().split('T')[0],
+                                  chalanBank: chalanInstallment.chalanBank || 'School Bank',
+                                  chalanStatus: chalanInstallment.chalanStatus || 'generated',
 
-                      // Installment Details
-                      installmentName: chalanInstallment.name || 'Fee Installment',
-                      amount: chalanInstallment.amount || 0,
-                      dueDate: chalanInstallment.dueDate || ''
-                            };
+                                  // Installment Details
+                                  installmentName: chalanInstallment.name || 'Fee Installment',
+                                  amount: chalanInstallment.amount || 0,
+                                  dueDate: chalanInstallment.dueDate || ''
+                                };
 
                       console.log('Setting chalan data:', chalanData);
                       setViewingChalan(chalanData);
@@ -1797,11 +1757,10 @@ const FeePaymentsTab: React.FC = () => {
           </table>
         </div>
       </div>
-    </>
+      </div>
 
-      {/* Payment Modal */ }
-  {
-    isModalOpen && activeStudent && (
+      {/* Payment Modal */}
+      {isModalOpen && activeStudent && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
         <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4">
           <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -1930,70 +1889,63 @@ const FeePaymentsTab: React.FC = () => {
           </div>
         </div>
       </div>
-    )
-  }
-  {
-    loading && (
-      <div className="text-sm text-gray-500">Loading records...</div>
-    )
-  }
-  {
-    error && (
-      <div className="text-sm text-red-600">{error}</div>
-    )
-  }
+      )}
 
-  {/* Chalan Modal */ }
-  {
-    isChalanModalOpen && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto">
-          <ViewChalan
-            isOpen={isChalanModalOpen}
-            onClose={() => {
-              console.log('Closing chalan modal');
-              setIsChalanModalOpen(false);
-              setViewingChalan(null);
-            }}
-            chalan={viewingChalan}
-          />
-        </div>
-      </div>
-    )
-  }
+      {loading && (
+        <div className="text-sm text-gray-500">Loading records...</div>
+      )}
 
-  {/* Receipt Modal */ }
-  {
-    isReceiptOpen && receiptData && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 max-h-[90vh] overflow-auto">
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Payment Receipt - {receiptData.studentData.name}
-            </h3>
-            <button
-              onClick={() => setIsReceiptOpen(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="p-4">
-            <DualCopyReceipt
-              schoolData={receiptData.schoolData}
-              studentData={receiptData.studentData}
-              paymentData={receiptData.paymentData}
-              installments={receiptData.installments}
-              totalAmount={receiptData.totalAmount}
-              totalPaid={receiptData.totalPaid}
-              totalRemaining={receiptData.totalRemaining}
+      {error && (
+        <div className="text-sm text-red-600">{error}</div>
+      )}
+
+      {/* Chalan Modal */}
+      {isChalanModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto">
+            <ViewChalan
+              isOpen={isChalanModalOpen}
+              onClose={() => {
+                console.log('Closing chalan modal');
+                setIsChalanModalOpen(false);
+                setViewingChalan(null);
+              }}
+              chalan={viewingChalan}
             />
           </div>
         </div>
-      </div>
-    )
-  }
-    </div >
+      )}
+
+      {/* Receipt Modal */}
+      {isReceiptOpen && receiptData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Payment Receipt - {receiptData.studentData.name}
+              </h3>
+              <button
+                onClick={() => setIsReceiptOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <DualCopyReceipt
+                schoolData={receiptData.schoolData}
+                studentData={receiptData.studentData}
+                paymentData={receiptData.paymentData}
+                installments={receiptData.installments}
+                totalAmount={receiptData.totalAmount}
+                totalPaid={receiptData.totalPaid}
+                totalRemaining={receiptData.totalRemaining}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

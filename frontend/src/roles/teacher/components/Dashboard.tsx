@@ -176,11 +176,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         return dueDate >= today;
       }).length;
 
-      const totalLeaves = leaveRequestsArray.length;
-      const pendingLeaves = leaveRequestsArray.filter((l: any) => l.status === 'pending').length;
-      const approvedLeaves = leaveRequestsArray.filter((l: any) => l.status === 'approved').length;
-
-      // Filter leave requests for current year
       const currentYear = new Date().getFullYear();
       const yearlyLeaveRequests = leaveRequestsArray.filter((l: any) => {
         if (!l.startDate) return false;

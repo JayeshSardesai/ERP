@@ -147,18 +147,11 @@ const Assignments: React.FC = () => {
           return false;
         }
 
-        // Try direct endpoint with the user's school code and academic year
-        const params = new URLSearchParams({
-          schoolCode: userSchoolCode,
-          ...(viewingAcademicYear && { academicYear: viewingAcademicYear })
-        });
-        const response = await fetch(`/api/direct-test/assignments?${params.toString()}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-School-Code': userSchoolCode
-          }
-        });
+        // Skip assignments with missing essential fields
+        if (!assignment.title && !assignment.subject && !assignment.class) {
+          console.log('⏭️ Skipping assignment with missing essential fields:', assignment._id);
+          return false;
+        }
 
         return true; // Accept all non-placeholder assignments with valid ID
       });

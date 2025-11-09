@@ -315,7 +315,7 @@ const ViewResults: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       toast.success('Results exported successfully!');
     } catch (error) {
       console.error('Error exporting results:', error);
@@ -331,7 +331,7 @@ const ViewResults: React.FC = () => {
           <p className="text-gray-600">Student performance reports for your subjects</p>
         </div>
 
-        <button 
+        <button
           onClick={handleExportResults}
           disabled={results.length === 0}
           className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mt-4 sm:mt-0 disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -440,18 +440,7 @@ const ViewResults: React.FC = () => {
                     return;
                   }
 
-<<<<<<< HEAD
-                  const response = await api.get(
-                    `/results/teacher/view?schoolCode=${schoolCode}&class=${selectedClass}&section=${selectedSection}&subject=${selectedSubject}&testType=${selectedExam}`
-                  );
-
-                  const data = response.data;
-
-                  if (data.success) {
-                    const resultsData = data.data.results || [];
-                    setResults(resultsData);
-=======
-                  console.log('🔍 Fetching results with params:', {
+                  console.log('Fetching results with params:', {
                     schoolCode,
                     class: selectedClass,
                     section: selectedSection,
@@ -468,11 +457,10 @@ const ViewResults: React.FC = () => {
                     subject: selectedSubject,
                     testType: selectedExam
                   });
->>>>>>> rahul
 
                   if (response.data.success && response.data.data) {
                     const resultsData = response.data.data || [];
-                    
+
                     // Check if results are frozen
                     const firstResult = resultsData[0];
                     const frozen = firstResult?.frozen || false;
