@@ -3,12 +3,8 @@ const Submission = require('../models/Submission');
 const User = require('../models/User');
 const School = require('../models/School');
 const DatabaseManager = require('../utils/databaseManager');
-<<<<<<< HEAD
 const { uploadPDFToCloudinary, uploadPDFBufferToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
-=======
-const { uploadPDFToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
 const { getCurrentAcademicYear } = require('../utils/academicYearHelper');
->>>>>>> rahul
 const path = require('path');
 const fs = require('fs');
 const mongoose = require('mongoose');
@@ -245,38 +241,39 @@ exports.createAssignment = async (req, res) => {
 
     let assignment;
 
-    // Get the AssignmentMultiTenant model for this connection
-    const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+    try {
+      // Get the AssignmentMultiTenant model for this connection
+      const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
 
-    // Create the assignment in the school-specific database
-    assignment = new SchoolAssignment({
-      schoolId,
-      schoolCode,
-      title,
-      description: description || instructions || '',
-      subject,
-      class: className,
-      section,
-      teacher: teacherId, // Use userId instead of _id
-      teacherName,
-      startDate: new Date(startDate),
-      dueDate: new Date(dueDate),
-      instructions: instructions || description || '',
-      attachments: processedAttachments,
-      academicYear: resolvedAcademicYear,
-      term: term || 'Term 1',
-      totalStudents,
-      status: 'active',
-      isPublished: true,
-      publishedAt: new Date(),
-      createdBy: teacherId, // Use userId instead of _id
-      createdByName: teacherName
-    });
+      // Create the assignment in the school-specific database
+      assignment = new SchoolAssignment({
+        schoolId,
+        schoolCode,
+        title,
+        description: description || instructions || '',
+        subject,
+        class: className,
+        section,
+        teacher: teacherId, // Use userId instead of _id
+        teacherName,
+        startDate: new Date(startDate),
+        dueDate: new Date(dueDate),
+        instructions: instructions || description || '',
+        attachments: processedAttachments,
+        academicYear: resolvedAcademicYear,
+        term: term || 'Term 1',
+        totalStudents,
+        status: 'active',
+        isPublished: true,
+        publishedAt: new Date(),
+        createdBy: teacherId, // Use userId instead of _id
+        createdByName: teacherName
+      });
 
-    console.log(`[ASSIGNMENT] Created assignment in school_${schoolCode}.assignments`);
+      console.log(`[ASSIGNMENT] Created assignment in school_${schoolCode}.assignments`);
 
-    await assignment.save();
-    console.log(`[ASSIGNMENT] Saved assignment to school_${schoolCode}.assignments successfully`);
+      await assignment.save();
+      console.log(`[ASSIGNMENT] Saved assignment to school_${schoolCode}.assignments successfully`);
   } catch (error) {
     console.error(`[ASSIGNMENT] Error saving to school database: ${error.message}`);
     console.log('[ASSIGNMENT] Falling back to main database');
@@ -342,10 +339,11 @@ exports.createAssignment = async (req, res) => {
     }
   });
 
-} catch (error) {
-  console.error('Error creating assignment:', error);
-  res.status(500).json({ message: 'Error creating assignment', error: error.message });
-}
+  } catch (error) {
+    console.error('Error creating assignment:', error);
+    res.status(500).json({ message: 'Error creating assignment', error: error.message });
+  }
+};
 
 
 // Helper function to send notifications to students and parents
