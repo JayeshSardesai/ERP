@@ -2,22 +2,22 @@
 
 const Message = require('../models/Message');
 const User = require('../models/User');
-const DatabaseManager = require('../utils/databaseManager');
+const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
 
 // Send message to students by class/section
 exports.sendMessage = async (req, res) => {
   try {
     console.log('📨 Sending message:', req.body);
-
+    
     // DEFENSIVE CHECK: Ensure user object exists after auth middleware
     if (!req.user || !req.user._id) {
-      console.error('[MESSAGE CONTROLLER ERROR] Authentication context missing, should have been blocked by middleware.');
-      return res.status(401).json({ success: false, message: 'Authentication required' });
+        console.error('[MESSAGE CONTROLLER ERROR] Authentication context missing, should have been blocked by middleware.');
+        return res.status(401).json({ success: false, message: 'Authentication required' });
     }
-
+    
     // Validate required fields according to new schema
     let { title, subject, message, class: targetClass, section: targetSection, academicYear } = req.body;
-
+    
     if (!title || !subject || !message || !targetClass || !targetSection) {
       return res.status(400).json({
         success: false,
@@ -35,7 +35,7 @@ exports.sendMessage = async (req, res) => {
     }
 
     console.log(`🔍 sendMessage: Using authenticated school ID: ${userSchoolId}`);
-
+    
     // Get school connection for student queries and message storage
     const schoolCode = req.user.schoolCode;
     if (!schoolCode) {
@@ -44,17 +44,17 @@ exports.sendMessage = async (req, res) => {
         message: 'School code not found in user profile'
       });
     }
-
-    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
-
+    
     // If academic year is not provided, fetch it from school settings
     if (!academicYear) {
       console.log('📅 Academic year not provided, fetching from school settings...');
       try {
         const schoolInfoCollection = db.collection('school_info');
         const schoolInfo = await schoolInfoCollection.findOne({});
-
+        
         if (schoolInfo && schoolInfo.academicYear) {
           academicYear = schoolInfo.academicYear;
           console.log(`✅ Fetched academic year from school settings: ${academicYear}`);
@@ -68,16 +68,16 @@ exports.sendMessage = async (req, res) => {
     } else {
       console.log(`📅 Academic year provided in request: ${academicYear}`);
     }
-
+    
     // Build student query to handle all possible data structures:
     // 1. class/section at root level (populateSchoolP.js)
     // 2. studentDetails.academic.currentClass/currentSection (quickPopulate.js)
     // 3. studentDetails.currentClass/currentSection (Excel import)
-    const studentQuery = {
+    const studentQuery = { 
       role: 'student',
       _placeholder: { $ne: true } // Exclude placeholder documents
     };
-
+    
     // Build $or query to check all possible locations (case-insensitive)
     const classConditions = [];
     if (targetClass && targetClass !== 'ALL') {
@@ -89,7 +89,7 @@ exports.sendMessage = async (req, res) => {
         { 'studentDetails.currentClass': classRegex }
       );
     }
-
+    
     const sectionConditions = [];
     if (targetSection && targetSection !== 'ALL') {
       // Use regex for case-insensitive matching
@@ -100,7 +100,7 @@ exports.sendMessage = async (req, res) => {
         { 'studentDetails.currentSection': sectionRegex }
       );
     }
-
+    
     // Combine conditions
     if (classConditions.length > 0 && sectionConditions.length > 0) {
       studentQuery.$and = [
@@ -112,15 +112,15 @@ exports.sendMessage = async (req, res) => {
     } else if (sectionConditions.length > 0) {
       studentQuery.$or = sectionConditions;
     }
-
+    
     console.log('🔍 Student query:', JSON.stringify(studentQuery, null, 2));
-
+    
     // Find matching students
     const studentsCollection = db.collection('students');
     const students = await studentsCollection.find(studentQuery).toArray();
-
+    
     console.log(`👥 Found ${students.length} students matching criteria`);
-
+    
     // Log sample student structure for debugging
     if (students.length > 0) {
       console.log('🔍 Sample student structure:', {
@@ -135,7 +135,7 @@ exports.sendMessage = async (req, res) => {
       // Debug: Check total students in collection
       const totalStudents = await studentsCollection.countDocuments({ role: 'student' });
       console.log(`⚠️ No students found. Total students in collection: ${totalStudents}`);
-
+      
       // Debug: Get sample student to see structure
       const sampleStudent = await studentsCollection.findOne({ role: 'student' });
       if (sampleStudent) {
@@ -150,14 +150,14 @@ exports.sendMessage = async (req, res) => {
         });
       }
     }
-
+    
     if (students.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'No students found matching the selected criteria'
       });
     }
-
+    
     // Create message document according to new simplified schema
     const messageData = {
       class: targetClass,
@@ -169,23 +169,23 @@ exports.sendMessage = async (req, res) => {
       createdAt: new Date(),
       schoolId: userSchoolId // Store schoolId for reference
     };
-
+    
     // Only add academicYear if provided
     if (academicYear) {
       messageData.academicYear = academicYear;
     }
-
+    
     console.log('✅ Message Data to be Saved:', messageData);
     console.log('📅 Academic Year being saved:', academicYear || 'NONE');
-
+    
     // Save message to school database instead of main database
     const messagesCollection = db.collection('messages');
     const result = await messagesCollection.insertOne(messageData);
-
+    
     console.log(`✅ Message sent successfully to ${students.length} students, stored in school database`);
     console.log(`💾 Inserted message ID: ${result.insertedId}`);
     console.log(`📦 Database: ${db.databaseName}, Collection: messages`);
-
+    
     // Verify the message was inserted
     const verifyMessage = await messagesCollection.findOne({ _id: result.insertedId });
     console.log('🔍 Verification - Message exists in DB:', verifyMessage ? 'YES' : 'NO');
@@ -198,10 +198,10 @@ exports.sendMessage = async (req, res) => {
         academicYear: verifyMessage.academicYear
       });
     }
-
+    
     // Dispatch background job for notifications (FCM, email, etc.)
     console.log('📱 Dispatching background notification job...');
-
+    
     res.json({
       success: true,
       message: 'Message sent successfully',
@@ -216,7 +216,7 @@ exports.sendMessage = async (req, res) => {
         }))
       }
     });
-
+    
   } catch (error) {
     console.error('❌ Error sending message:', error);
     res.status(500).json({
@@ -232,25 +232,33 @@ exports.sendMessage = async (req, res) => {
 exports.updateMessagesWithAcademicYear = async (req, res) => {
   try {
     console.log('🔄 [UPDATE MESSAGES] Starting migration to add academic year to existing messages...');
-
+    
     // Get school connection
     const schoolCode = req.user.schoolCode;
     if (!schoolCode) {
       return res.status(400).json({
+        success: false,
+        message: 'School code not found in user profile'
+      });
+    }
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const db = connection.db;
+    
     // Get current academic year from school settings
     const schoolInfoCollection = db.collection('school_info');
     const schoolInfo = await schoolInfoCollection.findOne({});
-
+    
     if (!schoolInfo || !schoolInfo.academicYear) {
       return res.status(400).json({
         success: false,
         message: 'No academic year found in school settings. Please set it first.'
       });
     }
-
+    
     const currentAcademicYear = schoolInfo.academicYear;
     console.log(`📅 [UPDATE MESSAGES] Current academic year from settings: ${currentAcademicYear}`);
-
+    
     // Find all messages without academicYear
     const messagesCollection = db.collection('messages');
     const messagesToUpdate = await messagesCollection.find({
@@ -259,9 +267,9 @@ exports.updateMessagesWithAcademicYear = async (req, res) => {
         { academicYear: null }
       ]
     }).toArray();
-
+    
     console.log(`📊 [UPDATE MESSAGES] Found ${messagesToUpdate.length} messages without academic year`);
-
+    
     if (messagesToUpdate.length === 0) {
       return res.json({
         success: true,
@@ -272,7 +280,7 @@ exports.updateMessagesWithAcademicYear = async (req, res) => {
         }
       });
     }
-
+    
     // Update all messages without academicYear
     const result = await messagesCollection.updateMany(
       {
@@ -285,9 +293,9 @@ exports.updateMessagesWithAcademicYear = async (req, res) => {
         $set: { academicYear: currentAcademicYear }
       }
     );
-
+    
     console.log(`✅ [UPDATE MESSAGES] Updated ${result.modifiedCount} messages with academic year: ${currentAcademicYear}`);
-
+    
     res.json({
       success: true,
       message: `Successfully updated ${result.modifiedCount} messages with academic year ${currentAcademicYear}`,
@@ -297,7 +305,7 @@ exports.updateMessagesWithAcademicYear = async (req, res) => {
         academicYear: currentAcademicYear
       }
     });
-
+    
   } catch (error) {
     console.error('❌ [UPDATE MESSAGES] Error updating messages:', error);
     res.status(500).json({
@@ -312,21 +320,21 @@ exports.updateMessagesWithAcademicYear = async (req, res) => {
 exports.previewMessage = async (req, res) => {
   try {
     console.log('🔍 Previewing message recipients:', req.body);
-
+    
     const { class: targetClass, section: targetSection } = req.body;
-
+    
     // Get user's school ID from the authentication context (source of truth)
     const userSchoolId = req.user.schoolId;
 
     if (!userSchoolId) {
-      return res.status(400).json({
-        success: false,
-        message: 'User school ID not found in authentication context'
-      });
+        return res.status(400).json({
+            success: false,
+            message: 'User school ID not found in authentication context'
+        });
     }
-
+    
     console.log(`🔍 previewMessage: Using authenticated school ID: ${userSchoolId}`);
-
+    
     // Get school connection for student queries
     const schoolCode = req.user.schoolCode;
     if (!schoolCode) {
@@ -335,16 +343,16 @@ exports.previewMessage = async (req, res) => {
         message: 'School code not found in user profile'
       });
     }
-
-    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
-
+    
     // Build student query to handle all possible data structures (case-insensitive)
-    const studentQuery = {
+    const studentQuery = { 
       role: 'student',
       _placeholder: { $ne: true } // Exclude placeholder documents
     };
-
+    
     // Build $or query to check all possible locations with case-insensitive matching
     const classConditions = [];
     if (targetClass && targetClass !== 'ALL') {
@@ -356,7 +364,7 @@ exports.previewMessage = async (req, res) => {
         { 'studentDetails.currentClass': classRegex }
       );
     }
-
+    
     const sectionConditions = [];
     if (targetSection && targetSection !== 'ALL') {
       // Use regex for case-insensitive matching
@@ -367,7 +375,7 @@ exports.previewMessage = async (req, res) => {
         { 'studentDetails.currentSection': sectionRegex }
       );
     }
-
+    
     // Combine conditions
     if (classConditions.length > 0 && sectionConditions.length > 0) {
       studentQuery.$and = [
@@ -379,28 +387,28 @@ exports.previewMessage = async (req, res) => {
     } else if (sectionConditions.length > 0) {
       studentQuery.$or = sectionConditions;
     }
-
+    
     console.log('🔍 Preview query:', JSON.stringify(studentQuery, null, 2));
-
+    
     // Count matching students
     const studentsCollection = db.collection('students');
     const studentCount = await studentsCollection.countDocuments(studentQuery);
-
+    
     // Get sample students for preview (limit to 10)
     const sampleStudents = await studentsCollection.find(studentQuery)
       .limit(10)
-      .project({
-        _id: 1,
-        'name.firstName': 1,
-        'name.lastName': 1,
+      .project({ 
+        _id: 1, 
+        'name.firstName': 1, 
+        'name.lastName': 1, 
         'name.displayName': 1,
-        class: 1,
-        section: 1
+        class: 1, 
+        section: 1 
       })
       .toArray();
-
+    
     console.log(`👥 Found ${studentCount} students matching criteria`);
-
+    
     res.json({
       success: true,
       data: {
@@ -415,7 +423,7 @@ exports.previewMessage = async (req, res) => {
         }))
       }
     });
-
+    
   } catch (error) {
     console.error('❌ Error previewing message:', error);
     res.status(500).json({
@@ -431,12 +439,12 @@ exports.getMessages = async (req, res) => {
   try {
     console.log('📥 [GET MESSAGES] Starting fetch...');
     console.log('📥 [GET MESSAGES] Query params:', req.query);
-    console.log('📥 [GET MESSAGES] User:', {
-      userId: req.user.userId,
-      role: req.user.role,
-      schoolCode: req.user.schoolCode
+    console.log('📥 [GET MESSAGES] User:', { 
+      userId: req.user.userId, 
+      role: req.user.role, 
+      schoolCode: req.user.schoolCode 
     });
-
+    
     const { class: filterClass, section: filterSection, academicYear: filterAcademicYear, page = 1, limit = 20 } = req.query;
 
     // Get school connection for message queries
@@ -448,25 +456,25 @@ exports.getMessages = async (req, res) => {
         message: 'School code not found in user profile'
       });
     }
-
+    
     console.log(`🔗 [GET MESSAGES] Connecting to school database: ${schoolCode}`);
-    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     console.log(`✅ [GET MESSAGES] Connected to database: ${db.databaseName}`);
 
     // Build query for new schema
     const query = {};
-
+    
     // If user is a student, filter by their class/section automatically
     if (req.user.role === 'student') {
       // Get student's class and section from multiple possible locations
-      const studentClass = req.user.studentDetails?.currentClass ||
-        req.user.studentDetails?.academic?.currentClass ||
-        req.user.class;
-      const studentSection = req.user.studentDetails?.currentSection ||
-        req.user.studentDetails?.academic?.currentSection ||
-        req.user.section;
-
+      const studentClass = req.user.studentDetails?.currentClass || 
+                          req.user.studentDetails?.academic?.currentClass || 
+                          req.user.class;
+      const studentSection = req.user.studentDetails?.currentSection || 
+                            req.user.studentDetails?.academic?.currentSection || 
+                            req.user.section;
+      
       if (studentClass) {
         query.class = studentClass;
         console.log(`🎓 [GET MESSAGES] Filtering for student class: ${studentClass}`);
@@ -475,7 +483,7 @@ exports.getMessages = async (req, res) => {
         query.section = studentSection;
         console.log(`📚 [GET MESSAGES] Filtering for student section: ${studentSection}`);
       }
-
+      
       if (!studentClass || !studentSection) {
         console.warn(`⚠️ [GET MESSAGES] Student ${req.user.userId} missing class/section data`);
       }
@@ -490,7 +498,7 @@ exports.getMessages = async (req, res) => {
         console.log(`📚 [GET MESSAGES] Admin filter - section: ${filterSection}`);
       }
     }
-
+    
     // Filter by academic year for all users
     if (filterAcademicYear) {
       query.academicYear = filterAcademicYear;
@@ -498,16 +506,16 @@ exports.getMessages = async (req, res) => {
     }
 
     console.log('🔍 [GET MESSAGES] Final query:', JSON.stringify(query, null, 2));
-
+    
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const messagesCollection = db.collection('messages');
-
+    
     console.log(`📊 [GET MESSAGES] Pagination - page: ${page}, limit: ${limit}, skip: ${skip}`);
-
+    
     // Check if collection exists and has documents
     const collectionExists = await db.listCollections({ name: 'messages' }).hasNext();
     console.log(`📦 [GET MESSAGES] Messages collection exists: ${collectionExists}`);
-
+    
     if (!collectionExists) {
       console.warn('⚠️ [GET MESSAGES] Messages collection does not exist yet');
       return res.json({
@@ -523,7 +531,7 @@ exports.getMessages = async (req, res) => {
         }
       });
     }
-
+    
     // Get messages from school database with pagination
     console.log('🔎 [GET MESSAGES] Executing find query...');
     const messages = await messagesCollection.find(query)
@@ -531,9 +539,9 @@ exports.getMessages = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .toArray();
-
+    
     console.log(`📨 [GET MESSAGES] Found ${messages.length} messages`);
-
+    
     const totalMessages = await messagesCollection.countDocuments(query);
     console.log(`📊 [GET MESSAGES] Total messages matching query: ${totalMessages}`);
 
@@ -548,7 +556,7 @@ exports.getMessages = async (req, res) => {
         academicYear: msg.academicYear,
         createdAt: msg.createdAt
       });
-
+      
       return {
         id: msg._id,
         _id: msg._id, // Include both for compatibility
@@ -596,7 +604,7 @@ exports.getMessages = async (req, res) => {
 exports.getMessageDetails = async (req, res) => {
   try {
     const { messageId } = req.params;
-
+    
     // Get school connection for message queries
     const schoolCode = req.user.schoolCode;
     if (!schoolCode) {
@@ -605,31 +613,22 @@ exports.getMessageDetails = async (req, res) => {
         message: 'School code not found in user profile'
       });
     }
-
-    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     const messagesCollection = db.collection('messages');
-
-    // Convert string ID to ObjectId with validation
+    
+    // Convert string ID to ObjectId if needed
     const { ObjectId } = require('mongodb');
-
-    // Validate ObjectId format before conversion
-    if (!ObjectId.isValid(messageId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid message ID format'
-      });
-    }
-
     const message = await messagesCollection.findOne({ _id: new ObjectId(messageId) });
-
+    
     if (!message) {
       return res.status(404).json({
         success: false,
         message: 'Message not found'
       });
     }
-
+    
     res.json({
       success: true,
       data: {
@@ -646,7 +645,7 @@ exports.getMessageDetails = async (req, res) => {
         urgencyIndicator: 'normal'
       }
     });
-
+    
   } catch (error) {
     console.error('❌ Error fetching message details:', error);
     res.status(500).json({
@@ -668,13 +667,13 @@ exports.getMessageStats = async (req, res) => {
         message: 'School code not found in user profile'
       });
     }
-
-    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     const messagesCollection = db.collection('messages');
-
+    
     const totalMessages = await messagesCollection.countDocuments();
-
+    
     const messagesByClass = await messagesCollection.aggregate([
       {
         $group: {
@@ -683,7 +682,7 @@ exports.getMessageStats = async (req, res) => {
         }
       }
     ]).toArray();
-
+    
     const messagesBySection = await messagesCollection.aggregate([
       {
         $group: {
@@ -696,7 +695,7 @@ exports.getMessageStats = async (req, res) => {
     // Recent activity (last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
+    
     const recentMessages = await messagesCollection.countDocuments({
       createdAt: { $gte: sevenDaysAgo }
     });
@@ -710,7 +709,7 @@ exports.getMessageStats = async (req, res) => {
         recentMessages
       }
     });
-
+    
   } catch (error) {
     console.error('❌ Error fetching message stats:', error);
     res.status(500).json({
@@ -725,7 +724,7 @@ exports.getMessageStats = async (req, res) => {
 exports.getTeacherMessages = async (req, res) => {
   try {
     console.log('📨 Teacher fetching messages:', req.user);
-
+    
     // Get school connection for message queries
     const schoolCode = req.user.schoolCode;
     if (!schoolCode) {
@@ -734,41 +733,36 @@ exports.getTeacherMessages = async (req, res) => {
         message: 'School code not found in user profile'
       });
     }
-
-    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     const messagesCollection = db.collection('messages');
-
+    
     // Get query parameters for pagination and academic year
     const { limit = 20, page = 1, academicYear } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
-
+    
     // Get school's current academic year from settings
     const School = require('../models/School');
     const school = await School.findOne({ code: schoolCode });
     const currentAcademicYear = school?.settings?.academicYear?.currentYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
     console.log(`📅 School's current academic year: ${currentAcademicYear}`);
-
+    
     // Build query - use provided academicYear or default to current academic year
     const query = {};
     const yearToFilter = academicYear || currentAcademicYear;
     query.academicYear = yearToFilter;
     console.log(`📅 Filtering messages by Academic Year: ${yearToFilter}`);
-
+    
     // Fetch messages from the teacher's school (sorted by newest first)
     const messages = await messagesCollection.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .toArray();
-
+    
     console.log(`✅ Found ${messages.length} messages for teacher`);
-
-    // Log first message for debugging
-    if (messages.length > 0) {
-      console.log('📋 Sample raw message:', JSON.stringify(messages[0], null, 2));
-    }
-
+    
     // Format messages for frontend (compatible with teacher dashboard expectations)
     const formattedMessages = messages
       .filter(msg => msg.title && msg.subject && msg.message) // Filter out incomplete messages
@@ -792,12 +786,7 @@ exports.getTeacherMessages = async (req, res) => {
         recipient: [`Class ${msg.class || 'Unknown'}-${msg.section || 'Unknown'}`],
         recipientType: `Class ${msg.class || 'Unknown'}-${msg.section || 'Unknown'}` // Add recipientType for dashboard compatibility
       }));
-
-    console.log(`📤 Sending ${formattedMessages.length} formatted messages to teacher`);
-    if (formattedMessages.length > 0) {
-      console.log('📋 Sample formatted message:', JSON.stringify(formattedMessages[0], null, 2));
-    }
-
+    
     res.json({
       success: true,
       messages: formattedMessages, // Move messages to root level for dashboard compatibility
@@ -806,111 +795,9 @@ exports.getTeacherMessages = async (req, res) => {
         total: formattedMessages.length
       }
     });
-
+    
   } catch (error) {
     console.error('❌ Error fetching teacher messages:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch messages',
-      error: error.message
-    });
-  }
-};
-
-// Get messages for students and teachers (read-only, filtered by class/section for students, all messages for teachers)
-exports.getStudentMessages = async (req, res) => {
-  try {
-    console.log('📨 Fetching messages for user:', req.user.role, req.user.userId);
-
-    // Get school connection for message queries
-    const schoolCode = req.user.schoolCode;
-    if (!schoolCode) {
-      return res.status(400).json({
-        success: false,
-        message: 'School code not found in user profile'
-      });
-    }
-
-    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
-    const db = connection.db;
-    const messagesCollection = db.collection('messages');
-
-    // Get query parameters for pagination
-    const { limit = 20, page = 1 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    let query = {};
-
-    // If user is a teacher, fetch ALL messages from the school
-    if (req.user.role === 'teacher') {
-      console.log('📨 Teacher - fetching all school messages');
-      query = {}; // No filter - get all messages
-    } else {
-      // For students, filter by their class and section
-      const studentClass = req.user.studentDetails?.currentClass || req.user.studentDetails?.class;
-      const studentSection = req.user.studentDetails?.currentSection || req.user.studentDetails?.section;
-
-      if (!studentClass || !studentSection) {
-        return res.status(400).json({
-          success: false,
-          message: 'Student class/section not found in profile'
-        });
-      }
-
-      console.log(`📨 Student - fetching messages for class ${studentClass}-${studentSection}`);
-      query = {
-        $or: [
-          { class: studentClass, section: studentSection },
-          { class: studentClass, section: 'All' }, // Messages sent to entire class
-          { class: 'All', section: 'All' } // Messages sent to entire school
-        ]
-      };
-    }
-
-    // Fetch messages (sorted by newest first)
-    const messages = await messagesCollection.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
-
-    console.log(`✅ Found ${messages.length} messages for ${req.user.role}`);
-
-    // Format messages for frontend
-    const formattedMessages = messages
-      .filter(msg => msg.title && msg.subject && msg.message) // Filter out incomplete messages
-      .map(msg => ({
-        id: msg._id.toString(),
-        class: msg.class || 'Unknown',
-        section: msg.section || 'Unknown',
-        adminId: msg.adminId,
-        title: msg.title,
-        subject: msg.subject,
-        message: msg.message,
-        content: msg.message, // Alias for compatibility
-        createdAt: msg.createdAt,
-        timestamp: msg.createdAt, // Alias for compatibility
-        schoolId: msg.schoolId,
-        messageAge: calculateMessageAge(msg.createdAt),
-        type: 'group', // All admin messages are group messages
-        isRead: false, // Students haven't read them yet
-        sender: 'Admin',
-        senderName: 'School Admin',
-        recipient: [`Class ${msg.class || 'Unknown'}-${msg.section || 'Unknown'}`],
-        recipientType: `Class ${msg.class || 'Unknown'}-${msg.section || 'Unknown'}`
-      }));
-
-    res.json({
-      success: true,
-      messages: formattedMessages,
-      data: {
-        messages: formattedMessages,
-        total: formattedMessages.length
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching student messages:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch messages',
@@ -925,7 +812,7 @@ function calculateMessageAge(createdAt) {
   const created = new Date(createdAt);
   const diffTime = now.getTime() - created.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
+  
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return `${diffDays} days ago`;
@@ -937,9 +824,9 @@ function calculateMessageAge(createdAt) {
 exports.deleteMessage = async (req, res) => {
   try {
     const { messageId } = req.params;
-
+    
     console.log('🗑️ Deleting message:', messageId);
-
+    
     // DEFENSIVE CHECK: Ensure user object exists after auth middleware
     if (!req.user || !req.user._id) {
       return res.status(401).json({ success: false, message: 'Authentication required' });
@@ -953,61 +840,49 @@ exports.deleteMessage = async (req, res) => {
         message: 'School code not found in user profile'
       });
     }
-
-    const connection = await DatabaseManager.getSchoolConnection(schoolCode);
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db;
     const messagesCollection = db.collection('messages');
-
-    // Convert string ID to ObjectId with validation
+    
+    // Convert string ID to ObjectId
     const { ObjectId } = require('mongodb');
-
-    // Validate ObjectId format before conversion
-    if (!ObjectId.isValid(messageId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid message ID format'
-      });
-    }
-
+    
     // Find the message first to verify ownership
-    const message = await messagesCollection.findOne({
-      _id: new ObjectId(messageId)
+    const message = await messagesCollection.findOne({ 
+      _id: new ObjectId(messageId) 
     });
-
+    
     if (!message) {
       return res.status(404).json({
         success: false,
         message: 'Message not found'
       });
     }
-
+    
     // Optional: Check if user has permission to delete this message
     // For example, only allow admin who created the message to delete it
-    const messageAdminId = message.adminId ? message.adminId.toString() : null;
-    const currentUserId = req.user._id ? req.user._id.toString() : null;
-
-    if (messageAdminId && currentUserId && messageAdminId !== currentUserId) {
-      console.log(`⚠️ Permission denied: Message admin ${messageAdminId} !== Current user ${currentUserId}`);
+    if (message.adminId.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'You can only delete messages that you created'
       });
     }
-
+    
     // Delete the message
-    const result = await messagesCollection.deleteOne({
-      _id: new ObjectId(messageId)
+    const result = await messagesCollection.deleteOne({ 
+      _id: new ObjectId(messageId) 
     });
-
+    
     if (result.deletedCount === 0) {
       return res.status(404).json({
         success: false,
         message: 'Message not found or already deleted'
       });
     }
-
+    
     console.log('✅ Message deleted successfully');
-
+    
     res.json({
       success: true,
       message: 'Message deleted successfully',
@@ -1015,10 +890,10 @@ exports.deleteMessage = async (req, res) => {
         deletedId: messageId
       }
     });
-
+    
   } catch (error) {
     console.error('❌ Error deleting message:', error);
-
+    
     // Handle invalid ObjectId format
     if (error.name === 'BSONTypeError') {
       return res.status(400).json({
@@ -1026,7 +901,7 @@ exports.deleteMessage = async (req, res) => {
         message: 'Invalid message ID format'
       });
     }
-
+    
     res.status(500).json({
       success: false,
       message: 'Failed to delete message',

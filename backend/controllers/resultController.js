@@ -335,179 +335,44 @@ const calculateClassRank = async (currentResult, schoolCode, grade, section, exa
 // ---------------------------------------------------------
 exports.getStudentResultHistory = async (req, res) => {
   try {
-    // Handle both URL params and query params for studentId
-    const studentId = req.params?.studentId || req.query?.studentId;
+    const { studentId } = req.params;
     const { academicYear, examType } = req.query;
 
     const schoolCode = req.user.schoolCode;
 
-    console.log(`[GET STUDENT RESULTS] Student: ${studentId}, School: ${schoolCode}`);
+    // Build query
+    const query = {
+      schoolCode,
+      studentId,
+      isActive: true
+    };
 
-    // Build query - try multiple field combinations since we don't know the exact schema
-    const queries = [
-      // Try with ObjectId conversion if studentId looks like ObjectId
-      ...(studentId.match(/^[0-9a-fA-F]{24}$/) ? [{ student: studentId, status: 'published' }] : []),
-      // Try with string studentId fields
-      { studentId: studentId, status: 'published' },
-      { studentId: studentId },
-      { 'student.userId': studentId },
-      { 'student.studentId': studentId },
-      { userId: studentId },
-      // Try without status filter
-      { studentId: studentId, schoolCode: schoolCode.toUpperCase() },
-      { userId: studentId, schoolCode: schoolCode.toUpperCase() }
-    ];
+    if (academicYear) query['classDetails.academicYear'] = academicYear;
+    if (examType) query['examDetails.examType'] = examType;
 
-    if (academicYear) {
-      queries.forEach(q => q.academicYear = academicYear);
-    }
-    if (examType) {
-      queries.forEach(q => q.term = examType);
-    }
-
-    console.log(`[GET STUDENT RESULTS] Queries to try:`, JSON.stringify(queries, null, 2));
-
-    // Try school-specific database first
-    let results = [];
-    try {
-      const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
-      const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-      const resultsCollection = schoolConn.collection('results');
-
-      // Debug: Check what results exist in the collection
-      const totalResults = await resultsCollection.countDocuments();
-      console.log(`[GET STUDENT RESULTS] Total results in collection: ${totalResults}`);
-
-      // If no results exist, log for debugging but don't create sample data
-      if (totalResults === 0) {
-        console.log(`[GET STUDENT RESULTS] No results found for student ${studentId} in school ${schoolCode}`);
-      }
-
-      // Debug: Check sample records to understand structure
-      const sampleResults = await resultsCollection.find().limit(3).toArray();
-      console.log(`[GET STUDENT RESULTS] Sample results:`, JSON.stringify(sampleResults, null, 2));
-
-      // Try each query until we find results
-      for (let i = 0; i < queries.length; i++) {
-        const currentQuery = queries[i];
-        console.log(`[GET STUDENT RESULTS] Trying query ${i + 1}:`, JSON.stringify(currentQuery));
-
-        const queryResults = await resultsCollection.find(currentQuery).limit(10).toArray();
-        console.log(`[GET STUDENT RESULTS] Query ${i + 1} found: ${queryResults.length} results`);
-
-        if (queryResults.length > 0) {
-          results = queryResults;
-          console.log(`[GET STUDENT RESULTS] Using results from query ${i + 1}`);
-          console.log(`[GET STUDENT RESULTS] Sample result structure:`, JSON.stringify(queryResults[0], null, 2));
-          break;
-        }
-      }
-
-      // If still no results, check what's actually in the collection
-      if (results.length === 0) {
-        console.log(`[GET STUDENT RESULTS] No results found with any query. Checking collection contents...`);
-        const sampleDocs = await resultsCollection.find().limit(5).toArray();
-        console.log(`[GET STUDENT RESULTS] Sample documents in collection:`, JSON.stringify(sampleDocs, null, 2));
-
-        // Try a broad search for any document containing the studentId
-        const broadResults = await resultsCollection.find({
-          $or: [
-            { studentId: { $regex: studentId, $options: 'i' } },
-            { userId: { $regex: studentId, $options: 'i' } },
-            { 'student.userId': { $regex: studentId, $options: 'i' } },
-            { 'student.studentId': { $regex: studentId, $options: 'i' } }
-          ]
-        }).limit(5).toArray();
-        console.log(`[GET STUDENT RESULTS] Broad search results:`, JSON.stringify(broadResults, null, 2));
-
-        if (broadResults.length > 0) {
-          results = broadResults;
-        }
-      }
-
-    } catch (error) {
-      console.error(`[GET STUDENT RESULTS] Error accessing school database:`, error.message);
-
-      // Fallback to main database using Result model
-      const Result = require('../models/Result');
-      // Try the first query as fallback
-      results = await Result.find(queries[0] || { studentId: studentId })
-        .populate('student', 'name email')
-        .sort({ createdAt: -1 })
-        .select({
-          _id: 1,
-          class: 1,
-          section: 1,
-          academicYear: 1,
-          term: 1,
-          subjects: 1,
-          totalMarks: 1,
-          maxMarks: 1,
-          percentage: 1,
-          grade: 1,
-          rank: 1,
-          totalStudents: 1,
-          status: 1,
-          createdAt: 1
-        });
-
-      console.log(`[GET STUDENT RESULTS] Found ${results.length} results in main database`);
-    }
-
-    // Transform results to match frontend expectations using actual database structure
-    const transformedResults = results
-      .map(result => {
-        // Extract exam type from subjects array or fallback to term
-        let examType = 'Unknown Exam';
-        if (result.subjects && result.subjects.length > 0 && result.subjects[0].testType) {
-          examType = result.subjects[0].testType;
-        } else if (result.term) {
-          examType = result.term;
-        } else if (result.examType) {
-          examType = result.examType;
-        }
-
-        // Check if all subjects are frozen
-        const allSubjectsFrozen = result.subjects && result.subjects.length > 0
-          ? result.subjects.every(s => s.frozen === true)
-          : false;
-
-        return {
-          _id: result._id,
-          examType: examType,
-          overallPercentage: result.percentage || 0,
-          overallGrade: result.grade || 'N/A',
-          rank: result.rank,
-          academicYear: result.academicYear,
-          frozen: result.frozen || allSubjectsFrozen,
-          frozenAt: result.frozenAt,
-          subjects: result.subjects ? result.subjects.map(subject => ({
-            subjectName: subject.subjectName || subject.name,
-            testType: subject.testType || examType,  // ✅ ADD testType field
-            obtainedMarks: subject.obtainedMarks,     // ✅ Use correct field name
-            maxMarks: subject.maxMarks,               // ✅ Use correct field name
-            marksObtained: subject.obtainedMarks || subject.totalMarks,
-            totalMarks: subject.maxMarks || subject.totalMarks,
-            grade: subject.grade,
-            percentage: subject.percentage,
-            frozen: subject.frozen || false
-          })) : []
-        };
-      })
-      .filter(result => result.frozen === true); // ✅ ONLY show frozen results to students
-
-    console.log(`[GET STUDENT RESULTS] Filtered to ${transformedResults.length} frozen results for student view`);
+    const results = await Result.find(query)
+      .sort({ 'examDetails.examDate': -1 })
+      .select({
+        resultId: 1,
+        'classDetails.grade': 1,
+        'classDetails.section': 1,
+        'examDetails.examType': 1,
+        'examDetails.examDate': 1,
+        'overallResult.percentage': 1,
+        'overallResult.grade': 1,
+        'overallResult.status': 1,
+        'overallResult.rank': 1,
+        'overallResult.totalStudents': 1
+      });
 
     // Calculate progress trend
-    const progressTrend = calculateProgressTrend(transformedResults);
-
-    console.log(`[GET STUDENT RESULTS] Returning ${transformedResults.length} transformed results`);
+    const progressTrend = calculateProgressTrend(results);
 
     res.json({
       success: true,
       studentId,
-      resultCount: transformedResults.length,
-      results: transformedResults,
+      resultCount: results.length,
+      results,
       progressTrend
     });
 
@@ -523,17 +388,13 @@ const calculateProgressTrend = (results) => {
   const latest = results[0];
   const previous = results[1];
 
-  // Handle different result structures
-  const latestPercentage = latest.overallResult?.percentage || latest.percentage || 0;
-  const previousPercentage = previous.overallResult?.percentage || previous.percentage || 0;
-
-  const improvement = latestPercentage - previousPercentage;
+  const improvement = latest.overallResult.percentage - previous.overallResult.percentage;
 
   return {
     trend: improvement > 5 ? 'improving' : improvement < -5 ? 'declining' : 'stable',
     improvement: Math.round(improvement * 100) / 100,
-    latestPercentage: latestPercentage,
-    previousPercentage: previousPercentage
+    latestPercentage: latest.overallResult.percentage,
+    previousPercentage: previous.overallResult.percentage
   };
 };
 
@@ -700,8 +561,8 @@ exports.saveResults = async (req, res) => {
       });
     }
 
-    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
-    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
     const savedResults = [];
@@ -879,15 +740,9 @@ exports.saveResults = async (req, res) => {
 // ---------------------------------------------------------
 exports.getResults = async (req, res) => {
   try {
-    const { schoolCode, class: className, section, subject, testType, academicYear, studentId } = req.query;
+    const { schoolCode, class: className, section, subject, testType, academicYear } = req.query;
 
-    console.log('🔍 Fetching results:', { schoolCode, className, section, subject, testType, academicYear, studentId });
-
-    // If studentId is provided, use student-specific logic
-    if (studentId) {
-      console.log('🎓 Student-specific results request for:', studentId);
-      return exports.getStudentResultHistory(req, res);
-    }
+    console.log('🔍 Fetching results:', { schoolCode, className, section, subject, testType, academicYear });
 
     if (!schoolCode || !className || !section) {
       return res.status(400).json({
@@ -896,8 +751,8 @@ exports.getResults = async (req, res) => {
       });
     }
 
-    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
-    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
     const query = {
@@ -1033,8 +888,8 @@ exports.updateResult = async (req, res) => {
       });
     }
 
-    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
-    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
     const { ObjectId } = require('mongodb');
 
@@ -1162,8 +1017,8 @@ exports.freezeResults = async (req, res) => {
       });
     }
 
-    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
-    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
     const now = new Date();
@@ -1542,7 +1397,6 @@ exports.getClassPerformanceStats = async (req, res) => {
     });
   }
 };
-
 
 // ---------------------------------------------------------
 // Module exports (explicit)

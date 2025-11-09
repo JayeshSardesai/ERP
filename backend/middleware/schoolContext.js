@@ -12,36 +12,36 @@ const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
 const setSchoolContext = async (req, res, next) => {
   try {
     console.log('🏫 Setting school context...');
-
+    
     // Try to get school code from various sources
-    let schoolCode = req.body?.schoolCode ||
-      req.params?.schoolCode ||
-      req.params?.schoolId ||
-      req.query?.schoolCode ||
-      req.user?.schoolCode;
-
+    let schoolCode = req.body?.schoolCode || 
+                     req.params?.schoolCode || 
+                     req.params?.schoolId ||
+                     req.query?.schoolCode ||
+                     req.user?.schoolCode;
+    
     if (!schoolCode) {
       console.log('⚠️ No school code found in request, continuing without school context');
       return next();
     }
-
+    
     console.log(`🔍 Found school identifier: ${schoolCode}`);
-
+    
     // Resolve school identifier to school object
     let school = await School.findOne({ code: schoolCode.toUpperCase() });
-
+    
     if (!school) {
       // Try finding by name
       school = await School.findOne({ name: { $regex: new RegExp(`^${schoolCode}$`, 'i') } });
     }
-
+    
     if (!school) {
       // Try finding by _id if it looks like an ObjectId
       if (schoolCode.match(/^[0-9a-fA-F]{24}$/)) {
         school = await School.findById(schoolCode);
       }
     }
-
+    
     if (school) {
       req.schoolCode = school.code.toLowerCase();
       req.schoolId = school._id;
@@ -50,7 +50,7 @@ const setSchoolContext = async (req, res, next) => {
     } else {
       console.log(`⚠️ School not found for identifier: ${schoolCode}`);
     }
-
+    
     next();
   } catch (error) {
     console.error('❌ Error setting school context:', error);
@@ -65,12 +65,12 @@ const setSchoolContext = async (req, res, next) => {
 const requireSchoolContext = async (req, res, next) => {
   try {
     console.log('🔒 Requiring school context...');
-
+    
     // Try to set school context if not already set
     if (!req.schoolCode) {
-      await setSchoolContext(req, res, () => { });
+      await setSchoolContext(req, res, () => {});
     }
-
+    
     if (!req.schoolCode) {
       console.error('❌ School context required but not found');
       return res.status(400).json({
@@ -78,7 +78,7 @@ const requireSchoolContext = async (req, res, next) => {
         message: 'School context is required. Please provide schoolCode in request.'
       });
     }
-
+    
     console.log(`✅ School context verified: ${req.schoolCode}`);
     next();
   } catch (error) {
@@ -101,7 +101,7 @@ const validateSchoolAccess = (allowedRoles = []) => {
       console.log('🔐 Validating school access...');
       console.log('User role:', req.user?.role);
       console.log('Allowed roles:', allowedRoles);
-
+      
       if (!req.user) {
         console.error('❌ No user found in request');
         return res.status(401).json({
@@ -109,13 +109,13 @@ const validateSchoolAccess = (allowedRoles = []) => {
           message: 'Authentication required'
         });
       }
-
+      
       // Superadmin has access to everything
       if (req.user.role === 'superadmin') {
         console.log('✅ Superadmin access granted');
         return next();
       }
-
+      
       // Check if user's role is in allowed roles
       if (!allowedRoles.includes(req.user.role)) {
         console.error(`❌ Access denied. User role "${req.user.role}" not in allowed roles:`, allowedRoles);
@@ -124,7 +124,7 @@ const validateSchoolAccess = (allowedRoles = []) => {
           message: `Access denied. Required roles: ${allowedRoles.join(', ')}`
         });
       }
-
+      
       // For school-specific roles, verify school context matches
       if (req.schoolCode && req.user.schoolCode) {
         if (req.schoolCode.toLowerCase() !== req.user.schoolCode.toLowerCase()) {
@@ -135,7 +135,7 @@ const validateSchoolAccess = (allowedRoles = []) => {
           });
         }
       }
-
+      
       console.log(`✅ Access granted for role: ${req.user.role}`);
       next();
     } catch (error) {
@@ -176,7 +176,7 @@ const setMainDbContext = (req, res, next) => {
 const requireSuperAdmin = (req, res, next) => {
   try {
     console.log('👑 Requiring superadmin access...');
-
+    
     if (!req.user) {
       console.error('❌ No user found in request');
       return res.status(401).json({
@@ -184,7 +184,7 @@ const requireSuperAdmin = (req, res, next) => {
         message: 'Authentication required'
       });
     }
-
+    
     if (req.user.role !== 'superadmin') {
       console.error(`❌ Access denied. User role: ${req.user.role}`);
       return res.status(403).json({
@@ -192,7 +192,7 @@ const requireSuperAdmin = (req, res, next) => {
         message: 'Access denied. Superadmin role required.'
       });
     }
-
+    
     console.log('✅ Superadmin access granted');
     next();
   } catch (error) {

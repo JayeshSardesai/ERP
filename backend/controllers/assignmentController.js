@@ -1,70 +1,17 @@
 const Assignment = require('../models/Assignment');
+const AssignmentMultiTenant = require('../models/AssignmentMultiTenant');
 const Submission = require('../models/Submission');
 const User = require('../models/User');
 const School = require('../models/School');
 const DatabaseManager = require('../utils/databaseManager');
-const { uploadPDFToCloudinary, uploadPDFBufferToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
+const { uploadPDFToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
 const { getCurrentAcademicYear } = require('../utils/academicYearHelper');
 const path = require('path');
 const fs = require('fs');
-const mongoose = require('mongoose');
-
-// Helper function to get Assignment model for a school connection
-const getAssignmentModelForConnection = (connection) => {
-  try {
-    // Try to get existing model first
-    return connection.models.Assignment || connection.model('Assignment', Assignment.schema);
-  } catch (error) {
-    console.error('Error creating Assignment model for connection:', error.message);
-    // Fallback: recreate the schema
-    const mongoose = require('mongoose');
-    const assignmentSchema = new mongoose.Schema({
-      schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
-      schoolCode: { type: String, required: true },
-      title: { type: String, required: true },
-      description: { type: String, required: true },
-      subject: { type: String, required: true },
-      class: { type: String, required: true },
-      section: { type: String, required: true },
-      teacher: { type: String, required: true },
-      teacherName: { type: String },
-      startDate: { type: Date, required: true },
-      dueDate: { type: Date, required: true },
-      instructions: String,
-      attachments: [{
-        filename: String,
-        originalName: String,
-        cloudinaryUrl: String,
-        cloudinaryPublicId: String,
-        uploadedAt: { type: Date, default: Date.now }
-      }],
-      academicYear: { type: String, required: true },
-      term: { type: String, required: true },
-      maxMarks: { type: Number, default: 100 },
-      isPublished: { type: Boolean, default: false },
-      publishedAt: Date,
-      createdBy: { type: String, required: true },
-      createdByName: { type: String },
-      createdAt: { type: Date, default: Date.now },
-      updatedAt: { type: Date, default: Date.now }
-    });
-
-    return connection.model('Assignment', assignmentSchema);
-  }
-};
 
 // Create a new assignment
 exports.createAssignment = async (req, res) => {
   try {
-    console.log('🔍 [CREATE ASSIGNMENT] Request received');
-    console.log('🔍 [CREATE ASSIGNMENT] Request body:', req.body);
-    console.log('🔍 [CREATE ASSIGNMENT] User info:', {
-      userId: req.user?.userId,
-      role: req.user?.role,
-      schoolCode: req.user?.schoolCode,
-      name: req.user?.name
-    });
-
     const {
       title,
       description,
@@ -79,31 +26,11 @@ exports.createAssignment = async (req, res) => {
       attachments = []
     } = req.body;
 
-    console.log('🔍 [CREATE ASSIGNMENT] Extracted fields:', {
-      title,
-      subject,
-      className,
-      section,
-      startDate,
-      dueDate,
-      hasInstructions: !!instructions,
-      hasDescription: !!description
-    });
-
     // Validate required fields
     if (!title || !subject || !className || !section || !startDate || !dueDate) {
-      console.error('❌ [CREATE ASSIGNMENT] Missing required fields:', {
-        title: !!title,
-        subject: !!subject,
-        className: !!className,
-        section: !!section,
-        startDate: !!startDate,
-        dueDate: !!dueDate
-      });
       return res.status(400).json({
         message: 'Missing required fields',
-        requiredFields: ['title', 'subject', 'class', 'section', 'startDate', 'dueDate'],
-        received: { title, subject, className, section, startDate, dueDate }
+        requiredFields: ['title', 'subject', 'class', 'section', 'startDate', 'dueDate']
       });
     }
 
@@ -171,35 +98,35 @@ exports.createAssignment = async (req, res) => {
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
       console.log(`📎 Processing ${req.files.length} attachment(s) for assignment`);
-
+      
       for (const file of req.files) {
         try {
           const timestamp = Date.now();
-
+          
           // Upload to Cloudinary
           const cloudinaryFolder = `assignments/${schoolCode}`;
           const publicId = `assignment_${timestamp}_${Math.random().toString(36).substring(7)}`;
-
-          // NEW CODE BLOCK
-          // Use file.buffer (memory) instead of file.path (disk)
-          const uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
-
+          
+          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
+          
           processedAttachments.push({
-            filename: file.filename, // This might be undefined, use originalname
+            filename: file.filename,
             originalName: file.originalname,
             path: uploadResult.secure_url, // Store Cloudinary URL
             cloudinaryPublicId: uploadResult.public_id,
             size: file.size,
             uploadedAt: new Date()
           });
-
+          
           console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
-
-          // DELETE the deleteLocalFile(file.path) line
-
+          
+          // Delete local temp file
+          deleteLocalFile(file.path);
+          
         } catch (error) {
           console.error(`❌ Error uploading ${file.originalname} to Cloudinary:`, error);
           // Clean up temp file on error
+          deleteLocalFile(file.path);
         }
       }
     }
@@ -208,40 +135,23 @@ exports.createAssignment = async (req, res) => {
     const resolvedAcademicYear = academicYear || await getCurrentAcademicYear(schoolCode);
     console.log(`[ASSIGNMENT] Using academic year: ${resolvedAcademicYear}`);
 
-    // Get teacher info
+    // Create assignment either in school-specific database or main database
+    let assignment;
+
+    // Get teacher name and ID from req.user (already populated by auth middleware)
     const teacherName = req.user.name?.firstName
       ? `${req.user.name.firstName} ${req.user.name.lastName || ''}`.trim()
       : req.user.name || req.user.email || 'Unknown Teacher';
+
     const teacherId = req.user.userId || req.user._id.toString();
 
-    // Assignment data object
-    const assignmentData = {
-      schoolId,
-      schoolCode,
-      title,
-      description: description || instructions || '',
-      subject,
-      class: className,
-      section,
-      teacher: teacherId,
-      teacherName,
-      startDate: new Date(startDate),
-      dueDate: new Date(dueDate),
-      instructions: instructions || description || '',
-      attachments: processedAttachments,
-      academicYear: academicYear || getCurrentAcademicYear(),
-      term: term || 'Term 1',
-      totalStudents,
-      status: 'active',
-      isPublished: true,
-      publishedAt: new Date(),
-      createdBy: teacherId,
-      createdByName: teacherName
-    };
-
-    let assignment;
+    console.log(`[ASSIGNMENT] Teacher info - Name: ${teacherName}, ID: ${teacherId}`);
 
     try {
+      // Connect to school-specific database
+      console.log(`[ASSIGNMENT] Connecting to school database for ${schoolCode}`);
+      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+
       // Get the AssignmentMultiTenant model for this connection
       const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
 
@@ -274,77 +184,76 @@ exports.createAssignment = async (req, res) => {
 
       await assignment.save();
       console.log(`[ASSIGNMENT] Saved assignment to school_${schoolCode}.assignments successfully`);
-  } catch (error) {
-    console.error(`[ASSIGNMENT] Error saving to school database: ${error.message}`);
-    console.log('[ASSIGNMENT] Falling back to main database');
+    } catch (error) {
+      console.error(`[ASSIGNMENT] Error saving to school database: ${error.message}`);
+      console.log('[ASSIGNMENT] Falling back to main database');
 
-    // Fallback to main database if school-specific fails
-    assignment = new Assignment({
-      schoolId,
-      schoolCode,
-      title,
-      description: description || instructions || '',
-      subject,
-      class: className,
-      section,
-      teacher: teacherId, // Use userId instead of _id
-      teacherName,
-      startDate: new Date(startDate),
-      dueDate: new Date(dueDate),
-      instructions: instructions || description || '',
-      attachments: processedAttachments,
-      academicYear: resolvedAcademicYear,
-      term: term || 'Term 1',
-      totalStudents,
-      status: 'active',
-      isPublished: true,
-      publishedAt: new Date(),
-      createdBy: teacherId, // Use userId instead of _id
-      createdByName: teacherName
-    });
+      // Fallback to main database if school-specific fails
+      assignment = new Assignment({
+        schoolId,
+        schoolCode,
+        title,
+        description: description || instructions || '',
+        subject,
+        class: className,
+        section,
+        teacher: teacherId, // Use userId instead of _id
+        teacherName,
+        startDate: new Date(startDate),
+        dueDate: new Date(dueDate),
+        instructions: instructions || description || '',
+        attachments: processedAttachments,
+        academicYear: resolvedAcademicYear,
+        term: term || 'Term 1',
+        totalStudents,
+        status: 'active',
+        isPublished: true,
+        publishedAt: new Date(),
+        createdBy: teacherId, // Use userId instead of _id
+        createdByName: teacherName
+      });
 
-    await assignment.save();
-  }
-
-  // Send notifications to students and parents
-  try {
-    // Skip notifications for now in multi-tenant mode
-    if (!req.user.schoolCode) {
-      await sendAssignmentNotifications(assignment, schoolId);
+      await assignment.save();
     }
-  } catch (notificationError) {
-    console.error('Error sending notifications:', notificationError);
-    // Don't fail the assignment creation if notifications fail
-  }
 
-  res.status(201).json({
-    message: `Assignment sent to ${className} • Section ${section} • Due ${dueDateObj.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    })}`,
-    assignment: assignment.toObject(),
-    summary: {
-      studentsNotified: totalStudents,
-      className: `${className} • Section ${section}`,
-      dueDate: dueDateObj.toLocaleDateString('en-US', {
+    // Send notifications to students and parents
+    try {
+      // Skip notifications for now in multi-tenant mode
+      if (!req.user.schoolCode) {
+        await sendAssignmentNotifications(assignment, schoolId);
+      }
+    } catch (notificationError) {
+      console.error('Error sending notifications:', notificationError);
+      // Don't fail the assignment creation if notifications fail
+    }
+
+    res.status(201).json({
+      message: `Assignment sent to ${className} • Section ${section} • Due ${dueDateObj.toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit'
-      })
-    }
-  });
+      })}`,
+      assignment: assignment.toObject(),
+      summary: {
+        studentsNotified: totalStudents,
+        className: `${className} • Section ${section}`,
+        dueDate: dueDateObj.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        })
+      }
+    });
 
   } catch (error) {
     console.error('Error creating assignment:', error);
     res.status(500).json({ message: 'Error creating assignment', error: error.message });
   }
 };
-
 
 // Helper function to send notifications to students and parents
 const sendAssignmentNotifications = async (assignment, schoolId) => {
@@ -463,14 +372,12 @@ exports.getAssignments = async (req, res) => {
       ];
     }
 
-    // Teachers can see assignments for classes/subjects they teach
+    // Teachers can only see their own assignments
     if (req.user.role === 'teacher') {
+      // Use userId (e.g., "SK-T-001") instead of MongoDB _id
       const teacherId = req.user.userId || req.user._id.toString();
-
-      // For now, teachers can see all assignments in their school
-      // This ensures assignments created by admin are visible to teachers
-      // In the future, we can add more granular filtering based on teacher's subjects/classes
-      console.log(`[GET ASSIGNMENTS] Teacher filter - ID: ${teacherId}, showing all school assignments`);
+      query.teacher = teacherId;
+      console.log(`[GET ASSIGNMENTS] Filtering by teacher: ${teacherId}`);
     }
 
     // Students can only see published assignments for their class/section
@@ -510,34 +417,44 @@ exports.getAssignments = async (req, res) => {
     let assignments = [];
     let total = 0;
 
-    // Get assignments from main database
-    if (schoolId) {
+    // Try to get assignments from school-specific database first
+    if (schoolCode) {
+      try {
+        console.log(`[GET ASSIGNMENTS] Trying school-specific database for ${schoolCode}`);
+        const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+
+        assignments = await SchoolAssignment.find(query)
+          .limit(limit * 1)
+          .skip((page - 1) * limit)
+          .sort({ createdAt: -1 });
+
+        total = await SchoolAssignment.countDocuments(query);
+
+        console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in school-specific database`);
+      } catch (error) {
+        console.error(`[GET ASSIGNMENTS] Error accessing school-specific database: ${error.message}`);
+      }
+    }
+
+    // If no assignments found in school-specific database or no schoolCode, try main database
+    if (assignments.length === 0 && schoolId) {
+      console.log(`[GET ASSIGNMENTS] Falling back to main database`);
       assignments = await Assignment.find(query)
         .limit(limit * 1)
         .skip((page - 1) * limit)
         .sort({ createdAt: -1 });
 
       total = await Assignment.countDocuments(query);
+      console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in main database`);
     }
 
-    // Ensure consistent response structure for admin portal
-    const response = {
-      success: true,
-      data: assignments,
-      assignments: assignments, // Include both for compatibility
-      pagination: {
-        totalPages: Math.ceil(total / limit),
-        currentPage: parseInt(page),
-        total: total,
-        limit: parseInt(limit)
-      },
+    res.json({
+      assignments,
       totalPages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      total: total
-    };
-
-    console.log(`[GET ASSIGNMENTS] Returning ${assignments.length} assignments for ${req.user.role}`);
-    res.json(response);
+      currentPage: page,
+      total
+    });
 
   } catch (error) {
     console.error('Error fetching assignments:', error);
@@ -572,7 +489,7 @@ exports.getAssignmentById = async (req, res) => {
       try {
         console.log(`[GET ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
+        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
 
         // Try to find by MongoDB ObjectId first
         try {
@@ -595,9 +512,9 @@ exports.getAssignmentById = async (req, res) => {
       console.log(`[GET ASSIGNMENT] Falling back to main database`);
       assignment = await Assignment.findById(assignmentId);
 
-      const savedMainAssignment = await assignment.save();
-      console.log(`[ASSIGNMENT] ✅ Successfully saved assignment to main database`);
-      console.log(`[ASSIGNMENT] Main DB assignment ID: ${savedMainAssignment._id}`);
+      if (assignment) {
+        console.log(`[GET ASSIGNMENT] Found assignment in main database`);
+      }
     }
 
     if (!assignment) {
@@ -644,30 +561,32 @@ exports.updateAssignment = async (req, res) => {
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
       console.log(`[UPDATE ASSIGNMENT] Processing ${req.files.length} new file(s)`);
-
+      
       for (const file of req.files) {
         try {
           const timestamp = Date.now();
-
+          
           // Upload to Cloudinary
           const cloudinaryFolder = `assignments/${schoolCode}`;
           const publicId = `assignment_${timestamp}_${Math.random().toString(36).substring(7)}`;
-
-          const uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
-
+          
+          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
+          
           processedAttachments.push({
-            filename: file.filename, // This might be undefined, use originalname
+            filename: file.filename,
             originalName: file.originalname,
             path: uploadResult.secure_url,
             cloudinaryPublicId: uploadResult.public_id,
             size: file.size,
             uploadedAt: new Date()
           });
-
-          console.log(`✅ Uploaded submission ${file.originalname} to Cloudinary`);
-
+          
+          console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
+          deleteLocalFile(file.path);
+          
         } catch (error) {
           console.error(`❌ Error uploading ${file.originalname}:`, error);
+          deleteLocalFile(file.path);
         }
       }
       console.log(`[UPDATE ASSIGNMENT] ${processedAttachments.length} files uploaded to Cloudinary`);
@@ -694,7 +613,7 @@ exports.updateAssignment = async (req, res) => {
       try {
         console.log(`[UPDATE ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
+        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
 
         assignment = await SchoolAssignment.findById(assignmentId);
 
@@ -867,7 +786,7 @@ exports.deleteAssignment = async (req, res) => {
       try {
         console.log(`[DELETE ASSIGNMENT] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
+        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
 
         assignment = await SchoolAssignment.findById(assignmentId);
 
@@ -971,7 +890,6 @@ exports.deleteAssignment = async (req, res) => {
     }
 
     res.json({
-      success: true,
       message: 'Assignment deleted successfully',
       deletedFrom: deletedFromSchoolDB ? 'school-specific database' : 'main database'
     });
@@ -1005,7 +923,7 @@ exports.getAssignmentStats = async (req, res) => {
       try {
         console.log(`[GET STATS] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const SchoolAssignment = getAssignmentModelForConnection(schoolConn);
+        const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
 
         // Build match query
         const matchQuery = {};
@@ -1148,31 +1066,34 @@ exports.submitAssignment = async (req, res) => {
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
       console.log(`📎 Processing ${req.files.length} submission file(s)`);
-
+      
       const schoolCode = req.user.schoolCode || assignment.schoolCode;
-
+      
       for (const file of req.files) {
         try {
           const timestamp = Date.now();
-
+          
           // Upload to Cloudinary
           const cloudinaryFolder = `submissions/${schoolCode}/${assignmentId}`;
           const publicId = `submission_${req.user.userId}_${timestamp}_${Math.random().toString(36).substring(7)}`;
-
-          const uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
-
+          
+          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
+          
           processedAttachments.push({
-            filename: file.filename, // This might be undefined, use originalname
+            filename: file.filename,
             originalName: file.originalname,
             path: uploadResult.secure_url,
             cloudinaryPublicId: uploadResult.public_id,
             size: file.size,
             uploadedAt: new Date()
           });
-
-          console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
+          
+          console.log(`✅ Uploaded submission ${file.originalname} to Cloudinary`);
+          deleteLocalFile(file.path);
+          
         } catch (error) {
           console.error(`❌ Error uploading ${file.originalname}:`, error);
+          deleteLocalFile(file.path);
         }
       }
     }
