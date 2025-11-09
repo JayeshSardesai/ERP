@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLocalSearchParams } from 'expo-router';
@@ -18,6 +18,8 @@ export default function StudentsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedClass, setSelectedClass] = useState<string>(params.className || '');
   const [selectedSection, setSelectedSection] = useState<string>(params.section || 'ALL');
+  const [showClassDropdown, setShowClassDropdown] = useState(false);
+  const [showSectionDropdown, setShowSectionDropdown] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -77,10 +79,12 @@ export default function StudentsScreen() {
   const handleClassChange = (className: string) => {
     setSelectedClass(className);
     setSelectedSection('ALL');
+    setShowClassDropdown(false);
   };
 
   const handleSectionChange = (section: string) => {
     setSelectedSection(section);
+    setShowSectionDropdown(false);
   };
 
   const getAvailableSections = () => {
@@ -118,57 +122,35 @@ export default function StudentsScreen() {
           <Text style={styles.headerTitle}>Students</Text>
         </View>
 
-        {/* Filters */}
+        {/* Dropdown Selectors */}
         <View style={styles.filtersContainer}>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Class</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-              {classes.map((classItem) => (
-                <TouchableOpacity
-                  key={classItem.classId}
-                  style={[
-                    styles.filterChip,
-                    selectedClass === classItem.className && styles.filterChipActive
-                  ]}
-                  onPress={() => handleClassChange(classItem.className)}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      selectedClass === classItem.className && styles.filterChipTextActive
-                    ]}
-                  >
-                    {classItem.className}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+          {/* Class Dropdown */}
+          <View style={styles.dropdownContainer}>
+            <Text style={styles.dropdownLabel}>Select Class</Text>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => setShowClassDropdown(true)}
+            >
+              <Text style={styles.dropdownText}>
+                {selectedClass || 'Choose a class'}
+              </Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
           </View>
 
+          {/* Section Dropdown */}
           {selectedClass && (
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Section</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-                {getAvailableSections().map((section) => (
-                  <TouchableOpacity
-                    key={section}
-                    style={[
-                      styles.filterChip,
-                      selectedSection === section && styles.filterChipActive
-                    ]}
-                    onPress={() => handleSectionChange(section)}
-                  >
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        selectedSection === section && styles.filterChipTextActive
-                      ]}
-                    >
-                      {section === 'ALL' ? 'All Sections' : section}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+            <View style={styles.dropdownContainer}>
+              <Text style={styles.dropdownLabel}>Select Section</Text>
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => setShowSectionDropdown(true)}
+              >
+                <Text style={styles.dropdownText}>
+                  {selectedSection === 'ALL' ? 'All Sections' : selectedSection}
+                </Text>
+                <Text style={styles.dropdownArrow}>▼</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -235,6 +217,86 @@ export default function StudentsScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* Class Dropdown Modal */}
+      <Modal
+        visible={showClassDropdown}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowClassDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowClassDropdown(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Class</Text>
+            <ScrollView style={styles.modalScroll}>
+              {classes.map((classItem) => (
+                <TouchableOpacity
+                  key={classItem.classId}
+                  style={[
+                    styles.modalOption,
+                    selectedClass === classItem.className && styles.modalOptionSelected
+                  ]}
+                  onPress={() => handleClassChange(classItem.className)}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    selectedClass === classItem.className && styles.modalOptionTextSelected
+                  ]}>
+                    Class {classItem.className}
+                  </Text>
+                  {selectedClass === classItem.className && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Section Dropdown Modal */}
+      <Modal
+        visible={showSectionDropdown}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowSectionDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSectionDropdown(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Section</Text>
+            <ScrollView style={styles.modalScroll}>
+              {getAvailableSections().map((section) => (
+                <TouchableOpacity
+                  key={section}
+                  style={[
+                    styles.modalOption,
+                    selectedSection === section && styles.modalOptionSelected
+                  ]}
+                  onPress={() => handleSectionChange(section)}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    selectedSection === section && styles.modalOptionTextSelected
+                  ]}>
+                    {section === 'ALL' ? 'All Sections' : `Section ${section}`}
+                  </Text>
+                  {selectedSection === section && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -378,6 +440,94 @@ function getStyles(isDark: boolean) {
       fontSize: 16,
       color: isDark ? '#93C5FD' : '#1E3A8A',
       fontWeight: '600',
+    },
+    // Dropdown styles
+    dropdownContainer: {
+      marginBottom: 16,
+    },
+    dropdownLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: isDark ? '#93C5FD' : '#1E3A8A',
+      marginBottom: 8,
+    },
+    dropdown: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderWidth: 2,
+      borderColor: isDark ? '#1F2937' : '#93C5FD',
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    dropdownText: {
+      fontSize: 16,
+      color: isDark ? '#E5E7EB' : '#1F2937',
+      flex: 1,
+    },
+    dropdownArrow: {
+      fontSize: 12,
+      color: isDark ? '#93C5FD' : '#1E3A8A',
+      marginLeft: 8,
+    },
+    // Modal styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    modalContent: {
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 16,
+      padding: 20,
+      width: '100%',
+      maxWidth: 400,
+      maxHeight: '70%',
+      borderWidth: 2,
+      borderColor: isDark ? '#1F2937' : '#93C5FD',
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: isDark ? '#93C5FD' : '#1E3A8A',
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    modalScroll: {
+      maxHeight: 400,
+    },
+    modalOption: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      marginBottom: 8,
+      backgroundColor: isDark ? '#1F2937' : '#F3F4F6',
+    },
+    modalOptionSelected: {
+      backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE',
+      borderWidth: 2,
+      borderColor: isDark ? '#3B82F6' : '#60A5FA',
+    },
+    modalOptionText: {
+      fontSize: 16,
+      color: isDark ? '#E5E7EB' : '#1F2937',
+      fontWeight: '600',
+    },
+    modalOptionTextSelected: {
+      color: isDark ? '#93C5FD' : '#1E3A8A',
+      fontWeight: '700',
+    },
+    checkmark: {
+      fontSize: 20,
+      color: isDark ? '#60A5FA' : '#1E3A8A',
+      fontWeight: '700',
     },
   });
 }

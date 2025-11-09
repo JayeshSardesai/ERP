@@ -27,13 +27,17 @@ export default function AssignmentsScreen() {
   const [downloadingAttachment, setDownloadingAttachment] = useState<string | null>(null);
   const [isTeacher, setIsTeacher] = useState<boolean>(false);
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ show: boolean; assignment: Assignment | null }>({ show: false, assignment: null });
 
   const checkRole = async () => {
     try {
       const role = await AsyncStorage.getItem('role');
-      setIsTeacher(role === 'teacher');
+      console.log('[ASSIGNMENTS] Checking role:', role);
+      const isTeacherRole = role === 'teacher';
+      setIsTeacher(isTeacherRole);
+      console.log('[ASSIGNMENTS] isTeacher set to:', isTeacherRole);
     } catch (error) {
-      console.error('Error checking role:', error);
+      console.error('[ASSIGNMENTS] Error checking role:', error);
     }
   };
 
@@ -196,6 +200,39 @@ export default function AssignmentsScreen() {
     setSelectedAssignment(null);
   };
 
+  const handleDeleteAssignment = async () => {
+    if (!deleteConfirmation.assignment) return;
+    
+    try {
+      console.log('[ASSIGNMENTS] User confirmed deletion');
+      console.log('[ASSIGNMENTS] Calling cancelAssignment...');
+      
+      const success = await cancelAssignment(deleteConfirmation.assignment._id);
+      
+      console.log('[ASSIGNMENTS] cancelAssignment returned:', success);
+      
+      if (success) {
+        console.log('[ASSIGNMENTS] ✅ Delete successful, refreshing list...');
+        setDeleteConfirmation({ show: false, assignment: null });
+        Alert.alert('Success', 'Assignment deleted successfully');
+        await fetchAssignments(); // Refresh the list
+        console.log('[ASSIGNMENTS] List refreshed');
+      } else {
+        console.log('[ASSIGNMENTS] ❌ Delete failed - returned false');
+        setDeleteConfirmation({ show: false, assignment: null });
+        Alert.alert('Error', 'Failed to delete assignment. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('[ASSIGNMENTS] ❌ Delete error caught:', error);
+      console.error('[ASSIGNMENTS] Error type:', typeof error);
+      console.error('[ASSIGNMENTS] Error message:', error.message);
+      console.error('[ASSIGNMENTS] Error response:', error.response);
+      
+      setDeleteConfirmation({ show: false, assignment: null });
+      const errorMessage = error.message || error.response?.data?.message || 'Failed to delete assignment. Please check your connection and try again.';
+      Alert.alert('Delete Failed', errorMessage);
+    }
+  };
 
   if (loading) {
     return (
@@ -273,41 +310,22 @@ export default function AssignmentsScreen() {
                     </Text>
                   </View>
                   {assignment.status === 'pending' && <Text style={styles.urgentIndicator}>!</Text>}
+                  {(() => {
+                    console.log('[ASSIGNMENTS] Rendering assignment card - isTeacher:', isTeacher, 'Assignment ID:', assignment._id);
+                    return null;
+                  })()}
                   {isTeacher && (
                     <TouchableOpacity
                       style={styles.cancelButton}
                       onPress={(e) => {
                         e.stopPropagation(); // Prevent opening assignment detail
-                        console.log('[ASSIGNMENTS] Delete button clicked for:', assignment._id);
-                        Alert.alert(
-                          'Delete Assignment',
-                          'Are you sure you want to delete this assignment? This action cannot be undone.',
-                          [
-                            { text: 'No', style: 'cancel' },
-                            {
-                              text: 'Yes, Delete',
-                              style: 'destructive',
-                              onPress: async () => {
-                                try {
-                                  console.log('[ASSIGNMENTS] Deleting assignment:', assignment._id);
-                                  const success = await cancelAssignment(assignment._id);
-                                  if (success) {
-                                    console.log('[ASSIGNMENTS] Delete successful');
-                                    Alert.alert('Success', 'Assignment deleted successfully');
-                                    fetchAssignments(); // Refresh the list
-                                  } else {
-                                    console.log('[ASSIGNMENTS] Delete failed - returned false');
-                                    Alert.alert('Error', 'Failed to delete assignment');
-                                  }
-                                } catch (error: any) {
-                                  console.error('[ASSIGNMENTS] Delete error:', error);
-                                  const errorMessage = error.response?.data?.message || error.message || 'Failed to delete assignment';
-                                  Alert.alert('Error', errorMessage);
-                                }
-                              }
-                            }
-                          ]
-                        );
+                        console.log('[ASSIGNMENTS] ========== DELETE BUTTON CLICKED ==========');
+                        console.log('[ASSIGNMENTS] Assignment ID:', assignment._id);
+                        console.log('[ASSIGNMENTS] Assignment Title:', assignment.title);
+                        console.log('[ASSIGNMENTS] Is Teacher:', isTeacher);
+                        
+                        // Show confirmation modal
+                        setDeleteConfirmation({ show: true, assignment: assignment });
                       }}
                     >
                       <Text style={styles.cancelButtonText}>✕</Text>
@@ -423,6 +441,40 @@ export default function AssignmentsScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={deleteConfirmation.show}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setDeleteConfirmation({ show: false, assignment: null })}
+      >
+        <View style={styles.deleteModalOverlay}>
+          <View style={styles.deleteModalContent}>
+            <Text style={styles.deleteModalTitle}>Delete Assignment</Text>
+            <Text style={styles.deleteModalMessage}>
+              Are you sure you want to delete "{deleteConfirmation.assignment?.title}"? This action cannot be undone.
+            </Text>
+            <View style={styles.deleteModalButtons}>
+              <TouchableOpacity
+                style={[styles.deleteModalButton, styles.cancelModalButton]}
+                onPress={() => {
+                  console.log('[ASSIGNMENTS] Delete cancelled by user');
+                  setDeleteConfirmation({ show: false, assignment: null });
+                }}
+              >
+                <Text style={styles.cancelModalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteModalButton, styles.confirmDeleteButton]}
+                onPress={handleDeleteAssignment}
+              >
+                <Text style={styles.confirmDeleteButtonText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -516,6 +568,67 @@ function getStyles(isDark: boolean) {
       color: '#FFFFFF', 
       fontSize: 12, 
       fontWeight: '600' 
+    },
+    deleteModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20
+    },
+    deleteModalContent: {
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 16,
+      padding: 24,
+      width: '100%',
+      maxWidth: 400,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 5
+    },
+    deleteModalTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: isDark ? '#E5E7EB' : '#1F2937',
+      marginBottom: 12
+    },
+    deleteModalMessage: {
+      fontSize: 16,
+      color: isDark ? '#9CA3AF' : '#6B7280',
+      marginBottom: 24,
+      lineHeight: 24
+    },
+    deleteModalButtons: {
+      flexDirection: 'row',
+      gap: 12
+    },
+    deleteModalButton: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    cancelModalButton: {
+      backgroundColor: isDark ? '#1F2937' : '#F3F4F6',
+      borderWidth: 1,
+      borderColor: isDark ? '#374151' : '#D1D5DB'
+    },
+    cancelModalButtonText: {
+      color: isDark ? '#E5E7EB' : '#1F2937',
+      fontSize: 16,
+      fontWeight: '600'
+    },
+    confirmDeleteButton: {
+      backgroundColor: '#EF4444'
+    },
+    confirmDeleteButtonText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '600'
     },
   });
 }

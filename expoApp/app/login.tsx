@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { loginSchool, loginGlobal } from '@/src/services/auth';
 
 export default function LoginScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const styles = getStyles(isDark);
   const router = useRouter();
   const params = useLocalSearchParams<{ role?: string }>();
@@ -20,10 +20,19 @@ export default function LoginScreen() {
   const [schoolCode, setSchoolCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorModal, setErrorModal] = useState<{ show: boolean; title: string; message: string }>({ 
+    show: false, 
+    title: '', 
+    message: '' 
+  });
+
+  const showError = (title: string, message: string) => {
+    setErrorModal({ show: true, title, message });
+  };
 
   const handleLogin = async () => {
     if (!email || !password || !schoolCode) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showError('Missing Information', 'Please fill in all fields:\n• Email or ID\n• Password\n• School Code');
       return;
     }
     setLoading(true);
@@ -33,16 +42,49 @@ export default function LoginScreen() {
       const res = await loginSchool({ identifier: email, password, schoolCode });
 
       if (!res || !res.success) {
-        Alert.alert(res?.message || 'Invalid credentials. Please check your email/user ID, password, and school code.');
+        const errorMsg = res?.message || 'Login failed';
+        const lowerMsg = errorMsg.toLowerCase();
+        
+        // Provide specific error messages based on the response
+        // Check for specific error patterns
+        if (lowerMsg.includes('incorrect password') || (lowerMsg.includes('password') && !lowerMsg.includes('school'))) {
+          showError('Incorrect Password', 'The password you entered is incorrect. Please try again.');
+        } else if (lowerMsg.includes('invalid email/user id or school code')) {
+          // This error means either user doesn't exist OR school code is wrong
+          // Show a combined message
+          showError('Invalid Credentials', 'The email/ID or school code you entered is incorrect. Please verify both and try again.');
+        } else if (lowerMsg.includes('school code') || lowerMsg.includes('school not found')) {
+          showError('Invalid School Code', 'The school code you entered is incorrect. Please check and try again.');
+        } else if (lowerMsg.includes('user not found') || lowerMsg.includes('email not found') || lowerMsg.includes('invalid credentials')) {
+          showError('User Not Found', `The ${selectedRole === 'Student' ? 'student' : 'teacher'} email or ID you entered does not exist. Please check and try again.`);
+        } else {
+          showError('Login Failed', errorMsg);
+        }
         setLoading(false);
         return;
       }
       console.log('Login successful, navigating to tabs');
       router.replace('/(tabs)');
     } catch (e: any) {
-      const errorMessage = e?.response?.data?.message || e?.message || 'Connection error. Please check your network and try again.';
-      Alert.alert('Login error', errorMessage);
       console.error('Login error:', e);
+      const errorMessage = e?.response?.data?.message || e?.message || '';
+      const lowerMsg = errorMessage.toLowerCase();
+      
+      // Provide specific error messages
+      if (lowerMsg.includes('incorrect password') || (lowerMsg.includes('password') && !lowerMsg.includes('school'))) {
+        showError('Incorrect Password', 'The password you entered is wrong. Please check your password and try again.');
+      } else if (lowerMsg.includes('invalid email/user id or school code')) {
+        // This error means either user doesn't exist OR school code is wrong
+        showError('Invalid Credentials', 'The email/ID or school code you entered is incorrect. Please verify both and try again.');
+      } else if (lowerMsg.includes('school code') || lowerMsg.includes('school not found')) {
+        showError('Invalid School Code', 'The school code you entered is incorrect. Please verify your school code and try again.');
+      } else if (lowerMsg.includes('user not found') || lowerMsg.includes('email not found') || lowerMsg.includes('invalid credentials')) {
+        showError('User Not Found', `The ${selectedRole === 'Student' ? 'student' : 'teacher'} email or ID you entered does not exist in our system. Please check your credentials.`);
+      } else if (lowerMsg.includes('network') || lowerMsg.includes('connection')) {
+        showError('Connection Error', 'Unable to connect to the server. Please check your internet connection and try again.');
+      } else {
+        showError('Login Error', errorMessage || 'An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -117,6 +159,30 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Error Modal */}
+      <Modal
+        visible={errorModal.show}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setErrorModal({ show: false, title: '', message: '' })}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContent}>
+            <View style={styles.errorIconContainer}>
+              <Text style={styles.errorIcon}>⚠️</Text>
+            </View>
+            <Text style={styles.errorModalTitle}>{errorModal.title}</Text>
+            <Text style={styles.errorModalMessage}>{errorModal.message}</Text>
+            <TouchableOpacity
+              style={styles.errorModalButton}
+              onPress={() => setErrorModal({ show: false, title: '', message: '' })}
+            >
+              <Text style={styles.errorModalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -149,6 +215,68 @@ function getStyles(isDark: boolean) {
     eyeIcon: { fontSize: 20 },
     loginButton: { backgroundColor: '#60A5FA', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
     loginButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+    // Error Modal Styles
+    errorModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    errorModalContent: {
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 20,
+      padding: 28,
+      width: '100%',
+      maxWidth: 400,
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: isDark ? '#1F2937' : '#93C5FD',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    errorIconContainer: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: isDark ? '#7F1D1D' : '#FEE2E2',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    errorIcon: {
+      fontSize: 36,
+    },
+    errorModalTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: isDark ? '#EF4444' : '#DC2626',
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    errorModalMessage: {
+      fontSize: 16,
+      color: isDark ? '#9CA3AF' : '#6B7280',
+      marginBottom: 24,
+      textAlign: 'center',
+      lineHeight: 24,
+    },
+    errorModalButton: {
+      backgroundColor: '#60A5FA',
+      borderRadius: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 40,
+      minWidth: 120,
+      alignItems: 'center',
+    },
+    errorModalButtonText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
   });
 }
 

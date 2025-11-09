@@ -32,7 +32,6 @@ export default function ResultsScreen() {
   const [students, setStudents] = useState<Student[]>([]);
   const [studentMarks, setStudentMarks] = useState<{[key: string]: string}>({});
   const [existingResults, setExistingResults] = useState<any[]>([]);
-  const [showFilters, setShowFilters] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [schoolCode, setSchoolCode] = useState<string>('');
   
@@ -486,18 +485,10 @@ export default function ResultsScreen() {
         >
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Enter Results</Text>
-            <TouchableOpacity 
-              style={styles.filterButton}
-              onPress={() => setShowFilters(!showFilters)}
-            >
-              <Ionicons name="filter" size={20} color={isDark ? '#93C5FD' : '#1E3A8A'} />
-              <Text style={styles.filterButtonText}>Filters</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Filters Section */}
-          {showFilters && (
-            <View style={styles.filtersCard}>
+          <View style={styles.filtersCard}>
               {/* Class Dropdown */}
               <View style={styles.dropdownRow}>
                 <Text style={styles.filterLabel}>Class</Text>
@@ -575,7 +566,6 @@ export default function ResultsScreen() {
                 </View>
               )}
             </View>
-          )}
 
           {/* Student List with Marks Entry */}
           {selectedClass && selectedSection && selectedSubject && selectedTestType && students.length > 0 && (
@@ -1036,10 +1026,8 @@ function getStyles(isDark: boolean) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: isDark ? '#0B0F14' : '#E0F2FE' },
     scrollView: { flex: 1 },
-    header: { padding: 20, paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    headerTitle: { fontSize: 24, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A' },
-    filterButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#1F2937' : '#FFFFFF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, gap: 6 },
-    filterButtonText: { fontSize: 14, fontWeight: '600', color: isDark ? '#93C5FD' : '#1E3A8A' },
+    header: { padding: 20, paddingTop: 10 },
+    headerTitle: { fontSize: 24, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', textAlign: 'center' },
     filtersCard: { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', marginHorizontal: 20, marginBottom: 16, borderRadius: 16, padding: 16, borderWidth: 2, borderColor: isDark ? '#1F2937' : '#93C5FD' },
     filterRow: { marginBottom: 16 },
     filterLabel: { fontSize: 14, fontWeight: '600', color: isDark ? '#93C5FD' : '#1E3A8A', marginBottom: 8 },
