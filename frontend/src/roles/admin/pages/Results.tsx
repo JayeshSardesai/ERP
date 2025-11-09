@@ -293,58 +293,87 @@ const Results: React.FC = () => {
       }
 
       setLoadingSubjects(true);
+      console.log('🔍 Fetching subjects for class:', selectedClass, 'section:', selectedSection);
+      
       try {
         const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
         if (!schoolCode) {
+          console.error('❌ School code not available');
           toast.error('School code not available');
           return;
         }
 
-        // Primary API
+        console.log('📚 Using school code:', schoolCode);
+
+        // Primary API - using api instance with proper auth
         try {
-          const resp = await fetch('/api/class-subjects/classes', {
+          console.log('🔄 Trying primary API: /class-subjects/classes');
+          const resp = await api.get('/class-subjects/classes', {
             headers: {
-              'Authorization': `Bearer ${token}`,
               'x-school-code': schoolCode.toUpperCase()
             }
           });
-          if (resp.ok) {
-            const data = await resp.json();
-            const classData = data?.data?.classes?.find((c: any) => c.className === selectedClass && c.section === selectedSection);
-            const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
-            const subjectNames = activeSubjects.map((s: any) => s.name).filter(Boolean);
-            setSubjects(subjectNames);
-            // Auto-select first subject if available
-            setSelectedSubject(subjectNames[0] || '');
-            return;
+          
+          console.log('✅ Primary API response:', resp.data);
+          
+          if (resp.data?.success && resp.data?.data?.classes) {
+            const classData = resp.data.data.classes.find((c: any) => 
+              c.className === selectedClass && c.section === selectedSection
+            );
+            
+            console.log('🎯 Found class data:', classData);
+            
+            if (classData?.subjects) {
+              const activeSubjects = classData.subjects.filter((s: any) => s.isActive !== false);
+              const subjectNames = activeSubjects.map((s: any) => s.name || s.subjectName).filter(Boolean);
+              
+              console.log('📝 Extracted subject names:', subjectNames);
+              
+              setSubjects(subjectNames);
+              setSelectedSubject(subjectNames[0] || '');
+              setLoadingSubjects(false);
+              return;
+            }
           }
-        } catch (_) {
+        } catch (err) {
+          console.error('❌ Primary API failed:', err);
           // fall through to fallback
         }
 
         // Fallback API
         try {
-          const resp2 = await fetch(`/api/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`, {
+          console.log('🔄 Trying fallback API: /direct-test/class-subjects');
+          const resp2 = await api.get(`/direct-test/class-subjects/${selectedClass}`, {
+            params: { schoolCode },
             headers: {
               'x-school-code': schoolCode.toUpperCase()
             }
           });
-          if (resp2.ok) {
-            const data2 = await resp2.json();
-            const subjectNames = (data2?.data?.subjects || []).map((s: any) => s.name).filter(Boolean);
+          
+          console.log('✅ Fallback API response:', resp2.data);
+          
+          if (resp2.data?.success && resp2.data?.data?.subjects) {
+            const subjectNames = resp2.data.data.subjects
+              .map((s: any) => s.name || s.subjectName)
+              .filter(Boolean);
+            
+            console.log('📝 Extracted subject names from fallback:', subjectNames);
+            
             setSubjects(subjectNames);
             setSelectedSubject(subjectNames[0] || '');
+            setLoadingSubjects(false);
             return;
           }
-        } catch (_) {
-          // ignore
+        } catch (err) {
+          console.error('❌ Fallback API failed:', err);
         }
 
+        console.warn('⚠️ No subjects found for class/section');
         setSubjects([]);
         setSelectedSubject('');
         toast.error('No subjects found for selected class and section');
       } catch (err) {
-        console.error('Error fetching subjects:', err);
+        console.error('❌ Error fetching subjects:', err);
         toast.error('Failed to load subjects');
         setSubjects([]);
         setSelectedSubject('');
@@ -354,7 +383,7 @@ const Results: React.FC = () => {
     };
 
     fetchSubjects();
-  }, [selectedClass, selectedSection, token, user?.schoolCode]);
+  }, [selectedClass, selectedSection, user?.schoolCode]);
 
   // Fetch students from the school database
   const fetchStudents = useCallback(async () => {
