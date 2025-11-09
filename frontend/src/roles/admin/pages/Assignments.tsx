@@ -58,7 +58,7 @@ const Assignments: React.FC = () => {
 
   useEffect(() => {
     fetchAssignments();
-  }, []);
+  }, [viewingAcademicYear]);
 
   // Calculate stats whenever assignments change
   useEffect(() => {
@@ -81,12 +81,14 @@ const Assignments: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('🔍 Fetching assignments...');
+      console.log('🔍 Fetching assignments for academic year:', viewingAcademicYear);
       
       let data;
       try {
-        // Try the regular endpoint first
-        data = await assignmentAPI.fetchAssignments();
+        // Try the regular endpoint first with academic year parameter
+        data = await assignmentAPI.fetchAssignments({ 
+          academicYear: viewingAcademicYear 
+        });
         console.log('✅ Assignments fetched from regular endpoint:', data);
       } catch (regularError) {
         console.error('❌ Error with regular endpoint:', regularError);
@@ -107,8 +109,12 @@ const Assignments: React.FC = () => {
           console.error('Error parsing auth data:', err);
         }
         
-        // Try direct endpoint with the user's school code
-        const response = await fetch(`/api/direct-test/assignments?schoolCode=${userSchoolCode}`, {
+        // Try direct endpoint with the user's school code and academic year
+        const params = new URLSearchParams({
+          schoolCode: userSchoolCode,
+          ...(viewingAcademicYear && { academicYear: viewingAcademicYear })
+        });
+        const response = await fetch(`/api/direct-test/assignments?${params.toString()}`, {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
