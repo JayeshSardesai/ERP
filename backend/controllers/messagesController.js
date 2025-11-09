@@ -539,12 +539,36 @@ exports.getTeacherMessages = async (req, res) => {
     const db = connection.db;
     const messagesCollection = db.collection('messages');
     
-    // Get query parameters for pagination
-    const { limit = 20, page = 1 } = req.query;
+    // Get query parameters for pagination and academic year
+    const { limit = 20, page = 1, academicYear } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
+    // Helper function to normalize academic year format (handles both 2024-2025 and 2024-25)
+    const normalizeAcademicYear = (year) => {
+      if (!year) return null;
+      const yearStr = String(year).trim();
+      // If format is 2024-25, convert to 2024-2025
+      const match = yearStr.match(/^(\d{4})-(\d{2})$/);
+      if (match) {
+        return `${match[1]}-20${match[2]}`;
+      }
+      // If format is 2024-2025, keep as is
+      if (yearStr.match(/^\d{4}-\d{4}$/)) {
+        return yearStr;
+      }
+      return yearStr;
+    };
+
+    // Build query with optional academic year filter
+    const query = {};
+    if (academicYear) {
+      const normalizedAY = normalizeAcademicYear(academicYear);
+      query.academicYear = normalizedAY;
+      console.log(`📅 Filtering messages by Academic Year: ${academicYear} (normalized: ${normalizedAY})`);
+    }
+    
     // Fetch messages from the teacher's school (sorted by newest first)
-    const messages = await messagesCollection.find({})
+    const messages = await messagesCollection.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))

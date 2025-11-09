@@ -595,7 +595,7 @@ exports.getStudentsByClassSection = async (req, res) => {
   try {
     console.log('📊 Fetching students by class and section');
     
-    const { className, section } = req.query;
+    const { className, section, academicYear } = req.query;
     
     if (!className) {
       return res.status(400).json({
@@ -604,11 +604,14 @@ exports.getStudentsByClassSection = async (req, res) => {
       });
     }
     
+    console.log('📋 Query params:', { className, section, academicYear });
+    
     const result = await reportService.getStudentsByClassSection(
       req.user.schoolId,
       req.user.schoolCode,
       className,
-      section
+      section,
+      academicYear
     );
     
     res.json(result);

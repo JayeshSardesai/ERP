@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Calendar, UserCheck, Eye } from 'lucide-react';
+import { Calendar, UserCheck, Eye, GraduationCap } from 'lucide-react';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import MarkAttendance from './MarkAttendance';
 import ViewAttendance from './ViewAttendance';
 
@@ -9,15 +10,29 @@ interface AttendanceProps {
 
 const Attendance: React.FC<AttendanceProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'mark' | 'view'>('mark');
+  const { currentAcademicYear, loading: ayLoading } = useAcademicYear();
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center space-x-3">
-        <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
-          <Calendar className="h-6 w-6 text-blue-600" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
+            <Calendar className="h-6 w-6 text-blue-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Attendance Management</h1>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">Attendance Management</h1>
+        
+        {/* Academic Year Badge */}
+        <div className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg shadow-md">
+          <GraduationCap className="h-5 w-5" />
+          <div className="flex flex-col">
+            <span className="text-xs opacity-90">Academic Year</span>
+            <span className="font-bold text-sm">
+              {ayLoading ? 'Loading...' : currentAcademicYear || '2024-2025'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}

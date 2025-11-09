@@ -183,6 +183,7 @@ export interface StudentDetail {
 export const getStudentsByClassSection = async (params: {
   className: string;
   section?: string;
+  academicYear?: string;
 }): Promise<{ success: boolean; students: StudentDetail[] }> => {
   const response = await api.get('/reports/students-by-class', { params });
   return response.data;

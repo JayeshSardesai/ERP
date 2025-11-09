@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Filter } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
 
 interface LeaveRequest {
@@ -20,6 +21,7 @@ interface LeaveRequest {
 
 const ViewLeaveRequests: React.FC = () => {
   const { token } = useAuth();
+  const { currentAcademicYear } = useAcademicYear();
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');

@@ -17,6 +17,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
+import AcademicYearCard from './AcademicYearCard';
 
 interface DashboardProps {
   onNavigate: (page: string) => void;
@@ -230,6 +231,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
+
+      {/* Academic Year Card */}
+      <AcademicYearCard />
 
       {/* Stats Grid */}
       {loading ? (

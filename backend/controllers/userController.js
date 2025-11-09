@@ -927,6 +927,12 @@ exports.createUserSimple = async (req, res) => {
           `${currentYear - 1}-${currentYear}`;
       };
 
+      // Get school's current academic year from settings
+      const schoolAcademicYear = school?.settings?.academicYear?.currentYear;
+      const academicYearToUse = req.body.academicYear || schoolAcademicYear || getCurrentAcademicYear();
+      
+      console.log(`📅 Setting student academic year: ${academicYearToUse} (from: ${req.body.academicYear ? 'request' : schoolAcademicYear ? 'school settings' : 'calculated'})`);
+
       baseDoc.studentDetails = {
         studentId: userId,
         admissionNumber: req.body.admissionNumber || `ADM${new Date().getFullYear().toString().slice(-2)}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
@@ -936,7 +942,7 @@ exports.createUserSimple = async (req, res) => {
         academic: {
           currentClass: className || req.body.class || '',
           currentSection: req.body.section || 'A',
-          academicYear: req.body.academicYear || getCurrentAcademicYear(),
+          academicYear: academicYearToUse,
           admissionDate: req.body.admissionDate ? new Date(req.body.admissionDate) : new Date(),
           admissionClass: className || req.body.class || '',
           enrollmentNo: req.body.enrollmentNo,
@@ -2033,7 +2039,7 @@ exports.getUsersByRole = async (req, res) => {
     console.log('🔍 Getting users by role:', req.params.role);
     const { role } = req.params;
     const { schoolCode, schoolDb } = req; // From school context middleware
-    const { class: className, section } = req.query; // Get class and section from query params
+    const { class: className, section, academicYear } = req.query; // Get class, section, and academicYear from query params
 
     if (!['admin', 'teacher', 'student', 'parent'].includes(role)) {
       return res.status(400).json({
@@ -2043,7 +2049,7 @@ exports.getUsersByRole = async (req, res) => {
     }
 
     console.log('🏫 School context:', { schoolCode, schoolName: req.school?.name });
-    console.log('📋 Filter params:', { className, section });
+    console.log('📋 Filter params:', { className, section, academicYear });
 
     // Use UserGenerator to get users from role-specific collections (like dashboard does)
     const UserGenerator = require('../utils/userGenerator');
@@ -2053,30 +2059,62 @@ exports.getUsersByRole = async (req, res) => {
     // Get users from role-specific collection (students, teachers, etc.)
     let users = await UserGenerator.getUsersByRole(schoolCode, role);
 
-    // Filter by class and section if provided (for students)
-    if (role === 'student' && (className || section)) {
-      console.log(`🔍 Filtering students by class: ${className}, section: ${section}`);
+    // Helper function to normalize academic year format (handles both 2024-2025 and 2024-25)
+    const normalizeAcademicYear = (year) => {
+      if (!year) return null;
+      const yearStr = String(year).trim();
+      // If format is already 2024-25, convert to 2024-2025
+      const match = yearStr.match(/^(\d{4})-(\d{2})$/);
+      if (match) {
+        return `${match[1]}-20${match[2]}`;
+      }
+      // If format is 2024-2025, keep as is
+      if (yearStr.match(/^\d{4}-\d{4}$/)) {
+        return yearStr;
+      }
+      return yearStr;
+    };
+
+    // Filter by class, section, and academic year if provided (for students)
+    if (role === 'student' && (className || section || academicYear)) {
+      const normalizedFilterAY = normalizeAcademicYear(academicYear);
+      console.log(`🔍 Filtering students by class: ${className}, section: ${section}, academicYear: ${academicYear} (normalized: ${normalizedFilterAY})`);
+      console.log(`📚 Total students before filtering: ${users.length}`);
       
       users = users.filter(user => {
         // Check multiple possible field structures for class and section
         const userClass = user.academicInfo?.class || 
                          user.studentDetails?.class || 
                          user.studentDetails?.currentClass ||  // Added currentClass
+                         user.studentDetails?.academic?.currentClass ||
                          user.class;
         const userSection = user.academicInfo?.section || 
                            user.studentDetails?.section || 
                            user.studentDetails?.currentSection ||  // Added currentSection
+                           user.studentDetails?.academic?.currentSection ||
                            user.section;
+        
+        // Check academic year field - check multiple locations
+        const userAcademicYear = user.studentDetails?.academic?.academicYear || 
+                                user.studentDetails?.academicYear ||
+                                user.academicYear;
+        
+        const normalizedUserAY = normalizeAcademicYear(userAcademicYear);
 
-        console.log(`👤 Student ${user.userId}: class=${userClass}, section=${userSection}`);
+        console.log(`👤 Student ${user.userId}: class=${userClass}, section=${userSection}, academicYear=${userAcademicYear} (normalized: ${normalizedUserAY}) | filtering by: ${normalizedFilterAY}`);
 
         const classMatch = !className || userClass === className;
         const sectionMatch = !section || userSection === section;
+        const academicYearMatch = !academicYear || normalizedUserAY === normalizedFilterAY;
 
-        return classMatch && sectionMatch;
+        if (!academicYearMatch && academicYear) {
+          console.log(`   ❌ EXCLUDED - AY mismatch: student has "${userAcademicYear}" (normalized: ${normalizedUserAY}), filtering for "${academicYear}" (normalized: ${normalizedFilterAY})`);
+        }
+
+        return classMatch && sectionMatch && academicYearMatch;
       });
 
-      console.log(`📊 Filtered to ${users.length} students for class: ${className}, section: ${section}`);
+      console.log(`📊 Filtered to ${users.length} students for class: ${className}, section: ${section}, academicYear: ${academicYear}`);
     }
 
     console.log(`✅ Found ${users.length} ${role}s in school ${schoolCode}`);

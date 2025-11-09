@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Save, CheckCircle, XCircle, Calendar, Sun, Moon, Users as UsersIcon, Lock } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
 import * as attendanceAPI from '../../../../api/attendance';
 
 const MarkAttendance: React.FC = () => {
   const { user, token } = useAuth();
   const { classesData, loading: classesLoading, getSectionsByClass } = useSchoolClasses();
+  const { currentAcademicYear } = useAcademicYear();
   
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
@@ -54,12 +56,24 @@ const MarkAttendance: React.FC = () => {
         console.log('🔍 Fetching students for:', { 
           class: selectedClass, 
           section: selectedSection, 
-          schoolCode: user.schoolCode 
+          schoolCode: user.schoolCode,
+          academicYear: currentAcademicYear
         });
+        console.log('📅 Filtering by Academic Year:', currentAcademicYear);
+
+        // Build query params including academic year
+        const queryParams = new URLSearchParams({
+          class: selectedClass,
+          section: selectedSection
+        });
+        
+        if (currentAcademicYear) {
+          queryParams.append('academicYear', currentAcademicYear);
+        }
 
         // Use the same API endpoint as admin - teachers have access via validateSchoolAccess(['admin', 'teacher'])
         const response = await fetch(
-          `/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
+          `/api/users/role/student?${queryParams.toString()}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -77,24 +91,13 @@ const MarkAttendance: React.FC = () => {
         console.log('📊 API Response:', data);
         
         const users = data.data || data || [];
-        console.log(`👥 Total users received: ${users.length}`);
+        console.log(`👥 Total users received from API (already filtered by backend): ${users.length}`);
 
-        // Filter students - check multiple possible field structures
-        const filtered = users.filter((u: any) => {
-          const isStudent = u.role === 'student';
-          const matchesClass = u.academicInfo?.class === selectedClass || 
-                              u.studentDetails?.class === selectedClass ||
-                              u.studentDetails?.currentClass === selectedClass ||
-                              u.class === selectedClass;
-          const matchesSection = u.academicInfo?.section === selectedSection || 
-                                u.studentDetails?.section === selectedSection ||
-                                u.studentDetails?.currentSection === selectedSection ||
-                                u.section === selectedSection;
-          
-          return isStudent && matchesClass && matchesSection;
-        });
+        // Backend already filters by class, section, and academic year
+        // Just ensure they are students (defensive check)
+        const filtered = users.filter((u: any) => u.role === 'student');
 
-        console.log(`✅ Filtered students: ${filtered.length}`);
+        console.log(`✅ Students for AY ${currentAcademicYear}: ${filtered.length}`);
         
         // Map to consistent format
         const mappedStudents = filtered.map((student: any) => ({
@@ -123,7 +126,7 @@ const MarkAttendance: React.FC = () => {
     };
 
     fetchStudents();
-  }, [selectedClass, selectedSection, token, user?.schoolCode]);
+  }, [selectedClass, selectedSection, token, user?.schoolCode, currentAcademicYear]);
 
   // Check session status when date, class, section or session changes
   useEffect(() => {
@@ -335,7 +338,7 @@ const MarkAttendance: React.FC = () => {
 
       {/* Selection Controls */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
             <input
@@ -343,6 +346,17 @@ const MarkAttendance: React.FC = () => {
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Academic Year</label>
+            <input
+              type="text"
+              value={currentAcademicYear || 'Loading...'}
+              readOnly
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold cursor-not-allowed"
+              title="Academic Year is set by Admin and cannot be changed"
             />
           </div>
 

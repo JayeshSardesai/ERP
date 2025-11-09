@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as attendanceAPI from '../../../../api/attendance';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { Calendar, Users, Search, Sun, Moon, CheckCircle, XCircle, Clock } from 'lucide-react';
 
 interface Student {
@@ -17,6 +18,7 @@ interface Student {
 const ViewAttendance: React.FC = () => {
   const { token, user } = useAuth();
   const { classesData, loading: classesLoading, getSectionsByClass, hasClasses } = useSchoolClasses();
+  const { currentAcademicYear } = useAcademicYear();
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
@@ -51,7 +53,7 @@ const ViewAttendance: React.FC = () => {
     if (selectedClass && selectedSection) {
       fetchStudentsAndAttendance();
     }
-  }, [selectedClass, selectedSection, selectedDate, session]);
+  }, [selectedClass, selectedSection, selectedDate, session, currentAcademicYear]);
 
   useEffect(() => {
     filterStudents();
@@ -67,8 +69,26 @@ const ViewAttendance: React.FC = () => {
       setLoading(true);
       setError('');
 
+      console.log('🔍 [ViewAttendance] Fetching students for:', { 
+        class: selectedClass, 
+        section: selectedSection, 
+        date: selectedDate,
+        session,
+        academicYear: currentAcademicYear
+      });
+
+      // Build query params including academic year
+      const queryParams = new URLSearchParams({
+        class: selectedClass,
+        section: selectedSection
+      });
+      
+      if (currentAcademicYear) {
+        queryParams.append('academicYear', currentAcademicYear);
+      }
+
       const response = await fetch(
-        `/api/users/role/student?class=${selectedClass}&section=${selectedSection}`,
+        `/api/users/role/student?${queryParams.toString()}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -82,19 +102,13 @@ const ViewAttendance: React.FC = () => {
 
       const data = await response.json();
       const users = data.data || data || [];
+      console.log(`👥 [ViewAttendance] Total users received from API (already filtered by backend): ${users.length}`);
 
-      const filtered = users.filter((u: any) => {
-        const isStudent = u.role === 'student';
-        const matchesClass = u.academicInfo?.class === selectedClass || 
-                            u.studentDetails?.class === selectedClass ||
-                            u.studentDetails?.currentClass === selectedClass ||
-                            u.class === selectedClass;
-        const matchesSection = u.academicInfo?.section === selectedSection || 
-                              u.studentDetails?.section === selectedSection ||
-                              u.studentDetails?.currentSection === selectedSection ||
-                              u.section === selectedSection;
-        return isStudent && matchesClass && matchesSection;
-      });
+      // Backend already filters by class, section, and academic year
+      // Just ensure they are students (defensive check)
+      const filtered = users.filter((u: any) => u.role === 'student');
+
+      console.log(`✅ [ViewAttendance] Students for AY ${currentAcademicYear}: ${filtered.length}`);
 
       let studentsWithAttendance = filtered.map((u: any) => ({
         _id: u._id,
@@ -209,7 +223,7 @@ const ViewAttendance: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
             <input
@@ -217,6 +231,17 @@ const ViewAttendance: React.FC = () => {
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Academic Year</label>
+            <input
+              type="text"
+              value={currentAcademicYear || 'Loading...'}
+              readOnly
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold cursor-not-allowed"
+              title="Academic Year is set by Admin and cannot be changed"
             />
           </div>
 

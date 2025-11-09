@@ -36,6 +36,8 @@ import FeesPage from './pages/FeesPage'
 
 import ReportsPage from './pages/ReportsPage'
 
+import LeaveManagement from './pages/LeaveManagement'
+
 import ErrorBoundary from '../../components/ErrorBoundary'
 
 import { PermissionGuard } from '../../components/PermissionGuard'
@@ -148,6 +150,14 @@ export function AdminApp() {
           <Route path="messages" element={
             <PermissionGuard permission="messageStudentsParents" permissionName="Messages">
               <MessagesPage />
+            </PermissionGuard>
+
+          } />
+
+          {/* Leave Management - Requires viewLeaves permission */}
+          <Route path="leave-management" element={
+            <PermissionGuard permission="viewLeaves" permissionName="Leave Management">
+              <LeaveManagement />
             </PermissionGuard>
 
           } />

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Edit, Trash2, Calendar, X, Plus } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import * as assignmentAPI from '../../../../api/assignment';
 
 interface Assignment {
@@ -21,6 +22,7 @@ interface Assignment {
 const ViewAssignments: React.FC = () => {
   const { user } = useAuth();
   const { classesData, getSectionsByClass } = useSchoolClasses();
+  const { currentAcademicYear } = useAcademicYear();
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [filteredAssignments, setFilteredAssignments] = useState<Assignment[]>([]);
@@ -120,7 +122,7 @@ const ViewAssignments: React.FC = () => {
       
       console.log(`📊 Total assignments before filtering: ${assignmentsArray.length}`);
       
-      // Validate each assignment has required fields
+      // Validate each assignment has required fields and filter by academic year
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') {
           console.log('❌ Invalid assignment (not an object):', assignment);
@@ -139,7 +141,19 @@ const ViewAssignments: React.FC = () => {
           return false;
         }
         
-        return true;
+        // Filter by current academic year
+        const assignmentAY = assignment.academicYear;
+        const matchesAcademicYear = !currentAcademicYear || !assignmentAY || assignmentAY === currentAcademicYear;
+        
+        if (!matchesAcademicYear) {
+          console.log('⏭️ Skipping assignment from different academic year:', {
+            title: assignment.title,
+            academicYear: assignmentAY,
+            currentAcademicYear
+          });
+        }
+        
+        return matchesAcademicYear;
       });
       
       console.log(`✅ Loaded ${validAssignments.length} valid assignments out of ${assignmentsArray.length} total`);

@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Filter, Download, Medal, Edit, Save, X } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { resultsAPI } from '../../../../services/api';
 import { toast } from 'react-hot-toast';
 
 const ViewResults: React.FC = () => {
   const { user, token } = useAuth();
+  const { currentAcademicYear } = useAcademicYear();
 
   // Use the useSchoolClasses hook to fetch classes configured by superadmin
   const {
@@ -307,7 +309,18 @@ const ViewResults: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Academic Year</label>
+            <input
+              type="text"
+              value={currentAcademicYear || 'Loading...'}
+              readOnly
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold cursor-not-allowed"
+              title="Academic Year is set by Admin and cannot be changed"
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Class</label>
             <select
@@ -393,8 +406,23 @@ const ViewResults: React.FC = () => {
                     return;
                   }
 
+                  // Build query params including academic year
+                  const queryParams = new URLSearchParams({
+                    schoolCode,
+                    class: selectedClass,
+                    section: selectedSection,
+                    subject: selectedSubject,
+                    testType: selectedExam
+                  });
+                  
+                  if (currentAcademicYear) {
+                    queryParams.append('academicYear', currentAcademicYear);
+                  }
+
+                  console.log('🔍 Fetching results with params:', Object.fromEntries(queryParams));
+
                   const response = await fetch(
-                    `/api/results/teacher/view?schoolCode=${schoolCode}&class=${selectedClass}&section=${selectedSection}&subject=${selectedSubject}&testType=${selectedExam}`,
+                    `/api/results/teacher/view?${queryParams.toString()}`,
                     {
                       headers: {
                         'Authorization': `Bearer ${token}`,

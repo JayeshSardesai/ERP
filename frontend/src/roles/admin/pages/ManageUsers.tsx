@@ -958,7 +958,7 @@ const ManageUsers: React.FC = () => {
       // Academic Information
       currentClass: '',
       currentSection: '',
-      academicYear: '2024-25',
+      academicYear: currentAcademicYear || '2024-25',
       admissionDate: '',
       admissionClass: '',
       rollNumber: '',
@@ -1530,7 +1530,7 @@ const ManageUsers: React.FC = () => {
         // Academic Information
         currentClass: '',
         currentSection: '',
-        academicYear: '2024-25',
+        academicYear: currentAcademicYear || '2024-25',
         admissionDate: '',
         admissionClass: '',
         rollNumber: '',

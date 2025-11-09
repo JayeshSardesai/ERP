@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, User, MessageCircle, Clock } from 'lucide-react';
+import { Users, User, MessageCircle, Clock, Calendar } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
 
 interface Message {
@@ -24,18 +25,31 @@ interface Message {
 
 const Messages: React.FC = () => {
   const { token, user } = useAuth();
+  const { currentAcademicYear } = useAcademicYear();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch messages from backend
   useEffect(() => {
     fetchMessages();
-  }, []);
+  }, [currentAcademicYear]); // Refetch when academic year changes
 
   const fetchMessages = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/messages/teacher/messages', {
+      // Build query params including academic year
+      const queryParams = new URLSearchParams();
+      if (currentAcademicYear) {
+        queryParams.append('academicYear', currentAcademicYear);
+      }
+
+      const url = queryParams.toString() 
+        ? `/api/messages/teacher/messages?${queryParams.toString()}`
+        : '/api/messages/teacher/messages';
+
+      console.log('🔍 Fetching messages for academic year:', currentAcademicYear);
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -79,6 +93,17 @@ const Messages: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Messages</h1>
           <p className="text-gray-600">View your messages</p>
+        </div>
+        
+        {/* Academic Year Badge */}
+        <div className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg shadow-md mt-4 sm:mt-0">
+          <Calendar className="h-5 w-5" />
+          <div className="flex flex-col">
+            <span className="text-xs opacity-90">Academic Year</span>
+            <span className="font-bold text-sm">
+              {currentAcademicYear || 'Loading...'}
+            </span>
+          </div>
         </div>
       </div>
 
