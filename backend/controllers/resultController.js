@@ -1458,10 +1458,37 @@ exports.getResultsStats = async (req, res) => {
       }
     }
 
-    const results = await resultsCollection.find(query).toArray();
+    let results = await resultsCollection.find(query).toArray();
 
     console.log(`[RESULTS STATS] Query used:`, JSON.stringify(query));
-    console.log(`[RESULTS STATS] Found ${results.length} result documents`);
+    console.log(`[RESULTS STATS] Found ${results.length} result documents with initial query`);
+    
+    // If no results found and we have filters, try without academic year to debug
+    if (results.length === 0 && Object.keys(query).length > 0) {
+      console.log(`[RESULTS STATS] No results with full query, checking what exists in DB...`);
+      
+      // Check if ANY results exist for this class/section
+      const debugQuery = {};
+      if (className && className !== 'all') {
+        debugQuery.className = className;
+      }
+      if (section) {
+        debugQuery.section = section;
+      }
+      
+      const debugResults = await resultsCollection.find(debugQuery).limit(1).toArray();
+      if (debugResults.length > 0) {
+        console.log(`[RESULTS STATS] Found results without academic year filter. Sample:`, {
+          className: debugResults[0].className,
+          section: debugResults[0].section,
+          academicYear: debugResults[0].academicYear,
+          subjectsCount: debugResults[0].subjects?.length
+        });
+        console.log(`[RESULTS STATS] Academic year mismatch! Query had: ${JSON.stringify(query.academicYear)}, DB has: ${debugResults[0].academicYear}`);
+      } else {
+        console.log(`[RESULTS STATS] No results found even without academic year filter`);
+      }
+    }
     
     if (results.length > 0) {
       console.log(`[RESULTS STATS] Sample result:`, {
@@ -1479,7 +1506,8 @@ exports.getResultsStats = async (req, res) => {
         subjectStats: [],
         gradeDistribution: [],
         totalStudents: 0,
-        averagePercentage: 0
+        averagePercentage: 0,
+        message: 'No results data found for the specified filters'
       });
     }
 
