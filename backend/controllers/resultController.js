@@ -1406,7 +1406,15 @@ exports.getResultsStats = async (req, res) => {
     const { academicYear } = req.query;
     const schoolCode = req.user?.schoolCode;
 
+    console.log(`[RESULTS STATS] Request received from user:`, {
+      userId: req.user?.userId,
+      role: req.user?.role,
+      schoolCode: schoolCode,
+      academicYear: academicYear
+    });
+
     if (!schoolCode) {
+      console.error('[RESULTS STATS] No school code found in user object');
       return res.status(400).json({
         success: false,
         message: 'School code is required'
@@ -1417,6 +1425,15 @@ exports.getResultsStats = async (req, res) => {
 
     const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
     const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    
+    if (!schoolConnection) {
+      console.error(`[RESULTS STATS] Failed to get school connection for: ${schoolCode}`);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to connect to school database'
+      });
+    }
+    
     const resultsCollection = schoolConnection.collection('results');
 
     // Build query

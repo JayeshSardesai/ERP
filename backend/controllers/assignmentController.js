@@ -393,12 +393,20 @@ exports.getAssignments = async (req, res) => {
       ];
     }
 
-    // Teachers can only see their own assignments
+    // Teachers can see assignments they created OR assignments for their classes/subjects
     if (req.user.role === 'teacher') {
       // Use userId (e.g., "SK-T-001") instead of MongoDB _id
       const teacherId = req.user.userId || req.user._id.toString();
-      query.teacher = teacherId;
-      console.log(`[GET ASSIGNMENTS] Filtering by teacher: ${teacherId}`);
+      
+      // Teachers see:
+      // 1. Assignments they created (teacher field matches)
+      // 2. All assignments for the school (admins can create assignments for any class)
+      // We don't filter by teacher field for teachers - they should see all school assignments
+      // This allows teachers to see assignments created by admins for their classes
+      
+      console.log(`[GET ASSIGNMENTS] Teacher ${teacherId} can see all school assignments`);
+      // Remove teacher filtering - teachers should see all assignments in their school
+      // query.teacher = teacherId; // REMOVED - too restrictive
     }
 
     // Students can only see published assignments for their class/section

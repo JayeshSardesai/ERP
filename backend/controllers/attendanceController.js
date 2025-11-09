@@ -860,12 +860,33 @@ exports.getAttendanceStats = async (req, res) => {
   try {
     const { class: className, section, startDate, endDate, date, academicYear } = req.query;
 
+    console.log(`[ATTENDANCE STATS] Request received:`, {
+      userId: req.user?.userId,
+      role: req.user?.role,
+      schoolCode: req.user?.schoolCode,
+      className,
+      section,
+      academicYear,
+      startDate,
+      endDate,
+      date
+    });
+
     // Check if user has access (more flexible role checking)
     if (!req.user) {
+      console.error('[ATTENDANCE STATS] No user found in request');
       return res.status(401).json({ message: 'Authentication required' });
     }
 
     const schoolCode = req.user.schoolCode;
+
+    if (!schoolCode) {
+      console.error('[ATTENDANCE STATS] No school code found in user object');
+      return res.status(400).json({ 
+        success: false,
+        message: 'School code is required' 
+      });
+    }
 
     console.log(`[ATTENDANCE STATS] Fetching stats for school: ${schoolCode}, academic year: ${academicYear || 'all'}`);
 

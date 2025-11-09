@@ -51,53 +51,90 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
 
   useEffect(() => {
-    if (isOpen && formData.class) {
-      fetchSubjectsForClass(formData.class);
+    if (isOpen && formData.class && formData.section) {
+      fetchSubjectsForClass(formData.class, formData.section);
     }
-  }, [isOpen, formData.class]);
+  }, [isOpen, formData.class, formData.section]);
 
-  const fetchSubjectsForClass = async (className: string) => {
+  const fetchSubjectsForClass = async (className: string, section: string) => {
+    if (!className || !section) {
+      setAvailableSubjects([]);
+      return;
+    }
+
     try {
-      console.log(`🔍 Fetching subjects for class: ${className}`);
+      console.log(`🔍 [CREATE MODAL] Fetching subjects for class: ${className}, section: ${section}`);
       
-      // Add more detailed logging
-      console.log(`🔗 Request URL: /api/class-subjects/class/${encodeURIComponent(className)}`);
-      console.log(`🔑 Auth token available: ${!!token}`);
-      
-      // Try the regular endpoint first
+      const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
+      if (!schoolCode) {
+        console.error('❌ [CREATE MODAL] School code not available');
+        setAvailableSubjects([]);
+        return;
+      }
+
+      console.log('📚 [CREATE MODAL] Using school code:', schoolCode);
+
+      // Primary API - using /class-subjects/classes to get all classes
       try {
-        const response = await api.get(`/class-subjects/class/${encodeURIComponent(className)}`);
-        console.log(`📡 Response status: ${response.status}`);
+        console.log('🔄 [CREATE MODAL] Trying primary API: /class-subjects/classes');
+        const resp = await api.get('/class-subjects/classes', {
+          headers: {
+            'x-school-code': schoolCode.toUpperCase()
+          }
+        });
         
-        const data = response.data;
-        if (data.success && data.data && data.data.subjects) {
-          const subjectNames = data.data.subjects
-            .filter((subject: any) => subject.isActive !== false)
-            .map((subject: any) => subject.name)
-            .filter(Boolean);
-          setAvailableSubjects(subjectNames);
-          return;
-        }
-      } catch (error) {
-        console.log(`⚠️ Regular endpoint failed, trying direct endpoint...`);
+        console.log('✅ [CREATE MODAL] Primary API response:', resp.data);
         
-        // Try direct endpoint as fallback
-        try {
-          const userSchoolCode = user?.schoolCode || '';
-          const response2 = await api.get(`/direct-test/class-subjects/${encodeURIComponent(className)}?schoolCode=${userSchoolCode}`);
-          const data2 = response2.data;
-          if (data2.success && data2.data && data2.data.subjects) {
-            const subjectNames = data2.data.subjects
-              .filter((subject: any) => subject.isActive !== false)
-              .map((subject: any) => subject.name)
-              .filter(Boolean);
+        if (resp.data?.success && resp.data?.data?.classes) {
+          const classData = resp.data.data.classes.find((c: any) => 
+            c.className === className && c.section === section
+          );
+          
+          console.log('🎯 [CREATE MODAL] Found class data:', classData);
+          
+          if (classData?.subjects) {
+            const activeSubjects = classData.subjects.filter((s: any) => s.isActive !== false);
+            const subjectNames = activeSubjects.map((s: any) => s.name || s.subjectName).filter(Boolean);
+            
+            console.log('📝 [CREATE MODAL] Extracted subject names:', subjectNames);
+            
             setAvailableSubjects(subjectNames);
             return;
           }
-        } catch (fallbackError) {
-          console.error('❌ Both endpoints failed:', fallbackError);
         }
+      } catch (err) {
+        console.error('❌ [CREATE MODAL] Primary API failed:', err);
+        // fall through to fallback
       }
+
+      // Fallback API
+      try {
+        console.log('🔄 [CREATE MODAL] Trying fallback API: /direct-test/class-subjects');
+        const resp2 = await api.get(`/direct-test/class-subjects/${className}`, {
+          params: { schoolCode },
+          headers: {
+            'x-school-code': schoolCode.toUpperCase()
+          }
+        });
+        
+        console.log('✅ [CREATE MODAL] Fallback API response:', resp2.data);
+        
+        if (resp2.data?.success && resp2.data?.data?.subjects) {
+          const subjectNames = resp2.data.data.subjects
+            .map((s: any) => s.name || s.subjectName)
+            .filter(Boolean);
+          
+          console.log('📝 [CREATE MODAL] Extracted subject names from fallback:', subjectNames);
+          
+          setAvailableSubjects(subjectNames);
+          return;
+        }
+      } catch (err) {
+        console.error('❌ [CREATE MODAL] Fallback API failed:', err);
+      }
+
+      console.warn('⚠️ [CREATE MODAL] No subjects found for class/section');
+      setAvailableSubjects([]);
       
       // Fallback to empty array if no subjects found
       setAvailableSubjects([]);
@@ -271,12 +308,8 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({
                   value={formData.class}
                   onChange={e => {
                     const newClass = e.target.value;
-                    setFormData({ ...formData, class: newClass, subject: '' });
-                    if (newClass) {
-                      fetchSubjectsForClass(newClass);
-                    } else {
-                      setAvailableSubjects([]);
-                    }
+                    setFormData({ ...formData, class: newClass, subject: '', section: '' });
+                    setAvailableSubjects([]);
                   }}
                 >
                   <option value="">Select Class</option>
