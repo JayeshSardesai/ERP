@@ -531,19 +531,35 @@ class ReportService {
         {
           $group: {
             _id: '$userId',
-            avgMarks: { $avg: '$subjects.percentage' }
+            totalObtained: { $sum: '$subjects.obtainedMarks' },
+            totalMarks: { $sum: '$subjects.totalMarks' },
+            avgPercentage: { $avg: '$subjects.percentage' }
           }
         },
         {
           $project: {
             _id: 0,
             studentId: '$_id',
-            avgMarks: { $round: ['$avgMarks', 2] }
+            avgMarks: {
+              $round: [
+                {
+                  $cond: [
+                    { $gt: ['$totalMarks', 0] },
+                    { $multiply: [{ $divide: ['$totalObtained', '$totalMarks'] }, 100] },
+                    '$avgPercentage'
+                  ]
+                },
+                2
+              ]
+            }
           }
         }
       ]).toArray();
       
       console.log(`✅ Found results for ${studentResults.length} students`);
+      if (studentResults.length > 0) {
+        console.log(`📊 Sample result calculation:`, studentResults[0]);
+      }
 
       // STEP 3: Fetch attendance for these students
       const attendanceMatchQuery = {

@@ -1467,26 +1467,38 @@ exports.getResultsStats = async (req, res) => {
     if (results.length === 0 && Object.keys(query).length > 0) {
       console.log(`[RESULTS STATS] No results with full query, checking what exists in DB...`);
       
-      // Check if ANY results exist for this class/section
-      const debugQuery = {};
-      if (className && className !== 'all') {
-        debugQuery.className = className;
-      }
-      if (section) {
-        debugQuery.section = section;
-      }
+      // First check total count in collection
+      const totalCount = await resultsCollection.countDocuments();
+      console.log(`[RESULTS STATS] Total results in collection: ${totalCount}`);
       
-      const debugResults = await resultsCollection.find(debugQuery).limit(1).toArray();
-      if (debugResults.length > 0) {
-        console.log(`[RESULTS STATS] Found results without academic year filter. Sample:`, {
-          className: debugResults[0].className,
-          section: debugResults[0].section,
-          academicYear: debugResults[0].academicYear,
-          subjectsCount: debugResults[0].subjects?.length
-        });
-        console.log(`[RESULTS STATS] Academic year mismatch! Query had: ${JSON.stringify(query.academicYear)}, DB has: ${debugResults[0].academicYear}`);
+      if (totalCount > 0) {
+        // Check if ANY results exist for this class/section
+        const debugQuery = {};
+        if (className && className !== 'all') {
+          debugQuery.className = className;
+        }
+        if (section) {
+          debugQuery.section = section;
+        }
+        
+        const debugResults = await resultsCollection.find(debugQuery).limit(1).toArray();
+        if (debugResults.length > 0) {
+          console.log(`[RESULTS STATS] Found results without academic year filter. Sample:`, {
+            className: debugResults[0].className,
+            section: debugResults[0].section,
+            academicYear: debugResults[0].academicYear,
+            subjectsCount: debugResults[0].subjects?.length
+          });
+          console.log(`[RESULTS STATS] Academic year mismatch! Query had: ${JSON.stringify(query.academicYear)}, DB has: ${debugResults[0].academicYear}`);
+        } else {
+          console.log(`[RESULTS STATS] No results found for class ${className}, section ${section}`);
+          
+          // Show what classes DO have results
+          const availableClasses = await resultsCollection.distinct('className');
+          console.log(`[RESULTS STATS] Available classes with results:`, availableClasses);
+        }
       } else {
-        console.log(`[RESULTS STATS] No results found even without academic year filter`);
+        console.log(`[RESULTS STATS] Results collection is empty - no results have been entered yet`);
       }
     }
     
@@ -1500,14 +1512,18 @@ exports.getResultsStats = async (req, res) => {
     }
 
     if (results.length === 0) {
-      console.log(`[RESULTS STATS] No results found - returning 0%`);
+      const message = className && className !== 'all' 
+        ? `No results data found for Class ${className}${section ? ` Section ${section}` : ''} in academic year ${academicYear || 'current'}`
+        : 'No results data found for the specified filters. Results may not have been entered yet.';
+      
+      console.log(`[RESULTS STATS] ${message}`);
       return res.json({
         success: true,
         subjectStats: [],
         gradeDistribution: [],
         totalStudents: 0,
         averagePercentage: 0,
-        message: 'No results data found for the specified filters'
+        message: message
       });
     }
 
@@ -1526,7 +1542,10 @@ exports.getResultsStats = async (req, res) => {
 
     results.forEach(result => {
       // Process subjects array
-      if (result.subjects && Array.isArray(result.subjects)) {
+      if (result.subjects && Array.isArray(result.subjects) && result.subjects.length > 0) {
+        let studentTotalObtained = 0;
+        let studentTotalMarks = 0;
+        
         result.subjects.forEach(subject => {
           const subjectName = subject.subjectName || subject.name || 'Unknown';
           
@@ -1547,11 +1566,22 @@ exports.getResultsStats = async (req, res) => {
             subjectMap[subjectName].totalObtained += obtained;
             subjectMap[subjectName].totalMarks += total;
             subjectMap[subjectName].studentCount++;
+            
+            // Accumulate for overall percentage calculation
+            studentTotalObtained += obtained;
+            studentTotalMarks += total;
           }
         });
 
-        // Calculate grade distribution based on overall percentage
-        const overallPercentage = parseFloat(result.percentage || result.overallPercentage || 0);
+        // Calculate overall percentage for this student
+        // First try document-level percentage, then calculate from subjects
+        let overallPercentage = parseFloat(result.percentage || result.overallPercentage || 0);
+        
+        if (overallPercentage === 0 && studentTotalMarks > 0) {
+          // Calculate from subjects if not present at document level
+          overallPercentage = (studentTotalObtained / studentTotalMarks) * 100;
+        }
+        
         if (overallPercentage > 0) {
           if (overallPercentage >= 90) {
             gradeMap['A+ (90-100)']++;

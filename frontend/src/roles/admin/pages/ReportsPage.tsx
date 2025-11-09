@@ -439,7 +439,7 @@ const ReportsPage: React.FC = () => {
     }
   }, [viewingAcademicYear, selectedClass, selectedSection, user?.schoolCode]);
 
-  // Fetch students for a specific class and section from school-users endpoint
+  // Fetch students for a specific class and section with their marks and attendance
   const fetchStudentsForClassSection = useCallback(async (className: string, section: string) => {
     // Include academic year in cache key to ensure fresh data when year changes
     const key = `${viewingAcademicYear}-${className}-${section}`;
@@ -452,59 +452,26 @@ const ReportsPage: React.FC = () => {
     try {
       setLoadingStudents(prev => new Set(prev).add(key));
       
-      console.log(`🔍 Fetching students for class ${className}, section: ${section}, academicYear: ${viewingAcademicYear}`);
+      console.log(`🔍 Fetching students with stats for class ${className}, section: ${section}, academicYear: ${viewingAcademicYear}`);
       
-      // Get authentication token and school code
-      const authData = localStorage.getItem('erp.auth');
-      const token = authData ? JSON.parse(authData).token : null;
-      const schoolCode = user?.schoolCode;
-
-      if (!token || !schoolCode) {
-        console.error('Authentication required');
-        return;
-      }
-
-      const response = await schoolUserAPI.getAllUsers(schoolCode, token);
-      
-      // Extract students from response
-      let allStudents: any[] = [];
-      if (response.data && Array.isArray(response.data)) {
-        allStudents = response.data.filter((u: any) => u.role === 'student');
-      } else if (response.students && Array.isArray(response.students)) {
-        allStudents = response.students;
-      }
-
-      // Filter by academic year, class and section
-      const filteredStudents = allStudents.filter((student: any) => {
-        const studentAcademicYear = student.studentDetails?.academicYear || student.academicYear;
-        const studentClass = student.studentDetails?.currentClass || student.class || student.academicInfo?.class;
-        const studentSection = student.studentDetails?.currentSection || student.section || student.academicInfo?.section;
-        
-        const yearMatch = studentAcademicYear === viewingAcademicYear;
-        const classMatch = studentClass === className;
-        const sectionMatch = section === 'All' || section === 'ALL' || section === 'All Sections' || section === 'Not Assigned' 
-          ? true 
-          : studentSection === section;
-        
-        return yearMatch && classMatch && sectionMatch;
+      // Use the backend API that returns students with their avgMarks and avgAttendance
+      const response = await getStudentsByClassSection({
+        className: className,
+        section: section,
+        academicYear: viewingAcademicYear
       });
-
-      // Map to StudentDetail format
-      const studentDetailsList: StudentDetail[] = filteredStudents.map((student: any) => ({
-        studentId: student.userId || student._id,
-        studentName: student.name?.displayName || 
-          (student.name?.firstName && student.name?.lastName 
-            ? `${student.name.firstName} ${student.name.lastName}` 
-            : student.name?.firstName || student.name?.lastName || student.name || 'Unknown'),
-        avgMarks: 0, // Would need to fetch from marks data
-        avgAttendance: 0 // Would need to fetch from attendance data
-      }));
       
-      console.log(`✅ Fetched ${studentDetailsList.length} students for ${className}-${section}`);
-      setStudentDetails(prev => new Map(prev).set(key, studentDetailsList));
+      if (response.success && response.students) {
+        console.log(`✅ Fetched ${response.students.length} students with stats for ${className}-${section}`);
+        setStudentDetails(prev => new Map(prev).set(key, response.students));
+      } else {
+        console.warn(`⚠️ No students found for ${className}-${section}`);
+        setStudentDetails(prev => new Map(prev).set(key, []));
+      }
       
     } catch (error) {
       console.error(`❌ Error fetching students for ${className}-${section}:`, error);
+      setStudentDetails(prev => new Map(prev).set(key, []));
     } finally {
       setLoadingStudents(prev => {
         const newSet = new Set(prev);
@@ -512,7 +479,7 @@ const ReportsPage: React.FC = () => {
         return newSet;
       });
     }
-  }, [studentDetails, viewingAcademicYear, user?.schoolCode]);
+  }, [studentDetails, viewingAcademicYear]);
 
   // Toggle row expansion
   const toggleRowExpansion = useCallback((className: string, section: string) => {
@@ -553,45 +520,18 @@ const ReportsPage: React.FC = () => {
           let students = studentDetails.get(rowKey);
           
           if (!students) {
-            // Fetch student data from school-users endpoint
+            // Fetch student data with marks and attendance from backend API
             try {
-              const authData = localStorage.getItem('erp.auth');
-              const token = authData ? JSON.parse(authData).token : null;
-              const schoolCode = user?.schoolCode;
-
-              if (token && schoolCode) {
-                const response = await schoolUserAPI.getAllUsers(schoolCode, token);
-                
-                let allStudents: any[] = [];
-                if (response.data && Array.isArray(response.data)) {
-                  allStudents = response.data.filter((u: any) => u.role === 'student');
-                } else if (response.students && Array.isArray(response.students)) {
-                  allStudents = response.students;
-                }
-
-                const filteredStudents = allStudents.filter((student: any) => {
-                  const studentAcademicYear = student.studentDetails?.academicYear || student.academicYear;
-                  const studentClass = student.studentDetails?.currentClass || student.class || student.academicInfo?.class;
-                  const studentSection = student.studentDetails?.currentSection || student.section || student.academicInfo?.section;
-                  
-                  const yearMatch = studentAcademicYear === viewingAcademicYear;
-                  const classMatch = studentClass === classItem.className;
-                  const sectionMatch = section.name === 'All Sections' || section.name === 'All' || section.name === 'ALL' || section.name === 'Not Assigned'
-                    ? true 
-                    : studentSection === section.name;
-                  
-                  return yearMatch && classMatch && sectionMatch;
-                });
-
-                students = filteredStudents.map((student: any) => ({
-                  studentId: student.userId || student._id,
-                  studentName: student.name?.displayName || 
-                    (student.name?.firstName && student.name?.lastName 
-                      ? `${student.name.firstName} ${student.name.lastName}` 
-                      : student.name?.firstName || student.name?.lastName || student.name || 'Unknown'),
-                  avgMarks: 0,
-                  avgAttendance: 0
-                }));
+              const response = await getStudentsByClassSection({
+                className: classItem.className,
+                section: section.name,
+                academicYear: viewingAcademicYear
+              });
+              
+              if (response.success && response.students) {
+                students = response.students;
+              } else {
+                students = [];
               }
             } catch (err) {
               console.error('Error fetching students for export:', err);
