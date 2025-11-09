@@ -440,6 +440,7 @@ export const feesAPI = {
   },
   createFeeStructure: (feeStructureData) => api.post('/fees/structures', feeStructureData),
   getFeeStructures: (params) => api.get('/fees/structures', { params }),
+  deleteFeeStructure: (id) => api.delete(`/fees/structures/${id}`),
   getStudentFeeRecords: (params) => api.get('/fees/records', { params }),
   getStudentFeeRecord: async (identifier) => {
     if (!identifier) {

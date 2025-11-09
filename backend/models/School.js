@@ -7,22 +7,16 @@ const schoolSchema = new mongoose.Schema({
   principalName: { type: String },
   principalEmail: { type: String },
   mobile: { type: String }, // Direct mobile field for backward compatibility
-  
+
   // Academic settings for school types and configurations
   academicSettings: {
-    schoolTypes: [{ 
-      type: String, 
-      enum: ['Kindergarten', 'Primary', 'Middle', 'Secondary', 'Higher Secondary', 'K-12'] 
+    schoolTypes: [{
+      type: String,
+      enum: ['Kindergarten', 'Primary', 'Middle', 'Secondary', 'Higher Secondary', 'K-12']
     }],
-    customGradeNames: { 
-      type: Map, 
-      of: String,
-      default: () => {
-        const map = new Map();
-        map.set('LKG', 'Lower Kindergarten');
-        map.set('UKG', 'Upper Kindergarten');
-        return map;
-      }
+    customGradeNames: {
+      type: Map,
+      of: String
     },
     gradeLevels: {
       type: Map,
@@ -34,32 +28,10 @@ const schoolSchema = new mongoose.Schema({
           passingScore: Number,
           maxScore: Number
         }
-      }, { _id: false }),
-      default: () => {
-        const map = new Map();
-        map.set('kindergarten', { 
-          displayName: 'Kindergarten', 
-          description: 'Pre-primary education (LKG-UKG)',
-          gradingSystem: { 
-            type: 'grade', 
-            passingScore: 0, 
-            maxScore: 0 
-          }
-        });
-        map.set('primary', { 
-          displayName: 'Primary', 
-          description: 'Primary education (Classes 1-5)',
-          gradingSystem: { 
-            type: 'percentage', 
-            passingScore: 33, 
-            maxScore: 100 
-          }
-        });
-        return map;
-      }
+      }, { _id: false })
     }
   },
-  
+
   address: {
     street: String,
     area: String,      // Area/Locality
@@ -147,7 +119,7 @@ const schoolSchema = new mongoose.Schema({
     branch: String,
     accountHolderName: String
   },
-  
+
   // School settings
   settings: {
     academicYear: {
@@ -168,7 +140,7 @@ const schoolSchema = new mongoose.Schema({
       description: String
     }]
   },
-  
+
   // School statistics
   stats: {
     totalStudents: { type: Number, default: 0 },
@@ -176,7 +148,7 @@ const schoolSchema = new mongoose.Schema({
     totalParents: { type: Number, default: 0 },
     totalClasses: { type: Number, default: 0 }
   },
-  
+
   // School features
   features: {
     hasTransport: { type: Boolean, default: false },
@@ -185,69 +157,130 @@ const schoolSchema = new mongoose.Schema({
     hasSports: { type: Boolean, default: false },
     hasComputerLab: { type: Boolean, default: false }
   },
-  
+
   isActive: { type: Boolean, default: true },
   establishedDate: Date,
-  
+
   // Support multiple admins per school
   admins: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 
   // New fields for additional school details
-  schoolType: { type: String, enum: ['Public', 'Private', 'International'], required: true },
-  establishedYear: { type: Number, required: true },
-  affiliationBoard: { type: String, enum: ['CBSE', 'ICSE', 'State Board', 'IB'], required: true },
+  schoolType: { type: String, enum: ['Public', 'Private', 'International'], default: 'Private' },
+  establishedYear: { type: Number, default: () => new Date().getFullYear() },
+  affiliationBoard: { type: String, enum: ['CBSE', 'ICSE', 'State Board', 'IB'], default: 'State Board' },
   website: { type: String },
   secondaryContact: { type: String },
-  
+
   // Database management fields
   databaseName: { type: String, unique: true },
   databaseCreated: { type: Boolean, default: false },
   databaseCreatedAt: { type: Date }
-}, { 
+}, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
-// Pre-init middleware to handle stringified academicSettings
-schoolSchema.pre('init', function(doc) {
-  // Handle stringified academicSettings
-  if (doc.academicSettings && typeof doc.academicSettings === 'string') {
-    try {
-      doc.academicSettings = JSON.parse(doc.academicSettings);
-    } catch (e) {
-      console.error('[School Model] Failed to parse academicSettings:', e);
-      doc.academicSettings = {
-        schoolTypes: [],
-        customGradeNames: {},
-        gradeLevels: {}
-      };
-    }
-  }
-  
-  // Ensure academicSettings exists
-  if (!doc.academicSettings) {
+// Helper function to normalize academicSettings
+function normalizeAcademicSettings(doc) {
+  // Ensure academicSettings exists and is an object
+  if (!doc.academicSettings || typeof doc.academicSettings === 'string') {
     doc.academicSettings = {
       schoolTypes: [],
-      customGradeNames: {},
-      gradeLevels: {}
+      customGradeNames: new Map(),
+      gradeLevels: new Map()
     };
   }
-  
-  // Convert plain objects to Maps if needed
+
+  // Ensure customGradeNames is a Map
   if (doc.academicSettings.customGradeNames && !(doc.academicSettings.customGradeNames instanceof Map)) {
-    const obj = doc.academicSettings.customGradeNames;
-    doc.academicSettings.customGradeNames = new Map(Object.entries(obj));
+    if (typeof doc.academicSettings.customGradeNames === 'object' && doc.academicSettings.customGradeNames !== null) {
+      doc.academicSettings.customGradeNames = new Map(Object.entries(doc.academicSettings.customGradeNames));
+    } else {
+      doc.academicSettings.customGradeNames = new Map();
+    }
   }
-  
+
+  // Ensure gradeLevels is a Map
   if (doc.academicSettings.gradeLevels && !(doc.academicSettings.gradeLevels instanceof Map)) {
-    const obj = doc.academicSettings.gradeLevels;
-    doc.academicSettings.gradeLevels = new Map(Object.entries(obj));
+    if (typeof doc.academicSettings.gradeLevels === 'object' && doc.academicSettings.gradeLevels !== null) {
+      doc.academicSettings.gradeLevels = new Map(Object.entries(doc.academicSettings.gradeLevels));
+    } else {
+      doc.academicSettings.gradeLevels = new Map();
+    }
   }
+}
+
+// Helper function to normalize settings field
+function normalizeSettings(doc) {
+  // If settings is a string, parse it
+  if (typeof doc.settings === 'string') {
+    try {
+      doc.settings = JSON.parse(doc.settings);
+    } catch (error) {
+      console.error('Error parsing settings string:', error);
+      doc.settings = {};
+    }
+  }
+
+  // Ensure settings is an object
+  if (!doc.settings || typeof doc.settings !== 'object') {
+    doc.settings = {};
+  }
+
+  // Ensure nested objects exist
+  if (!doc.settings.academicYear || typeof doc.settings.academicYear !== 'object') {
+    doc.settings.academicYear = {
+      currentYear: new Date().getFullYear().toString(),
+      startDate: new Date(`${new Date().getFullYear()}-04-01`),
+      endDate: new Date(`${new Date().getFullYear() + 1}-03-31`)
+    };
+  }
+
+  if (!doc.settings.workingHours || typeof doc.settings.workingHours !== 'object') {
+    doc.settings.workingHours = {
+      start: '08:00',
+      end: '15:00'
+    };
+  }
+
+  // Ensure arrays exist
+  if (!Array.isArray(doc.settings.classes)) {
+    doc.settings.classes = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+  }
+
+  if (!Array.isArray(doc.settings.sections)) {
+    doc.settings.sections = ['A', 'B', 'C', 'D'];
+  }
+
+  if (!Array.isArray(doc.settings.subjects)) {
+    doc.settings.subjects = ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi'];
+  }
+
+  if (!Array.isArray(doc.settings.workingDays)) {
+    doc.settings.workingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  }
+
+  if (!Array.isArray(doc.settings.holidays)) {
+    doc.settings.holidays = [];
+  }
+}
+
+// Post-init hook to normalize fields when reading from database
+schoolSchema.post('init', function (doc) {
+  normalizeAcademicSettings(doc);
+  normalizeSettings(doc);
+});
+
+// Pre-save hook to ensure fields are properly initialized
+schoolSchema.pre('save', function (next) {
+  normalizeAcademicSettings(this);
+  normalizeSettings(this);
+  next();
 });
 
 // Virtual for full address
-schoolSchema.virtual('fullAddress').get(function() {
+schoolSchema.virtual('fullAddress').get(function () {
   const addr = this.address;
   return `${addr.street}, ${addr.city}, ${addr.state} ${addr.zipCode}, ${addr.country}`.replace(/,\s*,/g, ',').replace(/^,\s*/, '').replace(/,\s*$/, '');
 });

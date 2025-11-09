@@ -7,6 +7,8 @@ import AdmitCardTemplate from '../../../components/templates/AdmitCardTemplate';
 import SimpleIDCardGenerator from '../../../components/SimpleIDCardGenerator';
 import { useAuth } from '../../../auth/AuthContext';
 import api from '../../../api/axios';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
+
 import { schoolAPI } from '../../../services/api';
 
 interface Subject {
@@ -69,6 +71,7 @@ interface SubjectExam {
 
 const AcademicDetails: React.FC = () => {
   const { token, user } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
 
   // Use the useSchoolClasses hook to fetch classes configured by superadmin
   const {
@@ -1679,6 +1682,15 @@ const AcademicDetails: React.FC = () => {
 
         {activeTab === 'hallticket' && (
           <div>
+            {/* Academic Year Warning Banner */}
+            {isViewingHistoricalYear && (
+              <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6">
+                <p className="text-sm text-yellow-800">
+                  <strong>📚 Viewing Historical Data:</strong> You are viewing data from {viewingAcademicYear}. This data is read-only.
+                </p>
+              </div>
+            )}
+
             {/* Debug Information */}
             {classesData && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
@@ -1713,7 +1725,25 @@ const AcademicDetails: React.FC = () => {
               <div className="bg-white rounded-lg shadow-md p-6">
                 <h2 className="text-lg font-semibold text-gray-800 mb-4">Generate Hall Tickets</h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                  {/* Academic Year Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Academic Year <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={viewingAcademicYear}
+                      onChange={(e) => setViewingYear(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {availableYears.map((year) => (
+                        <option key={year} value={year}>
+                          {year} {year === currentAcademicYear && '(Current)'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   {/* Class Selection */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">

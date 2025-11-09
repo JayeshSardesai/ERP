@@ -11,7 +11,8 @@ import { exportImportAPI } from '../../../services/api';
 
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../auth/AuthContext';
-import { exportUsers as exportUsersUtil, generateImportTemplate } from '../../../utils/userImportExport';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
+import { exportUsers, generateImportTemplate } from '../../../utils/userImportExport';
 import { User, UserFormData, getDefaultFormData, transformUserToFormData } from '../../../types/user'; // Keep original User for form types
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import { ImportUsersDialog } from '../../superadmin/components/ImportUsersDialog'; // Keep if used
@@ -327,7 +328,7 @@ interface OldAddUserFormData {
   userId?: string;
   generatedPassword?: string;
   employeeId?: string;
-  
+
   // Additional missing fields
   pickupPoint?: string;
   department?: string;
@@ -417,6 +418,7 @@ interface OldAddUserFormData {
 
 const ManageUsers: React.FC = () => {
   const { user } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
   // Use the school classes hook to get dynamic data
   const {
     classesData,
@@ -967,7 +969,7 @@ const ManageUsers: React.FC = () => {
       // Academic Information
       currentClass: '',
       currentSection: '',
-      academicYear: '2024-25',
+      academicYear: currentAcademicYear || '2024-25',
       admissionDate: '',
       admissionClass: '',
       rollNumber: '',
@@ -1539,7 +1541,7 @@ const ManageUsers: React.FC = () => {
         // Academic Information
         currentClass: '',
         currentSection: '',
-        academicYear: '2024-25',
+        academicYear: currentAcademicYear || '2024-25',
         admissionDate: '',
         admissionClass: '',
         rollNumber: '',
@@ -1848,7 +1850,7 @@ const ManageUsers: React.FC = () => {
   useEffect(() => {
     fetchUsers();
     fetchSchoolDetails();
-  }, []);
+  }, []); // Fetch once on mount - filtering happens client-side
 
   // Generate ID and password when add modal opens for the first time
   useEffect(() => {
@@ -3771,8 +3773,8 @@ const ManageUsers: React.FC = () => {
 
   const filteredUsers = users.filter(user => {
     const userId = ((user as any).userId || user._id || '').toLowerCase();
-    const userName = typeof user.name === 'string' ? user.name.toLowerCase() : 
-                     (user.name?.displayName || '').toLowerCase();
+    const userName = typeof user.name === 'string' ? user.name.toLowerCase() :
+      (user.name?.displayName || '').toLowerCase();
     const userEmail = (user.email || '').toLowerCase();
     const searchLower = searchTerm.toLowerCase();
 
@@ -3782,7 +3784,25 @@ const ManageUsers: React.FC = () => {
     const matchesRole = user.role === activeTab;
     const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || user.studentDetails?.currentClass === selectedGrade;
     const matchesSection = activeTab !== 'student' || selectedSection === 'all' || user.studentDetails?.currentSection === selectedSection;
-    return matchesSearch && matchesRole && matchesGrade && matchesSection;
+
+    // Filter students by viewing academic year
+    const matchesAcademicYear = activeTab !== 'student' ||
+      (user.studentDetails?.academicYear === viewingAcademicYear);
+
+    // Debug logging for academic year filtering
+    if (activeTab === 'student' && user.userId === 'AVM-S-0063') {
+      console.log('🔍 Filtering AVM-S-0063:', {
+        studentAcademicYear: user.studentDetails?.academicYear,
+        viewingAcademicYear,
+        matchesAcademicYear,
+        matchesGrade,
+        matchesSection,
+        currentClass: user.studentDetails?.currentClass,
+        selectedGrade
+      });
+    }
+
+    return matchesSearch && matchesRole && matchesGrade && matchesSection && matchesAcademicYear;
   }).sort((a, b) => {
     // Sort students by userId (Student ID) in ascending order
     if (a.role === 'student' && b.role === 'student') {
@@ -5953,27 +5973,38 @@ const ManageUsers: React.FC = () => {
 
   if (hasRenderError) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Something went wrong</h2>
-          <p className="text-gray-600 mb-4">There was an error rendering the page.</p>
-          <button
-            onClick={() => {
-              setHasRenderError(false);
-              window.location.reload();
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Reload Page
-          </button>
+      <>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">Something went wrong</h2>
+            <p className="text-gray-600 mb-4">There was an error rendering the page.</p>
+            <button
+              onClick={() => {
+                setHasRenderError(false);
+                window.location.reload();
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Reload Page
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   try {
     return (
       <div className="space-y-6">
+        {/* Academic Year Warning */}
+        {isViewingHistoricalYear && activeTab === 'student' && (
+          <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              <strong>📚 Viewing Historical Data:</strong> You are viewing students from {viewingAcademicYear}. This data is read-only.
+            </p>
+          </div>
+        )}
+
         {/* Header */}
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
@@ -6141,6 +6172,17 @@ const ManageUsers: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
                   <div className="flex items-center space-x-2">
                     <Filter className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+                    <select
+                      value={viewingAcademicYear}
+                      onChange={(e) => setViewingYear(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {availableYears.map((year) => (
+                        <option key={year} value={year}>
+                          {year} {year === currentAcademicYear && '(Current)'}
+                        </option>
+                      ))}
+                    </select>
                     <select
                       value={selectedGrade}
                       onChange={(e) => handleGradeChange(e.target.value)}
@@ -6461,239 +6503,239 @@ const ManageUsers: React.FC = () => {
               {/* Desktop Table */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                    {activeTab === 'student' && (
-                      <>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
-                      </>
-                    )}
-                    {activeTab === 'teacher' && (
-                      <>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Password</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Experience</th>
-                      </>
-                    )}
-                    {activeTab === 'admin' && (
-                      <>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Access Level</th>
-                      </>
-                    )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {loading ? (
+                  <thead className="bg-gray-50">
                     <tr>
-                      <td colSpan={activeTab === 'student' ? 8 : activeTab === 'teacher' ? 8 : 8} className="px-6 py-4 text-center text-gray-500">Loading users...</td>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                      {activeTab === 'student' && (
+                        <>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
+                        </>
+                      )}
+                      {activeTab === 'teacher' && (
+                        <>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Password</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Experience</th>
+                        </>
+                      )}
+                      {activeTab === 'admin' && (
+                        <>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Access Level</th>
+                        </>
+                      )}
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
-                  ) : filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={activeTab === 'student' ? 8 : activeTab === 'teacher' ? 8 : 8} className="px-6 py-4 text-center text-gray-500">No users found</td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((user) => {
-                      // Construct photo URL (robust): remove trailing '/api' from API base or fallback to current origin
-                      const envBase = (import.meta.env.VITE_API_BASE_URL as string) || '';
-                      const originBase = envBase ? envBase.replace(/\/api\/?$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
-                      const photoUrl = (user as any).profileImage || (user as any).profilePicture;
-                      const fullPhotoUrl = photoUrl
-                        ? (photoUrl.startsWith('http') ? photoUrl : `${originBase}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`)
-                        : null;
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={activeTab === 'student' ? 8 : activeTab === 'teacher' ? 8 : 8} className="px-6 py-4 text-center text-gray-500">Loading users...</td>
+                      </tr>
+                    ) : filteredUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={activeTab === 'student' ? 8 : activeTab === 'teacher' ? 8 : 8} className="px-6 py-4 text-center text-gray-500">No users found</td>
+                      </tr>
+                    ) : (
+                      filteredUsers.map((user) => {
+                        // Construct photo URL (robust): remove trailing '/api' from API base or fallback to current origin
+                        const envBase = (import.meta.env.VITE_API_BASE_URL as string) || '';
+                        const originBase = envBase ? envBase.replace(/\/api\/?$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
+                        const photoUrl = (user as any).profileImage || (user as any).profilePicture;
+                        const fullPhotoUrl = photoUrl
+                          ? (photoUrl.startsWith('http') ? photoUrl : `${originBase}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`)
+                          : null;
 
-                      // Get user initials for fallback
-                      const firstName = (user as any).name?.firstName || '';
-                      const lastName = (user as any).name?.lastName || '';
-                      const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
+                        // Get user initials for fallback
+                        const firstName = (user as any).name?.firstName || '';
+                        const lastName = (user as any).name?.lastName || '';
+                        const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
 
-                      return (
-                        <tr key={user._id} className="hover:bg-gray-50">
-                          {/* Photo Column */}
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex-shrink-0 h-10 w-10">
-                              {fullPhotoUrl ? (
-                                <img
-                                  src={fullPhotoUrl}
-                                  // alt={`${(user as any).name?.displayName || 'User'} photo`}
-                                  alt={`${fullPhotoUrl}`}
-                                  className="h-10 w-10 rounded-full object-cover border border-gray-200"
-                                  onError={(e) => {
-                                    // Fallback to initials if image fails to load
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
-                                    const parent = target.parentElement;
-                                    if (parent) {
-                                      parent.innerHTML = `<div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center"><span class="text-sm font-medium text-blue-700">${initials}</span></div>`;
-                                    }
-                                  }}
-                                />
-                              ) : (
-                                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                  <span className="text-sm font-medium text-blue-700">{initials}</span>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          {/* User Column */}
-                          <td className="px-6 py-4">
-                            <div className="max-w-xs">
-                              <div className="text-sm font-medium text-gray-900 break-words">
-                                {(user as any).name?.displayName ||
-                                  ((user as any).name?.firstName && (user as any).name?.lastName
-                                    ? `${(user as any).name.firstName} ${(user as any).name.lastName}`
-                                    : (user as any).name?.firstName || user.name || 'No name')}
+                        return (
+                          <tr key={user._id} className="hover:bg-gray-50">
+                            {/* Photo Column */}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex-shrink-0 h-10 w-10">
+                                {fullPhotoUrl ? (
+                                  <img
+                                    src={fullPhotoUrl}
+                                    // alt={`${(user as any).name?.displayName || 'User'} photo`}
+                                    alt={`${fullPhotoUrl}`}
+                                    className="h-10 w-10 rounded-full object-cover border border-gray-200"
+                                    onError={(e) => {
+                                      // Fallback to initials if image fails to load
+                                      const target = e.target as HTMLImageElement;
+                                      target.style.display = 'none';
+                                      const parent = target.parentElement;
+                                      if (parent) {
+                                        parent.innerHTML = `<div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center"><span class="text-sm font-medium text-blue-700">${initials}</span></div>`;
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <span className="text-sm font-medium text-blue-700">{initials}</span>
+                                  </div>
+                                )}
                               </div>
-                              <div className="text-sm text-gray-500 truncate">{(user as any).userId || user._id}</div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
-                            <div className="max-w-xs">
-                              <div className="break-words">{user.email}</div>
-                              <div className="text-xs text-gray-400">{(user as any).contact?.primaryPhone || user.phone || 'No phone'}</div>
-                            </div>
-                          </td>
-                          {activeTab === 'student' && (
-                            <>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {/* Reads from the processed studentDetails object */}
-                                {user.studentDetails?.currentClass || 'Not assigned'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {/* Reads from the processed studentDetails object */}
-                                {user.studentDetails?.currentSection || 'Not assigned'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {(user as any).userId || user._id || 'Not assigned'}
-                              </td>
-                            </>
-                          )}
-                          {activeTab === 'teacher' && (
-                            <>
-                              {/* Employee ID Column - Access via user.teacherDetails */}
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {user.teacherDetails?.employeeId || 'N/A'}
-                              </td>
-
-                              {/* Password Column - Access user.temporaryPassword directly */}
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="flex items-center space-x-1">
-                                  {(user as any).temporaryPassword ? (
-                                    <>
-                                      {/* Display Password with Show/Hide */}
-                                      <span className="flex-grow font-mono text-xs text-gray-700">
-                                        {passwordVisibility[user.userId]
-                                          ? (user as any).temporaryPassword
-                                          : '********'
-                                        }
-                                      </span>
-                                      {/* Show/Hide Button */}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          togglePasswordVisibility(user.userId, (user as any).name?.displayName || 'this user');
-                                        }}
-                                        className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-100 flex-shrink-0"
-                                        title={passwordVisibility[user.userId] ? "Hide password" : "Show password (requires admin password)"}
-                                        type="button"
-                                      >
-                                        {passwordVisibility[user.userId] ? <EyeOff size={14} /> : <Eye size={14} />}
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <span className="text-xs text-gray-400 italic">Not Available</span>
-                                  )}
+                            </td>
+                            {/* User Column */}
+                            <td className="px-6 py-4">
+                              <div className="max-w-xs">
+                                <div className="text-sm font-medium text-gray-900 break-words">
+                                  {(user as any).name?.displayName ||
+                                    ((user as any).name?.firstName && (user as any).name?.lastName
+                                      ? `${(user as any).name.firstName} ${(user as any).name.lastName}`
+                                      : (user as any).name?.firstName || user.name || 'No name')}
                                 </div>
-                              </td>
+                                <div className="text-sm text-gray-500 truncate">{(user as any).userId || user._id}</div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-500">
+                              <div className="max-w-xs">
+                                <div className="break-words">{user.email}</div>
+                                <div className="text-xs text-gray-400">{(user as any).contact?.primaryPhone || user.phone || 'No phone'}</div>
+                              </div>
+                            </td>
+                            {activeTab === 'student' && (
+                              <>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {/* Reads from the processed studentDetails object */}
+                                  {user.studentDetails?.currentClass || 'Not assigned'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {/* Reads from the processed studentDetails object */}
+                                  {user.studentDetails?.currentSection || 'Not assigned'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {(user as any).userId || user._id || 'Not assigned'}
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'teacher' && (
+                              <>
+                                {/* Employee ID Column - Access via user.teacherDetails */}
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {user.teacherDetails?.employeeId || 'N/A'}
+                                </td>
 
-                              {/* Experience Column - Access via user.teacherDetails */}
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {/* Check if experience is defined and not null */}
-                                {user.teacherDetails?.experience !== undefined && user.teacherDetails?.experience !== null
-                                  ? `${user.teacherDetails.experience} years`
-                                  : 'N/A'}
-                              </td>
-                            </>
-                          )}
-                          {activeTab === 'admin' && (
-                            <>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                Employee ID
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                Administration
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                Full Access
-                              </td>
-                            </>
-                          )}
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              {user.isActive ? (
-                                <UserCheck className="h-4 w-4 text-green-500 mr-1" />
-                              ) : (
-                                <UserX className="h-4 w-4 text-red-500 mr-1" />
-                              )}
-                              <span className={`text-sm ${user.isActive ? 'text-green-700' : 'text-red-700'}`}>
-                                {user.isActive ? 'Active' : 'Inactive'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(user.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => handleEditClick(user)}
-                                className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                                title="Edit User"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              {/* Change Password only for teachers */}
-                              {activeTab === 'teacher' && (
+                                {/* Password Column - Access user.temporaryPassword directly */}
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  <div className="flex items-center space-x-1">
+                                    {(user as any).temporaryPassword ? (
+                                      <>
+                                        {/* Display Password with Show/Hide */}
+                                        <span className="flex-grow font-mono text-xs text-gray-700">
+                                          {passwordVisibility[user.userId]
+                                            ? (user as any).temporaryPassword
+                                            : '********'
+                                          }
+                                        </span>
+                                        {/* Show/Hide Button */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            togglePasswordVisibility(user.userId, (user as any).name?.displayName || 'this user');
+                                          }}
+                                          className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-100 flex-shrink-0"
+                                          title={passwordVisibility[user.userId] ? "Hide password" : "Show password (requires admin password)"}
+                                          type="button"
+                                        >
+                                          {passwordVisibility[user.userId] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">Not Available</span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Experience Column - Access via user.teacherDetails */}
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {/* Check if experience is defined and not null */}
+                                  {user.teacherDetails?.experience !== undefined && user.teacherDetails?.experience !== null
+                                    ? `${user.teacherDetails.experience} years`
+                                    : 'N/A'}
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'admin' && (
+                              <>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  Employee ID
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  Administration
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  Full Access
+                                </td>
+                              </>
+                            )}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                {user.isActive ? (
+                                  <UserCheck className="h-4 w-4 text-green-500 mr-1" />
+                                ) : (
+                                  <UserX className="h-4 w-4 text-red-500 mr-1" />
+                                )}
+                                <span className={`text-sm ${user.isActive ? 'text-green-700' : 'text-red-700'}`}>
+                                  {user.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(user.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <div className="flex space-x-2">
                                 <button
-                                  onClick={() => {
-                                    console.log('Change password clicked for:', user.userId, user.email);
-                                    handleOpenChangePassword(
-                                      user.userId || user._id,
-                                      (user as any).name?.displayName || (user as any).name || 'User',
-                                      user.email
-                                    );
-                                  }}
-                                  className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
-                                  title="Change Password (Set New Password)"
+                                  onClick={() => handleEditClick(user)}
+                                  className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                                  title="Edit User"
                                 >
-                                  <KeyRound className="h-4 w-4" />
+                                  <Edit className="h-4 w-4" />
                                 </button>
-                              )}
-                              {/* Delete button - prevent self-deletion */}
-                              <button
-                                onClick={() => handleDeleteUser(user._id, user.name || `User ${user._id}`)}
-                                className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Delete User"
-                                disabled={false} // Temporarily allow all deletions for testing
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
+                                {/* Change Password only for teachers */}
+                                {activeTab === 'teacher' && (
+                                  <button
+                                    onClick={() => {
+                                      console.log('Change password clicked for:', user.userId, user.email);
+                                      handleOpenChangePassword(
+                                        user.userId || user._id,
+                                        (user as any).name?.displayName || (user as any).name || 'User',
+                                        user.email
+                                      );
+                                    }}
+                                    className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
+                                    title="Change Password (Set New Password)"
+                                  >
+                                    <KeyRound className="h-4 w-4" />
+                                  </button>
+                                )}
+                                {/* Delete button - prevent self-deletion */}
+                                <button
+                                  onClick={() => handleDeleteUser(user._id, user.name || `User ${user._id}`)}
+                                  className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Delete User"
+                                  disabled={false} // Temporarily allow all deletions for testing
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
                 </table>
               </div>
 
@@ -6758,19 +6800,18 @@ const ManageUsers: React.FC = () => {
                                       ? `${(user as any).name.firstName} ${(user as any).name.lastName}`
                                       : (user as any).name?.firstName || user.name || 'No name')}
                                 </h3>
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                  user.isActive
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${user.isActive
                                     ? 'bg-green-100 text-green-800'
                                     : 'bg-red-100 text-red-800'
-                                }`}>
+                                  }`}>
                                   {user.isActive ? 'Active' : 'Inactive'}
                                 </span>
                               </div>
-                              
+
                               <p className="text-xs text-gray-500 mt-1">
                                 ID: {(user as any).userId || user._id}
                               </p>
-                              
+
                               <div className="mt-2 space-y-1">
                                 <p className="text-xs text-gray-600 truncate">
                                   📧 {user.email}
@@ -6778,14 +6819,14 @@ const ManageUsers: React.FC = () => {
                                 <p className="text-xs text-gray-600">
                                   📱 {(user as any).contact?.primaryPhone || user.phone || 'No phone'}
                                 </p>
-                                
+
                                 {activeTab === 'student' && (
                                   <div className="flex space-x-4 text-xs text-gray-600">
                                     <span>Class: {user.studentDetails?.currentClass || 'N/A'}</span>
                                     <span>Section: {user.studentDetails?.currentSection || 'N/A'}</span>
                                   </div>
                                 )}
-                                
+
                                 {activeTab === 'teacher' && (
                                   <div className="flex items-center space-x-2 text-xs text-gray-600">
                                     <span>ID: {user.teacherDetails?.employeeId || 'N/A'}</span>
@@ -6830,10 +6871,10 @@ const ManageUsers: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => handleToggleStatus(user)}
-                                  className={`p-1.5 rounded ${user.isActive 
-                                    ? 'text-red-600 hover:bg-red-50' 
+                                  className={`p-1.5 rounded ${user.isActive
+                                    ? 'text-red-600 hover:bg-red-50'
                                     : 'text-green-600 hover:bg-green-50'
-                                  }`}
+                                    }`}
                                   title={user.isActive ? 'Deactivate User' : 'Activate User'}
                                 >
                                   {user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}

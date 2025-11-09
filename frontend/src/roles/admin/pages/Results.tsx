@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Edit, Save, Check, X } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import { testDetailsAPI } from '../../../api/testDetails';
 import { resultsAPI } from '../../../services/api';
 import { toast } from 'react-hot-toast';
@@ -22,6 +23,7 @@ interface StudentResult {
 
 const Results: React.FC = () => {
   const { user, token } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
 
   // Use the useSchoolClasses hook to fetch classes configured by superadmin
   const {
@@ -403,7 +405,9 @@ const Results: React.FC = () => {
         const filtered = rawStudents.filter((s: any) => {
           const sClass = s.studentDetails?.currentClass || s.currentclass || s.class || s.className;
           const sSection = s.studentDetails?.currentSection || s.currentsection || s.section;
-          return String(sClass) === String(selectedClass) && String(sSection).toUpperCase() === String(selectedSection).toUpperCase();
+          const studentAcademicYear = s.studentDetails?.academicYear || s.academicYear;
+          const matchesAcademicYear = studentAcademicYear === viewingAcademicYear;
+          return String(sClass) === String(selectedClass) && String(sSection).toUpperCase() === String(selectedSection).toUpperCase() && matchesAcademicYear;
         });
 
         const students = filtered.map((student: any, index: number) => ({
@@ -965,445 +969,474 @@ const Results: React.FC = () => {
   // This ensures immediate grade updates when marks are edited
 
   return (
-    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Academic Results</h1>
-        {showResultsTable && !isFrozen && (
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-            <button
-              onClick={handleSaveAll}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center transition-colors text-sm sm:text-base w-full sm:w-auto"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Save All Changes
-            </button>
+    <>
+      <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Academic Results</h1>
+          {showResultsTable && !isFrozen && (
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+              <button
+                onClick={handleSaveAll}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center transition-colors text-sm sm:text-base w-full sm:w-auto"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Save All Changes
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Academic Year Selector */}
+        {isViewingHistoricalYear && (
+          <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              <strong>📚 Viewing Historical Data:</strong> You are viewing data from {viewingAcademicYear}. This data is read-only.
+            </p>
           </div>
         )}
-      </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-          {/* Class Selection */}
-          <div className="flex flex-col">
-            <label htmlFor="class-select" className="text-sm font-medium text-gray-700">Class</label>
-            <select
-              id="class-select"
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
-              disabled={classesLoading || !hasClasses()}
-            >
-              <option value="">{classesLoading ? 'Loading...' : 'Select Class'}</option>
-              {classList.map((cls) => (
-                <option key={cls} value={cls}>Class {cls}</option>
-              ))}
-            </select>
-            {!classesLoading && !hasClasses() && (
-              <span className="text-xs text-red-500 mt-1">No classes configured</span>
-            )}
-          </div>
+        {/* Filters */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex flex-wrap gap-4">
+            {/* Academic Year Selection */}
+            <div className="flex flex-col">
+              <label htmlFor="year-select" className="text-sm font-medium text-gray-700">Academic Year</label>
+              <select
+                id="year-select"
+                value={viewingAcademicYear}
+                onChange={(e) => setViewingYear(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
+              >
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year} {year === currentAcademicYear && '(Current)'}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Section Selection */}
-          <div className="flex flex-col">
-            <label htmlFor="section-select" className="text-sm font-medium text-gray-700">Section</label>
-            <select
-              id="section-select"
-              value={selectedSection}
-              onChange={(e) => setSelectedSection(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
-              disabled={!selectedClass || availableSections.length === 0}
-            >
-              <option value="">{!selectedClass ? 'Select Class First' : 'Select Section'}</option>
-              {availableSections.map((section) => (
-                <option key={section.value} value={section.value}>Section {section.section}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Subject Selection */}
-          <div className="flex flex-col">
-            <label htmlFor="subject-select" className="text-sm font-medium text-gray-700">Subject</label>
-            <select
-              id="subject-select"
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[180px]"
-              disabled={!selectedClass || !selectedSection || loadingSubjects}
-            >
-              <option value="">
-                {!selectedClass || !selectedSection
-                  ? 'Select Class & Section'
-                  : loadingSubjects
-                    ? 'Loading...'
-                    : subjects.length === 0
-                      ? 'No Subjects'
-                      : 'Select Subject'}
-              </option>
-              {subjects.map((subj) => (
-                <option key={subj.value} value={subj.value}>{subj.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Test Type Selection */}
-          <div className="flex flex-col">
-            <label htmlFor="test-type-select" className="text-sm font-medium text-gray-700">Test Type</label>
-            <select
-              id="test-type-select"
-              value={selectedTestType}
-              onChange={(e) => setSelectedTestType(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
-              disabled={!selectedClass || loadingTestTypes}
-            >
-              <option value="">
-                {!selectedClass
-                  ? 'Select Class First'
-                  : loadingTestTypes
-                    ? 'Loading...'
-                    : 'Select Test'}
-              </option>
-              {testTypes.map((type, index) => (
-                <option key={`${type}-${index}`} value={type}>{type}</option>
-              ))}
-            </select>
-            {!selectedClass && (
-              <span className="text-xs text-gray-500 mt-1">Select a class to see available tests</span>
-            )}
-          </div>
-
-          {/* Total Marks (read-only from configuration) */}
-          <div className="flex flex-col">
-            <label className="text-sm font-medium text-gray-700">Total Marks</label>
-            <input
-              type="number"
-              value={configuredMaxMarks ?? ''}
-              readOnly
-              className="px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 min-w-[120px]"
-              placeholder="Configured"
-            />
-          </div>
-
-          {/* Search Button */}
-          <button
-            onClick={handleSearch}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors self-end"
-            disabled={loading}
-          >
-            {loading ? (
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
-              <Search className="h-4 w-4 mr-2" />
-            )}
-            Search
-          </button>
-
-          {/* View Existing Results Button */}
-          <button
-            onClick={fetchExistingResults}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors self-end disabled:bg-gray-400 disabled:cursor-not-allowed"
-            disabled={loadingExistingResults || !selectedClass || !selectedSection || !selectedSubject || !selectedTestType}
-          >
-            {loadingExistingResults ? (
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
-              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            )}
-            View Existing Results
-          </button>
-        </div>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-700">{error}</p>
-        </div>
-      )}
-
-      {/* Existing Results Table */}
-      {showExistingResults && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  Existing Results for {selectedClass}-{selectedSection}
-                  {selectedSubject && ` - ${selectedSubject}`}
-                  {selectedTestType && ` (${selectedTestType})`}
-                  {isFrozen && (
-                    <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full flex items-center gap-1">
-                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                      </svg>
-                      FROZEN
-                    </span>
-                  )}
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Found {existingResults.length} results. {isFrozen ? 'Results are frozen and cannot be edited.' : 'Click on a result to edit it.'}
-                </p>
-              </div>
-              {!isFrozen && existingResults.length > 0 && (
-                <button
-                  onClick={handleFreezeResults}
-                  disabled={freezing}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-                >
-                  {freezing ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Freezing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                      </svg>
-                      Freeze Results
-                    </>
-                  )}
-                </button>
+            {/* Class Selection */}
+            <div className="flex flex-col">
+              <label htmlFor="class-select" className="text-sm font-medium text-gray-700">Class</label>
+              <select
+                id="class-select"
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
+                disabled={classesLoading || !hasClasses()}
+              >
+                <option value="">{classesLoading ? 'Loading...' : 'Select Class'}</option>
+                {classList.map((cls) => (
+                  <option key={cls} value={cls}>Class {cls}</option>
+                ))}
+              </select>
+              {!classesLoading && !hasClasses() && (
+                <span className="text-xs text-red-500 mt-1">No classes configured</span>
               )}
             </div>
+
+            {/* Section Selection */}
+            <div className="flex flex-col">
+              <label htmlFor="section-select" className="text-sm font-medium text-gray-700">Section</label>
+              <select
+                id="section-select"
+                value={selectedSection}
+                onChange={(e) => setSelectedSection(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
+                disabled={!selectedClass || availableSections.length === 0}
+              >
+                <option value="">{!selectedClass ? 'Select Class First' : 'Select Section'}</option>
+                {availableSections.map((section) => (
+                  <option key={section.value} value={section.value}>Section {section.section}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Subject Selection */}
+            <div className="flex flex-col">
+              <label htmlFor="subject-select" className="text-sm font-medium text-gray-700">Subject</label>
+              <select
+                id="subject-select"
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[180px]"
+                disabled={!selectedClass || !selectedSection || loadingSubjects}
+              >
+                <option value="">
+                  {!selectedClass || !selectedSection
+                    ? 'Select Class & Section'
+                    : loadingSubjects
+                      ? 'Loading...'
+                      : subjects.length === 0
+                        ? 'No Subjects'
+                        : 'Select Subject'}
+                </option>
+                {subjects.map((subj) => (
+                  <option key={subj.value} value={subj.value}>{subj.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Test Type Selection */}
+            <div className="flex flex-col">
+              <label htmlFor="test-type-select" className="text-sm font-medium text-gray-700">Test Type</label>
+              <select
+                id="test-type-select"
+                value={selectedTestType}
+                onChange={(e) => setSelectedTestType(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
+                disabled={!selectedClass || loadingTestTypes}
+              >
+                <option value="">
+                  {!selectedClass
+                    ? 'Select Class First'
+                    : loadingTestTypes
+                      ? 'Loading...'
+                      : 'Select Test'}
+                </option>
+                {testTypes.map((type, index) => (
+                  <option key={`${type}-${index}`} value={type}>{type}</option>
+                ))}
+              </select>
+              {!selectedClass && (
+                <span className="text-xs text-gray-500 mt-1">Select a class to see available tests</span>
+              )}
+            </div>
+
+            {/* Total Marks (read-only from configuration) */}
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700">Total Marks</label>
+              <input
+                type="number"
+                value={configuredMaxMarks ?? ''}
+                readOnly
+                className="px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 min-w-[120px]"
+                placeholder="Configured"
+              />
+            </div>
+
+            {/* Search Button */}
+            <button
+              onClick={handleSearch}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors self-end"
+              disabled={loading}
+            >
+              {loading ? (
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <Search className="h-4 w-4 mr-2" />
+              )}
+              Search
+            </button>
+
+            {/* View Existing Results Button */}
+            <button
+              onClick={fetchExistingResults}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors self-end disabled:bg-gray-400 disabled:cursor-not-allowed"
+              disabled={loadingExistingResults || !selectedClass || !selectedSection || !selectedSubject || !selectedTestType}
+            >
+              {loadingExistingResults ? (
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              )}
+              View Existing Results
+            </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Student Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Subject
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Test Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Obtained Marks
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Marks
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Grade
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {existingResults.map((result, index) => (
-                  <tr key={result._id || index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {result.userId || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {result.studentName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
-                        {result.subject || 'N/A'}
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-700">{error}</p>
+          </div>
+        )}
+
+        {/* Existing Results Table */}
+        {showExistingResults && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    Existing Results for {selectedClass}-{selectedSection}
+                    {selectedSubject && ` - ${selectedSubject}`}
+                    {selectedTestType && ` (${selectedTestType})`}
+                    {isFrozen && (
+                      <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                        </svg>
+                        FROZEN
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
-                        {result.testType}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                      {editingResultId === result._id ? (
-                        <input
-                          type="number"
-                          value={editingMarks || ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '' || (value.length <= 3 && parseInt(value) <= result.totalMarks)) {
-                              setEditingMarks(value === '' ? null : parseInt(value));
-                            }
-                          }}
-                          className="w-20 px-2 py-1 border border-blue-500 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Marks"
-                          min="0"
-                          max={result.totalMarks}
-                          maxLength={3}
-                          autoFocus
-                        />
-                      ) : (
-                        result.obtainedMarks
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {result.totalMarks}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${['A1', 'A2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-green-100 text-green-800' :
+                    )}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Found {existingResults.length} results. {isFrozen ? 'Results are frozen and cannot be edited.' : 'Click on a result to edit it.'}
+                  </p>
+                </div>
+                {!isFrozen && existingResults.length > 0 && (
+                  <button
+                    onClick={handleFreezeResults}
+                    disabled={freezing}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    {freezing ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Freezing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                        </svg>
+                        Freeze Results
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      User ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Student Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Subject
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Test Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Obtained Marks
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Marks
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Grade
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {existingResults.map((result, index) => (
+                    <tr key={result._id || index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {result.userId || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {result.studentName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                          {result.subject || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
+                          {result.testType}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        {editingResultId === result._id ? (
+                          <input
+                            type="number"
+                            value={editingMarks || ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === '' || (value.length <= 3 && parseInt(value) <= result.totalMarks)) {
+                                setEditingMarks(value === '' ? null : parseInt(value));
+                              }
+                            }}
+                            className="w-20 px-2 py-1 border border-blue-500 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Marks"
+                            min="0"
+                            max={result.totalMarks}
+                            maxLength={3}
+                            autoFocus
+                          />
+                        ) : (
+                          result.obtainedMarks
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {result.totalMarks}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${['A1', 'A2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-green-100 text-green-800' :
                           ['B1', 'B2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-blue-100 text-blue-800' :
                             ['C1', 'C2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-yellow-100 text-yellow-800' :
                               (editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) === 'D' ? 'bg-orange-100 text-orange-800' :
                                 ['E1', 'E2'].includes(editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade) ? 'bg-red-100 text-red-800' :
                                   'bg-gray-100 text-gray-600'
-                        }`}>
-                        {editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(result.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {editingResultId === result._id ? (
-                        <div className="flex items-center gap-3">
+                          }`}>
+                          {editingResultId === result._id ? calculateGrade(editingMarks, result.totalMarks) : result.grade || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(result.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {editingResultId === result._id ? (
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => saveInlineEdit(result)}
+                              disabled={savingResultId === result._id}
+                              className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                              title="Save"
+                            >
+                              {savingResultId === result._id ? (
+                                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                              ) : (
+                                <Save className="h-5 w-5" />
+                              )}
+                            </button>
+                            <button
+                              onClick={cancelInlineEdit}
+                              disabled={savingResultId === result._id}
+                              className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                              title="Cancel"
+                            >
+                              <X className="h-5 w-5" />
+                            </button>
+                          </div>
+                        ) : (
                           <button
-                            onClick={() => saveInlineEdit(result)}
-                            disabled={savingResultId === result._id}
-                            className="text-green-600 hover:text-green-900 disabled:opacity-50"
-                            title="Save"
+                            onClick={() => startInlineEdit(result)}
+                            disabled={isFrozen || result.frozen}
+                            className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed"
+                            title={isFrozen || result.frozen ? "Results are frozen" : "Edit"}
                           >
-                            {savingResultId === result._id ? (
-                              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            {isFrozen || result.frozen ? (
+                              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                               </svg>
                             ) : (
-                              <Save className="h-5 w-5" />
+                              <Edit className="h-5 w-5" />
                             )}
                           </button>
-                          <button
-                            onClick={cancelInlineEdit}
-                            disabled={savingResultId === result._id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                            title="Cancel"
-                          >
-                            <X className="h-5 w-5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => startInlineEdit(result)}
-                          disabled={isFrozen || result.frozen}
-                          className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed"
-                          title={isFrozen || result.frozen ? "Results are frozen" : "Edit"}
-                        >
-                          {isFrozen || result.frozen ? (
-                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                            </svg>
-                          ) : (
-                            <Edit className="h-5 w-5" />
-                          )}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Results Table */}
-      {showResultsTable && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {isFrozen && (
-            <div className="px-6 py-3 bg-red-50 border-b border-red-200 flex items-center gap-2">
-              <svg className="h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
-              <span className="text-red-700 font-semibold">Results are FROZEN - Editing is disabled</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Student Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Marks
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Obtained Marks
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Grade
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {studentResults.map((student) => (
-                  <tr key={student.id} className={isFrozen ? "bg-gray-50" : "hover:bg-gray-50"}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {student.userId || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {student.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {student.totalMarks ?? configuredMaxMarks ?? '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <input
-                        type="number"
-                        value={student.obtainedMarks || ''}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          const maxMarks = student.totalMarks ?? configuredMaxMarks ?? 100;
-                          if (value === '' || (value.length <= 3 && parseInt(value) <= maxMarks)) {
-                            updateStudentResult(student.id, 'obtainedMarks', value === '' ? null : parseInt(value));
-                          }
-                        }}
-                        disabled={isFrozen}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                        placeholder="Enter marks"
-                        min="0"
-                        max={student.totalMarks ?? configuredMaxMarks ?? 100}
-                        maxLength={3}
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`px-3 py-1 rounded-md text-sm font-semibold ${student.grade && ['A1', 'A2'].includes(student.grade) ? 'bg-green-100 text-green-800' :
+          </div>
+        )}
+
+        {/* Results Table */}
+        {showResultsTable && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {isFrozen && (
+              <div className="px-6 py-3 bg-red-50 border-b border-red-200 flex items-center gap-2">
+                <svg className="h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+                <span className="text-red-700 font-semibold">Results are FROZEN - Editing is disabled</span>
+              </div>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      User ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Student Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Marks
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Obtained Marks
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Grade
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {studentResults.map((student) => (
+                    <tr key={student.id} className={isFrozen ? "bg-gray-50" : "hover:bg-gray-50"}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {student.userId || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {student.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {student.totalMarks ?? configuredMaxMarks ?? '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <input
+                          type="number"
+                          value={student.obtainedMarks || ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            const maxMarks = student.totalMarks ?? configuredMaxMarks ?? 100;
+                            if (value === '' || (value.length <= 3 && parseInt(value) <= maxMarks)) {
+                              updateStudentResult(student.id, 'obtainedMarks', value === '' ? null : parseInt(value));
+                            }
+                          }}
+                          disabled={isFrozen}
+                          className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          placeholder="Enter marks"
+                          min="0"
+                          max={student.totalMarks ?? configuredMaxMarks ?? 100}
+                          maxLength={3}
+                        />
+
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`px-3 py-1 rounded-md text-sm font-semibold ${student.grade && ['A1', 'A2'].includes(student.grade) ? 'bg-green-100 text-green-800' :
                           student.grade && ['B1', 'B2'].includes(student.grade) ? 'bg-blue-100 text-blue-800' :
                             student.grade && ['C1', 'C2'].includes(student.grade) ? 'bg-yellow-100 text-yellow-800' :
                               student.grade === 'D' ? 'bg-orange-100 text-orange-800' :
                                 student.grade && ['E1', 'E2'].includes(student.grade) ? 'bg-red-100 text-red-800' :
                                   'bg-gray-100 text-gray-600'
-                        }`}>
-                        {student.grade || 'N/A'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          }`}>
+                          {student.grade || 'N/A'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 };
 

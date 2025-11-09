@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as attendanceAPI from '../../../api/attendance';
 import { schoolUserAPI } from '../../../api/schoolUsers';
 import { useAuth } from '../../../auth/AuthContext';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses'; // Import the hook
 import api from '../../../api/axios';
 import { Save, Calendar, Users, UserCheck, UserX, Search, Clock, Sun, Moon, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
@@ -18,6 +19,7 @@ interface Student {
 
 const MarkAttendance: React.FC = () => {
   const { token, user } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
 
   // Use the useSchoolClasses hook to fetch classes configured by superadmin
   const {
@@ -177,7 +179,7 @@ const MarkAttendance: React.FC = () => {
       const users = data.data || data || [];
       console.log(`👥 Total users received: ${users.length}`);
 
-      // Filter students - check multiple possible field structures including currentClass/currentSection
+      // Filter students - check multiple possible field structures including currentClass/currentSection AND academic year
       const filtered = users.filter((u: any) => {
         const isStudent = u.role === 'student';
         const matchesClass = u.academicInfo?.class === selectedClass || 
@@ -189,7 +191,11 @@ const MarkAttendance: React.FC = () => {
                               u.studentDetails?.currentSection === selectedSection ||
                               u.section === selectedSection;
         
-        return isStudent && matchesClass && matchesSection;
+        // Filter by viewing academic year
+        const studentAcademicYear = u.studentDetails?.academicYear || u.academicYear;
+        const matchesAcademicYear = studentAcademicYear === viewingAcademicYear;
+        
+        return isStudent && matchesClass && matchesSection && matchesAcademicYear;
       });
 
       console.log(`✅ Filtered students: ${filtered.length}`);
@@ -453,9 +459,33 @@ const MarkAttendance: React.FC = () => {
         </div>
       )}
 
+      {/* Academic Year Selector */}
+      {isViewingHistoricalYear && (
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+          <p className="text-sm text-yellow-800">
+            <strong>📚 Viewing Historical Data:</strong> You are viewing data from {viewingAcademicYear}. This data is read-only.
+          </p>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Academic Year</label>
+            <select
+              value={viewingAcademicYear}
+              onChange={(e) => setViewingYear(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year} {year === currentAcademicYear && '(Current)'}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
             <div className="relative">

@@ -67,6 +67,7 @@ export interface SchoolSummary {
 }
 
 export const getStudentFeeRecords = async (params: {
+  academicYear?: string;
   class?: string;
   section?: string;
   page?: number;
@@ -137,6 +138,7 @@ export async function getTeacherPerformance(params?: any) {
 }
 
 export async function exportFeeRecordsToCSV(params: {
+  academicYear?: string;
   class?: string;
   section?: string;
   search?: string;
@@ -144,6 +146,7 @@ export async function exportFeeRecordsToCSV(params: {
 }): Promise<Blob> {
   const apiParams: any = {
     type: 'dues',
+    academicYear: params.academicYear,
     class: params.class,
     section: params.section,
     status: params.status
@@ -183,6 +186,7 @@ export interface StudentDetail {
 export const getStudentsByClassSection = async (params: {
   className: string;
   section?: string;
+  academicYear?: string;
 }): Promise<{ success: boolean; students: StudentDetail[] }> => {
   const response = await api.get('/reports/students-by-class', { params });
   return response.data;

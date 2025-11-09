@@ -1,12 +1,15 @@
 import api from '../api/axios';
 
+
 export async function fetchAssignments(params?: {
   class?: string;
   section?: string;
   subject?: string;
   status?: string;
   search?: string;
+  academicYear?: string;
 }) {
+
   const res = await api.get('/assignments', { params });
   return res.data;
 }
@@ -35,7 +38,7 @@ export async function updateAssignment(id: string, data: any) {
   const headers = data instanceof FormData ? {
     'Content-Type': 'multipart/form-data',
   } : {};
-  
+
   const res = await api.put(`/assignments/${id}`, data, { headers });
   return res.data;
 }

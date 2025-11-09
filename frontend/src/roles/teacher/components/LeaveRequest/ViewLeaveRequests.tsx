@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Filter } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import api from '../../../../api/axios';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
 
 interface LeaveRequest {
@@ -21,6 +22,7 @@ interface LeaveRequest {
 
 const ViewLeaveRequests: React.FC = () => {
   const { token } = useAuth();
+  const { currentAcademicYear } = useAcademicYear();
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
@@ -149,41 +151,37 @@ const ViewLeaveRequests: React.FC = () => {
         <div className="grid grid-cols-2 sm:flex sm:space-x-2 gap-2 sm:gap-0">
           <button
             onClick={() => setFilter('all')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${
-              filter === 'all'
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${filter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             All
           </button>
           <button
             onClick={() => setFilter('pending')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${
-              filter === 'pending'
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${filter === 'pending'
                 ? 'bg-yellow-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             Pending
           </button>
           <button
             onClick={() => setFilter('approved')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${
-              filter === 'approved'
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${filter === 'approved'
                 ? 'bg-green-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             Approved
           </button>
           <button
             onClick={() => setFilter('rejected')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${
-              filter === 'rejected'
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm ${filter === 'rejected'
                 ? 'bg-red-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             Rejected
           </button>

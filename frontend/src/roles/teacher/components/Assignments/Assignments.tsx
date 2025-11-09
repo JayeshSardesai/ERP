@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { BookOpen, Eye, PlusCircle } from 'lucide-react';
+import { BookOpen, Eye, PlusCircle, GraduationCap, AlertCircle } from 'lucide-react';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import ViewAssignments from './ViewAssignments';
 import AddAssignments from './AddAssignments';
 
@@ -9,15 +10,36 @@ interface AssignmentsProps {
 
 const Assignments: React.FC<AssignmentsProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'view' | 'add'>('view');
+  const { 
+    currentAcademicYear, 
+    viewingAcademicYear, 
+    isViewingHistoricalYear, 
+    setViewingYear, 
+    availableYears, 
+    loading: ayLoading 
+  } = useAcademicYear();
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center space-x-3">
-        <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg">
-          <BookOpen className="h-6 w-6 text-purple-600" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg">
+            <BookOpen className="h-6 w-6 text-purple-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Assignments Management</h1>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">Assignments Management</h1>
+        
+        {/* Academic Year Badge (Read-only) */}
+        <div className="flex items-center space-x-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white px-4 py-2 rounded-lg shadow-md">
+          <GraduationCap className="h-5 w-5" />
+          <div className="flex flex-col">
+            <span className="text-xs opacity-90">Academic Year</span>
+            <span className="font-bold text-sm">
+              {ayLoading ? 'Loading...' : currentAcademicYear || '2024-2025'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}

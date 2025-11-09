@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Upload, Calendar, BookOpen, Save, X, FileText, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import * as assignmentAPI from '../../../../api/assignment';
 import { Assignment } from '../../types';
 import api from '../../../../api/axios';
@@ -9,6 +10,7 @@ import api from '../../../../api/axios';
 const AddAssignments: React.FC = () => {
   const { user, token } = useAuth();
   const { classesData, loading: classesLoading, getSectionsByClass } = useSchoolClasses();
+  const { currentAcademicYear } = useAcademicYear();
 
   const [showAddForm, setShowAddForm] = useState(true); // Always show form by default
   const [availableSections, setAvailableSections] = useState<any[]>([]);
@@ -133,6 +135,12 @@ const AddAssignments: React.FC = () => {
       if (schoolCode) {
         formDataToSend.append('schoolCode', schoolCode);
         console.log('📤 Added schoolCode to request:', schoolCode);
+      }
+
+      // Add academic year
+      if (currentAcademicYear) {
+        formDataToSend.append('academicYear', currentAcademicYear);
+        console.log('📤 Added academicYear to request:', currentAcademicYear);
       }
 
       console.log('📤 Creating assignment:', {

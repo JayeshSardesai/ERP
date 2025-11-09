@@ -197,6 +197,11 @@ exports.markSessionAttendance = async (req, res) => {
     console.log(`🏫 School code: ${schoolCode}, School ID: ${schoolId}`);
     console.log(`👤 Marked by: ${markedBy} (${req.user.role})`);
 
+    // Fetch school's current academic year
+    const school = await School.findOne({ code: schoolCode });
+    const currentAcademicYear = school?.settings?.academicYear?.currentYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+    console.log(`📅 Using academic year: ${currentAcademicYear}`);
+
     // Use school-specific database for attendance storage
     const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
     const schoolConnection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
@@ -316,7 +321,7 @@ exports.markSessionAttendance = async (req, res) => {
       students: processedStudents,
 
       // Academic Information
-      academicYear: new Date().getFullYear().toString(),
+      academicYear: currentAcademicYear,
       schoolCode: schoolCode,
 
       // Metadata

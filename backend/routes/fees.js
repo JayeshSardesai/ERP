@@ -70,6 +70,7 @@ router.use(checkPermission('viewFees'));
 // Fee Structure routes
 router.post('/structures', feesController.createFeeStructure);
 router.get('/structures', feesController.getFeeStructures);
+router.delete('/structures/:id', feesController.deleteFeeStructure);
 
 // Student Fee Records routes
 router.get('/records', feesController.getStudentFeeRecords);

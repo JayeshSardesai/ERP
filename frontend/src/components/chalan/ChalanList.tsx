@@ -172,7 +172,7 @@ const ChalanList: React.FC<ChalanListProps> = ({ onViewChalan, onPrintChalan }) 
                       {formatChalanNumber(chalan)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {chalan.studentName || chalan.studentId?.name || 'N/A'}
+                      {chalan.studentName || (typeof chalan.studentId === 'object' ? chalan.studentId?.name : null) || 'N/A'}
                       {chalan.admissionNumber && (
                         <span className="text-xs text-gray-400 block">Adm: {chalan.admissionNumber}</span>
                       )}
@@ -198,13 +198,24 @@ const ChalanList: React.FC<ChalanListProps> = ({ onViewChalan, onPrintChalan }) 
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={() => onViewChalan?.(chalan)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
+                        disabled={chalan.status === 'paid'}
+                        className={`mr-3 ${
+                          chalan.status === 'paid'
+                            ? 'text-gray-400 cursor-not-allowed'
+                            : 'text-blue-600 hover:text-blue-900'
+                        }`}
+                        title={chalan.status === 'paid' ? 'Cannot view paid chalans' : 'View chalan'}
                       >
                         View
                       </button>
                       <button
                         onClick={() => onPrintChalan?.(chalan)}
-                        className="text-green-600 hover:text-green-900"
+                        disabled={chalan.status === 'paid'}
+                        className={chalan.status === 'paid'
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-green-600 hover:text-green-900'
+                        }
+                        title={chalan.status === 'paid' ? 'Cannot print paid chalans' : 'Print chalan'}
                       >
                         Print
                       </button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, X, FileText, Receipt, Eye } from 'lucide-react';
+import { Search, Plus, X, FileText, Receipt, Eye, Filter } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 import ClassSectionSelect from '../components/ClassSectionSelect';
 import api, { feesAPI, userAPI, schoolAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
@@ -9,6 +10,7 @@ import ViewChalan from '../../../components/fees/ViewChalan';
 
 const FeePaymentsTab: React.FC = () => {
   const { user } = useAuth();
+  const { currentAcademicYear, viewingAcademicYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [selectedSection, setSelectedSection] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -180,7 +182,8 @@ const FeePaymentsTab: React.FC = () => {
       console.log('Fetching fee records with params:', {
         class: selectedClass,
         section: selectedSection,
-        search: searchTerm
+        search: searchTerm,
+        academicYear: viewingAcademicYear
       });
 
       // Fetch fee records and student details in parallel
@@ -188,7 +191,8 @@ const FeePaymentsTab: React.FC = () => {
       const studentFilters: any = {
         search: searchTerm,
         limit: 50,
-        fields: '_id,userId,name,studentId,class,section,admissionNumber'
+        fields: '_id,userId,name,studentId,class,section,admissionNumber',
+        academicYear: viewingAcademicYear
       };
 
       if (selectedClass && selectedClass !== 'ALL') {
@@ -204,6 +208,7 @@ const FeePaymentsTab: React.FC = () => {
           class: selectedClass,
           section: selectedSection,
           search: searchTerm,
+          academicYear: viewingAcademicYear,
           limit: 50,
           fields: 'studentId,installments,totalAmount,paidAmount,balance'
         }),
@@ -1267,14 +1272,14 @@ const FeePaymentsTab: React.FC = () => {
 
     fetchSchoolDetails();
     fetchRecords();
-  }, [user?.schoolId, selectedClass, selectedSection, searchTerm]);
+  }, [user?.schoolId, selectedClass, selectedSection, searchTerm, viewingAcademicYear]);
 
   // naive debounce for search
   React.useEffect(() => {
     const t = setTimeout(() => fetchRecords(), 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm]);
+  }, [searchTerm, viewingAcademicYear]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1370,13 +1375,32 @@ const FeePaymentsTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Fee Payments Management</h2>
+    <>
+      <div className="space-y-4 sm:space-y-6">
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Fee Payments Management</h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
-          <div className="sm:col-span-2 lg:col-span-1">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Filter className="inline h-4 w-4 mr-1" />
+                Academic Year
+              </label>
+              <select
+                value={viewingAcademicYear}
+                onChange={(e) => setViewingYear(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                disabled={academicYearLoading}
+              >
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year} {year === currentAcademicYear && '(Current)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <ClassSectionSelect
               schoolCode={user?.schoolCode}
               valueClass={selectedClass}
@@ -1384,363 +1408,387 @@ const FeePaymentsTab: React.FC = () => {
               onClassChange={setSelectedClass}
               onSectionChange={setSelectedSection}
             />
-          </div>
 
-          <div className="relative sm:col-span-2 lg:col-span-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-              placeholder="Search students..."
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Summary */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Summary</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="flex items-center">
-              <div>
-                <p className="text-sm font-medium text-blue-600">Total Assigned</p>
-                <p className="text-2xl font-semibold text-blue-900">
-                  {formatCurrency(students.reduce((sum, s) => sum + (s.totalAmount || 0), 0))}
-                </p>
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search
+              </label>
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" style={{ top: '28px' }}>
+                <Search className="h-5 w-5 text-gray-400" />
               </div>
-            </div>
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <div className="flex items-center">
-              <div>
-                <p className="text-sm font-medium text-green-600">Total Collected</p>
-                <p className="text-2xl font-semibold text-green-900">
-                  {formatCurrency(students.reduce((sum, s) => sum + (s.totalPaid || 0), 0))}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <div className="flex items-center">
-              <div>
-                <p className="text-sm font-medium text-orange-600">Outstanding</p>
-                <p className="text-2xl font-semibold text-orange-900">
-                  {formatCurrency(students.reduce((sum, s) => sum + (s.balance || 0), 0))}
-                </p>
-              </div>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="block w-full pl-9 sm:pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                placeholder="Search students..."
+              />
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Students Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-          <h3 className="text-base sm:text-lg font-medium text-gray-900">Student Fee Records</h3>
+        {/* Summary */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Summary</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <div>
+                  <p className="text-sm font-medium text-blue-600">Total Assigned</p>
+                  <p className="text-2xl font-semibold text-blue-900">
+                    {formatCurrency(students.reduce((sum, s) => sum + (s.totalAmount || 0), 0))}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <div>
+                  <p className="text-sm font-medium text-green-600">Total Collected</p>
+                  <p className="text-2xl font-semibold text-green-900">
+                    {formatCurrency(students.reduce((sum, s) => sum + (s.totalPaid || 0), 0))}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <div>
+                  <p className="text-sm font-medium text-orange-600">Outstanding</p>
+                  <p className="text-2xl font-semibold text-orange-900">
+                    {formatCurrency(students.reduce((sum, s) => sum + (s.balance || 0), 0))}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Student
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Total Assigned
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Total Paid
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Balance
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Status
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Actions
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Chalan
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {students.map((student) => (
-                <tr key={student.id} className="hover:bg-gray-50">
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => openHistoryModal(student)}
-                        className="text-left text-xs sm:text-sm font-medium text-blue-600 hover:underline flex items-center gap-1"
-                      >
-                        <Receipt size={14} />
-                        {student.name}
-                      </button>
-                      {(student.class || student.section || student.rollNumber) && (
-                        <div className="text-sm text-gray-500">
-                          {[
-                            student.class && student.section
-                              ? `${student.class} - ${student.section}`
-                              : (student.class || student.section || ''),
-                            student.rollNumber ? `(${student.rollNumber})` : ''
-                          ].filter(Boolean).join(' ')}
-                        </div>
-                      )}
-                      {/* History Modal */}
-                      {isHistoryOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-                          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4">
-                            <div className="flex items-center justify-between px-4 py-3 border-b">
-                              <h3 className="text-lg font-semibold text-gray-900">Payment History{historyRecord?.studentName ? ` - ${historyRecord.studentName}` : ''}</h3>
-                              <button onClick={() => setIsHistoryOpen(false)} className="text-gray-500 hover:text-gray-700">
-                                <X className="h-5 w-5" />
-                              </button>
-                            </div>
-                            <div className="p-4 space-y-3">
-                              {historyLoading && <div className="text-sm text-gray-500">Loading history...</div>}
-                              {!historyLoading && historyRecord && (
-                                <>
-                                  <div className="flex items-center gap-2">
-                                    <label className="text-sm text-gray-700">Installment:</label>
-                                    <select
-                                      className="px-2 py-1 border rounded text-sm"
-                                      value={historyInstallmentName}
-                                      onChange={(e) => setHistoryInstallmentName(e.target.value)}
-                                    >
-                                      {(historyRecord.installments || []).map((inst: any) => (
-                                        <option key={inst.name} value={inst.name}>{inst.name}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div className="overflow-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                      <thead className="bg-gray-50">
-                                        <tr>
-                                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
-                                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-                                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
-                                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Receipt</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="bg-white divide-y divide-gray-200">
-                                        {(historyRecord.payments || [])
-                                          .filter((p: any) => !historyInstallmentName || p.installmentName === historyInstallmentName)
-                                          .map((p: any) => {
-                                            const d = p.paymentDate ? new Date(p.paymentDate) : null;
-                                            const dateStr = d ? d.toLocaleDateString() : '-';
-                                            const dayStr = d ? d.toLocaleDateString('en-IN', { weekday: 'long' }) : '-';
-                                            return (
-                                              <tr key={String(p.paymentId)} className="hover:bg-gray-50">
-                                                <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(p.amount || 0)}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">{p.paymentMethod}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">{p.paymentReference || '-'}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">{dateStr}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">{dayStr}</td>
-                                                <td className="px-3 py-2 text-sm text-gray-900">
-                                                  {p.receiptNumber ? (
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => handleDownloadReceipt(p.receiptNumber)}
-                                                      className="text-blue-600 hover:underline"
-                                                    >
-                                                      {p.receiptNumber}
-                                                    </button>
-                                                  ) : (
-                                                    '-'
-                                                  )}
-                                                </td>
-                                              </tr>
-                                            );
-                                          })}
-                                        {(!historyRecord.payments || historyRecord.payments.length === 0) && (
+        {/* Students Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900">Student Fee Records</h3>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Student
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Total Assigned
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Total Paid
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Balance
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Status
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Actions
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Chalan
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {students.map((student) => (
+                  <tr key={student.id} className="hover:bg-gray-50">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => openHistoryModal(student)}
+                          className="text-left text-xs sm:text-sm font-medium text-blue-600 hover:underline flex items-center gap-1"
+                        >
+                          <Receipt size={14} />
+                          {student.name}
+                        </button>
+                        {(student.class || student.section || student.rollNumber) && (
+                          <div className="text-sm text-gray-500">
+                            {[
+                              student.class && student.section
+                                ? `${student.class} - ${student.section}`
+                                : (student.class || student.section || ''),
+                              student.rollNumber ? `(${student.rollNumber})` : ''
+                            ].filter(Boolean).join(' ')}
+                          </div>
+                        )}
+                        {/* History Modal */}
+                        {isHistoryOpen && (
+                          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4">
+                              <div className="flex items-center justify-between px-4 py-3 border-b">
+                                <h3 className="text-lg font-semibold text-gray-900">Payment History{historyRecord?.studentName ? ` - ${historyRecord.studentName}` : ''}</h3>
+                                <button onClick={() => setIsHistoryOpen(false)} className="text-gray-500 hover:text-gray-700">
+                                  <X className="h-5 w-5" />
+                                </button>
+                              </div>
+                              <div className="p-4 space-y-3">
+                                {historyLoading && <div className="text-sm text-gray-500">Loading history...</div>}
+                                {!historyLoading && historyRecord && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <label className="text-sm text-gray-700">Installment:</label>
+                                      <select
+                                        className="px-2 py-1 border rounded text-sm"
+                                        value={historyInstallmentName}
+                                        onChange={(e) => setHistoryInstallmentName(e.target.value)}
+                                      >
+                                        {(historyRecord.installments || []).map((inst: any) => (
+                                          <option key={inst.name} value={inst.name}>{inst.name}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="overflow-auto">
+                                      <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
                                           <tr>
-                                            <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">No payments found for this installment.</td>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Receipt</th>
                                           </tr>
-                                        )}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </>
-                              )}
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                          {(historyRecord.payments || [])
+                                            .filter((p: any) => !historyInstallmentName || p.installmentName === historyInstallmentName)
+                                            .map((p: any) => {
+                                              const d = p.paymentDate ? new Date(p.paymentDate) : null;
+                                              const dateStr = d ? d.toLocaleDateString() : '-';
+                                              const dayStr = d ? d.toLocaleDateString('en-IN', { weekday: 'long' }) : '-';
+                                              return (
+                                                <tr key={String(p.paymentId)} className="hover:bg-gray-50">
+                                                  <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(p.amount || 0)}</td>
+                                                  <td className="px-3 py-2 text-sm text-gray-900">{p.paymentMethod}</td>
+                                                  <td className="px-3 py-2 text-sm text-gray-900">{p.paymentReference || '-'}</td>
+                                                  <td className="px-3 py-2 text-sm text-gray-900">{dateStr}</td>
+                                                  <td className="px-3 py-2 text-sm text-gray-900">{dayStr}</td>
+                                                  <td className="px-3 py-2 text-sm text-gray-900">
+                                                    {p.receiptNumber ? (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => handleDownloadReceipt(p.receiptNumber)}
+                                                        className="text-blue-600 hover:underline"
+                                                      >
+                                                        {p.receiptNumber}
+                                                      </button>
+                                                    ) : (
+                                                      '-'
+                                                    )}
+                                                  </td>
+                                                </tr>
+                                              );
+                                            })}
+                                          {(!historyRecord.payments || historyRecord.payments.length === 0) && (
+                                            <tr>
+                                              <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">No payments found for this installment.</td>
+                                            </tr>
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(student.totalAmount)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(student.totalPaid)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(student.balance)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(student.status)}`}>
-                      {student.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => openPaymentModal(student)}
-                        className="text-blue-600 hover:text-blue-900 flex items-center"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Record Payment
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {student.installments?.length > 0 && (
-                      <button
-                        onClick={() => {
-                          console.log('=== DEBUG: Student Object ===', student);
-                          console.log('=== DEBUG: Student ID Fields ===', {
-                            'student.userId': student.userId,
-                            'student.studentId': student.studentId,
-                            'student.admissionNumber': student.admissionNumber,
-                            'student._id': student._id,
-                            'student.sequenceId': student.sequenceId,
-                            'student.rollNumber': student.rollNumber,
-                            'All available fields': Object.keys(student)
-                          });
-                          console.log('=== DEBUG: Student Installments ===', student.installments);
-
-                          // Debug: Check if userId is in a nested object
-                          if (!student.userId && student.studentDetails) {
-                            console.log('=== DEBUG: student.studentDetails ===', student.studentDetails);
-                            console.log('student.studentDetails.userId:', student.studentDetails.userId);
-                            console.log('student.studentDetails.admissionNumber:', student.studentDetails.admissionNumber);
-                          }
-
-                          // Find the first installment with chalan info, or use the first installment
-                          const chalanInstallment = student.installments.find((i: any) => i.chalanNumber) || student.installments[0];
-                          console.log('Selected installment for chalan:', chalanInstallment);
-
-                          if (chalanInstallment) {
-                            // Enhanced debug logging
-                            console.log('=== DEBUG: Student Object ===');
-                            console.log(JSON.stringify(student, null, 2)); // Pretty print the entire student object
-
-                            // Log all fields that might contain ID
-                            console.log('Potential ID fields:', {
-                              userId: student.userId,
-                              studentId: student.studentId,
-                              admissionNumber: student.admissionNumber,
-                              rollNumber: student.rollNumber,
-                              id: student.id,
-                              _id: student._id,
-                              // Check nested objects if they exist
-                              studentDetails: student.studentDetails ? {
-                                userId: student.studentDetails.userId,
-                                admissionNumber: student.studentDetails.admissionNumber,
-                                rollNumber: student.studentDetails.rollNumber
-                              } : 'No studentDetails',
-                              // Check if there's a nested student object
-                              student: student.student ? {
-                                userId: student.student.userId,
-                                studentId: student.student.studentId,
-                                admissionNumber: student.student.admissionNumber
-                              } : 'No nested student object'
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(student.totalAmount)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(student.totalPaid)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(student.balance)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(student.status)}`}>
+                        {student.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => openPaymentModal(student)}
+                          className="text-blue-600 hover:text-blue-900 flex items-center"
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Record Payment
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      {student.installments?.length > 0 && student.installments.some((inst: any) => inst.status !== 'paid') && (
+                        <button
+                          onClick={() => {
+                            console.log('=== DEBUG: Student Object ===', student);
+                            console.log('=== DEBUG: Student ID Fields ===', {
+                              'student.userId': student.userId,
+                              'student.studentId': student.studentId,
+                              'student.admissionNumber': student.admissionNumber,
+                              'student._id': student._id,
+                              'student.sequenceId': student.sequenceId,
+                              'student.rollNumber': student.rollNumber,
+                              'All available fields': Object.keys(student)
                             });
+                            console.log('=== DEBUG: Student Installments ===', student.installments);
 
-                            // School details are already loaded in schoolDetails state
-                            const chalanData = {
-                              ...chalanInstallment,
-                              // Student Information
-                              studentName: student.name,
-                              // Use the available ID in this order: userId, studentId, or any other ID field
-                              studentId: student.userId ||
-                                student.studentId ||
-                                student.admissionNumber ||
-                                student.rollNumber ||
-                                student.id ||
-                                student._id ||
-                                'N/A',
-                              // Also include userId separately for reference
-                              userId: student.userId,
-                              className: student.class || 'N/A',
-                              section: student.section || 'N/A',
-                              academicYear: student.academicYear || '2024-25',
+                            // Debug: Check if userId is in a nested object
+                            if (!student.userId && student.studentDetails) {
+                              console.log('=== DEBUG: student.studentDetails ===', student.studentDetails);
+                              console.log('student.studentDetails.userId:', student.studentDetails.userId);
+                              console.log('student.studentDetails.admissionNumber:', student.studentDetails.admissionNumber);
+                            }
 
-                              // School Information - dynamic from school details
-                              schoolName: schoolDetails.name || schoolDetails.schoolName || 'School Name',
-                              schoolAddress: [
-                                schoolDetails.address?.addressLine1,
-                                schoolDetails.address?.city,
-                                schoolDetails.address?.state,
-                                schoolDetails.address?.pincode
-                              ].filter(Boolean).join(', '),
-                              schoolPhone: schoolDetails.contact?.phone,
-                              schoolEmail: schoolDetails.contact?.email,
-                              // Bank Details - using the structure expected by ViewChalan
-                              bankDetails: schoolDetails.bankDetails ? {
-                                bankName: schoolDetails.bankDetails.bankName || 'Bank not specified',
-                                accountNumber: schoolDetails.bankDetails.accountNumber || 'Not specified',
-                                ifscCode: schoolDetails.bankDetails.ifscCode || 'Not specified',
-                                branch: schoolDetails.bankDetails.branch || 'Not specified',
-                                accountHolderName: (schoolDetails.bankDetails as any).accountHolderName ||
-                                  schoolDetails.bankDetails.accountName ||
-                                  schoolDetails.schoolName ||
-                                  'School Account'
-                              } : {
-                                bankName: 'Bank not specified',
-                                accountNumber: 'Not specified',
-                                ifscCode: 'Not specified',
-                                branch: 'Not specified',
-                                accountHolderName: schoolDetails.schoolName || 'School Account'
-                              },
-                              // Also pass schoolData with bank details for backward compatibility
-                              schoolData: {
-                                bankDetails: schoolDetails.bankDetails ? {
-                                  bankName: schoolDetails.bankDetails.bankName,
-                                  accountNumber: schoolDetails.bankDetails.accountNumber,
-                                  ifscCode: schoolDetails.bankDetails.ifscCode,
-                                  branch: schoolDetails.bankDetails.branch,
-                                  accountHolderName: (schoolDetails.bankDetails as any).accountHolderName ||
-                                    schoolDetails.bankDetails.accountName
-                                } : null
-                              },
+                            // Find the first installment with chalan info, or use the first installment
+                            const chalanInstallment = student.installments.find((i: any) => i.chalanNumber) || student.installments[0];
+                            console.log('Selected installment for chalan:', chalanInstallment);
 
-                              // Chalan Details - Format: SCHOOLCODE-YYYYMM-####
-                              // Let the backend handle the chalan number generation
-                              // We'll pass null and let the server generate it
-                              chalanNumber: chalanInstallment.chalanNumber || null,
-                              chalanDate: chalanInstallment.chalanDate || chalanInstallment.dueDate || new Date().toISOString().split('T')[0],
-                              chalanBank: chalanInstallment.chalanBank || 'School Bank',
-                              chalanStatus: chalanInstallment.chalanStatus || 'generated',
+                            if (chalanInstallment) {
+                              // Enhanced debug logging
+                              console.log('=== DEBUG: Student Object ===');
+                              console.log(JSON.stringify(student, null, 2)); // Pretty print the entire student object
 
-                              // Installment Details
-                              installmentName: chalanInstallment.name || 'Fee Installment',
-                              amount: chalanInstallment.amount || 0,
-                              dueDate: chalanInstallment.dueDate || ''
+                              // Log all fields that might contain ID
+                              console.log('Potential ID fields:', {
+                                userId: student.userId,
+                                studentId: student.studentId,
+                                admissionNumber: student.admissionNumber,
+                                rollNumber: student.rollNumber,
+                                id: student.id,
+                                _id: student._id,
+                                // Check nested objects if they exist
+                                studentDetails: student.studentDetails ? {
+                                  userId: student.studentDetails.userId,
+                                  admissionNumber: student.studentDetails.admissionNumber,
+                                  rollNumber: student.studentDetails.rollNumber
+                                } : 'No studentDetails',
+                                // Check if there's a nested student object
+                                student: student.student ? {
+                                  userId: student.student.userId,
+                                  studentId: student.student.studentId,
+                                  admissionNumber: student.student.admissionNumber
+                                } : 'No nested student object'
+                              });
+                              console.log('=== DEBUG: Student Installments ===', student.installments);
+
+                              // Debug: Check if userId is in a nested object
+                              if (!student.userId && student.studentDetails) {
+                                console.log('=== DEBUG: student.studentDetails ===', student.studentDetails);
+                                console.log('student.studentDetails.userId:', student.studentDetails.userId);
+                                console.log('student.studentDetails.admissionNumber:', student.studentDetails.admissionNumber);
+                              }
+
+                              // Find the first unpaid installment with chalan info, or use the first unpaid installment
+                              const unpaidInstallments = student.installments.filter((i: any) => i.status !== 'paid');
+                              const chalanInstallment = unpaidInstallments.find((i: any) => i.chalanNumber) || unpaidInstallments[0];
+                              console.log('Selected installment for chalan:', chalanInstallment);
+
+                              if (chalanInstallment) {
+                                // Enhanced debug logging
+                                console.log('=== DEBUG: Student Object ===');
+                                console.log(JSON.stringify(student, null, 2)); // Pretty print the entire student object
+
+                                // Log all fields that might contain ID
+                                console.log('Potential ID fields:', {
+                                  userId: student.userId,
+                                  studentId: student.studentId,
+                                  admissionNumber: student.admissionNumber,
+                                  rollNumber: student.rollNumber,
+                                  id: student.id,
+                                  _id: student._id,
+                                  // Check nested objects if they exist
+                                  studentDetails: student.studentDetails ? {
+                                    userId: student.studentDetails.userId,
+                                    admissionNumber: student.studentDetails.admissionNumber,
+                                    rollNumber: student.studentDetails.rollNumber
+                                  } : 'No studentDetails',
+                                  // Check if there's a nested student object
+                                  student: student.student ? {
+                                    userId: student.student.userId,
+                                    studentId: student.student.studentId,
+                                    admissionNumber: student.student.admissionNumber
+                                  } : 'No nested student object'
+                                });
+
+                                // School details are already loaded in schoolDetails state
+                                const chalanData = {
+                                  ...chalanInstallment,
+                                  // Student Information
+                                  studentName: student.name,
+                                  // Use the available ID in this order: userId, studentId, or any other ID field
+                                  studentId: student.userId ||
+                                    student.studentId ||
+                                    student.admissionNumber ||
+                                    student.rollNumber ||
+                                    student.id ||
+                                    student._id ||
+                                    'N/A',
+                                  // Also include userId separately for reference
+                                  userId: student.userId,
+                                  className: student.class || 'N/A',
+                                  section: student.section || 'N/A',
+                                  academicYear: student.academicYear || '2024-25',
+
+                                  // School Information - dynamic from school details
+                                  schoolName: schoolDetails.name || schoolDetails.schoolName || 'School Name',
+                                  schoolAddress: [
+                                    schoolDetails.address?.addressLine1,
+                                    schoolDetails.address?.city,
+                                    schoolDetails.address?.state,
+                                    schoolDetails.address?.pincode
+                                  ].filter(Boolean).join(', '),
+                                  schoolPhone: schoolDetails.contact?.phone,
+                                  schoolEmail: schoolDetails.contact?.email,
+                                  // Bank Details - using the structure expected by ViewChalan
+                                  bankDetails: schoolDetails.bankDetails ? {
+                                    bankName: schoolDetails.bankDetails.bankName,
+                                    accountNumber: schoolDetails.bankDetails.accountNumber,
+                                    ifscCode: schoolDetails.bankDetails.ifscCode,
+                                    branch: schoolDetails.bankDetails.branch,
+                                    accountHolderName: (schoolDetails.bankDetails as any).accountHolderName ||
+                                      schoolDetails.bankDetails.accountName
+                                  } : null
+                                },
+
+                                  // Chalan Details - Format: SCHOOLCODE-YYYYMM-####
+                                  // Let the backend handle the chalan number generation
+                                  // We'll pass null and let the server generate it
+                                  chalanNumber: chalanInstallment.chalanNumber || null,
+                                    chalanDate: chalanInstallment.chalanDate || chalanInstallment.dueDate || new Date().toISOString().split('T')[0],
+                      chalanBank: chalanInstallment.chalanBank || 'School Bank',
+                      chalanStatus: chalanInstallment.chalanStatus || 'generated',
+
+                      // Installment Details
+                      installmentName: chalanInstallment.name || 'Fee Installment',
+                      amount: chalanInstallment.amount || 0,
+                      dueDate: chalanInstallment.dueDate || ''
                             };
 
-                            console.log('Setting chalan data:', chalanData);
-                            setViewingChalan(chalanData);
-                            console.log('Opening chalan modal');
-                            setIsChalanModalOpen(true);
+                      console.log('Setting chalan data:', chalanData);
+                      setViewingChalan(chalanData);
+                      console.log('Opening chalan modal');
+                      setIsChalanModalOpen(true);
                           }
                         }}
-                        className="bg-green-100 hover:bg-green-200 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded flex items-center border border-green-200"
-                        title="View Chalan"
+                      className="bg-green-100 hover:bg-green-200 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded flex items-center border border-green-200"
+                      title="View Chalan"
                       >
-                        <Eye className="h-3 w-3 mr-1" />
-                        Chalan
-                      </button>
+                      <Eye className="h-3 w-3 mr-1" />
+                      Chalan
+                    </button>
                     )}
                   </td>
                 </tr>
@@ -1749,192 +1797,203 @@ const FeePaymentsTab: React.FC = () => {
           </table>
         </div>
       </div>
+    </>
 
-      {/* Payment Modal */}
-      {isModalOpen && activeStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Record Payment - {activeStudent.name}</h3>
-              <button onClick={closePaymentModal} className="text-gray-500 hover:text-gray-700">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="overflow-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+      {/* Payment Modal */ }
+  {
+    isModalOpen && activeStudent && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <h3 className="text-lg font-semibold text-gray-900">Record Payment - {activeStudent.name}</h3>
+            <button onClick={closePaymentModal} className="text-gray-500 hover:text-gray-700">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="overflow-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Installment</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Due</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Paid</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Pending</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {(activeStudent.installments || []).length === 0 ? (
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Installment</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Due</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Paid</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Pending</th>
-                      <th className="px-3 py-2"></th>
+                      <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">No installments data available.</td>
                     </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {(activeStudent.installments || []).length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">No installments data available.</td>
-                      </tr>
-                    ) : (
-                      activeStudent.installments.map((inst: any, idx: number) => {
-                        const pending = Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0));
-                        return (
-                          <tr key={idx} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 text-sm text-gray-900">{inst.name}</td>
-                            <td className="px-3 py-2 text-sm text-gray-600">{inst.dueDate ? new Date(inst.dueDate).toLocaleDateString() : '-'}</td>
-                            <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(inst.amount || 0)}</td>
-                            <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(inst.paidAmount || 0)}</td>
-                            <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(pending)}</td>
-                            <td className="px-3 py-2 text-right">
-                              <button
-                                onClick={() => onSelectInstallment(inst)}
-                                className="text-blue-600 hover:text-blue-800 text-sm"
-                              >
-                                Select
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div>
-                <div className="space-y-3">
-                  <div className="text-sm text-gray-600">
-                    {selectedInstallmentName
-                      ? `Selected installment: ${selectedInstallmentName}`
-                      : 'Select an installment from the table to proceed.'}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Amount to collect</label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      value={payAmount}
-                      onChange={(e) => setPayAmount(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="Select an installment first"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                    <select
-                      value={payMethod}
-                      onChange={(e) => setPayMethod(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="cash">Cash</option>
-                      <option value="chalan">Chalan</option>
-                      <option value="cheque">Cheque</option>
-                      <option value="bank_transfer">Bank Transfer</option>
-                      <option value="online">Online</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
-                    <input
-                      type="date"
-                      value={payDate}
-                      onChange={(e) => setPayDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {['cheque', 'bank_transfer', 'online', 'chalan'].includes(payMethod) ? 'Reference / Remarks (required)' : 'Reference / Remarks (optional)'}
-                    </label>
-                    <input
-                      type="text"
-                      value={payRef}
-                      onChange={(e) => setPayRef(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder={payMethod === 'chalan' ? 'Chalan number' : 'txn id, cheque no, note, etc.'}
-                      required={['cheque', 'bank_transfer', 'online', 'chalan'].includes(payMethod)}
-                    />
-                  </div>
-                  <div className="flex justify-end space-x-2 pt-2">
-                    <button
-                      onClick={closePaymentModal}
-                      disabled={submitting}
-                      className="px-4 py-2 rounded border text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSubmitPayment}
-                      disabled={submitting || !selectedInstallmentName}
-                      className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {submitting ? 'Recording...' : 'Record Payment'}
-                    </button>
-                  </div>
+                  ) : (
+                    activeStudent.installments.map((inst: any, idx: number) => {
+                      const pending = Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0));
+                      return (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 text-sm text-gray-900">{inst.name}</td>
+                          <td className="px-3 py-2 text-sm text-gray-600">{inst.dueDate ? new Date(inst.dueDate).toLocaleDateString() : '-'}</td>
+                          <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(inst.amount || 0)}</td>
+                          <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(inst.paidAmount || 0)}</td>
+                          <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(pending)}</td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              onClick={() => onSelectInstallment(inst)}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Select
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div className="space-y-3">
+                <div className="text-sm text-gray-600">
+                  {selectedInstallmentName
+                    ? `Selected installment: ${selectedInstallmentName}`
+                    : 'Select an installment from the table to proceed.'}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount to collect</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Select an installment first"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                  <select
+                    value={payMethod}
+                    onChange={(e) => setPayMethod(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="chalan">Chalan</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="online">Online</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
+                  <input
+                    type="date"
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {['cheque', 'bank_transfer', 'online', 'chalan'].includes(payMethod) ? 'Reference / Remarks (required)' : 'Reference / Remarks (optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={payRef}
+                    onChange={(e) => setPayRef(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder={payMethod === 'chalan' ? 'Chalan number' : 'txn id, cheque no, note, etc.'}
+                    required={['cheque', 'bank_transfer', 'online', 'chalan'].includes(payMethod)}
+                  />
+                </div>
+                <div className="flex justify-end space-x-2 pt-2">
+                  <button
+                    onClick={closePaymentModal}
+                    disabled={submitting}
+                    className="px-4 py-2 rounded border text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmitPayment}
+                    disabled={submitting || !selectedInstallmentName}
+                    className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {submitting ? 'Recording...' : 'Record Payment'}
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      )}
-      {loading && (
-        <div className="text-sm text-gray-500">Loading records...</div>
-      )}
-      {error && (
-        <div className="text-sm text-red-600">{error}</div>
-      )}
+      </div>
+    )
+  }
+  {
+    loading && (
+      <div className="text-sm text-gray-500">Loading records...</div>
+    )
+  }
+  {
+    error && (
+      <div className="text-sm text-red-600">{error}</div>
+    )
+  }
 
-      {/* Chalan Modal */}
-      {isChalanModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto">
-            <ViewChalan
-              isOpen={isChalanModalOpen}
-              onClose={() => {
-                console.log('Closing chalan modal');
-                setIsChalanModalOpen(false);
-                setViewingChalan(null);
-              }}
-              chalan={viewingChalan}
+  {/* Chalan Modal */ }
+  {
+    isChalanModalOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto">
+          <ViewChalan
+            isOpen={isChalanModalOpen}
+            onClose={() => {
+              console.log('Closing chalan modal');
+              setIsChalanModalOpen(false);
+              setViewingChalan(null);
+            }}
+            chalan={viewingChalan}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  {/* Receipt Modal */ }
+  {
+    isReceiptOpen && receiptData && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 max-h-[90vh] overflow-auto">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Payment Receipt - {receiptData.studentData.name}
+            </h3>
+            <button
+              onClick={() => setIsReceiptOpen(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="p-4">
+            <DualCopyReceipt
+              schoolData={receiptData.schoolData}
+              studentData={receiptData.studentData}
+              paymentData={receiptData.paymentData}
+              installments={receiptData.installments}
+              totalAmount={receiptData.totalAmount}
+              totalPaid={receiptData.totalPaid}
+              totalRemaining={receiptData.totalRemaining}
             />
           </div>
         </div>
-      )}
-
-      {/* Receipt Modal */}
-      {isReceiptOpen && receiptData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 max-h-[90vh] overflow-auto">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Payment Receipt - {receiptData.studentData.name}
-              </h3>
-              <button
-                onClick={() => setIsReceiptOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-4">
-              <DualCopyReceipt
-                schoolData={receiptData.schoolData}
-                studentData={receiptData.studentData}
-                paymentData={receiptData.paymentData}
-                installments={receiptData.installments}
-                totalAmount={receiptData.totalAmount}
-                totalPaid={receiptData.totalPaid}
-                totalRemaining={receiptData.totalRemaining}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+    )
+  }
+    </div >
   );
 };
 

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Save, CheckCircle, XCircle, Calendar, Sun, Moon, Users as UsersIcon, Lock } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
+import { toast } from 'react-hot-toast';
 import * as attendanceAPI from '../../../../api/attendance';
 import api from '../../../../api/axios';
 import toast from 'react-hot-toast';
@@ -9,7 +11,8 @@ import toast from 'react-hot-toast';
 const MarkAttendance: React.FC = () => {
   const { user, token } = useAuth();
   const { classesData, loading: classesLoading, getSectionsByClass } = useSchoolClasses();
-  
+  const { currentAcademicYear } = useAcademicYear();
+
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
@@ -52,40 +55,48 @@ const MarkAttendance: React.FC = () => {
 
       setLoading(true);
       try {
-        console.log('🔍 Fetching students for:', { 
-          class: selectedClass, 
-          section: selectedSection, 
-          schoolCode: user.schoolCode 
+        console.log('🔍 Fetching students for:', {
+          class: selectedClass,
+          section: selectedSection,
+          schoolCode: user.schoolCode,
+          academicYear: currentAcademicYear
         });
+        console.log('📅 Filtering by Academic Year:', currentAcademicYear);
+
+        // Build query params including academic year
+        const queryParams = new URLSearchParams({
+          class: selectedClass,
+          section: selectedSection
+        });
+
+        if (currentAcademicYear) {
+          queryParams.append('academicYear', currentAcademicYear);
+        }
 
         // Use the same API endpoint as admin - teachers have access via validateSchoolAccess(['admin', 'teacher'])
         const response = await api.get(
-          `/users/role/student?class=${selectedClass}&section=${selectedSection}`
+          `/users/role/student?${queryParams.toString()}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'x-school-code': user.schoolCode
+            }
+          }
         );
 
         const data = response.data;
         console.log('📊 API Response:', data);
-        
+
         const users = data.data || data || [];
-        console.log(`👥 Total users received: ${users.length}`);
+        console.log(`👥 Total users received from API (already filtered by backend): ${users.length}`);
 
-        // Filter students - check multiple possible field structures
-        const filtered = users.filter((u: any) => {
-          const isStudent = u.role === 'student';
-          const matchesClass = u.academicInfo?.class === selectedClass || 
-                              u.studentDetails?.class === selectedClass ||
-                              u.studentDetails?.currentClass === selectedClass ||
-                              u.class === selectedClass;
-          const matchesSection = u.academicInfo?.section === selectedSection || 
-                                u.studentDetails?.section === selectedSection ||
-                                u.studentDetails?.currentSection === selectedSection ||
-                                u.section === selectedSection;
-          
-          return isStudent && matchesClass && matchesSection;
-        });
+        // Backend already filters by class, section, and academic year
+        // Just ensure they are students (defensive check)
+        const filtered = users.filter((u: any) => u.role === 'student');
 
-        console.log(`✅ Filtered students: ${filtered.length}`);
-        
+        console.log(`✅ Students for AY ${currentAcademicYear}: ${filtered.length}`);
+
         // Map to consistent format
         const mappedStudents = filtered.map((student: any) => ({
           _id: student._id,
@@ -97,7 +108,7 @@ const MarkAttendance: React.FC = () => {
         }));
 
         setStudents(mappedStudents);
-        
+
         // Don't initialize any attendance - let teacher mark each student
         setAttendance({});
 
@@ -113,7 +124,7 @@ const MarkAttendance: React.FC = () => {
     };
 
     fetchStudents();
-  }, [selectedClass, selectedSection, token, user?.schoolCode]);
+  }, [selectedClass, selectedSection, token, user?.schoolCode, currentAcademicYear]);
 
   // Check session status when date, class, section or session changes
   useEffect(() => {
@@ -275,7 +286,7 @@ const MarkAttendance: React.FC = () => {
     const present = records.filter(r => r === 'present').length;
     const absent = records.filter(r => r === 'absent').length;
     const total = students.length;
-    
+
     return { present, absent, total };
   };
 
@@ -285,7 +296,7 @@ const MarkAttendance: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Mark Attendance</h2>
-        
+
         <div className="flex flex-wrap gap-2 mt-4 sm:mt-0">
           {sessionStatus.isFrozen && (
             <div className="flex items-center px-3 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm font-medium">
@@ -325,7 +336,7 @@ const MarkAttendance: React.FC = () => {
 
       {/* Selection Controls */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
             <input
@@ -333,6 +344,17 @@ const MarkAttendance: React.FC = () => {
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Academic Year</label>
+            <input
+              type="text"
+              value={currentAcademicYear || 'Loading...'}
+              readOnly
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold cursor-not-allowed"
+              title="Current academic year (set by Admin)"
             />
           </div>
 
@@ -374,22 +396,20 @@ const MarkAttendance: React.FC = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => setSelectedSession('morning')}
-                className={`flex-1 flex items-center justify-center px-3 py-2 rounded-lg border-2 transition-colors ${
-                  selectedSession === 'morning'
+                className={`flex-1 flex items-center justify-center px-3 py-2 rounded-lg border-2 transition-colors ${selectedSession === 'morning'
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
-                }`}
+                  }`}
               >
                 <Sun className="h-4 w-4 mr-1" />
                 Morning
               </button>
               <button
                 onClick={() => setSelectedSession('afternoon')}
-                className={`flex-1 flex items-center justify-center px-3 py-2 rounded-lg border-2 transition-colors ${
-                  selectedSession === 'afternoon'
+                className={`flex-1 flex items-center justify-center px-3 py-2 rounded-lg border-2 transition-colors ${selectedSession === 'afternoon'
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
-                }`}
+                  }`}
               >
                 <Moon className="h-4 w-4 mr-1" />
                 Afternoon
@@ -432,7 +452,7 @@ const MarkAttendance: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="divide-y divide-gray-200">
             {students.map((student, index) => (
               <div key={student._id} className="p-6 hover:bg-gray-50 transition-colors">
@@ -456,29 +476,27 @@ const MarkAttendance: React.FC = () => {
                     <button
                       onClick={() => handleStatusChange(student._id, 'present')}
                       disabled={sessionStatus.isFrozen}
-                      className={`flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                        attendance[student._id] === 'present'
-                          ? 'bg-green-100 text-green-800 border-green-200' 
+                      className={`flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${attendance[student._id] === 'present'
+                          ? 'bg-green-100 text-green-800 border-green-200'
                           : attendance[student._id] === 'absent'
-                          ? 'bg-white text-gray-400 border-gray-200'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-green-50'
-                      } ${sessionStatus.isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            ? 'bg-white text-gray-400 border-gray-200'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-green-50'
+                        } ${sessionStatus.isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
                       title={sessionStatus.isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
                     >
                       <CheckCircle className="h-4 w-4 mr-1" />
                       Present
                     </button>
-                    
+
                     <button
                       onClick={() => handleStatusChange(student._id, 'absent')}
                       disabled={sessionStatus.isFrozen}
-                      className={`flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                        attendance[student._id] === 'absent'
-                          ? 'bg-red-100 text-red-800 border-red-200' 
+                      className={`flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${attendance[student._id] === 'absent'
+                          ? 'bg-red-100 text-red-800 border-red-200'
                           : attendance[student._id] === 'present'
-                          ? 'bg-white text-gray-400 border-gray-200'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-red-50'
-                      } ${sessionStatus.isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            ? 'bg-white text-gray-400 border-gray-200'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-red-50'
+                        } ${sessionStatus.isFrozen ? 'opacity-50 cursor-not-allowed' : ''}`}
                       title={sessionStatus.isFrozen ? 'Attendance is frozen and cannot be modified' : ''}
                     >
                       <XCircle className="h-4 w-4 mr-1" />

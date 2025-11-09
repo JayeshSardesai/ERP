@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, User, MessageCircle, Clock } from 'lucide-react';
+import { Users, User, MessageCircle, Clock, Calendar } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import { toast } from 'react-hot-toast';
 import api from '../../../../api/axios';
 
@@ -25,32 +26,40 @@ interface Message {
 
 const Messages: React.FC = () => {
   const { token, user } = useAuth();
+  const { currentAcademicYear } = useAcademicYear();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch messages from backend
   useEffect(() => {
     fetchMessages();
-  }, []);
+  }, [currentAcademicYear]); // Refetch when academic year changes
 
   const fetchMessages = async () => {
     setLoading(true);
     try {
-      // Get school code from localStorage or user context
-      const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      
-      const response = await api.get('/messages/teacher/messages');
-      const data = response.data;
-      
-      if (data.success) {
-        // Handle both data.messages and data.data.messages formats
-        const messages = data.data?.messages || data.messages || [];
-        setMessages(messages);
-        console.log('✅ Fetched messages:', messages);
-        
-        if (messages.length === 0) {
-          console.log('ℹ️ No messages found for teacher');
+      console.log('🔍 Fetching messages from teacher endpoint');
+
+      const response = await api.get('/messages/teacher/messages', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch messages');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Backend returns messages in both data.messages and data.data.messages
+        const fetchedMessages = data.messages || data.data?.messages || [];
+        setMessages(fetchedMessages);
+        console.log('✅ Fetched messages for academic year:', currentAcademicYear);
+        console.log('✅ Total messages:', fetchedMessages.length);
+        console.log('✅ Messages:', fetchedMessages);
       } else {
         toast.error(data.message || 'Failed to fetch messages');
       }
@@ -66,7 +75,7 @@ const Messages: React.FC = () => {
     const date = new Date(timestamp);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return 'Just now';
     if (diffInHours < 24) return `${diffInHours}h ago`;
     if (diffInHours < 48) return 'Yesterday';
@@ -77,8 +86,19 @@ const Messages: React.FC = () => {
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Messages</h1>
-          <p className="text-sm sm:text-base text-gray-600">View your messages</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">School Messages</h1>
+          <p className="text-gray-600">Messages sent by admins to students</p>
+        </div>
+
+        {/* Academic Year Badge */}
+        <div className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg shadow-md mt-4 sm:mt-0">
+          <Calendar className="h-5 w-5" />
+          <div className="flex flex-col">
+            <span className="text-xs opacity-90">Academic Year</span>
+            <span className="font-bold text-sm">
+              {currentAcademicYear || 'Loading...'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -86,8 +106,11 @@ const Messages: React.FC = () => {
         {/* Message List */}
         <div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="p-4 sm:p-6 border-b border-gray-200">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Recent Messages</h2>
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Messages from Admin</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Viewing messages for academic year: <span className="font-semibold text-indigo-600">{currentAcademicYear}</span>
+              </p>
             </div>
 
             {loading ? (
@@ -98,8 +121,8 @@ const Messages: React.FC = () => {
             ) : messages.length > 0 ? (
               <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
                 {messages.map((message) => (
-                  <div 
-                    key={message.id} 
+                  <div
+                    key={message.id}
                     className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-3 sm:p-5 border border-blue-100 hover:shadow-md transition-all duration-200"
                   >
                     {/* Header */}
@@ -120,22 +143,22 @@ const Messages: React.FC = () => {
                           <span className="whitespace-nowrap">{formatTimestamp(message.timestamp)}</span>
                         </div>
                         <span className="text-xs text-gray-400 sm:mt-1 whitespace-nowrap">
-                          {new Date(message.createdAt).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric', 
-                            year: 'numeric' 
+                          {new Date(message.createdAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
                           })}
                         </span>
                       </div>
                     </div>
-                    
+
                     {/* Message Content */}
                     <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm border border-gray-100">
                       <p className="text-gray-700 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words">
                         {message.content || message.message}
                       </p>
                     </div>
-                    
+
                     {/* Footer */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-3 pt-3 border-t border-blue-100 gap-2 sm:gap-0">
                       <div className="flex items-center space-x-2">

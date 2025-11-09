@@ -18,6 +18,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthContext';
+import AcademicYearCard from './AcademicYearCard';
 
 interface DashboardProps {
   onNavigate: (page: string) => void;
@@ -67,7 +68,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         const assignmentsRes = await api.get('/assignments?limit=100');
         assignmentsData = assignmentsRes.data;
         console.log('✅ Assignments data:', assignmentsData);
-        
+
         // Also try direct endpoint if main endpoint fails or returns empty
         if (!assignmentsData || (!assignmentsData.data && !assignmentsData.assignments && !Array.isArray(assignmentsData))) {
           console.log('🔄 Trying direct assignments endpoint...');
@@ -122,7 +123,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         keys: Object.keys(assignmentsData || {}),
         type: typeof assignmentsData
       });
-      
+
       if (assignmentsData.data && Array.isArray(assignmentsData.data)) {
         assignmentsArray = assignmentsData.data;
         console.log('📦 Using assignmentsData.data:', assignmentsArray.length);
@@ -140,7 +141,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           console.log(`📦 Using ${arrayProps[0]}:`, assignmentsArray.length);
         }
       }
-      
+
       // Filter out placeholder and invalid assignments
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') return false;
@@ -154,10 +155,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         }
         return true;
       });
-      
+
       console.log('📊 Valid assignments for dashboard:', validAssignments.length);
       assignmentsArray = validAssignments;
-      
+
       const leaveRequestsArray = leaveData.data?.leaveRequests || [];
 
       console.log('📦 Extracted assignments:', assignmentsArray.length);
@@ -174,6 +175,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         today.setHours(0, 0, 0, 0);
         return dueDate >= today;
       }).length;
+
+      const totalLeaves = leaveRequestsArray.length;
+      const pendingLeaves = leaveRequestsArray.filter((l: any) => l.status === 'pending').length;
+      const approvedLeaves = leaveRequestsArray.filter((l: any) => l.status === 'approved').length;
 
       // Filter leave requests for current year
       const currentYear = new Date().getFullYear();
@@ -263,7 +268,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const getDeadlineStatus = (dueDate: string) => {
     // Add debugging to identify NaN issues
     console.log('🔍 DEBUG: Processing dueDate:', dueDate, 'Type:', typeof dueDate);
-    
+
     if (!dueDate) {
       console.warn('⚠️ WARNING: dueDate is null, undefined, or empty');
       return {
@@ -276,7 +281,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
     const due = new Date(dueDate);
     const today = new Date();
-    
+
     // Check if date is valid
     if (isNaN(due.getTime())) {
       console.error('❌ ERROR: Invalid date format:', dueDate);
@@ -287,13 +292,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         priority: 'urgent'
       };
     }
-    
+
     today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
     due.setHours(23, 59, 59, 999); // Set to end of due date
 
     const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     console.log('🔍 DEBUG: Calculated diffDays:', diffDays, 'for assignment due:', due.toDateString());
 
     if (diffDays < 0) {
@@ -363,6 +368,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
+
+      {/* Academic Year Card */}
+      <AcademicYearCard />
 
       {/* Stats Grid */}
       {loading ? (
@@ -622,8 +630,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                         </p>
                       </div>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${leave.status === 'approved' ? 'bg-green-100 text-green-700' :
-                          leave.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                            'bg-yellow-100 text-yellow-700'
+                        leave.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                          'bg-yellow-100 text-yellow-700'
                         }`}>
                         {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
                       </span>

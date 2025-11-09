@@ -6,6 +6,7 @@ import * as assignmentAPI from '../../../api/assignment';
 import { useSchoolClasses } from '../../../hooks/useSchoolClasses';
 import { useAuth } from '../../../auth/AuthContext';
 import api from '../../../api/axios';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext';
 
 interface Assignment {
   _id: string;
@@ -21,6 +22,7 @@ interface Assignment {
   totalStudents: number;
   description: string;
   _placeholder?: boolean;
+  academicYear?: string;
 }
 
 const Assignments: React.FC = () => {
@@ -34,6 +36,9 @@ const Assignments: React.FC = () => {
     getClassOptions,
     getSectionsByClass
   } = useSchoolClasses();
+
+  // Academic year context
+  const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears } = useAcademicYear();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -56,7 +61,7 @@ const Assignments: React.FC = () => {
 
   useEffect(() => {
     fetchAssignments();
-  }, []);
+  }, [viewingAcademicYear]);
 
   // Calculate stats whenever assignments change
   useEffect(() => {
@@ -85,51 +90,17 @@ const Assignments: React.FC = () => {
       setError('');
       console.log('🔍 Admin fetching assignments...');
 
+      console.log('🔍 Fetching assignments for academic year:', viewingAcademicYear);
+
       let data;
       let assignmentsArray = [];
 
       try {
-        // Build filter parameters for admin - similar to teacher portal
-        const filterParams: any = {};
-        if (selectedClass) filterParams.class = selectedClass;
-        if (selectedSection) filterParams.section = selectedSection;
-        if (selectedSubject) filterParams.subject = selectedSubject;
-        if (searchTerm) filterParams.search = searchTerm;
-
-        console.log('🔍 Admin applying filters:', filterParams);
-
-        // Try the regular endpoint first with filters
-        data = await assignmentAPI.fetchAssignments(filterParams);
-        console.log('✅ Raw API response:', data);
-        console.log('🔍 API response structure:', {
-          hasData: !!data.data,
-          hasAssignments: !!data.assignments,
-          isArray: Array.isArray(data),
-          keys: Object.keys(data || {}),
-          dataLength: Array.isArray(data.data) ? data.data.length : 'not array',
-          assignmentsLength: Array.isArray(data.assignments) ? data.assignments.length : 'not array'
+        // Try the regular endpoint first with academic year parameter
+        data = await assignmentAPI.fetchAssignments({
+          academicYear: viewingAcademicYear
         });
-
-        // Handle different response structures exactly like teacher portal
-        if (data.data && Array.isArray(data.data)) {
-          assignmentsArray = data.data;
-          console.log('📦 Using data.data:', assignmentsArray.length);
-        } else if (data.assignments && Array.isArray(data.assignments)) {
-          assignmentsArray = data.assignments;
-          console.log('📦 Using data.assignments:', assignmentsArray.length);
-        } else if (Array.isArray(data)) {
-          assignmentsArray = data;
-          console.log('📦 Using direct array:', assignmentsArray.length);
-        } else if (data && typeof data === 'object') {
-          // Try to find any array property
-          const arrayProps = Object.keys(data).filter(key => Array.isArray(data[key]));
-          if (arrayProps.length > 0) {
-            assignmentsArray = data[arrayProps[0]];
-            console.log(`📦 Using ${arrayProps[0]}:`, assignmentsArray.length);
-          }
-        }
-
-        console.log('✅ Extracted assignments array:', assignmentsArray);
+        console.log('✅ Assignments fetched from regular endpoint:', data);
       } catch (regularError) {
         console.error('❌ Error with regular endpoint:', regularError);
 
@@ -155,7 +126,7 @@ const Assignments: React.FC = () => {
 
       // Log all assignments to debug the data structure
       console.log('🔍 Raw assignments data:', assignmentsArray);
-      
+
       // Filter out placeholder assignments and validate real assignments
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') {
@@ -175,23 +146,18 @@ const Assignments: React.FC = () => {
           console.log('⏭️ Skipping placeholder assignment:', assignment._id);
           return false;
         }
-        
-        // Skip assignments with missing essential fields
-        if (!assignment.title && !assignment.subject && !assignment.class) {
-          console.log('⏭️ Skipping assignment with missing essential fields:', assignment._id);
-          return false;
-        }
 
-        // Log assignment details for debugging
-        console.log('✅ Valid assignment found:', {
-          _id: assignment._id,
-          title: assignment.title,
-          subject: assignment.subject,
-          class: assignment.class,
-          section: assignment.section,
-          dueDate: assignment.dueDate,
-          isPlaceholder: assignment._placeholder,
-          allFields: Object.keys(assignment)
+        // Try direct endpoint with the user's school code and academic year
+        const params = new URLSearchParams({
+          schoolCode: userSchoolCode,
+          ...(viewingAcademicYear && { academicYear: viewingAcademicYear })
+        });
+        const response = await fetch(`/api/direct-test/assignments?${params.toString()}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-School-Code': userSchoolCode
+          }
         });
 
         return true; // Accept all non-placeholder assignments with valid ID
@@ -199,12 +165,12 @@ const Assignments: React.FC = () => {
 
       console.log(`✅ Loaded ${validAssignments.length} valid assignments out of ${assignmentsArray.length} total`);
       console.log('📋 Valid assignments:', validAssignments);
-      
+
       // If we have assignments but they're all placeholders, inform the user
       if (assignmentsArray.length > 0 && validAssignments.length === 0) {
         console.log('ℹ️ INFO: All assignments are placeholders - no real assignments found');
       }
-      
+
       setAssignments(validAssignments);
     } catch (err: any) {
       console.error('❌ Error fetching assignments:', err);
@@ -276,18 +242,18 @@ const Assignments: React.FC = () => {
       // Use the same approach as teacher page - fetch all classes and find the specific one
       const response = await api.get('/class-subjects/classes');
       const data = response.data;
-      
+
       // Get all subjects for this class (regardless of section initially)
       const classesForThisName = data?.data?.classes?.filter((c: any) => c.className === className) || [];
       const allSubjects = new Set();
-      
+
       classesForThisName.forEach((classData: any) => {
         const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
         activeSubjects.forEach((s: any) => {
           if (s.name) allSubjects.add(s.name);
         });
       });
-      
+
       const subjectNames = Array.from(allSubjects) as string[];
       setSubjects(subjectNames);
       console.log('✅ Subjects loaded:', subjectNames);
@@ -330,7 +296,7 @@ const Assignments: React.FC = () => {
 
     const due = new Date(dueDate);
     const today = new Date();
-    
+
     // Check if date is valid
     if (isNaN(due.getTime())) {
       return {
@@ -340,7 +306,7 @@ const Assignments: React.FC = () => {
         priority: 'urgent'
       };
     }
-    
+
     today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
     due.setHours(23, 59, 59, 999); // Set to end of due date
 
@@ -444,27 +410,11 @@ const Assignments: React.FC = () => {
     const matchesSearch = !searchTerm || searchTerm.trim() === '' ||
       title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       subject.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = selectedFilter === 'all' || status === selectedFilter;
+    const matchesClass = !selectedClass || assignmentClass === selectedClass;
+    const matchesSubject = !selectedSubject || subject === selectedSubject;
+    const matchesAcademicYear = !viewingAcademicYear || assignment.academicYear === viewingAcademicYear;
 
-    // Class filter - empty selectedClass means "All Classes" (show all)
-    // Also show assignments with no class data when "All Classes" is selected
-    const matchesClass = !selectedClass || selectedClass === '' ||
-      assignmentClass === selectedClass ||
-      (assignmentClass === '' && (!selectedClass || selectedClass === ''));
-
-    // Section filter - empty selectedSection means "All Sections" (show all)  
-    // Also show assignments with no section data when "All Sections" is selected
-    const matchesSection = !selectedSection || selectedSection === '' ||
-      assignmentSection === selectedSection ||
-      (assignmentSection === '' && (!selectedSection || selectedSection === ''));
-
-    // Subject filter - empty selectedSubject means "All Subjects" (show all)
-    // Also show assignments with no subject data when "All Subjects" is selected
-    const matchesSubject = !selectedSubject || selectedSubject === '' ||
-      subject === selectedSubject ||
-      (subject === '' && (!selectedSubject || selectedSubject === ''));
-
-    const result = matchesSearch && matchesClass && matchesSection && matchesSubject;
-    
     // Debug individual assignment filtering
     if (assignment._id === '6905a0b614065ebef374bfdd') { // Debug the specific assignment we saw in logs
       console.log('🔍 ASSIGNMENT FILTER DEBUG:', {
@@ -479,8 +429,8 @@ const Assignments: React.FC = () => {
         finalResult: result
       });
     }
-    
-    return result;
+
+    return matchesSearch && matchesFilter && matchesClass && matchesSubject && matchesAcademicYear;
   });
 
   // Calculate stats from filtered assignments (updates based on current filters)
@@ -539,244 +489,257 @@ const Assignments: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Assignments</h1>
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <button className="bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center transition-colors text-sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export Data
-          </button>
-          <button
-            onClick={handleAddAssignment}
-            className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Assignment
-          </button>
-        </div>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
-
-      {/* Loading State */}
-      {loading && (
-        <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-gray-600">Loading assignments...</p>
-        </div>
-      )}
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <div className="bg-blue-500 p-3 rounded-lg">
-              <FileText className="h-6 w-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Assignments</p>
-              <p className="text-2xl font-bold text-gray-900">{currentStats.total}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <div className="bg-purple-500 p-3 rounded-lg">
-              <Calendar className="h-6 w-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Due This Week</p>
-              <p className="text-2xl font-bold text-gray-900">{currentStats.dueThisWeek}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="flex flex-col gap-4">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-            <input
-              type="text"
-              placeholder="Search assignments..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            />
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <select
-              value={selectedClass}
-              onChange={(e) => {
-                setSelectedClass(e.target.value);
-                // Reset section and subject when class changes
-                setSelectedSection('');
-                setSelectedSubject('');
-              }}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+    <>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Assignments</h1>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <button className="bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center transition-colors text-sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export Data
+            </button>
+            <button
+              onClick={handleAddAssignment}
+              className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm"
             >
-              <option value="">All Classes</option>
-              {getClassOptions().map((cls) => (
-                <option key={cls.value} value={cls.value}>{cls.label}</option>
-              ))}
-            </select>
-            <select
-              value={selectedSection}
-              onChange={(e) => {
-                setSelectedSection(e.target.value);
-                // Reset subject when section changes since subjects are class+section specific
-                if (e.target.value !== selectedSection) {
+              <Plus className="h-4 w-4 mr-2" />
+              Add Assignment
+            </button>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="mt-2 text-gray-600">Loading assignments...</p>
+          </div>
+        )}
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex items-center">
+              <div className="bg-blue-500 p-3 rounded-lg">
+                <FileText className="h-6 w-6 text-white" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Assignments</p>
+                <p className="text-2xl font-bold text-gray-900">{currentStats.total}</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex items-center">
+              <div className="bg-purple-500 p-3 rounded-lg">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Due This Week</p>
+                <p className="text-2xl font-bold text-gray-900">{currentStats.dueThisWeek}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Search and Filters */}
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex flex-col gap-4">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <input
+                type="text"
+                placeholder="Search assignments..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select
+                value={viewingAcademicYear}
+                onChange={(e) => setViewingYear(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year} {year === currentAcademicYear && '(Current)'}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={selectedClass}
+                onChange={(e) => {
+                  setSelectedClass(e.target.value);
+                  // Reset section and subject when class changes
+                  setSelectedSection('');
                   setSelectedSubject('');
-                }
-              }}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            >
-              <option value="">All Sections</option>
-              {(selectedClass ? getSectionsByClass(selectedClass) : []).map((section) => (
-                <option key={section.value} value={section.value}>{section.label}</option>
-              ))}
-            </select>
-            <select
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            >
-              <option value="">All Subjects</option>
-              {subjects.map((subject) => (
-                <option key={subject} value={subject}>{subject}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Assignments Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {/* Table Header with Total Count */}
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Assignments</h3>
-            <div className="flex items-center space-x-3 sm:space-x-4 text-xs sm:text-sm text-gray-600">
-              <span>Total: <span className="font-semibold text-gray-900">{assignments.length}</span></span>
-              {(searchTerm || selectedClass || selectedSection || selectedSubject) && (
-                <span>Filtered: <span className="font-semibold text-blue-600">{filteredAssignments.length}</span></span>
-              )}
+                }}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                <option value="">All Classes</option>
+                {getClassOptions().map((cls) => (
+                  <option key={cls.value} value={cls.value}>{cls.label}</option>
+                ))}
+              </select>
+              <select
+                value={selectedSection}
+                onChange={(e) => {
+                  setSelectedSection(e.target.value);
+                  // Reset subject when section changes since subjects are class+section specific
+                  if (e.target.value !== selectedSection) {
+                    setSelectedSubject('');
+                  }
+                }}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                <option value="">All Sections</option>
+                {(selectedClass ? getSectionsByClass(selectedClass) : []).map((section) => (
+                  <option key={section.value} value={section.value}>{section.label}</option>
+                ))}
+              </select>
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                <option value="">All Subjects</option>
+                {subjects.map((subject) => (
+                  <option key={subject} value={subject}>{subject}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignment</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Class</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Section</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Subject</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAssignments.length === 0 ? (
+
+        {/* Assignments Table */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Table Header with Total Count */}
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Assignments</h3>
+              <div className="flex items-center space-x-3 sm:space-x-4 text-xs sm:text-sm text-gray-600">
+                <span>Total: <span className="font-semibold text-gray-900">{assignments.length}</span></span>
+                {(searchTerm || selectedClass || selectedSection || selectedSubject) && (
+                  <span>Filtered: <span className="font-semibold text-blue-600">{filteredAssignments.length}</span></span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td colSpan={6} className="px-3 sm:px-6 py-8 sm:py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <FileText className="h-8 sm:h-12 w-8 sm:w-12 text-gray-400 mb-3" />
-                      <p className="text-gray-500 text-base sm:text-lg font-medium">No assignments found</p>
-                      <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                        {assignments.length === 0
-                          ? 'No assignments created yet. Create your first assignment to get started!'
-                          : 'No assignments match your current filters. Try adjusting your search criteria.'}
-                      </p>
-                    </div>
-                  </td>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignment</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Class</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Section</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Subject</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
-              ) : (
-                filteredAssignments.map((assignment) => (
-                  <tr key={assignment._id} className="hover:bg-gray-50">
-                    <td className="px-3 sm:px-6 py-4">
-                      <div className="text-xs sm:text-sm font-medium text-gray-900">{assignment.title || assignment.subject || 'Untitled Assignment'}</div>
-                      <div className="text-xs text-gray-500 sm:hidden mt-1">
-                        {assignment.class && `Class ${assignment.class}`}
-                        {assignment.section && ` • Section ${assignment.section}`}
-                        {assignment.subject && ` • ${assignment.subject}`}
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden sm:table-cell">
-                      {assignment.class || 'N/A'}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden md:table-cell">
-                      {assignment.section || 'N/A'}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden lg:table-cell">
-                      {assignment.subject || 'N/A'}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center">
-                          <Calendar className="h-3 sm:h-4 w-3 sm:w-4 mr-1 text-gray-400" />
-                          <span className="truncate">{assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'No due date'}</span>
-                        </div>
-                        {assignment.dueDate && (
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getDeadlineStatus(assignment.dueDate).bgColor} ${getDeadlineStatus(assignment.dueDate).color}`}>
-                            {getDeadlineStatus(assignment.dueDate).text}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-1 sm:space-x-2">
-                        <button
-                          onClick={() => handleEditAssignment(assignment._id)}
-                          className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                          title="Edit assignment"
-                        >
-                          <Edit2 className="h-3 sm:h-4 w-3 sm:w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAssignment(assignment._id, assignment.title)}
-                          className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                          title="Delete assignment"
-                        >
-                          <Trash2 className="h-3 sm:h-4 w-3 sm:w-4" />
-                        </button>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredAssignments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 sm:px-6 py-8 sm:py-12 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <FileText className="h-8 sm:h-12 w-8 sm:w-12 text-gray-400 mb-3" />
+                        <p className="text-gray-500 text-base sm:text-lg font-medium">No assignments found</p>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-2">
+                          {assignments.length === 0
+                            ? 'No assignments created yet. Create your first assignment to get started!'
+                            : 'No assignments match your current filters. Try adjusting your search criteria.'}
+                        </p>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredAssignments.map((assignment) => (
+                    <tr key={assignment._id} className="hover:bg-gray-50">
+                      <td className="px-3 sm:px-6 py-4">
+                        <div className="text-xs sm:text-sm font-medium text-gray-900">{assignment.title || assignment.subject || 'Untitled Assignment'}</div>
+                        <div className="text-xs text-gray-500 sm:hidden mt-1">
+                          {assignment.class && `Class ${assignment.class}`}
+                          {assignment.section && ` • Section ${assignment.section}`}
+                          {assignment.subject && ` • ${assignment.subject}`}
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden sm:table-cell">
+                        {assignment.class || 'N/A'}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden md:table-cell">
+                        {assignment.section || 'N/A'}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden lg:table-cell">
+                        {assignment.subject || 'N/A'}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                        <div className="flex flex-col space-y-1">
+                          <div className="flex items-center">
+                            <Calendar className="h-3 sm:h-4 w-3 sm:w-4 mr-1 text-gray-400" />
+                            <span className="truncate">{assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'No due date'}</span>
+                          </div>
+                          {assignment.dueDate && (
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getDeadlineStatus(assignment.dueDate).bgColor} ${getDeadlineStatus(assignment.dueDate).color}`}>
+                              {getDeadlineStatus(assignment.dueDate).text}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-1 sm:space-x-2">
+                          <button
+                            onClick={() => handleEditAssignment(assignment._id)}
+                            className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                            title="Edit assignment"
+                          >
+                            <Edit2 className="h-3 sm:h-4 w-3 sm:w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAssignment(assignment._id, assignment.title)}
+                            className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                            title="Delete assignment"
+                          >
+                            <Trash2 className="h-3 sm:h-4 w-3 sm:w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      {/* Create Assignment Modal */}
-      <CreateAssignmentModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={handleCreateSuccess}
-      />
-
-      {/* Edit Assignment Modal */}
-      {selectedAssignmentId && (
-        <EditAssignmentModal
-          isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedAssignmentId('');
-          }}
-          onSuccess={handleEditSuccess}
-          assignmentId={selectedAssignmentId}
+        {/* Create Assignment Modal */}
+        <CreateAssignmentModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={handleCreateSuccess}
         />
-      )}
-    </div>
+
+        {/* Edit Assignment Modal */}
+        {selectedAssignmentId && (
+          <EditAssignmentModal
+            isOpen={showEditModal}
+            onClose={() => {
+              setShowEditModal(false);
+              setSelectedAssignmentId('');
+            }}
+            onSuccess={handleEditSuccess}
+            assignmentId={selectedAssignmentId}
+          />
+        )}
+      </div>
+    </>
   );
 };
 

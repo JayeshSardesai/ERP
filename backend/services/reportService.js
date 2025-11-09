@@ -125,7 +125,8 @@ class ReportService {
           { 
             $match: { 
               ...matchQuery,
-              subjects: { $exists: true, $ne: [] }
+              subjects: { $exists: true, $ne: [] },
+              className: { $exists: true, $ne: null, $ne: '' }  
             } 
           },
           {
@@ -294,11 +295,12 @@ class ReportService {
           
           console.log(` [getSchoolSummary] Processing result for class: ${result.class}, section: ${result.section}`);
           
-          // Always aggregate attendance from all sections of the class for class-level average
+          // Match attendance by both class AND section for accurate section-wise data
           const classAttendance = attendanceData.filter(att => {
-            const matches = att.class === result.class;
-            console.log(`   Comparing attendance class '${att.class}' with result class '${result.class}': ${matches}`);
-            return matches;
+            const classMatches = att.class === result.class;
+            const sectionMatches = att.section === result.section;
+            console.log(`   Comparing attendance (${att.class}, ${att.section}) with result (${result.class}, ${result.section}): class=${classMatches}, section=${sectionMatches}`);
+            return classMatches && sectionMatches;
           });
           
           console.log(`   Found ${classAttendance.length} attendance records for class ${result.class}`);
@@ -453,115 +455,113 @@ class ReportService {
   } // Added closing brace here
 
   // Get students by class and section with their marks and attendance
-  async getStudentsByClassSection(schoolId, schoolCode, className, section) {
+  async getStudentsByClassSection(schoolId, schoolCode, className, section, academicYear) {
     try {
-      console.log('🔍 [getStudentsByClassSection] Fetching students for:', { schoolCode, className, section });
+      console.log('🔍 [getStudentsByClassSection] Fetching students for:', { schoolCode, className, section, academicYear });
       
       const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
       const db = connection.db;
       
-      // Convert schoolId to ObjectId
-      let schoolObjectId;
-      try {
-        schoolObjectId = typeof schoolId === 'string' ? new ObjectId(schoolId) : schoolId;
-      } catch (err) {
-        schoolObjectId = schoolId;
-      }
-
-      // Build match query for results
-      // Make schoolCode case-insensitive by using regex
-      const resultsMatchQuery = {
-        $or: [
-          { schoolId: schoolObjectId },
-          { schoolId: schoolId.toString() },
-          { schoolCode: { $regex: `^${schoolCode}$`, $options: 'i' } }
-        ]
+      // STEP 1: Fetch ALL students from students collection first
+      const studentsMatchQuery = {
+        role: 'student',
+        isActive: { $ne: false }
       };
 
-      // Add class filter (case-insensitive)
+      // Add class filter
       if (className) {
-        resultsMatchQuery.$and = resultsMatchQuery.$and || [];
-        resultsMatchQuery.$and.push({
-          $or: [
-            { class: className.toString() },
-            { className: className.toString() }
-          ]
-        });
+        studentsMatchQuery.$or = [
+          { 'studentDetails.currentClass': { $regex: `^${className.toString()}$`, $options: 'i' } },
+          { 'academicInfo.class': { $regex: `^${className.toString()}$`, $options: 'i' } },
+          { class: { $regex: `^${className.toString()}$`, $options: 'i' } }
+        ];
       }
 
-      // Add section filter (case-insensitive)
-      if (section && section !== 'ALL') {
-        resultsMatchQuery.$and = resultsMatchQuery.$and || [];
-        // Use MongoDB $regex operator for aggregation pipeline
-        resultsMatchQuery.$and.push({
+      // Add section filter
+      if (section && section !== 'ALL' && section !== 'All' && section !== 'All Sections') {
+        const sectionFilter = {
           $or: [
-            { section: { $regex: `^${section.toString()}$`, $options: 'i' } },
-            { sectionName: { $regex: `^${section.toString()}$`, $options: 'i' } }
+            { 'studentDetails.currentSection': { $regex: `^${section.toString()}$`, $options: 'i' } },
+            { 'academicInfo.section': { $regex: `^${section.toString()}$`, $options: 'i' } },
+            { section: { $regex: `^${section.toString()}$`, $options: 'i' } }
           ]
-        });
+        };
+        
+        if (studentsMatchQuery.$or) {
+          studentsMatchQuery.$and = [
+            { $or: studentsMatchQuery.$or },
+            sectionFilter
+          ];
+          delete studentsMatchQuery.$or;
+        } else {
+          studentsMatchQuery.$or = sectionFilter.$or;
+        }
       }
 
-      console.log('Results match query:', JSON.stringify(resultsMatchQuery, null, 2));
+      console.log('📋 Students collection query:', JSON.stringify(studentsMatchQuery, null, 2));
       
-      // Get student results with average marks
-      // Group by userId to match with attendance records
+      const allStudents = await db.collection('students').find(studentsMatchQuery).toArray();
+      console.log(`✅ Found ${allStudents.length} students in students collection`);
+      
+      if (allStudents.length === 0) {
+        console.log('⚠️ No students found in students collection');
+        return { success: true, students: [] };
+      }
+
+      // Get student IDs for lookup
+      const studentIds = allStudents.map(s => s.userId);
+      console.log(`📝 Student IDs to lookup:`, studentIds.slice(0, 5), '...');
+
+      // STEP 2: Fetch results for these students
+      const resultsMatchQuery = {
+        userId: { $in: studentIds },
+        subjects: { $exists: true, $ne: [] }
+      };
+
+      // Add academic year filter to results
+      if (academicYear) {
+        resultsMatchQuery.academicYear = academicYear;
+      }
+
+      console.log('📊 Results query:', JSON.stringify(resultsMatchQuery, null, 2));
+      
       const studentResults = await db.collection('results').aggregate([
-        { 
-          $match: { 
-            ...resultsMatchQuery,
-            subjects: { $exists: true, $ne: [] }
-          } 
-        },
-        {
-          $unwind: '$subjects'
-        },
+        { $match: resultsMatchQuery },
+        { $unwind: '$subjects' },
         {
           $group: {
-            _id: {
-              userId: '$userId',
-              studentName: '$studentName'
-            },
+            _id: '$userId',
             avgMarks: { $avg: '$subjects.percentage' }
           }
         },
         {
           $project: {
             _id: 0,
-            studentId: '$_id.userId',
-            studentName: '$_id.studentName',
+            studentId: '$_id',
             avgMarks: { $round: ['$avgMarks', 2] }
           }
-        },
-        { $sort: { studentName: 1 } }
+        }
       ]).toArray();
       
-      console.log(`Found ${studentResults.length} student results`);
-      if (studentResults.length > 0) {
-        console.log('Sample result:', studentResults[0]);
-      }
+      console.log(`✅ Found results for ${studentResults.length} students`);
 
-      // Build match query for attendance
+      // STEP 3: Fetch attendance for these students
       const attendanceMatchQuery = {
         schoolCode: schoolCode,
-        documentType: 'session_attendance'
+        documentType: 'session_attendance',
+        'students.studentId': { $in: studentIds }
       };
 
-      if (className) {
-        attendanceMatchQuery.class = new RegExp(`^${className.toString()}$`, 'i');
+      if (academicYear) {
+        attendanceMatchQuery.academicYear = academicYear;
       }
 
-      if (section && section !== 'ALL') {
-        attendanceMatchQuery.section = new RegExp(`^${section.toString()}$`, 'i');
-      }
+      console.log('👥 Attendance query:', JSON.stringify(attendanceMatchQuery, null, 2));
 
-      // Get student attendance
       const studentAttendance = await db.collection('attendances').aggregate([
-        {
-          $match: attendanceMatchQuery
-        },
-        {
-          $unwind: '$students'
-        },
+        { $match: attendanceMatchQuery },
+        { $unwind: '$students' },
+        { $match: { 'students.studentId': { $in: studentIds } } },
         {
           $group: {
             _id: '$students.studentId',
@@ -610,105 +610,36 @@ class ReportService {
         }
       ]).toArray();
 
-      // Create a map for quick attendance lookup
+      console.log(`✅ Found attendance for ${studentAttendance.length} students`);
+
+      // STEP 4: Create lookup maps
+      const resultsMap = new Map();
+      studentResults.forEach(result => {
+        resultsMap.set(result.studentId, result.avgMarks);
+      });
+
       const attendanceMap = new Map();
       studentAttendance.forEach(att => {
         attendanceMap.set(att.studentId, att.attendancePercentage);
       });
 
-      // Merge results and attendance
-      const students = studentResults.map(student => ({
-        studentId: student.studentId,
-        studentName: student.studentName,
-        avgMarks: student.avgMarks || 0,
-        avgAttendance: attendanceMap.get(student.studentId) || 0
-      }));
-
-      // Find students who have attendance but no results
-      const studentsWithoutResults = [];
-      studentAttendance.forEach(att => {
-        if (!students.find(s => s.studentId === att.studentId)) {
-          studentsWithoutResults.push({
-            studentId: att.studentId,
-            avgMarks: 0,
-            avgAttendance: att.attendancePercentage
-          });
-        }
+      // STEP 5: Merge ALL students with their results and attendance
+      const students = allStudents.map(student => {
+        const studentName = student.name?.displayName || 
+                          (student.name?.firstName && student.name?.lastName 
+                            ? `${student.name.firstName} ${student.name.lastName}`
+                            : student.name?.firstName || student.name?.lastName || student.name || 'Unknown');
+        
+        return {
+          studentId: student.userId,
+          studentName: studentName,
+          avgMarks: resultsMap.get(student.userId) || 0,
+          avgAttendance: attendanceMap.get(student.userId) || 0
+        };
       });
 
-      // Fetch student names from database for students without results
-      if (studentsWithoutResults.length > 0) {
-        console.log(`🔍 Fetching names for ${studentsWithoutResults.length} students without results`);
-        console.log('Student IDs:', studentsWithoutResults.map(s => s.studentId));
-        
-        const studentIds = studentsWithoutResults.map(s => s.studentId);
-        
-        try {
-          // First, try to get student info from school database 'students' collection
-          // Note: studentIds are userIds like 'KVS-S-0003', not ObjectIds
-          let studentRecords = await db.collection('students').find(
-            { userId: { $in: studentIds } },
-            { projection: { userId: 1, 'name.displayName': 1, 'name.firstName': 1, 'name.lastName': 1 } }
-          ).toArray();
+      console.log(`✅ Returning ${students.length} students with enriched data`);
           
-          console.log(`Found ${studentRecords.length} students in school database`);
-          
-          // If not found in school db, try main database using userId
-          if (studentRecords.length === 0) {
-            const User = require('../models/User');
-            
-            studentRecords = await User.find(
-              { userId: { $in: studentIds }, role: 'student' },
-              { userId: 1, 'name.displayName': 1, 'name.firstName': 1, 'name.lastName': 1 }
-            ).lean();
-            
-            console.log(`Found ${studentRecords.length} students in main database`);
-          }
-          
-          // Create a map of userId to name
-          const nameMap = new Map();
-          studentRecords.forEach(user => {
-            const displayName = user.name?.displayName || 
-                              `${user.name?.firstName || ''} ${user.name?.lastName || ''}`.trim() || 
-                              'Unknown';
-            // Use userId as the key since studentIds are userIds
-            const userId = user.userId || user._id?.toString();
-            if (userId) {
-              nameMap.set(userId, displayName);
-            }
-          });
-          
-          console.log('Name map:', Array.from(nameMap.entries()));
-          
-          // Add students with their names
-          studentsWithoutResults.forEach(student => {
-            const studentIdString = student.studentId.toString();
-            const studentName = nameMap.get(studentIdString);
-            console.log(`Student ${studentIdString}: ${studentName || 'NOT FOUND'}`);
-            
-            students.push({
-              studentId: student.studentId,
-              studentName: studentName || 'Unknown',
-              avgMarks: student.avgMarks,
-              avgAttendance: student.avgAttendance
-            });
-          });
-        } catch (userError) {
-          console.error('❌ Error fetching user names:', userError);
-          // If fetching names fails, add students with 'Unknown' name
-          studentsWithoutResults.forEach(student => {
-            students.push({
-              studentId: student.studentId,
-              studentName: 'Unknown',
-              avgMarks: student.avgMarks,
-              avgAttendance: student.avgAttendance
-            });
-          });
-        }
-      }
-
-      console.log(`✅ [getStudentsByClassSection] Found ${students.length} students`);
-      
       return {
         success: true,
         students: students.sort((a, b) => a.studentName.localeCompare(b.studentName))

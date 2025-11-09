@@ -3,7 +3,12 @@ const Submission = require('../models/Submission');
 const User = require('../models/User');
 const School = require('../models/School');
 const DatabaseManager = require('../utils/databaseManager');
+<<<<<<< HEAD
 const { uploadPDFToCloudinary, uploadPDFBufferToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
+=======
+const { uploadPDFToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
+const { getCurrentAcademicYear } = require('../utils/academicYearHelper');
+>>>>>>> rahul
 const path = require('path');
 const fs = require('fs');
 const mongoose = require('mongoose');
@@ -47,7 +52,7 @@ const getAssignmentModelForConnection = (connection) => {
       createdAt: { type: Date, default: Date.now },
       updatedAt: { type: Date, default: Date.now }
     });
-    
+
     return connection.model('Assignment', assignmentSchema);
   }
 };
@@ -63,7 +68,7 @@ exports.createAssignment = async (req, res) => {
       schoolCode: req.user?.schoolCode,
       name: req.user?.name
     });
-    
+
     const {
       title,
       description,
@@ -203,20 +208,9 @@ exports.createAssignment = async (req, res) => {
       }
     }
 
-    // Set current academic year if not provided
-    const getCurrentAcademicYear = () => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth() + 1; // Jan is 0, Dec is 11
-
-      // If current month is before April, use previous year as start of academic year
-      // Example: March 2024 would be in 2023-24 academic year
-      if (month < 4) {
-        return `${year - 1}-${year.toString().substr(2, 2)}`;
-      } else {
-        return `${year}-${(year + 1).toString().substr(2, 2)}`;
-      }
-    };
+    // Fetch current academic year from school settings if not provided
+    const resolvedAcademicYear = academicYear || await getCurrentAcademicYear(schoolCode);
+    console.log(`[ASSIGNMENT] Using academic year: ${resolvedAcademicYear}`);
 
     // Get teacher info
     const teacherName = req.user.name?.firstName
@@ -251,48 +245,108 @@ exports.createAssignment = async (req, res) => {
 
     let assignment;
 
-    // Always save to main database for now to ensure it gets stored
-    assignment = new Assignment(assignmentData);
-    assignment = await assignment.save();
+    // Get the AssignmentMultiTenant model for this connection
+    const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
 
-    // Send notifications to students and parents
-    try {
-      // Skip notifications for now in multi-tenant mode
-      if (!req.user.schoolCode) {
-        await sendAssignmentNotifications(assignment, schoolId);
-      }
-    } catch (notificationError) {
-      console.error('Error sending notifications:', notificationError);
-      // Don't fail the assignment creation if notifications fail
+    // Create the assignment in the school-specific database
+    assignment = new SchoolAssignment({
+      schoolId,
+      schoolCode,
+      title,
+      description: description || instructions || '',
+      subject,
+      class: className,
+      section,
+      teacher: teacherId, // Use userId instead of _id
+      teacherName,
+      startDate: new Date(startDate),
+      dueDate: new Date(dueDate),
+      instructions: instructions || description || '',
+      attachments: processedAttachments,
+      academicYear: resolvedAcademicYear,
+      term: term || 'Term 1',
+      totalStudents,
+      status: 'active',
+      isPublished: true,
+      publishedAt: new Date(),
+      createdBy: teacherId, // Use userId instead of _id
+      createdByName: teacherName
+    });
+
+    console.log(`[ASSIGNMENT] Created assignment in school_${schoolCode}.assignments`);
+
+    await assignment.save();
+    console.log(`[ASSIGNMENT] Saved assignment to school_${schoolCode}.assignments successfully`);
+  } catch (error) {
+    console.error(`[ASSIGNMENT] Error saving to school database: ${error.message}`);
+    console.log('[ASSIGNMENT] Falling back to main database');
+
+    // Fallback to main database if school-specific fails
+    assignment = new Assignment({
+      schoolId,
+      schoolCode,
+      title,
+      description: description || instructions || '',
+      subject,
+      class: className,
+      section,
+      teacher: teacherId, // Use userId instead of _id
+      teacherName,
+      startDate: new Date(startDate),
+      dueDate: new Date(dueDate),
+      instructions: instructions || description || '',
+      attachments: processedAttachments,
+      academicYear: resolvedAcademicYear,
+      term: term || 'Term 1',
+      totalStudents,
+      status: 'active',
+      isPublished: true,
+      publishedAt: new Date(),
+      createdBy: teacherId, // Use userId instead of _id
+      createdByName: teacherName
+    });
+
+    await assignment.save();
+  }
+
+  // Send notifications to students and parents
+  try {
+    // Skip notifications for now in multi-tenant mode
+    if (!req.user.schoolCode) {
+      await sendAssignmentNotifications(assignment, schoolId);
     }
+  } catch (notificationError) {
+    console.error('Error sending notifications:', notificationError);
+    // Don't fail the assignment creation if notifications fail
+  }
 
-    res.status(201).json({
-      message: `Assignment sent to ${className} • Section ${section} • Due ${dueDateObj.toLocaleDateString('en-US', {
+  res.status(201).json({
+    message: `Assignment sent to ${className} • Section ${section} • Due ${dueDateObj.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    })}`,
+    assignment: assignment.toObject(),
+    summary: {
+      studentsNotified: totalStudents,
+      className: `${className} • Section ${section}`,
+      dueDate: dueDateObj.toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit'
-      })}`,
-      assignment: assignment.toObject(),
-      summary: {
-        studentsNotified: totalStudents,
-        className: `${className} • Section ${section}`,
-        dueDate: dueDateObj.toLocaleDateString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit'
-        })
-      }
-    });
+      })
+    }
+  });
 
-  } catch (error) {
-    console.error('Error creating assignment:', error);
-    res.status(500).json({ message: 'Error creating assignment', error: error.message });
-  }
-};
+} catch (error) {
+  console.error('Error creating assignment:', error);
+  res.status(500).json({ message: 'Error creating assignment', error: error.message });
+}
+
 
 // Helper function to send notifications to students and parents
 const sendAssignmentNotifications = async (assignment, schoolId) => {
@@ -360,7 +414,7 @@ const sendAssignmentNotifications = async (assignment, schoolId) => {
 // Get all assignments for a school
 exports.getAssignments = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, subject, class: className, search = '' } = req.query;
+    const { page = 1, limit = 10, status, subject, class: className, search = '', academicYear } = req.query;
 
     // Check if user has access
     if (!['admin', 'teacher', 'student', 'parent'].includes(req.user.role)) {
@@ -377,11 +431,22 @@ exports.getAssignments = async (req, res) => {
 
     console.log(`[GET ASSIGNMENTS] Getting assignments for school: ${schoolCode || schoolId}`);
 
+    // Get school's current academic year if not provided
+    const School = require('../models/School');
+    const school = await School.findOne({ code: schoolCode });
+    const currentAcademicYear = school?.settings?.academicYear?.currentYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+    console.log(`[GET ASSIGNMENTS] School's current academic year: ${currentAcademicYear}`);
+
     // Build query
     const query = {};
     if (schoolId) {
       query.schoolId = schoolId;
     }
+
+    // Filter by academic year - use provided or default to current
+    const yearToFilter = academicYear || currentAcademicYear;
+    query.academicYear = yearToFilter;
+    console.log(`[GET ASSIGNMENTS] Filtering by academic year: ${yearToFilter}`);
 
     if (status) {
       query.status = status;
@@ -403,7 +468,7 @@ exports.getAssignments = async (req, res) => {
     // Teachers can see assignments for classes/subjects they teach
     if (req.user.role === 'teacher') {
       const teacherId = req.user.userId || req.user._id.toString();
-      
+
       // For now, teachers can see all assignments in their school
       // This ensures assignments created by admin are visible to teachers
       // In the future, we can add more granular filtering based on teacher's subjects/classes

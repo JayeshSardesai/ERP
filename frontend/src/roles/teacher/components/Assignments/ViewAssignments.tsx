@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Edit, Trash2, Calendar, X, Plus } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
+import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
 import * as assignmentAPI from '../../../../api/assignment';
 import api from '../../../../api/axios';
 
@@ -23,6 +24,7 @@ interface Assignment {
 const ViewAssignments: React.FC = () => {
   const { user } = useAuth();
   const { classesData, getSectionsByClass } = useSchoolClasses();
+  const { currentAcademicYear } = useAcademicYear();
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [filteredAssignments, setFilteredAssignments] = useState<Assignment[]>([]);
@@ -40,7 +42,7 @@ const ViewAssignments: React.FC = () => {
 
   useEffect(() => {
     fetchAssignments();
-  }, []);
+  }, [currentAcademicYear]);
 
   useEffect(() => {
     filterAssignments();
@@ -51,19 +53,20 @@ const ViewAssignments: React.FC = () => {
       const sections = getSectionsByClass(selectedClass);
       setAvailableSections(sections);
     } else {
+      // When "All Classes" is selected, clear sections but don't reset filters
       setAvailableSections([]);
-      setSelectedSection('');
     }
-  }, [selectedClass, classesData]);
+  }, [selectedClass, classesData, getSectionsByClass]);
 
   useEffect(() => {
     if (selectedClass && selectedSection) {
       fetchSubjectsForClassSection();
     } else {
-      setAvailableSubjects([]);
-      setSelectedSubject('');
+      // When no specific class/section, get all unique subjects from assignments
+      const uniqueSubjects = [...new Set(assignments.map(a => a.subject).filter(Boolean))];
+      setAvailableSubjects(uniqueSubjects);
     }
-  }, [selectedClass, selectedSection]);
+  }, [selectedClass, selectedSection, assignments]);
 
   // Remove the effect that refetches on filter changes - we'll filter locally instead
 
@@ -71,14 +74,14 @@ const ViewAssignments: React.FC = () => {
     try {
       setLoading(true);
       console.log('🔍 Fetching assignments...');
-      
+
       let data;
       let assignmentsArray = [];
-      
+
       try {
         // Fetch all assignments without filters for local filtering
         console.log('🔍 Teacher fetching all assignments for local filtering');
-        
+
         // Try the regular endpoint first without filters
         data = await assignmentAPI.fetchAssignments();
         console.log('✅ Raw API response:', data);
@@ -90,7 +93,7 @@ const ViewAssignments: React.FC = () => {
           dataLength: Array.isArray(data.data) ? data.data.length : 'not array',
           assignmentsLength: Array.isArray(data.assignments) ? data.assignments.length : 'not array'
         });
-        
+
         // Handle different response structures
         if (data.data && Array.isArray(data.data)) {
           assignmentsArray = data.data;
@@ -109,19 +112,19 @@ const ViewAssignments: React.FC = () => {
             console.log(`📦 Using ${arrayProps[0]}:`, assignmentsArray.length);
           }
         }
-        
+
         console.log('✅ Extracted assignments array:', assignmentsArray);
       } catch (regularError) {
         console.error('❌ Error with regular endpoint:', regularError);
-        
+
         // If the regular endpoint fails, try the direct endpoint
         const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
         console.log('🔍 Trying direct endpoint with schoolCode:', schoolCode);
-        
+
         const response = await api.get(`/direct-test/assignments?schoolCode=${schoolCode}`);
         data = response.data;
         console.log('✅ Direct endpoint response:', data);
-        
+
         // Handle different response structures
         if (data.data && Array.isArray(data.data)) {
           assignmentsArray = data.data;
@@ -131,61 +134,46 @@ const ViewAssignments: React.FC = () => {
           assignmentsArray = data;
         }
       }
-      
+
       console.log(`📊 Total assignments before filtering: ${assignmentsArray.length}`);
-      
-      // Log all assignments to debug the data structure
-      console.log('🔍 Raw assignments data:', assignmentsArray);
-      
-      // Filter out placeholder assignments and validate real assignments
+
+      // Validate each assignment has required fields and filter by academic year
       const validAssignments = assignmentsArray.filter((assignment: any) => {
         if (!assignment || typeof assignment !== 'object') {
           console.log('❌ Invalid assignment (not an object):', assignment);
           return false;
         }
-        
+
         // Check for assignment ID (required for operations)
         const hasId = assignment._id || assignment.id;
         if (!hasId) {
           console.log('❌ Invalid assignment (missing ID):', assignment);
           return false;
         }
-        
-        // Skip placeholder assignments - they don't have real data
-        if (assignment._placeholder === true) {
-          console.log('⏭️ Skipping placeholder assignment:', assignment._id);
-          return false;
+
+        // Filter by current academic year
+        const assignmentAY = assignment.academicYear;
+        const matchesAcademicYear = !currentAcademicYear || !assignmentAY || assignmentAY === currentAcademicYear;
+
+        if (!matchesAcademicYear) {
+          console.log('⏭️ Skipping assignment from different academic year:', {
+            title: assignment.title,
+            academicYear: assignmentAY,
+            currentAcademicYear
+          });
         }
-        
-        // Skip assignments with missing essential fields
-        if (!assignment.title && !assignment.subject && !assignment.class) {
-          console.log('⏭️ Skipping assignment with missing essential fields:', assignment._id);
-          return false;
-        }
-        
-        // Log assignment details for debugging
-        console.log('✅ Valid assignment found:', {
-          _id: assignment._id,
-          title: assignment.title,
-          subject: assignment.subject,
-          class: assignment.class,
-          section: assignment.section,
-          dueDate: assignment.dueDate,
-          isPlaceholder: assignment._placeholder,
-          allFields: Object.keys(assignment)
-        });
-        
-        return true; // Accept all non-placeholder assignments with valid ID
+
+        return matchesAcademicYear;
       });
-      
+
       console.log(`✅ Loaded ${validAssignments.length} valid assignments out of ${assignmentsArray.length} total`);
       console.log('📋 Valid assignments:', validAssignments);
-      
+
       // If we have assignments but they're all placeholders, inform the user
       if (assignmentsArray.length > 0 && validAssignments.length === 0) {
         console.log('ℹ️ INFO: All assignments are placeholders - no real assignments found');
       }
-      
+
       setAssignments(validAssignments);
     } catch (err: any) {
       console.error('❌ Error fetching assignments:', err);
@@ -200,7 +188,7 @@ const ViewAssignments: React.FC = () => {
     try {
       const response = await api.get('/class-subjects/classes');
       const data = response.data;
-      const classData = data?.data?.classes?.find((c: any) => 
+      const classData = data?.data?.classes?.find((c: any) =>
         c.className === selectedClass && c.section === selectedSection
       );
       const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
@@ -261,7 +249,7 @@ const ViewAssignments: React.FC = () => {
         _placeholder: assignments[0]._placeholder
       } : null
     });
-    
+
     setFilteredAssignments(filtered);
   };
 
@@ -275,7 +263,7 @@ const ViewAssignments: React.FC = () => {
 
     try {
       const formDataToSend = new FormData();
-      
+
       formDataToSend.append('title', updatedData.title);
       formDataToSend.append('subject', updatedData.subject);
       formDataToSend.append('class', updatedData.class);
@@ -290,7 +278,7 @@ const ViewAssignments: React.FC = () => {
       }
 
       await assignmentAPI.updateAssignment(editingAssignment._id, formDataToSend);
-      
+
       alert('Assignment updated successfully');
       setShowEditModal(false);
       setEditingAssignment(null);
@@ -335,7 +323,7 @@ const ViewAssignments: React.FC = () => {
 
     const due = new Date(dueDate);
     const today = new Date();
-    
+
     // Check if date is valid
     if (isNaN(due.getTime())) {
       return {
@@ -345,7 +333,7 @@ const ViewAssignments: React.FC = () => {
         priority: 'urgent'
       };
     }
-    
+
     today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
     due.setHours(23, 59, 59, 999); // Set to end of due date
 
@@ -427,13 +415,11 @@ const ViewAssignments: React.FC = () => {
           value={selectedSection}
           onChange={(e) => {
             setSelectedSection(e.target.value);
-            setSelectedSubject('');
           }}
-          disabled={!selectedClass}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">All Sections</option>
-          {availableSections.map((section) => (
+          {selectedClass && availableSections.map((section) => (
             <option key={section.value} value={section.value}>Section {section.section}</option>
           ))}
         </select>
@@ -441,8 +427,7 @@ const ViewAssignments: React.FC = () => {
         <select
           value={selectedSubject}
           onChange={(e) => setSelectedSubject(e.target.value)}
-          disabled={!selectedSection}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">All Subjects</option>
           {availableSubjects.map((subject) => (
@@ -498,8 +483,8 @@ const ViewAssignments: React.FC = () => {
             ) : filteredAssignments.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-3 sm:px-6 py-6 sm:py-8 text-center text-xs sm:text-sm text-gray-500">
-                  {assignments.length === 0 
-                    ? "No assignments created yet. Create your first assignment to get started!" 
+                  {assignments.length === 0
+                    ? "No assignments created yet. Create your first assignment to get started!"
                     : "No assignments match your current filters. Try adjusting your search criteria."}
                 </td>
               </tr>
@@ -586,7 +571,7 @@ interface EditAssignmentModalProps {
 const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, onClose, onUpdate }) => {
   const { user } = useAuth();
   const { classesData, getSectionsByClass } = useSchoolClasses();
-  
+
   const [formData, setFormData] = useState({
     title: assignment.title || '',
     description: assignment.instructions || assignment.description || '',
@@ -626,7 +611,7 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, o
       try {
         const response = await api.get('/class-subjects/classes');
         const data = response.data;
-        const classData = data?.data?.classes?.find((c: any) => 
+        const classData = data?.data?.classes?.find((c: any) =>
           c.className === formData.class && c.section === formData.section
         );
         const activeSubjects = (classData?.subjects || []).filter((s: any) => s.isActive !== false);
@@ -645,9 +630,9 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, o
 
   const handleSubmit = async () => {
     // Validate required fields
-    if (!formData.title || !formData.description || !formData.class || 
-        !formData.section || !formData.subject || !formData.startDate || 
-        !formData.dueDate) {
+    if (!formData.title || !formData.description || !formData.class ||
+      !formData.section || !formData.subject || !formData.startDate ||
+      !formData.dueDate) {
       alert('Please fill in all required fields');
       return;
     }
@@ -732,10 +717,10 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, o
                 disabled={!formData.section || loadingSubjects}
               >
                 <option value="">
-                  {!formData.class ? 'Select Class First' : 
-                   !formData.section ? 'Select Section First' :
-                   loadingSubjects ? 'Loading subjects...' : 
-                   'Select Subject'}
+                  {!formData.class ? 'Select Class First' :
+                    !formData.section ? 'Select Section First' :
+                      loadingSubjects ? 'Loading subjects...' :
+                        'Select Subject'}
                 </option>
                 {availableSubjects.map((subject) => (
                   <option key={subject} value={subject}>{subject}</option>

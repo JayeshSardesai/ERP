@@ -17,6 +17,7 @@ const User = require('../models/User');
 const Subject = require('../models/Subject');
 const Class = require('../models/Class');
 const { gradeSystem, gradeUtils } = require('../utils/gradeSystem');
+const { getCurrentAcademicYear } = require('../utils/academicYearHelper');
 
 // -----------------------------
 // Core: Create / Update Result
@@ -390,10 +391,10 @@ exports.getStudentResultHistory = async (req, res) => {
       for (let i = 0; i < queries.length; i++) {
         const currentQuery = queries[i];
         console.log(`[GET STUDENT RESULTS] Trying query ${i + 1}:`, JSON.stringify(currentQuery));
-        
+
         const queryResults = await resultsCollection.find(currentQuery).limit(10).toArray();
         console.log(`[GET STUDENT RESULTS] Query ${i + 1} found: ${queryResults.length} results`);
-        
+
         if (queryResults.length > 0) {
           results = queryResults;
           console.log(`[GET STUDENT RESULTS] Using results from query ${i + 1}`);
@@ -407,7 +408,7 @@ exports.getStudentResultHistory = async (req, res) => {
         console.log(`[GET STUDENT RESULTS] No results found with any query. Checking collection contents...`);
         const sampleDocs = await resultsCollection.find().limit(5).toArray();
         console.log(`[GET STUDENT RESULTS] Sample documents in collection:`, JSON.stringify(sampleDocs, null, 2));
-        
+
         // Try a broad search for any document containing the studentId
         const broadResults = await resultsCollection.find({
           $or: [
@@ -418,7 +419,7 @@ exports.getStudentResultHistory = async (req, res) => {
           ]
         }).limit(5).toArray();
         console.log(`[GET STUDENT RESULTS] Broad search results:`, JSON.stringify(broadResults, null, 2));
-        
+
         if (broadResults.length > 0) {
           results = broadResults;
         }
@@ -467,7 +468,7 @@ exports.getStudentResultHistory = async (req, res) => {
         }
 
         // Check if all subjects are frozen
-        const allSubjectsFrozen = result.subjects && result.subjects.length > 0 
+        const allSubjectsFrozen = result.subjects && result.subjects.length > 0
           ? result.subjects.every(s => s.frozen === true)
           : false;
 
@@ -1230,20 +1231,82 @@ exports.getResultsForTeacher = async (req, res) => {
       });
     }
 
-    const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
-    const schoolConn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    // Helper function to normalize academic year format (handles both 2024-2025 and 2024-25)
+    const normalizeAcademicYear = (year) => {
+      if (!year) return null;
+      const yearStr = String(year).trim();
+      // If format is 2024-25, convert to 2024-2025
+      const match = yearStr.match(/^(\d{4})-(\d{2})$/);
+      if (match) {
+        return `${match[1]}-20${match[2]}`;
+      }
+      // If format is 2024-2025, keep as is
+      if (yearStr.match(/^\d{4}-\d{4}$/)) {
+        return yearStr;
+      }
+      return yearStr;
+    };
+
+    const DatabaseManager = require('../utils/databaseManager');
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
+
+    // Normalize the academic year for querying
+    const normalizedAY = normalizeAcademicYear(academicYear);
+    console.log(`📅 Academic Year: ${academicYear} (normalized: ${normalizedAY})`);
 
     const query = {
       schoolCode: schoolCode.toUpperCase(),
       className,
-      section,
-      academicYear: academicYear || '2024-25'
+      section
     };
 
-    const resultDocs = await resultsCollection.find(query).sort({ studentName: 1 }).toArray();
+    // Only add academicYear to query if provided
+    if (normalizedAY) {
+      query.academicYear = normalizedAY;
+    }
 
-    console.log(`📚 Found ${resultDocs.length} student result documents for ${className}-${section}`);
+    console.log('🔍 Query:', JSON.stringify(query));
+    let resultDocs = await resultsCollection.find(query).sort({ studentName: 1 }).toArray();
+
+    console.log(`📚 Found ${resultDocs.length} student result documents for ${className}-${section} (AY: ${normalizedAY || 'ALL'})`);
+
+    // If no results found with normalized AY, try with original format
+    if (resultDocs.length === 0 && normalizedAY && academicYear) {
+      console.log(`⚠️ No results with normalized AY "${normalizedAY}", trying original format "${academicYear}"`);
+      const queryWithOriginalAY = {
+        schoolCode: schoolCode.toUpperCase(),
+        className,
+        section,
+        academicYear: academicYear // Use original format
+      };
+      resultDocs = await resultsCollection.find(queryWithOriginalAY).sort({ studentName: 1 }).toArray();
+      console.log(`📚 Found ${resultDocs.length} results with original AY format`);
+    }
+
+    // DEBUG: If still no results, try without AY filter to see if data exists
+    if (resultDocs.length === 0 && normalizedAY) {
+      const queryWithoutAY = {
+        schoolCode: schoolCode.toUpperCase(),
+        className,
+        section
+      };
+      const docsWithoutAY = await resultsCollection.find(queryWithoutAY).limit(5).toArray();
+      console.log(`🔍 DEBUG: Found ${docsWithoutAY.length} results WITHOUT academic year filter`);
+      if (docsWithoutAY.length > 0) {
+        console.log('📋 Sample document structure:', JSON.stringify({
+          _id: docsWithoutAY[0]._id,
+          academicYear: docsWithoutAY[0].academicYear,
+          className: docsWithoutAY[0].className,
+          section: docsWithoutAY[0].section,
+          hasSubjects: !!docsWithoutAY[0].subjects,
+          subjectsCount: docsWithoutAY[0].subjects?.length || 0
+        }, null, 2));
+        console.log('⚠️ ISSUE: Results exist but academicYear field does not match!');
+        console.log(`   Expected: "${normalizedAY}" or "${academicYear}"`);
+        console.log(`   Found in DB: "${docsWithoutAY[0].academicYear}"`);
+      }
+    }
 
     const formattedResults = [];
 

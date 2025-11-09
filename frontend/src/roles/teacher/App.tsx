@@ -12,8 +12,11 @@ import Messages from './components/Messages/Messages';
 import LeaveRequestManagement from './components/LeaveRequest/LeaveRequestManagement';
 import { PermissionProvider } from '../../hooks/usePermissions';
 import { PermissionGuard } from '../../components/PermissionGuard';
+import { AcademicYearProvider } from '../../contexts/AcademicYearContext';
+import { useAuth } from '../../auth/AuthContext';
 
 function App() {
+  const { user } = useAuth();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
 
@@ -62,15 +65,17 @@ function App() {
   };
 
   return (
-    <PermissionProvider>
-      <Layout
-        currentPage={currentPage}
-        onNavigate={handleNavigate}
-        onLogout={handleLogout}
-      >
-        {renderPage()}
-      </Layout>
-    </PermissionProvider>
+    <AcademicYearProvider schoolCode={user?.schoolCode}>
+      <PermissionProvider>
+        <Layout
+          currentPage={currentPage}
+          onNavigate={handleNavigate}
+          onLogout={handleLogout}
+        >
+          {renderPage()}
+        </Layout>
+      </PermissionProvider>
+    </AcademicYearProvider>
   );
 }
 

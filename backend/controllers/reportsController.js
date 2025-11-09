@@ -176,13 +176,13 @@ exports.exportData = async (req, res) => {
   try {
     console.log('📊 Exporting data');
     
-    const { type, class: targetClass, section: targetSection, from, to } = req.query;
+    const { type, class: targetClass, section: targetSection, academicYear, from, to } = req.query;
     
     const csvContent = await reportService.exportToCSV(
       req.user.schoolId,
       req.user.schoolCode,
       type,
-      { class: targetClass, section: targetSection, from, to }
+      { class: targetClass, section: targetSection, academicYear, from, to }
     );
     
     res.setHeader('Content-Type', 'text/csv');
@@ -208,6 +208,7 @@ exports.getDuesList = async (req, res) => {
       class: targetClass, 
       section: targetSection, 
       status,
+      academicYear,
       page = 1,
       limit = 10,
       search = ''
@@ -236,6 +237,11 @@ exports.getDuesList = async (req, res) => {
       schoolId: req.user.schoolId || req.user._id,
       totalPending: { $gt: 0 } // Only records with outstanding amount
     };
+    
+    // Filter by academic year if provided
+    if (academicYear) {
+      query.academicYear = academicYear;
+    }
     
     if (targetClass && targetClass !== 'ALL') {
       query.studentClass = targetClass;
@@ -595,7 +601,7 @@ exports.getStudentsByClassSection = async (req, res) => {
   try {
     console.log('📊 Fetching students by class and section');
     
-    const { className, section } = req.query;
+    const { className, section, academicYear } = req.query;
     
     if (!className) {
       return res.status(400).json({
@@ -604,11 +610,14 @@ exports.getStudentsByClassSection = async (req, res) => {
       });
     }
     
+    console.log('📋 Query params:', { className, section, academicYear });
+    
     const result = await reportService.getStudentsByClassSection(
       req.user.schoolId,
       req.user.schoolCode,
       className,
-      section
+      section,
+      academicYear
     );
     
     res.json(result);
