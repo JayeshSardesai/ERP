@@ -55,11 +55,14 @@ export interface Result {
     totalMarks: number;
     grade?: string;
     percentage: number;
+    frozen?: boolean;
   }>;
   overallPercentage: number;
   overallGrade?: string;
   rank?: number;
   academicYear: string;
+  frozen?: boolean;
+  frozenAt?: string;
 }
 
 export interface Message {

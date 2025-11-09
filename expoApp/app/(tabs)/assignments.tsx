@@ -278,25 +278,31 @@ export default function AssignmentsScreen() {
                       style={styles.cancelButton}
                       onPress={(e) => {
                         e.stopPropagation(); // Prevent opening assignment detail
+                        console.log('[ASSIGNMENTS] Delete button clicked for:', assignment._id);
                         Alert.alert(
-                          'Cancel Assignment',
-                          'Are you sure you want to cancel this assignment? This action cannot be undone.',
+                          'Delete Assignment',
+                          'Are you sure you want to delete this assignment? This action cannot be undone.',
                           [
                             { text: 'No', style: 'cancel' },
                             {
-                              text: 'Yes, Cancel',
+                              text: 'Yes, Delete',
                               style: 'destructive',
                               onPress: async () => {
                                 try {
+                                  console.log('[ASSIGNMENTS] Deleting assignment:', assignment._id);
                                   const success = await cancelAssignment(assignment._id);
                                   if (success) {
-                                    Alert.alert('Success', 'Assignment cancelled successfully');
+                                    console.log('[ASSIGNMENTS] Delete successful');
+                                    Alert.alert('Success', 'Assignment deleted successfully');
                                     fetchAssignments(); // Refresh the list
                                   } else {
-                                    Alert.alert('Error', 'Failed to cancel assignment');
+                                    console.log('[ASSIGNMENTS] Delete failed - returned false');
+                                    Alert.alert('Error', 'Failed to delete assignment');
                                   }
-                                } catch (error) {
-                                  Alert.alert('Error', 'Failed to cancel assignment');
+                                } catch (error: any) {
+                                  console.error('[ASSIGNMENTS] Delete error:', error);
+                                  const errorMessage = error.response?.data?.message || error.message || 'Failed to delete assignment';
+                                  Alert.alert('Error', errorMessage);
                                 }
                               }
                             }

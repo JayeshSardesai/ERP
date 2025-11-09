@@ -573,11 +573,21 @@ export async function gradeSubmission(submissionId: string, grade: number, feedb
  */
 export async function cancelAssignment(assignmentId: string): Promise<boolean> {
   try {
+    console.log('[TEACHER SERVICE] Canceling assignment:', assignmentId);
     const response = await api.delete(`/assignments/${assignmentId}`);
-    return response.data?.success || false;
+    console.log('[TEACHER SERVICE] Cancel response:', response.data);
+    
+    if (response.data?.success) {
+      console.log('[TEACHER SERVICE] Assignment cancelled successfully');
+      return true;
+    } else {
+      console.error('[TEACHER SERVICE] Cancel failed:', response.data?.message);
+      return false;
+    }
   } catch (error: any) {
     console.error('[TEACHER SERVICE] Error canceling assignment:', error);
-    return false;
+    console.error('[TEACHER SERVICE] Error details:', error.response?.data);
+    throw error; // Throw error so UI can show proper message
   }
 }
 

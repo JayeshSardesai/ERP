@@ -42,6 +42,11 @@ export default function ResultsScreen() {
   const [showSubjectModal, setShowSubjectModal] = useState<boolean>(false);
   const [showTestTypeModal, setShowTestTypeModal] = useState<boolean>(false);
   
+  // Confirmation modal states
+  const [showFreezeConfirmModal, setShowFreezeConfirmModal] = useState<boolean>(false);
+  const [showSaveSuccessModal, setShowSaveSuccessModal] = useState<boolean>(false);
+  const [savedCount, setSavedCount] = useState<number>(0);
+  
   // Dynamic test types from backend
   const [testTypes, setTestTypes] = useState<string[]>([]);
   const [loadingTestTypes, setLoadingTestTypes] = useState<boolean>(false);
@@ -301,21 +306,10 @@ export default function ResultsScreen() {
       });
 
       if (response.data?.success) {
-        Alert.alert(
-          'Success', 
-          `Saved ${response.data.data.savedCount} results successfully!`,
-          [
-            { text: 'OK', onPress: () => fetchExistingResults() },
-            { 
-              text: 'Freeze Results', 
-              onPress: () => {
-                fetchExistingResults();
-                setTimeout(() => handleFreezeResults(), 500);
-              },
-              style: 'default'
-            }
-          ]
-        );
+        console.log('[RESULTS] Save successful, showing success modal');
+        setSavedCount(response.data.data.savedCount);
+        setShowSaveSuccessModal(true);
+        await fetchExistingResults();
       } else {
         Alert.alert('Error', response.data?.message || 'Failed to save results');
       }
@@ -339,57 +333,60 @@ export default function ResultsScreen() {
   };
 
   const handleFreezeResults = async () => {
+    console.log('[RESULTS] Freeze button clicked');
+    console.log('[RESULTS] Current state:', {
+      selectedClass,
+      selectedSection,
+      selectedSubject,
+      selectedTestType,
+      schoolCode
+    });
+    
     if (!selectedClass || !selectedSection || !selectedSubject || !selectedTestType) {
       Alert.alert('Error', 'Please select class, section, subject, and test type');
       return;
     }
 
-    Alert.alert(
-      'Freeze Results',
-      'Are you sure you want to freeze these results? Once frozen, they cannot be modified from the application.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Freeze',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setSaving(true);
-              console.log('[RESULTS] Freezing results:', {
-                class: selectedClass,
-                section: selectedSection,
-                subject: selectedSubject,
-                testType: selectedTestType
-              });
+    console.log('[RESULTS] Showing freeze confirmation modal');
+    setShowFreezeConfirmModal(true);
+  };
 
-              const response = await api.post('/results/freeze', {
-                schoolCode,
-                class: selectedClass,
-                section: selectedSection,
-                subject: selectedSubject,
-                testType: selectedTestType,
-                academicYear: '2024-25'
-              });
+  const confirmFreezeResults = async () => {
+    try {
+      setShowFreezeConfirmModal(false);
+      setSaving(true);
+      console.log('[RESULTS] Freezing results:', {
+        class: selectedClass,
+        section: selectedSection,
+        subject: selectedSubject,
+        testType: selectedTestType,
+        schoolCode
+      });
 
-              if (response.data?.success) {
-                Alert.alert(
-                  'Success',
-                  'Results have been frozen successfully. They can no longer be modified from the application.',
-                  [{ text: 'OK', onPress: () => fetchExistingResults() }]
-                );
-              } else {
-                Alert.alert('Error', response.data?.message || 'Failed to freeze results');
-              }
-            } catch (error: any) {
-              console.error('[RESULTS] Error freezing results:', error);
-              Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to freeze results');
-            } finally {
-              setSaving(false);
-            }
-          }
-        }
-      ]
-    );
+      const response = await api.post('/results/freeze', {
+        schoolCode,
+        class: selectedClass,
+        section: selectedSection,
+        subject: selectedSubject,
+        testType: selectedTestType,
+        academicYear: '2024-25'
+      });
+
+      if (response.data?.success) {
+        Alert.alert(
+          'Success',
+          'Results have been frozen successfully. They can no longer be modified from the application.',
+          [{ text: 'OK', onPress: () => fetchExistingResults() }]
+        );
+      } else {
+        Alert.alert('Error', response.data?.message || 'Failed to freeze results');
+      }
+    } catch (error: any) {
+      console.error('[RESULTS] Error freezing results:', error);
+      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to freeze results');
+    } finally {
+      setSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -584,11 +581,35 @@ export default function ResultsScreen() {
           {selectedClass && selectedSection && selectedSubject && selectedTestType && students.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>
-                  {selectedClass}-{selectedSection} | {selectedSubject} | {selectedTestType}
-                </Text>
-                <Text style={styles.studentCount}>{students.length} students</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>
+                    {selectedClass}-{selectedSection} | {selectedSubject} | {selectedTestType}
+                  </Text>
+                  <Text style={styles.studentCount}>{students.length} students</Text>
+                </View>
+                {existingResults.some(r => r.frozen) && (
+                  <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="lock-closed" size={16} color="#EF4444" />
+                    <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '700' }}>
+                      {existingResults.filter(r => r.frozen).length === existingResults.length ? 'ALL FROZEN' : 'PARTIALLY FROZEN'}
+                    </Text>
+                  </View>
+                )}
               </View>
+
+              {existingResults.filter(r => r.frozen).length === existingResults.length && existingResults.length > 0 && (
+                <View style={{ backgroundColor: '#FEE2E2', padding: 12, borderRadius: 12, marginBottom: 12, borderWidth: 2, borderColor: '#EF4444' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="lock-closed" size={20} color="#EF4444" />
+                    <Text style={{ color: '#EF4444', fontSize: 14, fontWeight: '700', flex: 1 }}>
+                      These results are frozen and cannot be modified
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#DC2626', fontSize: 12, marginTop: 4, marginLeft: 28 }}>
+                    Contact an administrator if changes are needed
+                  </Text>
+                </View>
+              )}
 
               <View style={styles.marksCard}>
                 <View style={styles.marksHeader}>
@@ -651,12 +672,29 @@ export default function ResultsScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.freezeButton, saving && styles.saveButtonDisabled]}
-                  onPress={handleFreezeResults}
-                  disabled={saving}
+                  style={[
+                    styles.freezeButton, 
+                    (saving || (existingResults.length > 0 && existingResults.filter(r => r.frozen).length === existingResults.length)) && styles.saveButtonDisabled
+                  ]}
+                  onPress={() => {
+                    console.log('[RESULTS] Freeze button pressed');
+                    handleFreezeResults();
+                  }}
+                  disabled={saving || (existingResults.length > 0 && existingResults.filter(r => r.frozen).length === existingResults.length)}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name="lock-closed" size={20} color="#FFFFFF" />
-                  <Text style={styles.freezeButtonText}>Freeze</Text>
+                  {saving ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="lock-closed" size={20} color="#FFFFFF" />
+                      <Text style={styles.freezeButtonText}>
+                        {existingResults.length > 0 && existingResults.filter(r => r.frozen).length === existingResults.length 
+                          ? 'Already Frozen' 
+                          : 'Freeze Results'}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -820,6 +858,79 @@ export default function ResultsScreen() {
             </View>
           </TouchableOpacity>
         </Modal>
+
+        {/* Save Success Modal */}
+        <Modal visible={showSaveSuccessModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.confirmModal}>
+              <View style={styles.confirmIconContainer}>
+                <Ionicons name="checkmark-circle" size={60} color="#10B981" />
+              </View>
+              <Text style={styles.confirmTitle}>Success!</Text>
+              <Text style={styles.confirmMessage}>
+                Saved {savedCount} results successfully!
+              </Text>
+              <View style={styles.confirmButtonsContainer}>
+                <TouchableOpacity
+                  style={[styles.confirmButton, styles.confirmButtonSecondary]}
+                  onPress={() => {
+                    console.log('[RESULTS] Save success modal closed');
+                    setShowSaveSuccessModal(false);
+                  }}
+                >
+                  <Text style={styles.confirmButtonTextSecondary}>OK</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmButton, styles.confirmButtonPrimary]}
+                  onPress={() => {
+                    console.log('[RESULTS] Freeze from save success modal');
+                    setShowSaveSuccessModal(false);
+                    setTimeout(() => handleFreezeResults(), 300);
+                  }}
+                >
+                  <Ionicons name="lock-closed" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.confirmButtonTextPrimary}>Freeze Results</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Freeze Confirmation Modal */}
+        <Modal visible={showFreezeConfirmModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.confirmModal}>
+              <View style={[styles.confirmIconContainer, { backgroundColor: '#FEF2F2' }]}>
+                <Ionicons name="warning" size={60} color="#EF4444" />
+              </View>
+              <Text style={styles.confirmTitle}>Freeze Results?</Text>
+              <Text style={styles.confirmMessage}>
+                Are you sure you want to freeze these results? Once frozen, they cannot be modified from the application.
+              </Text>
+              <View style={styles.confirmButtonsContainer}>
+                <TouchableOpacity
+                  style={[styles.confirmButton, styles.confirmButtonSecondary]}
+                  onPress={() => {
+                    console.log('[RESULTS] Freeze cancelled');
+                    setShowFreezeConfirmModal(false);
+                  }}
+                >
+                  <Text style={styles.confirmButtonTextSecondary}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmButton, styles.confirmButtonDanger]}
+                  onPress={() => {
+                    console.log('[RESULTS] Freeze confirmed');
+                    confirmFreezeResults();
+                  }}
+                >
+                  <Ionicons name="lock-closed" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.confirmButtonTextPrimary}>Freeze</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -854,7 +965,15 @@ export default function ResultsScreen() {
                         <Text style={styles.iconText}>{iconData.icon}</Text>
                       </View>
                       <View style={styles.resultInfo}>
-                        <Text style={styles.resultTitle}>{result.examType}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <Text style={styles.resultTitle}>{result.examType}</Text>
+                          {result.frozen && (
+                            <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Ionicons name="lock-closed" size={12} color="#EF4444" />
+                              <Text style={{ color: '#EF4444', fontSize: 10, fontWeight: '700' }}>FROZEN</Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={styles.resultDate}>
                           {result.overallPercentage.toFixed(1)}% | {result.overallGrade || 'N/A'}
                         </Text>
@@ -986,7 +1105,17 @@ function getStyles(isDark: boolean) {
     dropdownButtonText: { fontSize: 16, fontWeight: '500', color: isDark ? '#E5E7EB' : '#1F2937' },
     dropdownButtonTextDisabled: { color: isDark ? '#6B7280' : '#9CA3AF' },
     // Modal styles
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
+    modalOverlay: { 
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+      justifyContent: 'center', 
+      alignItems: 'center',
+      zIndex: 9999
+    },
     modalContent: { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '70%', paddingBottom: 20 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: isDark ? '#1F2937' : '#E5E7EB' },
     modalTitle: { fontSize: 18, fontWeight: '700', color: isDark ? '#E5E7EB' : '#1F2937' },
@@ -994,5 +1123,76 @@ function getStyles(isDark: boolean) {
     modalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: isDark ? '#1F2937' : '#F3F4F6' },
     modalItemText: { fontSize: 16, fontWeight: '500', color: isDark ? '#E5E7EB' : '#1F2937' },
     modalItemTextActive: { color: '#10B981', fontWeight: '700' },
+    // Confirmation Modal styles
+    confirmModal: { 
+      backgroundColor: isDark ? '#1F2937' : '#FFFFFF', 
+      borderRadius: 20, 
+      padding: 24, 
+      margin: 20, 
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 8
+    },
+    confirmIconContainer: { 
+      width: 80, 
+      height: 80, 
+      borderRadius: 40, 
+      backgroundColor: '#ECFDF5', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      marginBottom: 16 
+    },
+    confirmTitle: { 
+      fontSize: 22, 
+      fontWeight: '700', 
+      color: isDark ? '#F3F4F6' : '#1F2937', 
+      marginBottom: 12, 
+      textAlign: 'center' 
+    },
+    confirmMessage: { 
+      fontSize: 16, 
+      color: isDark ? '#D1D5DB' : '#6B7280', 
+      textAlign: 'center', 
+      marginBottom: 24, 
+      lineHeight: 24 
+    },
+    confirmButtonsContainer: { 
+      flexDirection: 'row', 
+      gap: 12, 
+      width: '100%' 
+    },
+    confirmButton: { 
+      flex: 1, 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      paddingVertical: 14, 
+      borderRadius: 12, 
+      gap: 6 
+    },
+    confirmButtonSecondary: { 
+      backgroundColor: isDark ? '#374151' : '#F3F4F6', 
+      borderWidth: 1, 
+      borderColor: isDark ? '#4B5563' : '#D1D5DB' 
+    },
+    confirmButtonPrimary: { 
+      backgroundColor: '#10B981' 
+    },
+    confirmButtonDanger: { 
+      backgroundColor: '#EF4444' 
+    },
+    confirmButtonTextSecondary: { 
+      fontSize: 16, 
+      fontWeight: '600', 
+      color: isDark ? '#F3F4F6' : '#1F2937' 
+    },
+    confirmButtonTextPrimary: { 
+      fontSize: 16, 
+      fontWeight: '600', 
+      color: '#FFFFFF' 
+    },
   });
 }

@@ -454,36 +454,48 @@ exports.getStudentResultHistory = async (req, res) => {
     }
 
     // Transform results to match frontend expectations using actual database structure
-    const transformedResults = results.map(result => {
-      // Extract exam type from subjects array or fallback to term
-      let examType = 'Unknown Exam';
-      if (result.subjects && result.subjects.length > 0 && result.subjects[0].testType) {
-        examType = result.subjects[0].testType;
-      } else if (result.term) {
-        examType = result.term;
-      } else if (result.examType) {
-        examType = result.examType;
-      }
+    const transformedResults = results
+      .map(result => {
+        // Extract exam type from subjects array or fallback to term
+        let examType = 'Unknown Exam';
+        if (result.subjects && result.subjects.length > 0 && result.subjects[0].testType) {
+          examType = result.subjects[0].testType;
+        } else if (result.term) {
+          examType = result.term;
+        } else if (result.examType) {
+          examType = result.examType;
+        }
 
-      return {
-        _id: result._id,
-        examType: examType,
-        overallPercentage: result.percentage || 0,
-        overallGrade: result.grade || 'N/A',
-        rank: result.rank,
-        academicYear: result.academicYear,
-        subjects: result.subjects ? result.subjects.map(subject => ({
-          subjectName: subject.subjectName || subject.name,
-          testType: subject.testType || examType,  // ✅ ADD testType field
-          obtainedMarks: subject.obtainedMarks,     // ✅ Use correct field name
-          maxMarks: subject.maxMarks,               // ✅ Use correct field name
-          marksObtained: subject.obtainedMarks || subject.totalMarks,
-          totalMarks: subject.maxMarks || subject.totalMarks,
-          grade: subject.grade,
-          percentage: subject.percentage
-        })) : []
-      };
-    });
+        // Check if all subjects are frozen
+        const allSubjectsFrozen = result.subjects && result.subjects.length > 0 
+          ? result.subjects.every(s => s.frozen === true)
+          : false;
+
+        return {
+          _id: result._id,
+          examType: examType,
+          overallPercentage: result.percentage || 0,
+          overallGrade: result.grade || 'N/A',
+          rank: result.rank,
+          academicYear: result.academicYear,
+          frozen: result.frozen || allSubjectsFrozen,
+          frozenAt: result.frozenAt,
+          subjects: result.subjects ? result.subjects.map(subject => ({
+            subjectName: subject.subjectName || subject.name,
+            testType: subject.testType || examType,  // ✅ ADD testType field
+            obtainedMarks: subject.obtainedMarks,     // ✅ Use correct field name
+            maxMarks: subject.maxMarks,               // ✅ Use correct field name
+            marksObtained: subject.obtainedMarks || subject.totalMarks,
+            totalMarks: subject.maxMarks || subject.totalMarks,
+            grade: subject.grade,
+            percentage: subject.percentage,
+            frozen: subject.frozen || false
+          })) : []
+        };
+      })
+      .filter(result => result.frozen === true); // ✅ ONLY show frozen results to students
+
+    console.log(`[GET STUDENT RESULTS] Filtered to ${transformedResults.length} frozen results for student view`);
 
     // Calculate progress trend
     const progressTrend = calculateProgressTrend(transformedResults);

@@ -1,20 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useRouter } from 'expo-router';
 import { getStudentAttendance, AttendanceRecord } from '@/src/services/student';
-import { getClassAttendance, getClasses, getStudentsByClassSection, markSessionAttendance, AttendanceRecord as TeacherAttendanceRecord } from '@/src/services/teacher';
-import { usePermissions } from '@/src/hooks/usePermissions';
 
-export default function AttendanceScreen() {
+export default function StudentAttendanceScreen() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const styles = getStyles(isDark);
   const calendarStyles = getCalendarStyles(isDark);
-  const { hasPermission } = usePermissions();
-  const router = useRouter();
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [stats, setStats] = useState({ 
@@ -30,43 +24,8 @@ export default function AttendanceScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
-  const [isTeacher, setIsTeacher] = useState<boolean>(false);
-  const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedSection, setSelectedSection] = useState<string>('');
-  const [classes, setClasses] = useState<any[]>([]);
-  const [showClassSelector, setShowClassSelector] = useState<boolean>(false);
-  const [showMarkAttendance, setShowMarkAttendance] = useState<boolean>(false);
-  const [students, setStudents] = useState<any[]>([]);
-  const [attendanceData, setAttendanceData] = useState<{[key: string]: 'present' | 'absent'}>({});
-  const [selectedSession, setSelectedSession] = useState<'morning' | 'afternoon'>('morning');
-  const [attendanceDate, setAttendanceDate] = useState<Date>(new Date());
-  const [existingAttendance, setExistingAttendance] = useState<any>(null);
-  const [isSessionFrozen, setIsSessionFrozen] = useState<boolean>(false);
 
   const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-  const checkRole = async () => {
-    try {
-      const role = await AsyncStorage.getItem('role');
-      setIsTeacher(role === 'teacher');
-      
-      if (role === 'teacher') {
-        // Fetch classes for teacher
-        const classData = await getClasses();
-        setClasses(classData);
-        
-        // Set default class if available
-        if (classData.length > 0 && !selectedClass) {
-          setSelectedClass(classData[0].className);
-          if (classData[0].sections && classData[0].sections.length > 0) {
-            setSelectedSection(classData[0].sections[0].sectionName);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error checking role:', error);
-    }
-  };
 
   const fetchAttendance = async () => {
     try {
@@ -82,70 +41,41 @@ export default function AttendanceScreen() {
         sessionAttendanceRate: 0
       });
 
-      const role = await AsyncStorage.getItem('role');
-      const isTeacherRole = role === 'teacher';
+      // Student: fetch own attendance
+      const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString();
+      const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString();
 
-      if (isTeacherRole) {
-        // Teacher: fetch class attendance
-        if (!selectedClass || !selectedSection) {
-          console.log('[ATTENDANCE] No class/section selected for teacher');
-          return;
-        }
+      console.log('[ATTENDANCE] Fetching FRESH data for month:', selectedMonth.toLocaleDateString(), 'Range:', startDate, 'to', endDate);
 
-        const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString().split('T')[0];
-        const records = await getClassAttendance(selectedClass, selectedSection, startDate);
-        
-        setAttendanceRecords(records as AttendanceRecord[]);
-        // Calculate stats for teacher view
-        const totalDays = records.length;
-        const presentDays = records.filter(r => r.status === 'present').length;
-        setStats({
-          totalDays,
-          presentDays,
-          absentDays: totalDays - presentDays,
-          attendancePercentage: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0,
-          totalSessions: 0,
-          presentSessions: 0,
-          sessionAttendanceRate: 0
-        });
-      } else {
-        // Student: fetch own attendance
-        const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString();
-        const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString();
+      // Fetch both monthly records and overall stats
+      const [monthlyData, overallData] = await Promise.all([
+        getStudentAttendance(startDate, endDate), // Monthly records for calendar display
+        getStudentAttendance() // Overall stats for percentage display
+      ]);
 
-        console.log('[ATTENDANCE] Fetching FRESH data for month:', selectedMonth.toLocaleDateString(), 'Range:', startDate, 'to', endDate);
+      console.log('[ATTENDANCE] Monthly data returned:', monthlyData.records.length, 'records');
+      console.log('[ATTENDANCE] Overall stats:', overallData.stats);
 
-        // Fetch both monthly records and overall stats
-        const [monthlyData, overallData] = await Promise.all([
-          getStudentAttendance(startDate, endDate), // Monthly records for calendar display
-          getStudentAttendance() // Overall stats for percentage display
-        ]);
+      // Only use the exact records returned from backend - no additional filtering
+      const validRecords = monthlyData.records.filter(record => {
+        // Only basic validation - ensure record has required fields
+        return record && record.date && record.dateString;
+      });
 
-        console.log('[ATTENDANCE] Monthly data returned:', monthlyData.records.length, 'records');
-        console.log('[ATTENDANCE] Overall stats:', overallData.stats);
+      console.log('[ATTENDANCE] Valid records after filtering:', validRecords.length);
 
-        // Only use the exact records returned from backend - no additional filtering
-        // The backend should already filter by date range
-        const validRecords = monthlyData.records.filter(record => {
-          // Only basic validation - ensure record has required fields
-          return record && record.date && record.dateString;
-        });
-
-        console.log('[ATTENDANCE] Valid records after filtering:', validRecords.length);
-
-        setAttendanceRecords(validRecords);
-        
-        // Use overall stats for the percentage display, but monthly stats for record counts
-        setStats({
-          totalDays: overallData.stats.totalDays,
-          presentDays: overallData.stats.presentDays,
-          absentDays: overallData.stats.absentDays,
-          attendancePercentage: overallData.stats.attendancePercentage,
-          totalSessions: overallData.stats.totalSessions || 0,
-          presentSessions: overallData.stats.presentSessions || 0,
-          sessionAttendanceRate: overallData.stats.sessionAttendanceRate || 0
-        });
-      }
+      setAttendanceRecords(validRecords);
+      
+      // Use overall stats for the percentage display, but monthly stats for record counts
+      setStats({
+        totalDays: overallData.stats.totalDays,
+        presentDays: overallData.stats.presentDays,
+        absentDays: overallData.stats.absentDays,
+        attendancePercentage: overallData.stats.attendancePercentage,
+        totalSessions: overallData.stats.totalSessions || 0,
+        presentSessions: overallData.stats.presentSessions || 0,
+        sessionAttendanceRate: overallData.stats.sessionAttendanceRate || 0
+      });
     } catch (error) {
       console.error('Error fetching attendance:', error);
       // Ensure we clear data on error too
@@ -164,10 +94,6 @@ export default function AttendanceScreen() {
       setRefreshing(false);
     }
   };
-
-  useEffect(() => {
-    checkRole();
-  }, []);
 
   useEffect(() => {
     // FORCE clear all data when month changes
@@ -189,7 +115,7 @@ export default function AttendanceScreen() {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [selectedMonth, selectedClass, selectedSection]);
+  }, [selectedMonth]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -209,9 +135,6 @@ export default function AttendanceScreen() {
 
     console.log('[CALENDAR] Building calendar for month:', month + 1, year);
     console.log('[CALENDAR] Available attendance records:', attendanceRecords.length);
-    attendanceRecords.forEach(record => {
-      console.log('[CALENDAR] Record available:', record.dateString, record.status);
-    });
 
     for (let i = 0; i < 42; i++) {
       // Use local date string to avoid timezone issues
@@ -295,121 +218,9 @@ export default function AttendanceScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Attendance</Text>
-          {isTeacher ? (
-            <View style={styles.teacherControls}>
-              <TouchableOpacity 
-                style={styles.classSelector}
-                onPress={() => setShowClassSelector(true)}
-              >
-                <Text style={styles.classSelectorText}>
-                  {selectedClass && selectedSection ? `${selectedClass} - ${selectedSection}` : 'Select Class'}
-                </Text>
-                <Text style={styles.classSelectorIcon}>▼</Text>
-              </TouchableOpacity>
-              {(hasPermission('viewAttendance') || isTeacher) && (
-                <TouchableOpacity 
-                  style={styles.markAttendanceButton}
-                  onPress={async () => {
-                    if (!selectedClass) {
-                      Alert.alert('Select Class', 'Please select a class first');
-                      return;
-                    }
-                    if (!selectedSection || selectedSection === 'ALL') {
-                      Alert.alert('Select Section', 'Please select a specific section to mark attendance');
-                      return;
-                    }
-                    
-                    try {
-                      console.log('[ATTENDANCE] Fetching students for class:', selectedClass, 'section:', selectedSection);
-                      const studentsData = await getStudentsByClassSection(selectedClass, selectedSection);
-                      console.log('[ATTENDANCE] Loaded students:', studentsData.length);
-                      
-                      if (studentsData.length === 0) {
-                        Alert.alert('No Students', 'No students found in this class/section');
-                        return;
-                      }
-                      
-                      setStudents(studentsData);
-                      
-                      // Fetch existing attendance for today
-                      const dateStr = attendanceDate.toISOString().split('T')[0];
-                      console.log('[ATTENDANCE] Checking for existing attendance on:', dateStr, 'session:', selectedSession);
-                      
-                      try {
-                        const existingRecords = await getClassAttendance(selectedClass, selectedSection, dateStr);
-                        const todayRecord = existingRecords.find((r: any) => {
-                          const recordDate = r.date?.split('T')[0] || r.dateString;
-                          return recordDate === dateStr;
-                        });
-                        
-                        if (todayRecord) {
-                          console.log('[ATTENDANCE] Found existing attendance:', todayRecord);
-                          setExistingAttendance(todayRecord);
-                          
-                          // Check if session is already marked (frozen)
-                          // Backend creates a session document once attendance is marked - it's automatically frozen
-                          const sessionData = todayRecord.sessions?.[selectedSession];
-                          
-                          // Session is frozen if it exists with any data (backend doesn't allow modification)
-                          const isSessionMarked = sessionData && (
-                            sessionData.status || 
-                            (sessionData.students && sessionData.students.length > 0) ||
-                            sessionData.markedAt ||
-                            sessionData.markedBy
-                          );
-                          
-                          if (isSessionMarked) {
-                            setIsSessionFrozen(true);
-                            console.log('[ATTENDANCE] Session is FROZEN (already marked):', selectedSession, sessionData);
-                            
-                            // Pre-fill attendance data with existing values for viewing
-                            const prefilledData: {[key: string]: 'present' | 'absent'} = {};
-                            if (sessionData.students && Array.isArray(sessionData.students)) {
-                              sessionData.students.forEach((s: any) => {
-                                prefilledData[s.studentId || s.userId] = s.status;
-                              });
-                            }
-                            setAttendanceData(prefilledData);
-                            
-                            Alert.alert(
-                              'Attendance Already Marked',
-                              `${selectedSession.charAt(0).toUpperCase() + selectedSession.slice(1)} session attendance is already marked and frozen. You can view it but cannot edit.`,
-                              [{ text: 'View', onPress: () => setShowMarkAttendance(true) }]
-                            );
-                          } else {
-                            // Session not marked yet - allow marking
-                            setIsSessionFrozen(false);
-                            setAttendanceData({});
-                            setShowMarkAttendance(true);
-                          }
-                        } else {
-                          setExistingAttendance(null);
-                          setIsSessionFrozen(false);
-                          setAttendanceData({});
-                          setShowMarkAttendance(true);
-                        }
-                      } catch (error) {
-                        console.log('[ATTENDANCE] No existing attendance found, starting fresh');
-                        setExistingAttendance(null);
-                        setIsSessionFrozen(false);
-                        setAttendanceData({});
-                        setShowMarkAttendance(true);
-                      }
-                    } catch (error) {
-                      console.error('[ATTENDANCE] Error loading students:', error);
-                      Alert.alert('Error', 'Failed to load students. Please try again.');
-                    }
-                  }}
-                >
-                  <Text style={styles.markAttendanceButtonText}>Mark Attendance</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            <Text style={styles.headerSubtitle}>
-              {new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </Text>
-          )}
+          <Text style={styles.headerSubtitle}>
+            {new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -540,194 +351,6 @@ export default function AttendanceScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
-
-      {/* Attendance Marking Modal */}
-      <Modal visible={showMarkAttendance} transparent={true} animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={styles.modalTitle}>
-                  {isSessionFrozen ? 'View Attendance' : 'Mark Attendance'}
-                </Text>
-                {isSessionFrozen && (
-                  <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}>
-                    <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600' }}>Already Marked</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.modalSubtitle}>
-                {selectedClass} - {selectedSection}
-              </Text>
-              
-              {/* Date and Session Selection */}
-              <View style={styles.attendanceControls}>
-                <View style={styles.controlGroup}>
-                  <Text style={styles.controlLabel}>Date:</Text>
-                  <TouchableOpacity 
-                    style={styles.dateButton}
-                    onPress={() => {
-                      // For simplicity, just use today's date
-                      setAttendanceDate(new Date());
-                    }}
-                  >
-                    <Text style={styles.dateButtonText}>
-                      {attendanceDate.toLocaleDateString()}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.controlGroup}>
-                  <Text style={styles.controlLabel}>Session:</Text>
-                  <View style={styles.sessionButtons}>
-                    <TouchableOpacity
-                      style={[
-                        styles.sessionButton,
-                        selectedSession === 'morning' && styles.sessionButtonActive
-                      ]}
-                      onPress={() => setSelectedSession('morning')}
-                    >
-                      <Text style={[
-                        styles.sessionButtonText,
-                        selectedSession === 'morning' && styles.sessionButtonTextActive
-                      ]}>Morning</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.sessionButton,
-                        selectedSession === 'afternoon' && styles.sessionButtonActive
-                      ]}
-                      onPress={() => setSelectedSession('afternoon')}
-                    >
-                      <Text style={[
-                        styles.sessionButtonText,
-                        selectedSession === 'afternoon' && styles.sessionButtonTextActive
-                      ]}>Afternoon</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </View>
-            
-            <ScrollView style={styles.studentsList}>
-              {students.length === 0 ? (
-                <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text style={styles.modalSubtitle}>No students found in this class/section</Text>
-                </View>
-              ) : (
-                students.map((student) => (
-                  <View key={student.userId} style={styles.studentRow}>
-                    <Text style={styles.studentName}>
-                      {student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.userId}
-                    </Text>
-                    <View style={styles.attendanceButtons}>
-                      {['present', 'absent'].map((status) => (
-                        <TouchableOpacity
-                          key={status}
-                          style={[
-                            styles.attendanceButton,
-                            attendanceData[student.userId] === status && styles.attendanceButtonSelected,
-                            status === 'present' && styles.presentButton,
-                            status === 'absent' && styles.absentButton,
-                            isSessionFrozen && { opacity: 0.6 }
-                          ]}
-                          onPress={() => {
-                            if (!isSessionFrozen) {
-                              setAttendanceData(prev => ({
-                                ...prev,
-                                [student.userId]: status as 'present' | 'absent'
-                              }));
-                            }
-                          }}
-                          disabled={isSessionFrozen}
-                        >
-                          <Text style={[
-                            styles.attendanceButtonText,
-                            attendanceData[student.userId] === status && styles.attendanceButtonTextSelected
-                          ]}>
-                            {status === 'present' ? 'P' : 'A'}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-            
-            <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={styles.cancelButton}
-                onPress={() => setShowMarkAttendance(false)}
-              >
-                <Text style={styles.cancelButtonText}>{isSessionFrozen ? 'Close' : 'Cancel'}</Text>
-              </TouchableOpacity>
-              {!isSessionFrozen && (
-                <TouchableOpacity 
-                  style={styles.saveButton}
-                  onPress={async () => {
-                  try {
-                    // Format date as YYYY-MM-DD
-                    const dateStr = attendanceDate.toISOString().split('T')[0];
-                    
-                    // Prepare students array in the format backend expects
-                    const studentsArray = students.map(student => ({
-                      studentId: student.userId,
-                      userId: student.userId,
-                      status: attendanceData[student.userId] || 'absent' // Default to absent if not marked
-                    }));
-                    
-                    console.log('[ATTENDANCE] Marking attendance:', {
-                      date: dateStr,
-                      class: selectedClass,
-                      section: selectedSection,
-                      session: selectedSession,
-                      studentsCount: studentsArray.length
-                    });
-                    
-                    const success = await markSessionAttendance({
-                      date: dateStr,
-                      class: selectedClass,
-                      section: selectedSection,
-                      session: selectedSession,
-                      students: studentsArray
-                    });
-                    
-                    if (success) {
-                      Alert.alert('Success', `${selectedSession.charAt(0).toUpperCase() + selectedSession.slice(1)} attendance marked successfully for ${studentsArray.length} students`);
-                      setShowMarkAttendance(false);
-                      setAttendanceData({}); // Clear attendance data
-                      fetchAttendance(); // Refresh attendance data
-                    } else {
-                      Alert.alert('Error', 'Failed to mark attendance. Please try again.');
-                    }
-                  } catch (error: any) {
-                    console.error('[ATTENDANCE] Error marking attendance:', error);
-                    const errorMessage = error?.response?.data?.message || error?.message || 'Failed to mark attendance. Please check your connection and try again.';
-                    
-                    // Check if error is due to frozen/already marked session
-                    if (errorMessage.includes('frozen') || errorMessage.includes('already been marked')) {
-                      Alert.alert(
-                        'Attendance Already Marked',
-                        'This session has already been marked and is frozen. Cannot modify existing attendance.',
-                        [{ text: 'OK', onPress: () => {
-                          setShowMarkAttendance(false);
-                          fetchAttendance(); // Refresh to show updated data
-                        }}]
-                      );
-                    } else {
-                      Alert.alert('Error', errorMessage);
-                    }
-                  }
-                  }}
-                >
-                  <Text style={styles.saveButtonText}>Save Attendance</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -739,27 +362,6 @@ function getStyles(isDark: boolean) {
     header: { padding: 20, paddingTop: 10, alignItems: 'center' },
     headerTitle: { fontSize: 24, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A' },
     headerSubtitle: { fontSize: 14, color: isDark ? '#9CA3AF' : '#1E3A8A', marginTop: 4 },
-    teacherControls: { width: '100%', marginTop: 16 },
-    classSelector: { 
-      backgroundColor: isDark ? '#1F2937' : '#DBEAFE', 
-      borderRadius: 12, 
-      padding: 12, 
-      flexDirection: 'row', 
-      justifyContent: 'space-between', 
-      alignItems: 'center',
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: isDark ? '#374151' : '#93C5FD'
-    },
-    classSelectorText: { fontSize: 14, fontWeight: '600', color: isDark ? '#93C5FD' : '#1E3A8A' },
-    classSelectorIcon: { fontSize: 12, color: isDark ? '#93C5FD' : '#1E3A8A' },
-    markAttendanceButton: { 
-      backgroundColor: isDark ? '#1E40AF' : '#3B82F6', 
-      borderRadius: 12, 
-      padding: 12, 
-      alignItems: 'center' 
-    },
-    markAttendanceButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
     section: { paddingHorizontal: 20, marginBottom: 20 },
     sectionTitle: { fontSize: 18, fontWeight: '700', color: isDark ? '#93C5FD' : '#1E3A8A', marginBottom: 12 },
     calendarCard: { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 2, borderColor: isDark ? '#1F2937' : '#93C5FD' },
@@ -790,39 +392,6 @@ function getStyles(isDark: boolean) {
     noRecordsContainer: { alignItems: 'center', paddingVertical: 20, marginTop: 12 },
     noRecordsText: { fontSize: 14, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 4 },
     noRecordsSubtext: { fontSize: 12, color: isDark ? '#6B7280' : '#9CA3AF', textAlign: 'center', paddingHorizontal: 20 },
-    // Modal styles
-    modalContainer: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
-    modalContent: { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderRadius: 16, padding: 20, width: '90%', maxHeight: '80%' },
-    modalHeader: { marginBottom: 20 },
-    modalTitle: { fontSize: 20, fontWeight: '700', color: isDark ? '#E5E7EB' : '#1F2937', marginBottom: 4 },
-    modalSubtitle: { fontSize: 14, color: isDark ? '#9CA3AF' : '#6B7280' },
-    studentsList: { maxHeight: 400 },
-    studentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: isDark ? '#374151' : '#E5E7EB' },
-    studentName: { flex: 1, fontSize: 14, fontWeight: '500', color: isDark ? '#E5E7EB' : '#1F2937' },
-    attendanceButtons: { flexDirection: 'row', gap: 8 },
-    attendanceButton: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: isDark ? '#374151' : '#D1D5DB' },
-    attendanceButtonSelected: { borderWidth: 2 },
-    presentButton: { backgroundColor: isDark ? '#065F46' : '#ECFDF5' },
-    absentButton: { backgroundColor: isDark ? '#7F1D1D' : '#FEF2F2' },
-    halfDayButton: { backgroundColor: isDark ? '#92400E' : '#FFFBEB' },
-    attendanceButtonText: { fontSize: 12, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280' },
-    attendanceButtonTextSelected: { color: isDark ? '#FFFFFF' : '#1F2937' },
-    modalActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, gap: 12 },
-    cancelButton: { flex: 1, backgroundColor: isDark ? '#374151' : '#F3F4F6', borderRadius: 8, padding: 12, alignItems: 'center' },
-    cancelButtonText: { fontSize: 14, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280' },
-    saveButton: { flex: 1, backgroundColor: '#3B82F6', borderRadius: 8, padding: 12, alignItems: 'center' },
-    saveButtonText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
-    // Attendance controls styles
-    attendanceControls: { marginTop: 16, gap: 12 },
-    controlGroup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    controlLabel: { fontSize: 14, fontWeight: '600', color: isDark ? '#E5E7EB' : '#1F2937', flex: 1 },
-    dateButton: { backgroundColor: isDark ? '#374151' : '#F3F4F6', borderRadius: 8, padding: 8, flex: 2 },
-    dateButtonText: { fontSize: 14, color: isDark ? '#E5E7EB' : '#1F2937', textAlign: 'center' },
-    sessionButtons: { flexDirection: 'row', gap: 8, flex: 2 },
-    sessionButton: { flex: 1, backgroundColor: isDark ? '#374151' : '#F3F4F6', borderRadius: 8, padding: 8, alignItems: 'center' },
-    sessionButtonActive: { backgroundColor: '#3B82F6' },
-    sessionButtonText: { fontSize: 12, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280' },
-    sessionButtonTextActive: { color: '#FFFFFF' },
   });
 }
 
@@ -837,9 +406,6 @@ function getCalendarStyles(isDark: boolean) {
     dateText: { fontSize: 14, fontWeight: '600', color: isDark ? '#E5E7EB' : '#1F2937' },
     otherMonthText: { color: isDark ? '#374151' : '#D1D5DB' },
     todayText: { color: '#3B82F6', fontWeight: '700' },
-    presentText: { color: '#16A34A' },
-    absentText: { color: '#DC2626' },
-    noClassText: { color: '#9CA3AF' },
     statusDot: { position: 'absolute', bottom: 4, flexDirection: 'row', gap: 2 },
     dot: { width: 6, height: 6, borderRadius: 3 },
   });

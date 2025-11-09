@@ -102,6 +102,7 @@ export default function TabLayout() {
           <Tabs.Screen name="students" options={{ href: null }} />
           <Tabs.Screen name="teacher-home" options={{ href: null }} />
           <Tabs.Screen name="student-home" options={{ href: null }} />
+          <Tabs.Screen name="attendance-teacher" options={{ href: null }} />
         </Tabs>
         <PermissionRefreshIndicator />
       </View>
@@ -153,7 +154,7 @@ export default function TabLayout() {
           />
           
           <Tabs.Screen
-            name="attendance"
+            name="attendance-teacher"
             options={{
               title: 'Attendance',
               tabBarIcon: ({ color }) => <Ionicons name="calendar" size={28} color={color} />,
@@ -180,6 +181,7 @@ export default function TabLayout() {
           <Tabs.Screen name="explore" options={{ href: null }} />
           <Tabs.Screen name="teacher-home" options={{ href: null }} />
           <Tabs.Screen name="student-home" options={{ href: null }} />
+          <Tabs.Screen name="attendance" options={{ href: null }} />
         </Tabs>
         <PermissionRefreshIndicator />
       </View>
