@@ -820,6 +820,103 @@ function calculateMessageAge(createdAt) {
   return `${Math.floor(diffDays / 30)} months ago`;
 }
 
+// Get messages for students (read-only)
+exports.getStudentMessages = async (req, res) => {
+  try {
+    console.log('📨 Student fetching messages:', req.user);
+    
+    // Get school connection for message queries
+    const schoolCode = req.user.schoolCode;
+    if (!schoolCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'School code not found in user profile'
+      });
+    }
+    
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const db = connection.db;
+    const messagesCollection = db.collection('messages');
+    
+    // Get student's class and section
+    const studentClass = req.user.studentDetails?.currentClass || req.user.class;
+    const studentSection = req.user.studentDetails?.currentSection || req.user.section;
+    
+    console.log('📚 Student class/section:', { studentClass, studentSection });
+    
+    if (!studentClass || !studentSection) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student class or section not found'
+      });
+    }
+    
+    // Get pagination parameters and academic year
+    const { limit = 20, page = 1, academicYear } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Get school's current academic year from settings
+    const School = require('../models/School');
+    const school = await School.findOne({ code: schoolCode });
+    const currentAcademicYear = school?.settings?.academicYear?.currentYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+    
+    // Build query to fetch messages for student's class and section
+    const query = {
+      class: studentClass,
+      section: studentSection
+    };
+    
+    // Add academic year filter
+    const yearToFilter = academicYear || currentAcademicYear;
+    query.academicYear = yearToFilter;
+    console.log(`📅 Filtering messages by Academic Year: ${yearToFilter}`);
+    
+    console.log('🔍 Query:', query);
+    
+    // Fetch messages with pagination
+    const messages = await messagesCollection.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .toArray();
+    
+    // Get total count for pagination
+    const total = await messagesCollection.countDocuments(query);
+    
+    console.log(`✅ Found ${messages.length} messages for student`);
+    
+    // Format messages
+    const formattedMessages = messages.map(msg => ({
+      id: msg._id.toString(),
+      class: msg.class,
+      section: msg.section,
+      title: msg.title,
+      subject: msg.subject,
+      message: msg.message,
+      createdAt: msg.createdAt,
+      messageAge: calculateMessageAge(msg.createdAt)
+    }));
+    
+    res.json({
+      success: true,
+      data: formattedMessages,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching student messages:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch messages',
+      error: error.message
+    });
+  }
+};
+
 // Delete message
 exports.deleteMessage = async (req, res) => {
   try {
@@ -909,3 +1006,17 @@ exports.deleteMessage = async (req, res) => {
     });
   }
 };
+
+// Helper function to calculate message age (replaces Mongoose virtual)
+function calculateMessageAge(createdAt) {
+  const now = new Date();
+  const created = new Date(createdAt);
+  const diffTime = now.getTime() - created.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  return `${Math.floor(diffDays / 30)} months ago`;
+}
