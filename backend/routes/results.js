@@ -68,6 +68,12 @@ router.get('/class-performance-stats',
 
 // Get results statistics for Reports page - requires viewResults permission
 router.get('/stats',
+  (req, res, next) => {
+    console.log('🎯 [RESULTS STATS ROUTE] Hit /stats endpoint');
+    console.log('🎯 [RESULTS STATS ROUTE] Query params:', req.query);
+    console.log('🎯 [RESULTS STATS ROUTE] User:', req.user ? { userId: req.user.userId, schoolCode: req.user.schoolCode } : 'No user');
+    next();
+  },
   checkPermission('viewResults'),
   resultController.getResultsStats
 );

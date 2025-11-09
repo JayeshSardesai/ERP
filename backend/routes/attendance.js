@@ -19,7 +19,16 @@ router.get('/', checkPermission('viewAttendance'), attendanceController.getAtten
 router.get('/session-status', checkPermission('viewAttendance'), attendanceController.checkSessionStatus);
 router.get('/session-data', checkPermission('viewAttendance'), attendanceController.getSessionAttendanceData);
 router.get('/class', checkPermission('viewAttendance'), attendanceController.getClassAttendance);
-router.get('/stats', checkPermission('viewAttendance'), attendanceController.getAttendanceStats);
+router.get('/stats', 
+  (req, res, next) => {
+    console.log('🎯 [ATTENDANCE STATS ROUTE] Hit /stats endpoint');
+    console.log('🎯 [ATTENDANCE STATS ROUTE] Query params:', req.query);
+    console.log('🎯 [ATTENDANCE STATS ROUTE] User:', req.user ? { userId: req.user.userId, schoolCode: req.user.schoolCode } : 'No user');
+    next();
+  },
+  checkPermission('viewAttendance'), 
+  attendanceController.getAttendanceStats
+);
 router.get('/overall-rate', checkPermission('viewAttendance'), attendanceController.getOverallAttendanceRate);
 router.get('/daily-stats', checkPermission('viewAttendance'), attendanceController.getDailyAttendanceStats);
 router.get('/student-report', checkPermission('viewAttendance'), attendanceController.getStudentAttendanceReport);

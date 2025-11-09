@@ -206,42 +206,92 @@ const Assignments: React.FC = () => {
   };
 
   const fetchSubjectsForClass = async (className: string) => {
-    try {
-      console.log(`🔍 Fetching subjects for class: ${className}, section: ${selectedSection || 'ALL'}, academic year: ${viewingAcademicYear}`);
-      
-      // Get school code from localStorage or auth
-      const schoolCode = localStorage.getItem('erp.schoolCode') || '';
-      
-      // Build params object
-      const params: any = {
-        academicYear: viewingAcademicYear
-      };
-      
-      // Add section if selected and not empty
-      if (selectedSection && selectedSection !== '') {
-        params.section = selectedSection;
-      }
-      
-      // Try the class-subjects API with academic year and section filter
-      const response = await api.get(`/class-subjects/class/${encodeURIComponent(className)}`, {
-        params
-      });
-      const data = response.data;
-      
-      if (data && data.success) {
-        const subjectNames = (data?.data?.subjects || [])
-          .filter((s: any) => s.isActive !== false)
-          .map((s: any) => s.name)
-          .filter(Boolean);
-        setSubjects(subjectNames);
-        console.log('✅ Subjects loaded for academic year:', subjectNames);
-      } else {
-        console.warn('Failed to fetch subjects');
-        setSubjects([]);
-      }
-    } catch (err) {
-      console.error('Error fetching subjects:', err);
+    if (!className || !selectedSection) {
       setSubjects([]);
+      setSelectedSubject('');
+      return;
+    }
+
+    try {
+      console.log(`🔍 Fetching subjects for class: ${className}, section: ${selectedSection}, academic year: ${viewingAcademicYear}`);
+      
+      const schoolCode = localStorage.getItem('erp.schoolCode') || '';
+      if (!schoolCode) {
+        console.error('❌ School code not available');
+        setSubjects([]);
+        return;
+      }
+
+      console.log('📚 Using school code:', schoolCode);
+
+      // Primary API - using /class-subjects/classes to get all classes
+      try {
+        console.log('🔄 Trying primary API: /class-subjects/classes');
+        const resp = await api.get('/class-subjects/classes', {
+          headers: {
+            'x-school-code': schoolCode.toUpperCase()
+          }
+        });
+        
+        console.log('✅ Primary API response:', resp.data);
+        
+        if (resp.data?.success && resp.data?.data?.classes) {
+          const classData = resp.data.data.classes.find((c: any) => 
+            c.className === className && c.section === selectedSection
+          );
+          
+          console.log('🎯 Found class data:', classData);
+          
+          if (classData?.subjects) {
+            const activeSubjects = classData.subjects.filter((s: any) => s.isActive !== false);
+            const subjectNames = activeSubjects.map((s: any) => s.name || s.subjectName).filter(Boolean);
+            
+            console.log('📝 Extracted subject names:', subjectNames);
+            
+            setSubjects(subjectNames);
+            setSelectedSubject(subjectNames[0] || '');
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('❌ Primary API failed:', err);
+        // fall through to fallback
+      }
+
+      // Fallback API
+      try {
+        console.log('🔄 Trying fallback API: /direct-test/class-subjects');
+        const resp2 = await api.get(`/direct-test/class-subjects/${className}`, {
+          params: { schoolCode },
+          headers: {
+            'x-school-code': schoolCode.toUpperCase()
+          }
+        });
+        
+        console.log('✅ Fallback API response:', resp2.data);
+        
+        if (resp2.data?.success && resp2.data?.data?.subjects) {
+          const subjectNames = resp2.data.data.subjects
+            .map((s: any) => s.name || s.subjectName)
+            .filter(Boolean);
+          
+          console.log('📝 Extracted subject names from fallback:', subjectNames);
+          
+          setSubjects(subjectNames);
+          setSelectedSubject(subjectNames[0] || '');
+          return;
+        }
+      } catch (err) {
+        console.error('❌ Fallback API failed:', err);
+      }
+
+      console.warn('⚠️ No subjects found for class/section');
+      setSubjects([]);
+      setSelectedSubject('');
+    } catch (err) {
+      console.error('❌ Error fetching subjects:', err);
+      setSubjects([]);
+      setSelectedSubject('');
     }
   };
 

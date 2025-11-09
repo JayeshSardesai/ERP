@@ -33,50 +33,78 @@ const Reports: React.FC = () => {
 
         // Fetch attendance stats with academic year filter
         try {
+          console.log('📊 [REPORTS] Fetching attendance stats...');
           const attendanceResponse = await api.get('/attendance/stats', {
             params: {
               academicYear: viewingAcademicYear
             }
           });
+          console.log('📊 [REPORTS] Attendance stats response:', attendanceResponse.data);
           const attendanceStatsData = attendanceResponse.data;
           
           if (attendanceStatsData.success && attendanceStatsData.attendanceRate) {
+            console.log('✅ [REPORTS] Setting attendance rate:', attendanceStatsData.attendanceRate);
             setAttendanceRate(attendanceStatsData.attendanceRate);
           } else if (attendanceStatsData.averageAttendance !== undefined) {
+            console.log('✅ [REPORTS] Setting attendance rate from averageAttendance:', attendanceStatsData.averageAttendance);
             setAttendanceRate(`${attendanceStatsData.averageAttendance}%`);
+          } else {
+            console.warn('⚠️ [REPORTS] No attendance rate found in response');
           }
 
           // If monthly data is available, use it
           if (attendanceStatsData.monthlyData && Array.isArray(attendanceStatsData.monthlyData)) {
+            console.log('✅ [REPORTS] Setting monthly attendance data:', attendanceStatsData.monthlyData.length, 'months');
             setAttendanceData(attendanceStatsData.monthlyData);
+          } else {
+            console.warn('⚠️ [REPORTS] No monthly attendance data found');
           }
-        } catch (err) {
-          console.error('Error fetching attendance stats:', err);
+        } catch (err: any) {
+          console.error('❌ [REPORTS] Error fetching attendance stats:', err);
+          console.error('❌ [REPORTS] Error details:', err.response?.data || err.message);
           setAttendanceRate('94.2%'); // Fallback to default
         }
 
         // Fetch results/academic stats with academic year filter
         try {
+          console.log('📊 [REPORTS] Fetching results stats...');
           const resultsResponse = await api.get('/results/stats', {
             params: {
               academicYear: viewingAcademicYear
             }
           });
+          console.log('📊 [REPORTS] Results stats response:', resultsResponse.data);
           const resultsData = resultsResponse.data;
           
           if (resultsData.success) {
             // Set subject-wise performance data
             if (resultsData.subjectStats && Array.isArray(resultsData.subjectStats)) {
+              console.log('✅ [REPORTS] Setting subject stats:', resultsData.subjectStats.length, 'subjects');
               setAcademicData(resultsData.subjectStats);
+            } else {
+              console.warn('⚠️ [REPORTS] No subject stats found, using defaults');
+              setAcademicData(defaultAcademicData);
             }
 
             // Set grade distribution data
             if (resultsData.gradeDistribution && Array.isArray(resultsData.gradeDistribution)) {
+              console.log('✅ [REPORTS] Setting grade distribution:', resultsData.gradeDistribution);
               setGradeDistribution(resultsData.gradeDistribution);
+            } else {
+              console.warn('⚠️ [REPORTS] No grade distribution found, using defaults');
+              setGradeDistribution(defaultGradeDistribution);
             }
+          } else {
+            console.warn('⚠️ [REPORTS] Results stats response not successful');
+            setAcademicData(defaultAcademicData);
+            setGradeDistribution(defaultGradeDistribution);
           }
-        } catch (err) {
-          console.error('Error fetching results stats:', err);
+        } catch (err: any) {
+          console.error('❌ [REPORTS] Error fetching results stats:', err);
+          console.error('❌ [REPORTS] Error details:', err.response?.data || err.message);
+          // Use default data on error
+          setAcademicData(defaultAcademicData);
+          setGradeDistribution(defaultGradeDistribution);
         }
       } catch (err) {
         console.error('Error fetching reports data:', err);
