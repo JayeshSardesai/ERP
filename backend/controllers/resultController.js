@@ -1460,9 +1460,20 @@ exports.getResultsStats = async (req, res) => {
 
     const results = await resultsCollection.find(query).toArray();
 
+    console.log(`[RESULTS STATS] Query used:`, JSON.stringify(query));
     console.log(`[RESULTS STATS] Found ${results.length} result documents`);
+    
+    if (results.length > 0) {
+      console.log(`[RESULTS STATS] Sample result:`, {
+        className: results[0].className,
+        section: results[0].section,
+        academicYear: results[0].academicYear,
+        subjectsCount: results[0].subjects?.length
+      });
+    }
 
     if (results.length === 0) {
+      console.log(`[RESULTS STATS] No results found - returning 0%`);
       return res.json({
         success: true,
         subjectStats: [],
