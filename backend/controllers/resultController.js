@@ -805,28 +805,61 @@ exports.getResults = async (req, res) => {
     let yearToFilter = academicYear;
     if (studentId && !yearToFilter) {
       // Get current academic year from school settings
+      console.log(`🔍 [RESULTS] Fetching academic year for student query...`);
       try {
         const School = require('../models/School');
         const school = await School.findOne({ code: { $regex: new RegExp(`^${schoolCode}$`, 'i') } });
+        console.log(`🔍 [RESULTS] School found:`, school ? school.name : 'NOT FOUND');
+        console.log(`🔍 [RESULTS] School settings:`, school?.settings);
         yearToFilter = school?.settings?.academicYear?.currentYear;
         if (yearToFilter) {
-          console.log(`🔍 Student query - using current academic year from settings: ${yearToFilter}`);
+          console.log(`🔍 [RESULTS] ✅ Using current academic year from settings: ${yearToFilter}`);
+        } else {
+          console.log(`🔍 [RESULTS] ⚠️ No academic year found in school settings`);
         }
       } catch (err) {
-        console.warn('⚠️ Could not fetch current academic year:', err.message);
+        console.error('🔍 [RESULTS] ❌ Error fetching current academic year:', err.message);
       }
     }
 
     if (yearToFilter) {
       query.academicYear = yearToFilter;
-      console.log(`🔍 Filtering results by academic year: ${yearToFilter}`);
+      console.log(`🔍 [RESULTS] ✅ Filtering results by academic year: ${yearToFilter}`);
     } else {
-      console.log(`🔍 No academic year filter - returning all results`);
+      console.log(`🔍 [RESULTS] ⚠️ No academic year filter - returning ALL results (this may show old data)`);
     }
+
+    console.log(`🔍 [RESULTS] Final query:`, JSON.stringify(query, null, 2));
 
     const resultDocs = await resultsCollection.find(query).sort({ createdAt: -1 }).toArray();
 
-    console.log(`📚 Found ${resultDocs.length} student result documents for ${studentClass}-${studentSection}`);
+    console.log(`📚 [RESULTS] Found ${resultDocs.length} student result documents for ${studentClass}-${studentSection}`);
+    
+    // Log sample result if found
+    if (resultDocs.length > 0) {
+      console.log(`📚 [RESULTS] Sample result:`, {
+        _id: resultDocs[0]._id,
+        schoolCode: resultDocs[0].schoolCode,
+        className: resultDocs[0].className,
+        section: resultDocs[0].section,
+        academicYear: resultDocs[0].academicYear,
+        studentId: resultDocs[0].studentId,
+        subjectsCount: resultDocs[0].subjects?.length
+      });
+    } else {
+      console.log(`📚 [RESULTS] ⚠️ No results found - checking what's in the collection...`);
+      // Check what results exist for this student
+      const allStudentResults = await resultsCollection.find({
+        $or: [
+          { studentId: studentId },
+          { userId: studentId }
+        ]
+      }).toArray();
+      console.log(`📚 [RESULTS] Total results for student ${studentId} (any year):`, allStudentResults.length);
+      if (allStudentResults.length > 0) {
+        console.log(`📚 [RESULTS] Available academic years:`, [...new Set(allStudentResults.map(r => r.academicYear))]);
+      }
+    }
 
     const filteredResults = [];
 
