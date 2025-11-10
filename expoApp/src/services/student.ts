@@ -410,83 +410,76 @@ export async function getStudentResults(): Promise<Result[]> {
     const studentId = user.userId || user._id;
     const schoolCode = await AsyncStorage.getItem('schoolCode') || '';
 
-    // DON'T filter by academic year on frontend - let backend handle it
-    // The backend will automatically use the current academic year for students
-    console.log('[STUDENT SERVICE] Backend will filter results by current academic year automatically');
+    console.log('[STUDENT SERVICE] Student info:', {
+      studentId,
+      schoolCode: schoolCode.toUpperCase(),
+      userId: user.userId,
+      _id: user._id
+    });
 
-    // Try multiple endpoints to get results
+    // Use the EXACT same approach as the website - /results endpoint with params
+    // This is the same endpoint that works in the website logs
+    const params: any = {
+      schoolCode: schoolCode.toUpperCase(),
+      studentId: studentId
+    };
+
+    console.log('[STUDENT SERVICE] Calling /results API with params:', params);
+
     let response;
     let rawResults = [];
 
     try {
-      // Use the same approach as the website - /results endpoint with params
-      const params: any = {
-        schoolCode: schoolCode.toUpperCase(),
-        studentId: studentId
-      };
-
-      // First try the general results endpoint like the website does
-      console.log('[STUDENT SERVICE] Calling API with params:', params);
-
+      // Call the same /results endpoint that the website uses
       response = await api.get('/results', { params });
 
       console.log('[STUDENT SERVICE] Raw API response:', {
         success: response.data?.success,
+        message: response.data?.message,
         dataType: Array.isArray(response.data?.data) ? 'array' : typeof response.data?.data,
-        dataLength: response.data?.data?.length,
-        resultsType: Array.isArray(response.data?.results) ? 'array' : typeof response.data?.results,
-        resultsLength: response.data?.results?.length,
-        isArray: Array.isArray(response.data)
+        dataLength: response.data?.data?.length
       });
       
+      // The backend returns results in response.data.data array
       if (response.data?.success && response.data?.data) {
         rawResults = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
-        console.log('[STUDENT SERVICE] Using response.data.data, count:', rawResults.length);
-      } else if (response.data?.results) {
-        rawResults = Array.isArray(response.data.results) ? response.data.results : [response.data.results];
-        console.log('[STUDENT SERVICE] Using response.data.results, count:', rawResults.length);
-      } else if (Array.isArray(response.data)) {
-        rawResults = response.data;
-        console.log('[STUDENT SERVICE] Using response.data directly, count:', rawResults.length);
+        console.log('[STUDENT SERVICE] ✅ Received', rawResults.length, 'result records from backend');
+      } else {
+        console.log('[STUDENT SERVICE] ⚠️ No data in response');
+        rawResults = [];
       }
       
       // Log first raw result to see structure
       if (rawResults.length > 0) {
-        console.log('[STUDENT SERVICE] First raw result:', {
+        console.log('[STUDENT SERVICE] 📋 First raw result structure:', {
           _id: rawResults[0]._id,
           studentId: rawResults[0].studentId,
           studentName: rawResults[0].studentName,
-          subjectsCount: rawResults[0].subjects?.length,
-          subjects: rawResults[0].subjects?.map((s: any) => ({
-            name: s.subjectName,
-            test: s.testType,
-            marks: `${s.obtainedMarks}/${s.maxMarks}`
-          }))
+          className: rawResults[0].className,
+          section: rawResults[0].section,
+          academicYear: rawResults[0].academicYear,
+          subjectsCount: rawResults[0].subjects?.length
         });
         
-        // Log COMPLETE raw subjects array to see exact data
-        console.log('[STUDENT SERVICE] 🔍 COMPLETE RAW SUBJECTS DATA:');
-        rawResults[0].subjects?.forEach((s: any, idx: number) => {
-          console.log(`[STUDENT SERVICE] Subject ${idx + 1}:`, JSON.stringify(s, null, 2));
-        });
-      }
-
-      // If no results found, try the student-specific endpoint as fallback
-      if (rawResults.length === 0) {
-        try {
-          response = await api.get(`/results/student/${studentId}/history`);
-
-          if (response.data?.success && response.data?.results) {
-            rawResults = response.data.results;
-          } else if (response.data?.success && Array.isArray(response.data?.data)) {
-            rawResults = response.data.data;
-          }
-        } catch (studentError) {
-          console.log('[STUDENT SERVICE] Student endpoint also failed:', studentError);
+        // Log subjects array structure
+        if (rawResults[0].subjects && rawResults[0].subjects.length > 0) {
+          console.log('[STUDENT SERVICE] 📚 First subject structure:', {
+            subjectName: rawResults[0].subjects[0].subjectName,
+            testType: rawResults[0].subjects[0].testType,
+            obtainedMarks: rawResults[0].subjects[0].obtainedMarks,
+            maxMarks: rawResults[0].subjects[0].maxMarks,
+            totalMarks: rawResults[0].subjects[0].totalMarks,
+            grade: rawResults[0].subjects[0].grade,
+            percentage: rawResults[0].subjects[0].percentage
+          });
         }
       }
-    } catch (error) {
-      console.log('[STUDENT SERVICE] Results fetching failed:', error);
+    } catch (error: any) {
+      console.error('[STUDENT SERVICE] ❌ API Error:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
       return [];
     }
 
