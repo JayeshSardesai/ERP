@@ -129,12 +129,30 @@ export async function getStudentAssignments(): Promise<Assignment[]> {
     if (!userData) throw new Error('No user data found');
 
     const user = JSON.parse(userData);
-    const response = await api.get('/assignments', {
-      params: {
-        studentId: user.userId || user._id,
-      }
-    });
+    
+    // Fetch current academic year from school settings
+    let academicYear = '';
+    try {
+      const schoolResponse = await api.get('/schools/database/school-info');
+      academicYear = schoolResponse.data?.data?.settings?.academicYear?.currentYear || '';
+      console.log('[STUDENT SERVICE] Current academic year:', academicYear);
+    } catch (err) {
+      console.warn('[STUDENT SERVICE] Could not fetch academic year, using default');
+    }
+    
+    const params: any = {
+      studentId: user.userId || user._id,
+    };
+    
+    // Add academic year filter if available
+    if (academicYear) {
+      params.academicYear = academicYear;
+      console.log('[STUDENT SERVICE] Filtering assignments by academic year:', academicYear);
+    }
+    
+    const response = await api.get('/assignments', { params });
     console.log('[STUDENT SERVICE] Assignments response:', response.data);
+    console.log('[STUDENT SERVICE] Assignments count:', response.data.assignments?.length || response.data.data?.length || 0);
 
     // Backend returns { assignments, totalPages, currentPage, total }
     return response.data.assignments || response.data.data || [];
@@ -402,28 +420,40 @@ export async function getStudentResults(): Promise<Result[]> {
 
     const user = JSON.parse(userData);
     const studentId = user.userId || user._id;
+    const schoolCode = await AsyncStorage.getItem('schoolCode') || '';
+
+    // Fetch current academic year from school settings
+    let academicYear = '';
+    try {
+      const schoolResponse = await api.get('/schools/database/school-info');
+      academicYear = schoolResponse.data?.data?.settings?.academicYear?.currentYear || '';
+      console.log('[STUDENT SERVICE] Current academic year for results:', academicYear);
+    } catch (err) {
+      console.warn('[STUDENT SERVICE] Could not fetch academic year for results, using default');
+    }
+
     // Try multiple endpoints to get results
     let response;
     let rawResults = [];
 
     try {
       // Use the same approach as the website - /results endpoint with params
-      const userData = JSON.parse(await AsyncStorage.getItem('userData') || '{}');
-      const schoolCode = await AsyncStorage.getItem('schoolCode') || '';
-
-      // First try the general results endpoint like the website does
-      console.log('[STUDENT SERVICE] Calling API with params:', {
+      const params: any = {
         schoolCode: schoolCode.toUpperCase(),
         studentId: studentId
-      });
-      
-      response = await api.get('/results', {
-        params: {
-          schoolCode: schoolCode.toUpperCase(),
-          studentId: studentId
-        }
-      });
-      
+      };
+
+      // Add academic year filter if available
+      if (academicYear) {
+        params.academicYear = academicYear;
+        console.log('[STUDENT SERVICE] Filtering results by academic year:', academicYear);
+      }
+
+      // First try the general results endpoint like the website does
+      console.log('[STUDENT SERVICE] Calling API with params:', params);
+
+      response = await api.get('/results', { params });
+
       console.log('[STUDENT SERVICE] Raw API response:', {
         success: response.data?.success,
         dataType: Array.isArray(response.data?.data) ? 'array' : typeof response.data?.data,

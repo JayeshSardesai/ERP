@@ -20,10 +20,19 @@ module.exports = (upload) => {
     next();
   });
 
-  // Assignment management routes - require viewAssignments permission
-  // Students should also be able to view assignments assigned to them
+  // Assignment management routes
+  // Students can view their assignments without permission check (controller handles filtering)
+  // Teachers/Admins need viewAssignments permission
   router.get('/',
-    checkPermission('viewAssignments'),
+    (req, res, next) => {
+      // Allow students to bypass permission check - controller handles student-specific filtering
+      if (req.user && req.user.role === 'student') {
+        console.log('[ASSIGNMENTS] Student access granted - bypassing permission check');
+        return next();
+      }
+      // For other roles, check permission
+      return checkPermission('viewAssignments')(req, res, next);
+    },
     assignmentController.getAssignments
   );
 
