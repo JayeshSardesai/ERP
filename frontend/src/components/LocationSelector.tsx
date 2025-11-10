@@ -147,7 +147,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({
   // console.log('LocationSelector - selectedState:', selectedState, 'districts:', districts.length, 'talukas:', talukas.length);
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={className || 'space-y-4'}>
       {/* State Dropdown */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">

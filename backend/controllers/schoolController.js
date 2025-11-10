@@ -2356,11 +2356,14 @@ exports.deleteSchool = async (req, res) => {
       
       try {
         const { MongoClient } = require('mongodb');
-        const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017';
-        dbDropInfo.mongoUri = mongoUri;
-
-        const adminClient = new MongoClient(mongoUri, { useUnifiedTopology: true });
+        // Use the same MongoDB URI as the main connection (Atlas)
+        const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017';
+        dbDropInfo.mongoUri = mongoUri.replace(/\/[^/]*(\?|$)/, '/'); // Hide credentials in logs
+        
+        console.log(`[DB DROP] Connecting to MongoDB to drop database: ${dbNameToDrop}`);
+        const adminClient = new MongoClient(mongoUri);
         await adminClient.connect();
+        console.log(`[DB DROP] Connected successfully`);
 
         // List databases before drop for diagnostics
         try {
@@ -2414,12 +2417,23 @@ exports.deleteSchool = async (req, res) => {
     console.log('[DELETE DEBUG] School model info:', {
       modelName: School.modelName,
       collection: School.collection.name,
-      db: School.db.name
+      db: School.db.name,
+      dbHost: School.db.host,
+      dbReadyState: School.db.readyState
     });
+
+    // Count schools before deletion
+    const countBefore = await School.countDocuments({});
+    console.log('[DELETE DEBUG] Total schools in database before deletion:', countBefore);
 
     const deletedSchool = await School.findByIdAndDelete(schoolId);
     console.log('[DELETE DEBUG] School deletion result:', deletedSchool);
     console.log('[DELETE DEBUG] Was deletion successful?', !!deletedSchool);
+    
+    // Count schools after deletion
+    const countAfter = await School.countDocuments({});
+    console.log('[DELETE DEBUG] Total schools in database after deletion:', countAfter);
+    console.log('[DELETE DEBUG] Schools count difference:', countBefore - countAfter);
     
     // Verify deletion by trying to find the school again
     const verifyDeletion = await School.findById(schoolId);
