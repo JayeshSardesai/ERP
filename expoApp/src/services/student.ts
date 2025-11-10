@@ -440,39 +440,75 @@ export async function getStudentResults(): Promise<Result[]> {
         dataLength: response.data?.data?.length
       });
       
-      // The backend returns results in response.data.data array
+      // The backend returns FLATTENED results - one object per subject, not nested
+      // Format: [{ _id, subject, testType, obtainedMarks, ... }, ...]
       if (response.data?.success && response.data?.data) {
-        rawResults = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
-        console.log('[STUDENT SERVICE] ✅ Received', rawResults.length, 'result records from backend');
+        const flatResults = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
+        console.log('[STUDENT SERVICE] ✅ Received', flatResults.length, 'flattened result records from backend');
+        
+        // Log first flat result to see structure
+        if (flatResults.length > 0) {
+          console.log('[STUDENT SERVICE] 📋 First flat result structure:', {
+            _id: flatResults[0]._id,
+            studentId: flatResults[0].studentId,
+            studentName: flatResults[0].studentName,
+            subject: flatResults[0].subject,
+            testType: flatResults[0].testType,
+            obtainedMarks: flatResults[0].obtainedMarks,
+            maxMarks: flatResults[0].maxMarks,
+            totalMarks: flatResults[0].totalMarks,
+            grade: flatResults[0].grade,
+            percentage: flatResults[0].percentage
+          });
+        }
+        
+        // Group flat results back into nested structure by document _id
+        const groupedByDoc = new Map<string, any>();
+        
+        flatResults.forEach((flatResult: any) => {
+          const docId = flatResult._id?.toString() || 'unknown';
+          
+          if (!groupedByDoc.has(docId)) {
+            groupedByDoc.set(docId, {
+              _id: flatResult._id,
+              studentId: flatResult.studentId,
+              studentName: flatResult.studentName,
+              className: flatResult.className,
+              section: flatResult.section,
+              academicYear: flatResult.academicYear,
+              userId: flatResult.userId,
+              subjects: []
+            });
+          }
+          
+          // Add this subject to the document's subjects array
+          groupedByDoc.get(docId).subjects.push({
+            subjectName: flatResult.subject,
+            testType: flatResult.testType,
+            obtainedMarks: flatResult.obtainedMarks,
+            maxMarks: flatResult.maxMarks,
+            totalMarks: flatResult.totalMarks,
+            grade: flatResult.grade,
+            percentage: flatResult.percentage
+          });
+        });
+        
+        // Convert grouped map back to array
+        rawResults = Array.from(groupedByDoc.values());
+        console.log('[STUDENT SERVICE] 📦 Grouped into', rawResults.length, 'result documents');
+        
+        // Log grouped structure
+        if (rawResults.length > 0) {
+          console.log('[STUDENT SERVICE] 📋 First grouped result:', {
+            _id: rawResults[0]._id,
+            studentName: rawResults[0].studentName,
+            subjectsCount: rawResults[0].subjects?.length,
+            subjects: rawResults[0].subjects?.map((s: any) => `${s.subjectName} (${s.testType})`)
+          });
+        }
       } else {
         console.log('[STUDENT SERVICE] ⚠️ No data in response');
         rawResults = [];
-      }
-      
-      // Log first raw result to see structure
-      if (rawResults.length > 0) {
-        console.log('[STUDENT SERVICE] 📋 First raw result structure:', {
-          _id: rawResults[0]._id,
-          studentId: rawResults[0].studentId,
-          studentName: rawResults[0].studentName,
-          className: rawResults[0].className,
-          section: rawResults[0].section,
-          academicYear: rawResults[0].academicYear,
-          subjectsCount: rawResults[0].subjects?.length
-        });
-        
-        // Log subjects array structure
-        if (rawResults[0].subjects && rawResults[0].subjects.length > 0) {
-          console.log('[STUDENT SERVICE] 📚 First subject structure:', {
-            subjectName: rawResults[0].subjects[0].subjectName,
-            testType: rawResults[0].subjects[0].testType,
-            obtainedMarks: rawResults[0].subjects[0].obtainedMarks,
-            maxMarks: rawResults[0].subjects[0].maxMarks,
-            totalMarks: rawResults[0].subjects[0].totalMarks,
-            grade: rawResults[0].subjects[0].grade,
-            percentage: rawResults[0].subjects[0].percentage
-          });
-        }
       }
     } catch (error: any) {
       console.error('[STUDENT SERVICE] ❌ API Error:', {
@@ -559,7 +595,10 @@ export async function getStudentResults(): Promise<Result[]> {
               subjectNames: new Set(), // Track subject names to avoid duplicates
               academicYear: result.academicYear || result.classDetails?.academicYear || '2024-25',
               rank: result.rank || result.overallResult?.rank,
-              _id: `${result._id}_${testType}` // Unique ID for each test type
+              _id: `${result._id}_${testType}`, // Unique ID for each test type
+              // FIX: Capture overall metrics from the raw result document
+              rawOverallPercentage: result.overallPercentage, 
+              rawOverallGrade: result.overallGrade, 
             });
           } else {
             console.log('[STUDENT SERVICE] ♻️ Using EXISTING test group:', testType);
@@ -640,19 +679,19 @@ export async function getStudentResults(): Promise<Result[]> {
     const transformedResults = Array.from(testTypeGroups.values()).map((group: any) => {
       // Calculate overall statistics for this test
       let overallPercentage = 0;
-      let overallGrade = 'N/A';
+      // FIX: Prioritize the raw overall grade from the backend, or default to 'N/A'
+      let overallGrade = group.rawOverallGrade || 'N/A'; 
 
       if (group.subjects.length > 0) {
         const totalMarks = group.subjects.reduce((sum: number, s: any) => sum + s.totalMarks, 0);
         const obtainedMarks = group.subjects.reduce((sum: number, s: any) => sum + s.marksObtained, 0);
         overallPercentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
 
-        // Use the most common grade or first subject's grade
-        const grades = group.subjects.map((s: any) => s.grade).filter((g: string) => g);
-        overallGrade = grades.length > 0 ? grades[0] : 'N/A';
+        // Note: The original logic to derive overallGrade from subject grades is removed 
+        // as it is unreliable and only the backend's explicit grade should be trusted.
       }
 
-      // Remove the subjectNames Set before returning (it was only for deduplication)
+      // Remove the subjectNames Set and raw fields before returning (it was only for deduplication)
       const transformedResult = {
         _id: group._id,
         examType: group.examType,
@@ -693,10 +732,23 @@ export async function getStudentResults(): Promise<Result[]> {
 
 export async function getStudentMessages(): Promise<Message[]> {
   try {
-    console.log('[STUDENT SERVICE] Fetching student messages...');
+    console.log('[STUDENT SERVICE] Fetching messages...');
     
-    // Use the correct endpoint for student messages
-    const response = await api.get('/messages/student');
+    // Check user role to determine which endpoint to use
+    const role = await AsyncStorage.getItem('role');
+    console.log('[STUDENT SERVICE] User role:', role);
+    
+    let response;
+    
+    if (role === 'teacher') {
+      // Teachers use the teacher messages endpoint
+      console.log('[STUDENT SERVICE] Fetching messages for teacher...');
+      response = await api.get('/messages/teacher/messages');
+    } else {
+      // Students use the student messages endpoint
+      console.log('[STUDENT SERVICE] Fetching messages for student...');
+      response = await api.get('/messages/student');
+    }
 
     console.log('[STUDENT SERVICE] Messages response:', response.data);
 

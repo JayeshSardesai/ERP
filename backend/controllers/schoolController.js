@@ -1881,6 +1881,58 @@ exports.getSchoolInfoFromDatabase = async (req, res) => {
   }
 };
 
+// Fix corrupted school data (utility endpoint)
+exports.fixSchoolData = async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+    
+    console.log(`🔧 Fixing corrupted data for school: ${schoolId}`);
+    
+    const school = await School.findById(schoolId);
+    if (!school) {
+      return res.status(404).json({ message: 'School not found' });
+    }
+    
+    // Fix settings if it's a string
+    if (typeof school.settings === 'string') {
+      try {
+        school.settings = JSON.parse(school.settings);
+        console.log('✅ Fixed settings field');
+      } catch (e) {
+        console.error('Error parsing settings:', e);
+      }
+    }
+    
+    // Fix features if it's a string
+    if (typeof school.features === 'string') {
+      try {
+        school.features = JSON.parse(school.features);
+        console.log('✅ Fixed features field');
+      } catch (e) {
+        console.error('Error parsing features:', e);
+      }
+    }
+    
+    // Fix stats if it's a string
+    if (typeof school.stats === 'string') {
+      try {
+        school.stats = JSON.parse(school.stats);
+        console.log('✅ Fixed stats field');
+      } catch (e) {
+        console.error('Error parsing stats:', e);
+      }
+    }
+    
+    await school.save();
+    console.log('✅ School data fixed successfully');
+    
+    res.json({ message: 'School data fixed successfully', school });
+  } catch (error) {
+    console.error('Error fixing school data:', error);
+    res.status(500).json({ message: 'Error fixing school data', error: error.message });
+  }
+};
+
 // Update school
 exports.updateSchool = async (req, res) => {
   try {
@@ -1891,9 +1943,11 @@ exports.updateSchool = async (req, res) => {
     console.log('School ID:', schoolId);
     console.log('Request body:', JSON.stringify(req.body, null, 2));
     console.log('Request file:', req.file);
+    console.log('Request user:', req.user);
 
     // Check if user has permission to update
-    if (req.user.role !== 'superadmin' && req.user.schoolId?.toString() !== schoolId) {
+    if (req.user && req.user.role !== 'superadmin' && req.user.schoolId?.toString() !== schoolId) {
+      console.log('❌ Access denied for user:', req.user);
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -1927,6 +1981,30 @@ exports.updateSchool = async (req, res) => {
         updateData.accessMatrix = JSON.parse(updateData.accessMatrix);
       } catch (e) {
         console.error('Error parsing accessMatrix:', e);
+      }
+    }
+    
+    if (typeof updateData.settings === 'string') {
+      try {
+        updateData.settings = JSON.parse(updateData.settings);
+      } catch (e) {
+        console.error('Error parsing settings:', e);
+      }
+    }
+    
+    if (typeof updateData.features === 'string') {
+      try {
+        updateData.features = JSON.parse(updateData.features);
+      } catch (e) {
+        console.error('Error parsing features:', e);
+      }
+    }
+    
+    if (typeof updateData.stats === 'string') {
+      try {
+        updateData.stats = JSON.parse(updateData.stats);
+      } catch (e) {
+        console.error('Error parsing stats:', e);
       }
     }
 
@@ -2040,7 +2118,8 @@ exports.updateSchool = async (req, res) => {
 
     res.json({ message: 'School updated successfully', school });
   } catch (error) {
-    console.error('Error updating school:', error);
+    console.error('❌ Error updating school:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ message: 'Error updating school', error: error.message });
   }
 };

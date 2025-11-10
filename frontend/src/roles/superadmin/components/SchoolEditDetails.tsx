@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Save, X, MapPin, Phone, Settings as SettingsIcon, Building, Image as ImageIcon, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import api from '../../../api/axios';
+import { schoolAPI } from '../../../services/api';
 import LocationSelector from '../../../components/LocationSelector';
 import { State, District, Taluka } from '../../../services/locationAPI';
 import { compressImage } from '../../../utils/schoolConfig';
@@ -112,8 +113,15 @@ const SchoolEditDetails: React.FC = () => {
       }
 
       // Compress the image before storing
-      const compressedFile = await compressImage(file);
-      console.log('✅ Image compressed:', (compressedFile.size / 1024).toFixed(2), 'KB');
+      const compressedBlob = await compressImage(file);
+      console.log('✅ Image compressed:', (compressedBlob.size / 1024).toFixed(2), 'KB');
+      
+      // Convert blob to File with proper filename and MIME type
+      const compressedFile = new File(
+        [compressedBlob], 
+        file.name.replace(/\.[^.]+$/, '.jpg'), // Replace extension with .jpg since we compress to JPEG
+        { type: 'image/jpeg' }
+      );
       
       // Store the compressed file for upload
       setSelectedImage(compressedFile);
@@ -178,12 +186,12 @@ const SchoolEditDetails: React.FC = () => {
       
       // If there's a new image, append it
       if (selectedImage) {
-        formData.append('schoolImage', selectedImage);
+        formData.append('logo', selectedImage);
         console.log('📸 Image attached to form data');
       }
       
       // Append only the fields we want to update (exclude read-only fields)
-      const fieldsToExclude = ['_id', 'id', 'createdAt', 'updatedAt', '__v', 'databaseName', 'databaseCreated', 'databaseCreatedAt', 'fullAddress', 'admins', 'stats', 'features'];
+      const fieldsToExclude = ['_id', 'id', 'createdAt', 'updatedAt', '__v', 'databaseName', 'databaseCreated', 'databaseCreatedAt', 'fullAddress', 'admins', 'stats', 'features', 'settings', 'logoUrl'];
       
       Object.keys(form).forEach(key => {
         // Skip excluded fields
@@ -207,16 +215,19 @@ const SchoolEditDetails: React.FC = () => {
       });
       
       console.log('📤 Sending update request...');
-      const res = await api.put(`/schools/${selectedSchoolId}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const res = await schoolAPI.updateSchool(selectedSchoolId, formData);
       
       const updated = (res.data as any)?.school || res.data;
       console.log('✅ School updated successfully:', updated);
       
+      // Clear selected image and preview after successful save
+      setSelectedImage(null);
+      setImagePreview(null);
+      
+      // Update profile with new data including logo URL
       setProfile(updated);
+      setForm(updated);
+      
       await updateSchool({
         id: updated._id || updated.id || selectedSchoolId,
         name: updated.name,

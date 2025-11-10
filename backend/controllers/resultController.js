@@ -747,65 +747,80 @@ exports.getResults = async (req, res) => {
     const DatabaseManager = require('../utils/databaseManager');
     let studentClass = className;
     let studentSection = section;
+    let studentObjectId = null; // Store the student's ObjectId for results query
+
+    // Establish school database connection once
+    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
 
     // If studentId is provided (student fetching their own results), get their class/section
     if (studentId && !className) {
       console.log('🔍 [RESULTS] Student query detected, fetching student info for:', studentId);
       
       try {
-        // IMPORTANT: Users are stored in the MAIN database, not school-specific databases
-        // Use the User model to query from main database (same as website does)
-        console.log('🔍 [RESULTS] Looking for student in MAIN database (User model)...');
+        // IMPORTANT: Students are stored in the SCHOOL-SPECIFIC database, not main database
+        // Query from school_<code>.students collection
+        console.log('🔍 [RESULTS] Looking for student in school-specific database...');
+        const studentsCollection = schoolConn.collection('students');
         
-        const student = await User.findOne({
+        const student = await studentsCollection.findOne({
           userId: studentId,
-          schoolCode: schoolCode.toUpperCase(),
           role: 'student'
         });
         
         if (!student) {
-          console.error('🔍 [RESULTS] ❌ Student not found in main database');
+          console.error('🔍 [RESULTS] ❌ Student not found in school database');
           console.log('🔍 [RESULTS] Search criteria:', {
             userId: studentId,
             schoolCode: schoolCode.toUpperCase(),
             role: 'student'
           });
           
-          // Try to find with just userId to debug
-          const studentByUserId = await User.findOne({ userId: studentId });
-          if (studentByUserId) {
-            console.log('🔍 [RESULTS] Found student with different criteria:', {
-              userId: studentByUserId.userId,
-              schoolCode: studentByUserId.schoolCode,
-              role: studentByUserId.role,
-              class: studentByUserId.academicInfo?.class || studentByUserId.studentDetails?.currentClass
-            });
-          } else {
-            console.log('🔍 [RESULTS] Student not found with userId:', studentId);
-          }
-          
-          return res.status(404).json({
-            success: false,
-            message: 'Student not found in database'
+          // Try to find with different field names
+          const studentByAnyId = await studentsCollection.findOne({
+            $or: [
+              { userId: studentId },
+              { _id: studentId },
+              { studentId: studentId }
+            ],
+            role: 'student'
           });
+          
+          if (studentByAnyId) {
+            console.log('🔍 [RESULTS] Found student with alternate field:', {
+              userId: studentByAnyId.userId,
+              _id: studentByAnyId._id,
+              class: studentByAnyId.academicInfo?.class || studentByAnyId.studentDetails?.currentClass || studentByAnyId.class
+            });
+            // Use this student
+            studentClass = studentByAnyId.academicInfo?.class || studentByAnyId.studentDetails?.currentClass || studentByAnyId.class;
+            studentSection = studentByAnyId.academicInfo?.section || studentByAnyId.studentDetails?.currentSection || studentByAnyId.section;
+            studentObjectId = studentByAnyId._id; // Store ObjectId for results query
+          } else {
+            console.log('🔍 [RESULTS] Student not found with any ID field:', studentId);
+            return res.status(404).json({
+              success: false,
+              message: 'Student not found in school database'
+            });
+          }
+        } else {
+          console.log('🔍 [RESULTS] ✅ Student found:', student.name?.displayName || `${student.name?.firstName} ${student.name?.lastName}`);
+          
+          // Extract class and section from student record
+          studentClass = student.academicInfo?.class || student.studentDetails?.currentClass || student.class;
+          studentSection = student.academicInfo?.section || student.studentDetails?.currentSection || student.section;
+          studentObjectId = student._id; // Store ObjectId for results query
         }
-        
-        console.log('🔍 [RESULTS] ✅ Student found:', student.name?.displayName || `${student.name?.firstName} ${student.name?.lastName}`);
-        
-        // Extract class and section from student record
-        studentClass = student.academicInfo?.class || student.studentDetails?.currentClass || student.class;
-        studentSection = student.academicInfo?.section || student.studentDetails?.currentSection || student.section;
         
         console.log('🔍 [RESULTS] Student class/section:', { studentClass, studentSection });
         console.log('🔍 [RESULTS] Student details structure:', {
-          hasAcademicInfo: !!student.academicInfo,
-          hasStudentDetails: !!student.studentDetails,
-          hasClass: !!student.class,
-          hasSection: !!student.section,
-          academicInfoClass: student.academicInfo?.class,
-          academicInfoSection: student.academicInfo?.section,
-          studentDetailsClass: student.studentDetails?.currentClass,
-          studentDetailsSection: student.studentDetails?.currentSection
+          hasAcademicInfo: !!student?.academicInfo,
+          hasStudentDetails: !!student?.studentDetails,
+          hasClass: !!student?.class,
+          hasSection: !!student?.section,
+          academicInfoClass: student?.academicInfo?.class,
+          academicInfoSection: student?.academicInfo?.section,
+          studentDetailsClass: student?.studentDetails?.currentClass,
+          studentDetailsSection: student?.studentDetails?.currentSection
         });
       } catch (studentLookupError) {
         console.error('🔍 [RESULTS] ❌ Error during student lookup:', studentLookupError);
@@ -817,6 +832,31 @@ exports.getResults = async (req, res) => {
       }
     }
 
+    // If we have studentId but didn't fetch student info yet (className was provided), get the ObjectId
+    if (studentId && !studentObjectId) {
+      console.log('🔍 [RESULTS] Fetching student ObjectId for results query...');
+      try {
+        const studentsCollection = schoolConn.collection('students');
+        const student = await studentsCollection.findOne({
+          $or: [
+            { userId: studentId },
+            { _id: studentId },
+            { studentId: studentId }
+          ],
+          role: 'student'
+        });
+        
+        if (student) {
+          studentObjectId = student._id;
+          console.log('🔍 [RESULTS] ✅ Found student ObjectId:', studentObjectId);
+        } else {
+          console.log('🔍 [RESULTS] ⚠️ Could not find student ObjectId, will use userId in query');
+        }
+      } catch (err) {
+        console.error('🔍 [RESULTS] ❌ Error fetching student ObjectId:', err.message);
+      }
+    }
+
     if (!schoolCode || !studentClass || !studentSection) {
       return res.status(400).json({
         success: false,
@@ -824,7 +864,7 @@ exports.getResults = async (req, res) => {
       });
     }
 
-    const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+    // Use the already established connection
     const resultsCollection = schoolConn.collection('results');
 
     const query = {
@@ -834,62 +874,85 @@ exports.getResults = async (req, res) => {
     };
     
     // Filter by studentId if provided
+    // IMPORTANT: Results collection stores studentId as ObjectId, not userId string
     if (studentId) {
-      query.$or = [
-        { studentId: studentId },
-        { userId: studentId }
-      ];
+      console.log(`🔍 [RESULTS] Filtering by student - ObjectId: ${studentObjectId}, userId: ${studentId}`);
+      
+      if (studentObjectId) {
+        // Use the ObjectId from student lookup (most reliable)
+        query.$or = [
+          { studentId: studentObjectId.toString() },
+          { studentId: studentObjectId },
+          { userId: studentId }
+        ];
+      } else {
+        // Fallback: try both userId and studentId
+        query.$or = [
+          { studentId: studentId },
+          { userId: studentId }
+        ];
+      }
     }
 
-    // For student queries, ALWAYS filter by academic year
+    // For student queries, ALWAYS filter by academic year (same as assignments)
     let yearToFilter = academicYear;
+    
+    // For students, ALWAYS filter by academic year (use provided or current)
     if (studentId && !yearToFilter) {
       // Get current academic year from school settings
-      console.log(`🔍 [RESULTS] Fetching academic year for student query...`);
+      console.log(`🔍 [RESULTS] Student request - fetching current academic year...`);
       console.log(`🔍 [RESULTS] Looking for school with code: ${schoolCode}`);
       try {
         const School = require('../models/School');
         const school = await School.findOne({ code: { $regex: new RegExp(`^${schoolCode}$`, 'i') } });
         
-        if (school) {
-          console.log(`🔍 [RESULTS] ✅ School found: ${school.name} (${school.code})`);
-          console.log(`🔍 [RESULTS] School settings structure:`, {
-            hasSettings: !!school.settings,
-            hasAcademicYear: !!school.settings?.academicYear,
-            currentYear: school.settings?.academicYear?.currentYear,
-            startDate: school.settings?.academicYear?.startDate,
-            endDate: school.settings?.academicYear?.endDate
-          });
-          
-          yearToFilter = school?.settings?.academicYear?.currentYear;
-          
-          if (yearToFilter) {
-            console.log(`🔍 [RESULTS] ✅ Using current academic year from settings: ${yearToFilter}`);
-          } else {
-            console.log(`🔍 [RESULTS] ⚠️ No academic year found in school settings - will return ALL results`);
-            console.log(`🔍 [RESULTS] This may show results from previous years`);
-          }
+        if (school && school.settings && school.settings.academicYear && school.settings.academicYear.currentYear) {
+          yearToFilter = school.settings.academicYear.currentYear;
+          console.log(`🔍 [RESULTS] ✅ Using current academic year from school settings: ${yearToFilter}`);
         } else {
-          console.log(`🔍 [RESULTS] ❌ School NOT FOUND with code: ${schoolCode}`);
-          console.log(`🔍 [RESULTS] Attempting to find any school to debug...`);
-          const anySchool = await School.findOne({});
-          if (anySchool) {
-            console.log(`🔍 [RESULTS] Sample school in database:`, {
-              name: anySchool.name,
-              code: anySchool.code,
-              hasSettings: !!anySchool.settings
-            });
+          // Fallback to current year calculation
+          const currentDate = new Date();
+          const currentYear = currentDate.getFullYear();
+          const currentMonth = currentDate.getMonth() + 1; // Jan is 0
+          
+          // If current month is April or later, academic year is current-next
+          // Otherwise, it's previous-current
+          if (currentMonth >= 4) {
+            yearToFilter = `${currentYear}-${currentYear + 1}`;
+          } else {
+            yearToFilter = `${currentYear - 1}-${currentYear}`;
           }
+          console.log(`🔍 [RESULTS] ⚠️ No academic year in school settings, using fallback: ${yearToFilter}`);
         }
       } catch (err) {
         console.error('🔍 [RESULTS] ❌ Error fetching current academic year:', err.message);
-        console.error('🔍 [RESULTS] Stack trace:', err.stack);
+        // Fallback to current year
+        const currentYear = new Date().getFullYear();
+        yearToFilter = `${currentYear}-${currentYear + 1}`;
+        console.log(`🔍 [RESULTS] Using error fallback academic year: ${yearToFilter}`);
       }
     }
 
     if (yearToFilter) {
-      query.academicYear = yearToFilter;
-      console.log(`🔍 [RESULTS] ✅ Filtering results by academic year: ${yearToFilter}`);
+      // Normalize academic year format to handle both "2024-25" and "2024-2025"
+      const parts = yearToFilter.split('-');
+      if (parts.length === 2) {
+        const startYear = parts[0];
+        const endYear = parts[1].length === 2 ? parts[1] : parts[1].slice(-2); // Get last 2 digits
+        const fullEndYear = parts[1].length === 4 ? parts[1] : `20${parts[1]}`; // Expand to 4 digits
+        
+        // Match both "2024-25" and "2024-2025" formats
+        query.academicYear = {
+          $in: [
+            `${startYear}-${endYear}`,      // Short format: 2024-25
+            `${startYear}-${fullEndYear}`   // Long format: 2024-2025
+          ]
+        };
+        console.log(`🔍 [RESULTS] ✅ Filtering by academic year (both formats): ${startYear}-${endYear} OR ${startYear}-${fullEndYear}`);
+      } else {
+        query.academicYear = yearToFilter;
+        console.log(`🔍 [RESULTS] ✅ Filtering by academic year: ${yearToFilter}`);
+      }
     } else {
       console.log(`🔍 [RESULTS] ⚠️ No academic year filter - returning ALL results (this may show old data)`);
     }
@@ -1263,9 +1326,43 @@ exports.getResultsForTeacher = async (req, res) => {
     const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
-    // Normalize the academic year for querying
-    const normalizedAY = normalizeAcademicYear(academicYear);
-    console.log(`📅 Academic Year: ${academicYear} (normalized: ${normalizedAY})`);
+    // For teachers, ALWAYS filter by academic year (use provided or current)
+    let yearToFilter = academicYear;
+    
+    if (!yearToFilter) {
+      // Get current academic year from school settings
+      console.log(`🔍 [👨‍🏫 TEACHER] No academic year provided - fetching current academic year...`);
+      console.log(`🔍 [👨‍🏫 TEACHER] Looking for school with code: ${schoolCode}`);
+      try {
+        const School = require('../models/School');
+        const school = await School.findOne({ code: { $regex: new RegExp(`^${schoolCode}$`, 'i') } });
+        
+        if (school && school.settings && school.settings.academicYear && school.settings.academicYear.currentYear) {
+          yearToFilter = school.settings.academicYear.currentYear;
+          console.log(`� [👨‍🏫 TEACHER] ✅ Using current academic year from school settings: ${yearToFilter}`);
+        } else {
+          // Fallback to current year calculation
+          const currentDate = new Date();
+          const currentYear = currentDate.getFullYear();
+          const currentMonth = currentDate.getMonth() + 1; // Jan is 0
+          
+          // If current month is April or later, academic year is current-next
+          // Otherwise, it's previous-current
+          if (currentMonth >= 4) {
+            yearToFilter = `${currentYear}-${currentYear + 1}`;
+          } else {
+            yearToFilter = `${currentYear - 1}-${currentYear}`;
+          }
+          console.log(`🔍 [👨‍🏫 TEACHER] ⚠️ No academic year in school settings, using fallback: ${yearToFilter}`);
+        }
+      } catch (err) {
+        console.error('🔍 [👨‍🏫 TEACHER] ❌ Error fetching current academic year:', err.message);
+        // Fallback to current year
+        const currentYear = new Date().getFullYear();
+        yearToFilter = `${currentYear}-${currentYear + 1}`;
+        console.log(`🔍 [👨‍🏫 TEACHER] Using error fallback academic year: ${yearToFilter}`);
+      }
+    }
 
     const query = {
       schoolCode: schoolCode.toUpperCase(),
@@ -1273,19 +1370,39 @@ exports.getResultsForTeacher = async (req, res) => {
       section
     };
 
-    // Only add academicYear to query if provided
-    if (normalizedAY) {
-      query.academicYear = normalizedAY;
+    // Add academic year filter with format normalization
+    if (yearToFilter) {
+      // Normalize academic year format to handle both "2024-25" and "2024-2025"
+      const parts = yearToFilter.split('-');
+      if (parts.length === 2) {
+        const startYear = parts[0];
+        const endYear = parts[1].length === 2 ? parts[1] : parts[1].slice(-2); // Get last 2 digits
+        const fullEndYear = parts[1].length === 4 ? parts[1] : `20${parts[1]}`; // Expand to 4 digits
+        
+        // Match both "2024-25" and "2024-2025" formats
+        query.academicYear = {
+          $in: [
+            `${startYear}-${endYear}`,      // Short format: 2024-25
+            `${startYear}-${fullEndYear}`   // Long format: 2024-2025
+          ]
+        };
+        console.log(`🔍 [👨‍🏫 TEACHER] ✅ Filtering by academic year (both formats): ${startYear}-${endYear} OR ${startYear}-${fullEndYear}`);
+      } else {
+        query.academicYear = yearToFilter;
+        console.log(`🔍 [👨‍🏫 TEACHER] ✅ Filtering by academic year: ${yearToFilter}`);
+      }
+    } else {
+      console.log(`🔍 [👨‍🏫 TEACHER] ⚠️ No academic year filter - returning ALL results (this may show old data)`);
     }
 
     console.log('🔍 Query:', JSON.stringify(query));
     let resultDocs = await resultsCollection.find(query).sort({ studentName: 1 }).toArray();
 
-    console.log(`📚 Found ${resultDocs.length} student result documents for ${className}-${section} (AY: ${normalizedAY || 'ALL'})`);
+    console.log(`📚 Found ${resultDocs.length} student result documents for ${className}-${section} (AY: ${yearToFilter || 'ALL'})`);
 
-    // If no results found with normalized AY, try with original format
-    if (resultDocs.length === 0 && normalizedAY && academicYear) {
-      console.log(`⚠️ No results with normalized AY "${normalizedAY}", trying original format "${academicYear}"`);
+    // If no results found, try with exact format match (in case normalization didn't work)
+    if (resultDocs.length === 0 && yearToFilter && academicYear && yearToFilter !== academicYear) {
+      console.log(`⚠️ No results with AY "${yearToFilter}", trying original format "${academicYear}"`);
       const queryWithOriginalAY = {
         schoolCode: schoolCode.toUpperCase(),
         className,
@@ -1297,7 +1414,7 @@ exports.getResultsForTeacher = async (req, res) => {
     }
 
     // DEBUG: If still no results, try without AY filter to see if data exists
-    if (resultDocs.length === 0 && normalizedAY) {
+    if (resultDocs.length === 0 && yearToFilter) {
       const queryWithoutAY = {
         schoolCode: schoolCode.toUpperCase(),
         className,
@@ -1315,7 +1432,7 @@ exports.getResultsForTeacher = async (req, res) => {
           subjectsCount: docsWithoutAY[0].subjects?.length || 0
         }, null, 2));
         console.log('⚠️ ISSUE: Results exist but academicYear field does not match!');
-        console.log(`   Expected: "${normalizedAY}" or "${academicYear}"`);
+        console.log(`   Expected: "${yearToFilter}" or "${academicYear || 'N/A'}"`);
         console.log(`   Found in DB: "${docsWithoutAY[0].academicYear}"`);
       }
     }

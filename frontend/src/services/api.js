@@ -113,10 +113,10 @@ export const authAPI = {
 // School Management APIs
 export const schoolAPI = {
   createSchool: (schoolData) => {
-    // If schoolData is FormData (for file uploads), let browser set Content-Type with boundary
+    // If schoolData is FormData (for file uploads), delete Content-Type to let browser set it with boundary
     const config = schoolData instanceof FormData ? {
       headers: {
-        'Content-Type': 'multipart/form-data'
+        'Content-Type': undefined
       }
     } : {};
     return api.post('/schools', schoolData, config);
@@ -126,7 +126,15 @@ export const schoolAPI = {
     console.log(`Fetching school details for ID: ${schoolId}`);
     return api.get(`/schools/${schoolId}/info`);
   },
-  updateSchool: (schoolId, updateData) => api.put(`/schools/${schoolId}`, updateData),
+  updateSchool: (schoolId, updateData) => {
+    // If updateData is FormData (for file uploads), delete Content-Type to let browser set it with boundary
+    const config = updateData instanceof FormData ? {
+      headers: {
+        'Content-Type': undefined
+      }
+    } : {};
+    return api.put(`/schools/${schoolId}`, updateData, config);
+  },
   deleteSchool: (schoolId) => api.delete(`/schools/${schoolId}`),
   updateAccessMatrix: (schoolId, accessMatrix) => api.patch(`/schools/${schoolId}/access-matrix`, { accessMatrix }),
   updateBankDetails: (schoolId, bankDetails) => api.patch(`/schools/${schoolId}/bank-details`, { bankDetails }),
