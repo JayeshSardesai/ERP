@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, X } from 'lucide-react';
+import { ArrowLeft, X, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { School } from '../types';
 import { VALIDATION_PATTERNS } from '../types/admission';
@@ -42,6 +42,7 @@ export function AddSchoolForm() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateForm = () => {
     const errors: Record<string, string> = {};
@@ -178,6 +179,7 @@ export function AddSchoolForm() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       await addSchool({
         name: formData.name.trim(),
@@ -228,6 +230,8 @@ export function AddSchoolForm() {
       }, 1200);
     } catch (err: any) {
       setError(err?.message || 'Failed to create school');
+    } finally {
+      setIsSubmitting(false);
     }
     setLogoFile(null);
     setLogoPreview(null);
@@ -708,9 +712,11 @@ export function AddSchoolForm() {
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+              disabled={isSubmitting}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center space-x-2"
             >
-              Submit
+              {isSubmitting && <Loader2 className="h-5 w-5 animate-spin" />}
+              <span>{isSubmitting ? 'Creating School...' : 'Submit'}</span>
             </button>
           </div>
         </form>
