@@ -350,12 +350,12 @@ exports.getAssignments = async (req, res) => {
       query.schoolId = schoolId;
     }
 
-    // Filter by academic year - use provided or default to current
-    const yearToFilter = academicYear || currentAcademicYear;
-    
-    // Normalize academic year format to handle both "2024-25" and "2024-2025"
-    // Create a regex that matches both formats
-    if (yearToFilter) {
+    // Filter by academic year - ONLY if explicitly provided
+    // Don't default to current academic year to avoid filtering out valid data
+    if (academicYear) {
+      const yearToFilter = academicYear;
+      
+      // Normalize academic year format to handle both "2024-25" and "2024-2025"
       const parts = yearToFilter.split('-');
       if (parts.length === 2) {
         const startYear = parts[0];
@@ -374,6 +374,8 @@ exports.getAssignments = async (req, res) => {
         query.academicYear = yearToFilter;
         console.log(`[GET ASSIGNMENTS] Filtering by academic year: ${yearToFilter}`);
       }
+    } else {
+      console.log(`[GET ASSIGNMENTS] No academic year filter - returning all assignments`);
     }
 
     if (status) {
