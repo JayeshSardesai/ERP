@@ -50,8 +50,12 @@ exports.createAssignment = async (req, res) => {
       return res.status(400).json({ message: 'School code is required' });
     }
 
-    // Find the school in the main database to get its ObjectId
-    const school = await School.findOne({ code: schoolCode });
+    // Normalize schoolCode to lowercase for consistency
+    schoolCode = schoolCode.toLowerCase();
+    console.log(`[ASSIGNMENT] Normalized school code to: ${schoolCode}`);
+
+    // Find the school in the main database to get its ObjectId (case-insensitive)
+    const school = await School.findOne({ code: { $regex: new RegExp(`^${schoolCode}$`, 'i') } });
     if (!school) {
       return res.status(404).json({ message: `School not found with code ${schoolCode}` });
     }
@@ -329,18 +333,23 @@ exports.getAssignments = async (req, res) => {
     }
 
     // Get school information
-    const schoolCode = req.user.schoolCode;
+    let schoolCode = req.user.schoolCode;
     const schoolId = req.user.schoolId;
 
     if (!schoolCode && !schoolId) {
       return res.status(400).json({ message: 'School information not found' });
     }
 
+    // Normalize schoolCode to lowercase for consistency
+    if (schoolCode) {
+      schoolCode = schoolCode.toLowerCase();
+    }
+
     console.log(`[GET ASSIGNMENTS] Getting assignments for school: ${schoolCode || schoolId}`);
 
     // Get school's current academic year if not provided
     const School = require('../models/School');
-    const school = await School.findOne({ code: schoolCode });
+    const school = await School.findOne({ code: { $regex: new RegExp(`^${schoolCode}$`, 'i') } });
     const currentAcademicYear = school?.settings?.academicYear?.currentYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
     console.log(`[GET ASSIGNMENTS] School's current academic year: ${currentAcademicYear}`);
 
@@ -452,36 +461,66 @@ exports.getAssignments = async (req, res) => {
     console.log(`[GET ASSIGNMENTS] Complete query:`, JSON.stringify(query, null, 2));
 
     // Try to get assignments from school-specific database first
+    let schoolAssignments = [];
+    let mainAssignments = [];
+    let schoolTotal = 0;
+    let mainTotal = 0;
+
     if (schoolCode) {
       try {
         console.log(`[GET ASSIGNMENTS] Trying school-specific database for ${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
         const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
 
-        assignments = await SchoolAssignment.find(query)
-          .limit(limit * 1)
-          .skip((page - 1) * limit)
-          .sort({ createdAt: -1 });
+        schoolAssignments = await SchoolAssignment.find(query)
+          .sort({ createdAt: -1 })
+          .lean();
 
-        total = await SchoolAssignment.countDocuments(query);
+        schoolTotal = await SchoolAssignment.countDocuments(query);
 
-        console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in school-specific database (total: ${total})`);
+        console.log(`[GET ASSIGNMENTS] Found ${schoolAssignments.length} assignments in school-specific database (total: ${schoolTotal})`);
       } catch (error) {
         console.error(`[GET ASSIGNMENTS] Error accessing school-specific database: ${error.message}`);
       }
     }
 
-    // If no assignments found in school-specific database or no schoolCode, try main database
-    if (assignments.length === 0 && schoolId) {
-      console.log(`[GET ASSIGNMENTS] Falling back to main database`);
-      assignments = await Assignment.find(query)
-        .limit(limit * 1)
-        .skip((page - 1) * limit)
-        .sort({ createdAt: -1 });
+    // Also check main database to get all assignments
+    if (schoolId) {
+      try {
+        console.log(`[GET ASSIGNMENTS] Checking main database`);
+        mainAssignments = await Assignment.find(query)
+          .sort({ createdAt: -1 })
+          .lean();
 
-      total = await Assignment.countDocuments(query);
-      console.log(`[GET ASSIGNMENTS] Found ${assignments.length} assignments in main database`);
+        mainTotal = await Assignment.countDocuments(query);
+        console.log(`[GET ASSIGNMENTS] Found ${mainAssignments.length} assignments in main database (total: ${mainTotal})`);
+      } catch (error) {
+        console.error(`[GET ASSIGNMENTS] Error accessing main database: ${error.message}`);
+      }
     }
+
+    // Merge assignments from both databases and remove duplicates
+    const allAssignments = [...schoolAssignments, ...mainAssignments];
+    
+    // Remove duplicates based on _id
+    const uniqueAssignments = allAssignments.reduce((acc, current) => {
+      const exists = acc.find(item => item._id.toString() === current._id.toString());
+      if (!exists) {
+        acc.push(current);
+      }
+      return acc;
+    }, []);
+
+    // Sort by createdAt descending
+    uniqueAssignments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Apply pagination to merged results
+    total = uniqueAssignments.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit);
+    assignments = uniqueAssignments.slice(startIndex, endIndex);
+
+    console.log(`[GET ASSIGNMENTS] Total unique assignments: ${total}, Returning page ${page}: ${assignments.length} assignments`);
 
     res.json({
       assignments,
