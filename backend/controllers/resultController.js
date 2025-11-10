@@ -740,26 +740,66 @@ exports.saveResults = async (req, res) => {
 // ---------------------------------------------------------
 exports.getResults = async (req, res) => {
   try {
-    const { schoolCode, class: className, section, subject, testType, academicYear } = req.query;
+    const { schoolCode, class: className, section, subject, testType, academicYear, studentId } = req.query;
 
-    console.log('🔍 Fetching results:', { schoolCode, className, section, subject, testType, academicYear });
+    console.log('🔍 Fetching results:', { schoolCode, className, section, subject, testType, academicYear, studentId });
 
-    if (!schoolCode || !className || !section) {
+    const DatabaseManager = require('../utils/databaseManager');
+    let studentClass = className;
+    let studentSection = section;
+
+    // If studentId is provided (student fetching their own results), get their class/section
+    if (studentId && !className) {
+      console.log('🔍 Student query detected, fetching student info for:', studentId);
+      
+      // Get student info to determine their class and section
+      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+      const usersCollection = schoolConn.collection('users');
+      
+      const student = await usersCollection.findOne({ 
+        $or: [
+          { userId: studentId },
+          { _id: studentId }
+        ]
+      });
+      
+      if (!student) {
+        return res.status(404).json({
+          success: false,
+          message: 'Student not found'
+        });
+      }
+      
+      // Extract class and section from student record
+      studentClass = student.academicInfo?.class || student.studentDetails?.currentClass || student.class;
+      studentSection = student.academicInfo?.section || student.studentDetails?.currentSection || student.section;
+      
+      console.log('🔍 Student class/section:', { studentClass, studentSection });
+    }
+
+    if (!schoolCode || !studentClass || !studentSection) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: schoolCode, class, and section'
       });
     }
 
-    const DatabaseManager = require('../utils/databaseManager');
     const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
     const resultsCollection = schoolConn.collection('results');
 
     const query = {
       schoolCode: schoolCode.toUpperCase(),
-      className,
-      section
+      className: studentClass,
+      section: studentSection
     };
+    
+    // Filter by studentId if provided
+    if (studentId) {
+      query.$or = [
+        { studentId: studentId },
+        { userId: studentId }
+      ];
+    }
 
     if (academicYear) {
       query.academicYear = academicYear;
@@ -767,7 +807,7 @@ exports.getResults = async (req, res) => {
 
     const resultDocs = await resultsCollection.find(query).sort({ createdAt: -1 }).toArray();
 
-    console.log(`📚 Found ${resultDocs.length} student result documents for ${className}-${section}`);
+    console.log(`📚 Found ${resultDocs.length} student result documents for ${studentClass}-${studentSection}`);
 
     const filteredResults = [];
 
