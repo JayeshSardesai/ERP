@@ -801,8 +801,27 @@ exports.getResults = async (req, res) => {
       ];
     }
 
-    if (academicYear) {
-      query.academicYear = academicYear;
+    // For student queries, ALWAYS filter by academic year
+    let yearToFilter = academicYear;
+    if (studentId && !yearToFilter) {
+      // Get current academic year from school settings
+      try {
+        const School = require('../models/School');
+        const school = await School.findOne({ code: { $regex: new RegExp(`^${schoolCode}$`, 'i') } });
+        yearToFilter = school?.settings?.academicYear?.currentYear;
+        if (yearToFilter) {
+          console.log(`🔍 Student query - using current academic year from settings: ${yearToFilter}`);
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not fetch current academic year:', err.message);
+      }
+    }
+
+    if (yearToFilter) {
+      query.academicYear = yearToFilter;
+      console.log(`🔍 Filtering results by academic year: ${yearToFilter}`);
+    } else {
+      console.log(`🔍 No academic year filter - returning all results`);
     }
 
     const resultDocs = await resultsCollection.find(query).sort({ createdAt: -1 }).toArray();

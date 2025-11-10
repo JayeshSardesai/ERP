@@ -130,13 +130,27 @@ export async function getStudentAssignments(): Promise<Assignment[]> {
 
     const user = JSON.parse(userData);
     
-    // Don't filter by academic year - let backend return all assignments for the student
-    // The backend will filter by student's class/section and published status
+    // Fetch current academic year from school settings
+    let academicYear = '';
+    try {
+      const schoolResponse = await api.get('/schools/database/school-info');
+      academicYear = schoolResponse.data?.data?.settings?.academicYear?.currentYear || '';
+      console.log('[STUDENT SERVICE] Current academic year from admin settings:', academicYear);
+    } catch (err) {
+      console.warn('[STUDENT SERVICE] Could not fetch academic year, will show all assignments');
+    }
+    
     const params: any = {
       studentId: user.userId || user._id,
     };
     
-    console.log('[STUDENT SERVICE] Fetching all assignments for student (no academic year filter)');
+    // Add academic year filter if available
+    if (academicYear) {
+      params.academicYear = academicYear;
+      console.log('[STUDENT SERVICE] Filtering assignments by academic year:', academicYear);
+    } else {
+      console.log('[STUDENT SERVICE] No academic year filter - showing all assignments');
+    }
     
     const response = await api.get('/assignments', { params });
     console.log('[STUDENT SERVICE] Assignments response:', response.data);
@@ -410,9 +424,15 @@ export async function getStudentResults(): Promise<Result[]> {
     const studentId = user.userId || user._id;
     const schoolCode = await AsyncStorage.getItem('schoolCode') || '';
 
-    // Don't filter by academic year - let backend return all results for the student
-    // The backend will filter by student's class/section automatically
-    console.log('[STUDENT SERVICE] Fetching all results for student (no academic year filter)');
+    // Fetch current academic year from school settings
+    let academicYear = '';
+    try {
+      const schoolResponse = await api.get('/schools/database/school-info');
+      academicYear = schoolResponse.data?.data?.settings?.academicYear?.currentYear || '';
+      console.log('[STUDENT SERVICE] Current academic year from admin settings:', academicYear);
+    } catch (err) {
+      console.warn('[STUDENT SERVICE] Could not fetch academic year for results, will show all results');
+    }
 
     // Try multiple endpoints to get results
     let response;
@@ -424,6 +444,14 @@ export async function getStudentResults(): Promise<Result[]> {
         schoolCode: schoolCode.toUpperCase(),
         studentId: studentId
       };
+
+      // Add academic year filter if available
+      if (academicYear) {
+        params.academicYear = academicYear;
+        console.log('[STUDENT SERVICE] Filtering results by academic year:', academicYear);
+      } else {
+        console.log('[STUDENT SERVICE] No academic year filter - showing all results');
+      }
 
       // First try the general results endpoint like the website does
       console.log('[STUDENT SERVICE] Calling API with params:', params);
