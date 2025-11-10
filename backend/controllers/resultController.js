@@ -750,31 +750,70 @@ exports.getResults = async (req, res) => {
 
     // If studentId is provided (student fetching their own results), get their class/section
     if (studentId && !className) {
-      console.log('🔍 Student query detected, fetching student info for:', studentId);
+      console.log('🔍 [RESULTS] Student query detected, fetching student info for:', studentId);
       
-      // Get student info to determine their class and section
-      const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-      const usersCollection = schoolConn.collection('users');
-      
-      const student = await usersCollection.findOne({ 
-        $or: [
-          { userId: studentId },
-          { _id: studentId }
-        ]
-      });
-      
-      if (!student) {
-        return res.status(404).json({
+      try {
+        // Get student info to determine their class and section
+        const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+        const usersCollection = schoolConn.collection('users');
+        
+        console.log('🔍 [RESULTS] Looking for student in users collection...');
+        
+        // Build query to find student by userId (string match)
+        const studentQuery = { userId: studentId };
+        console.log('🔍 [RESULTS] Query:', JSON.stringify(studentQuery));
+        
+        const student = await usersCollection.findOne(studentQuery);
+        
+        if (!student) {
+          console.error('🔍 [RESULTS] ❌ Student not found in users collection');
+          console.log('🔍 [RESULTS] Checking total users in collection...');
+          const totalUsers = await usersCollection.countDocuments({});
+          console.log('🔍 [RESULTS] Total users in collection:', totalUsers);
+          
+          // Try to find with different criteria
+          const studentByUserId = await usersCollection.findOne({ userId: studentId });
+          console.log('🔍 [RESULTS] Found by userId:', !!studentByUserId);
+          
+          // Check if there are any students at all
+          const sampleStudent = await usersCollection.findOne({ role: 'student' });
+          if (sampleStudent) {
+            console.log('🔍 [RESULTS] Sample student structure:', {
+              userId: sampleStudent.userId,
+              hasAcademicInfo: !!sampleStudent.academicInfo,
+              hasStudentDetails: !!sampleStudent.studentDetails,
+              academicInfoClass: sampleStudent.academicInfo?.class,
+              studentDetailsClass: sampleStudent.studentDetails?.currentClass
+            });
+          }
+          
+          return res.status(404).json({
+            success: false,
+            message: 'Student not found in database'
+          });
+        }
+        
+        console.log('🔍 [RESULTS] ✅ Student found:', student.name?.displayName || student.name);
+        
+        // Extract class and section from student record
+        studentClass = student.academicInfo?.class || student.studentDetails?.currentClass || student.class;
+        studentSection = student.academicInfo?.section || student.studentDetails?.currentSection || student.section;
+        
+        console.log('🔍 [RESULTS] Student class/section:', { studentClass, studentSection });
+        console.log('🔍 [RESULTS] Student details structure:', {
+          hasAcademicInfo: !!student.academicInfo,
+          hasStudentDetails: !!student.studentDetails,
+          hasClass: !!student.class,
+          hasSection: !!student.section
+        });
+      } catch (studentLookupError) {
+        console.error('🔍 [RESULTS] ❌ Error during student lookup:', studentLookupError);
+        return res.status(500).json({
           success: false,
-          message: 'Student not found'
+          message: 'Error fetching student information',
+          error: studentLookupError.message
         });
       }
-      
-      // Extract class and section from student record
-      studentClass = student.academicInfo?.class || student.studentDetails?.currentClass || student.class;
-      studentSection = student.academicInfo?.section || student.studentDetails?.currentSection || student.section;
-      
-      console.log('🔍 Student class/section:', { studentClass, studentSection });
     }
 
     if (!schoolCode || !studentClass || !studentSection) {
@@ -806,19 +845,44 @@ exports.getResults = async (req, res) => {
     if (studentId && !yearToFilter) {
       // Get current academic year from school settings
       console.log(`🔍 [RESULTS] Fetching academic year for student query...`);
+      console.log(`🔍 [RESULTS] Looking for school with code: ${schoolCode}`);
       try {
         const School = require('../models/School');
         const school = await School.findOne({ code: { $regex: new RegExp(`^${schoolCode}$`, 'i') } });
-        console.log(`🔍 [RESULTS] School found:`, school ? school.name : 'NOT FOUND');
-        console.log(`🔍 [RESULTS] School settings:`, school?.settings);
-        yearToFilter = school?.settings?.academicYear?.currentYear;
-        if (yearToFilter) {
-          console.log(`🔍 [RESULTS] ✅ Using current academic year from settings: ${yearToFilter}`);
+        
+        if (school) {
+          console.log(`🔍 [RESULTS] ✅ School found: ${school.name} (${school.code})`);
+          console.log(`🔍 [RESULTS] School settings structure:`, {
+            hasSettings: !!school.settings,
+            hasAcademicYear: !!school.settings?.academicYear,
+            currentYear: school.settings?.academicYear?.currentYear,
+            startDate: school.settings?.academicYear?.startDate,
+            endDate: school.settings?.academicYear?.endDate
+          });
+          
+          yearToFilter = school?.settings?.academicYear?.currentYear;
+          
+          if (yearToFilter) {
+            console.log(`🔍 [RESULTS] ✅ Using current academic year from settings: ${yearToFilter}`);
+          } else {
+            console.log(`🔍 [RESULTS] ⚠️ No academic year found in school settings - will return ALL results`);
+            console.log(`🔍 [RESULTS] This may show results from previous years`);
+          }
         } else {
-          console.log(`🔍 [RESULTS] ⚠️ No academic year found in school settings`);
+          console.log(`🔍 [RESULTS] ❌ School NOT FOUND with code: ${schoolCode}`);
+          console.log(`🔍 [RESULTS] Attempting to find any school to debug...`);
+          const anySchool = await School.findOne({});
+          if (anySchool) {
+            console.log(`🔍 [RESULTS] Sample school in database:`, {
+              name: anySchool.name,
+              code: anySchool.code,
+              hasSettings: !!anySchool.settings
+            });
+          }
         }
       } catch (err) {
         console.error('🔍 [RESULTS] ❌ Error fetching current academic year:', err.message);
+        console.error('🔍 [RESULTS] Stack trace:', err.stack);
       }
     }
 
