@@ -151,13 +151,41 @@ exports.createAssignment = async (req, res) => {
 
     console.log(`[ASSIGNMENT] Teacher info - Name: ${teacherName}, ID: ${teacherId}`);
 
+    // ALWAYS save to school-specific database - no fallback to main database
     try {
       // Connect to school-specific database
       console.log(`[ASSIGNMENT] Connecting to school database for ${schoolCode}`);
       const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+      console.log(`[ASSIGNMENT] Connection state: ${schoolConn.readyState}`);
+
+      // Ensure connection is ready
+      if (schoolConn.readyState !== 1) {
+        console.log(`[ASSIGNMENT] Waiting for connection to be ready...`);
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000);
+          schoolConn.once('connected', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          schoolConn.once('error', (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+        });
+      }
+
+      // Verify database and collection
+      console.log(`[ASSIGNMENT] Database name: ${schoolConn.db.databaseName}`);
+      const collections = await schoolConn.db.listCollections().toArray();
+      console.log(`[ASSIGNMENT] Available collections:`, collections.map(c => c.name));
 
       // Get the AssignmentMultiTenant model for this connection
       const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
+      console.log(`[ASSIGNMENT] Model collection name: ${SchoolAssignment.collection.name}`);
+
+      // Generate unique assignment ID
+      const timestamp = Date.now();
+      const assignmentId = `ASG_${schoolCode}_${timestamp}`;
 
       // Create the assignment in the school-specific database
       assignment = new SchoolAssignment({
@@ -180,44 +208,46 @@ exports.createAssignment = async (req, res) => {
         status: 'active',
         isPublished: true,
         publishedAt: new Date(),
+        assignmentId: assignmentId,
         createdBy: teacherId, // Use userId instead of _id
         createdByName: teacherName
       });
 
-      console.log(`[ASSIGNMENT] Created assignment in school_${schoolCode}.assignments`);
-
-      await assignment.save();
-      console.log(`[ASSIGNMENT] Saved assignment to school_${schoolCode}.assignments successfully`);
-    } catch (error) {
-      console.error(`[ASSIGNMENT] Error saving to school database: ${error.message}`);
-      console.log('[ASSIGNMENT] Falling back to main database');
-
-      // Fallback to main database if school-specific fails
-      assignment = new Assignment({
-        schoolId,
+      console.log(`[ASSIGNMENT] Created assignment object for school_${schoolCode}.assignments`);
+      console.log(`[ASSIGNMENT] Assignment data:`, {
         schoolCode,
-        title,
-        description: description || instructions || '',
-        subject,
         class: className,
         section,
-        teacher: teacherId, // Use userId instead of _id
-        teacherName,
-        startDate: new Date(startDate),
-        dueDate: new Date(dueDate),
-        instructions: instructions || description || '',
-        attachments: processedAttachments,
+        subject,
         academicYear: resolvedAcademicYear,
-        term: term || 'Term 1',
-        totalStudents,
-        status: 'active',
-        isPublished: true,
-        publishedAt: new Date(),
-        createdBy: teacherId, // Use userId instead of _id
-        createdByName: teacherName
+        teacher: teacherId
       });
 
       await assignment.save();
+      console.log(`[ASSIGNMENT] ✅ Successfully saved assignment to school_${schoolCode}.assignments`);
+      console.log(`[ASSIGNMENT] Assignment ID: ${assignment._id}`);
+      console.log(`[ASSIGNMENT] Assignment custom ID: ${assignment.assignmentId}`);
+      
+      // Verify the assignment was actually saved
+      const savedAssignment = await SchoolAssignment.findById(assignment._id);
+      if (savedAssignment) {
+        console.log(`[ASSIGNMENT] ✅ VERIFIED: Assignment exists in database`);
+        console.log(`[ASSIGNMENT] Saved in collection: ${SchoolAssignment.collection.name}`);
+        console.log(`[ASSIGNMENT] Database: ${schoolConn.db.databaseName}`);
+      } else {
+        console.error(`[ASSIGNMENT] ❌ WARNING: Assignment not found after save!`);
+      }
+    } catch (error) {
+      console.error(`[ASSIGNMENT] ❌ CRITICAL ERROR - Failed to save to school database:`, error);
+      console.error(`[ASSIGNMENT] Error details:`, {
+        message: error.message,
+        stack: error.stack,
+        schoolCode,
+        databaseName: `school_${schoolCode}`
+      });
+      
+      // DO NOT fall back to main database - throw error instead
+      throw new Error(`Failed to save assignment to school database: ${error.message}`);
     }
 
     // Send notifications to students and parents
@@ -460,7 +490,7 @@ exports.getAssignments = async (req, res) => {
     // Log the complete query for debugging
     console.log(`[GET ASSIGNMENTS] Complete query:`, JSON.stringify(query, null, 2));
 
-    // Try to get assignments from school-specific database first
+    // PRIMARY: Get assignments from school-specific database
     let schoolAssignments = [];
     let mainAssignments = [];
     let schoolTotal = 0;
@@ -468,8 +498,10 @@ exports.getAssignments = async (req, res) => {
 
     if (schoolCode) {
       try {
-        console.log(`[GET ASSIGNMENTS] Trying school-specific database for ${schoolCode}`);
+        console.log(`[GET ASSIGNMENTS] 🔍 Fetching from school-specific database: school_${schoolCode}`);
         const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
+        console.log(`[GET ASSIGNMENTS] Connection state: ${schoolConn.readyState}`);
+        
         const SchoolAssignment = AssignmentMultiTenant.getModelForConnection(schoolConn);
 
         schoolAssignments = await SchoolAssignment.find(query)
@@ -478,24 +510,41 @@ exports.getAssignments = async (req, res) => {
 
         schoolTotal = await SchoolAssignment.countDocuments(query);
 
-        console.log(`[GET ASSIGNMENTS] Found ${schoolAssignments.length} assignments in school-specific database (total: ${schoolTotal})`);
+        console.log(`[GET ASSIGNMENTS] ✅ Found ${schoolAssignments.length} assignments in school_${schoolCode}.assignments`);
+        
+        // Log sample assignment if found
+        if (schoolAssignments.length > 0) {
+          console.log(`[GET ASSIGNMENTS] Sample assignment:`, {
+            _id: schoolAssignments[0]._id,
+            title: schoolAssignments[0].title,
+            class: schoolAssignments[0].class,
+            section: schoolAssignments[0].section,
+            academicYear: schoolAssignments[0].academicYear,
+            schoolCode: schoolAssignments[0].schoolCode
+          });
+        }
       } catch (error) {
-        console.error(`[GET ASSIGNMENTS] Error accessing school-specific database: ${error.message}`);
+        console.error(`[GET ASSIGNMENTS] ❌ Error accessing school-specific database:`, error.message);
+        console.error(`[GET ASSIGNMENTS] Error stack:`, error.stack);
       }
     }
 
-    // Also check main database to get all assignments
+    // SECONDARY: Also check main database for legacy assignments (if any exist)
     if (schoolId) {
       try {
-        console.log(`[GET ASSIGNMENTS] Checking main database`);
+        console.log(`[GET ASSIGNMENTS] 🔍 Checking main database for legacy assignments`);
         mainAssignments = await Assignment.find(query)
           .sort({ createdAt: -1 })
           .lean();
 
         mainTotal = await Assignment.countDocuments(query);
-        console.log(`[GET ASSIGNMENTS] Found ${mainAssignments.length} assignments in main database (total: ${mainTotal})`);
+        console.log(`[GET ASSIGNMENTS] Found ${mainAssignments.length} legacy assignments in main database`);
+        
+        if (mainAssignments.length > 0) {
+          console.log(`[GET ASSIGNMENTS] ⚠️ WARNING: Found ${mainAssignments.length} assignments in main database. These should be in school_${schoolCode}.assignments`);
+        }
       } catch (error) {
-        console.error(`[GET ASSIGNMENTS] Error accessing main database: ${error.message}`);
+        console.error(`[GET ASSIGNMENTS] Error accessing main database:`, error.message);
       }
     }
 
@@ -520,7 +569,8 @@ exports.getAssignments = async (req, res) => {
     const endIndex = startIndex + parseInt(limit);
     assignments = uniqueAssignments.slice(startIndex, endIndex);
 
-    console.log(`[GET ASSIGNMENTS] Total unique assignments: ${total}, Returning page ${page}: ${assignments.length} assignments`);
+    console.log(`[GET ASSIGNMENTS] 📊 Summary: School DB: ${schoolTotal}, Main DB: ${mainTotal}, Total unique: ${total}`);
+    console.log(`[GET ASSIGNMENTS] 📄 Returning page ${page}: ${assignments.length} assignments`);
 
     res.json({
       assignments,

@@ -42,6 +42,9 @@ const assignmentSchema = new mongoose.Schema({
   academicYear: { type: String, required: true },
   term: { type: String, default: 'Term 1' },
   
+  // Assignment ID (unique identifier)
+  assignmentId: { type: String },
+  
   // Created and updated by
   createdBy: { type: String, required: true },
   createdByName: { type: String },
@@ -52,6 +55,7 @@ const assignmentSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 }, { 
   timestamps: true,
+  collection: 'assignments', // Explicitly set collection name
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
