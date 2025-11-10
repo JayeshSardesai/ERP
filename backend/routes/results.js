@@ -21,9 +21,19 @@ router.post('/save',
   resultController.saveResults
 );
 
-// Get existing results for a class and section - requires viewResults permission
+// Get existing results for a class and section
+// Students can view their results without permission check (controller handles filtering)
+// Teachers/Admins need viewResults permission
 router.get('/',
-  checkPermission('viewResults'),
+  (req, res, next) => {
+    // Allow students to bypass permission check - controller handles student-specific filtering
+    if (req.user && req.user.role === 'student') {
+      console.log('[RESULTS] Student access granted - bypassing permission check');
+      return next();
+    }
+    // For other roles, check permission
+    return checkPermission('viewResults')(req, res, next);
+  },
   resultController.getResults
 );
 
@@ -41,9 +51,19 @@ router.post('/freeze',
   resultController.freezeResults
 );
 
-// Get student result history - requires viewResults permission
+// Get student result history
+// Students can view their own history without permission check
+// Teachers/Admins need viewResults permission
 router.get('/student/:studentId/history',
-  checkPermission('viewResults'),
+  (req, res, next) => {
+    // Allow students to bypass permission check - controller handles student-specific filtering
+    if (req.user && req.user.role === 'student') {
+      console.log('[RESULTS] Student access granted for history - bypassing permission check');
+      return next();
+    }
+    // For other roles, check permission
+    return checkPermission('viewResults')(req, res, next);
+  },
   resultController.getStudentResultHistory
 );
 
