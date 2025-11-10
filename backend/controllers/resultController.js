@@ -753,38 +753,35 @@ exports.getResults = async (req, res) => {
       console.log('🔍 [RESULTS] Student query detected, fetching student info for:', studentId);
       
       try {
-        // Get student info to determine their class and section
-        const schoolConn = await DatabaseManager.getSchoolConnection(schoolCode);
-        const usersCollection = schoolConn.collection('users');
+        // IMPORTANT: Users are stored in the MAIN database, not school-specific databases
+        // Use the User model to query from main database (same as website does)
+        console.log('🔍 [RESULTS] Looking for student in MAIN database (User model)...');
         
-        console.log('🔍 [RESULTS] Looking for student in users collection...');
-        
-        // Build query to find student by userId (string match)
-        const studentQuery = { userId: studentId };
-        console.log('🔍 [RESULTS] Query:', JSON.stringify(studentQuery));
-        
-        const student = await usersCollection.findOne(studentQuery);
+        const student = await User.findOne({
+          userId: studentId,
+          schoolCode: schoolCode.toUpperCase(),
+          role: 'student'
+        });
         
         if (!student) {
-          console.error('🔍 [RESULTS] ❌ Student not found in users collection');
-          console.log('🔍 [RESULTS] Checking total users in collection...');
-          const totalUsers = await usersCollection.countDocuments({});
-          console.log('🔍 [RESULTS] Total users in collection:', totalUsers);
+          console.error('🔍 [RESULTS] ❌ Student not found in main database');
+          console.log('🔍 [RESULTS] Search criteria:', {
+            userId: studentId,
+            schoolCode: schoolCode.toUpperCase(),
+            role: 'student'
+          });
           
-          // Try to find with different criteria
-          const studentByUserId = await usersCollection.findOne({ userId: studentId });
-          console.log('🔍 [RESULTS] Found by userId:', !!studentByUserId);
-          
-          // Check if there are any students at all
-          const sampleStudent = await usersCollection.findOne({ role: 'student' });
-          if (sampleStudent) {
-            console.log('🔍 [RESULTS] Sample student structure:', {
-              userId: sampleStudent.userId,
-              hasAcademicInfo: !!sampleStudent.academicInfo,
-              hasStudentDetails: !!sampleStudent.studentDetails,
-              academicInfoClass: sampleStudent.academicInfo?.class,
-              studentDetailsClass: sampleStudent.studentDetails?.currentClass
+          // Try to find with just userId to debug
+          const studentByUserId = await User.findOne({ userId: studentId });
+          if (studentByUserId) {
+            console.log('🔍 [RESULTS] Found student with different criteria:', {
+              userId: studentByUserId.userId,
+              schoolCode: studentByUserId.schoolCode,
+              role: studentByUserId.role,
+              class: studentByUserId.academicInfo?.class || studentByUserId.studentDetails?.currentClass
             });
+          } else {
+            console.log('🔍 [RESULTS] Student not found with userId:', studentId);
           }
           
           return res.status(404).json({
@@ -793,7 +790,7 @@ exports.getResults = async (req, res) => {
           });
         }
         
-        console.log('🔍 [RESULTS] ✅ Student found:', student.name?.displayName || student.name);
+        console.log('🔍 [RESULTS] ✅ Student found:', student.name?.displayName || `${student.name?.firstName} ${student.name?.lastName}`);
         
         // Extract class and section from student record
         studentClass = student.academicInfo?.class || student.studentDetails?.currentClass || student.class;
@@ -804,7 +801,11 @@ exports.getResults = async (req, res) => {
           hasAcademicInfo: !!student.academicInfo,
           hasStudentDetails: !!student.studentDetails,
           hasClass: !!student.class,
-          hasSection: !!student.section
+          hasSection: !!student.section,
+          academicInfoClass: student.academicInfo?.class,
+          academicInfoSection: student.academicInfo?.section,
+          studentDetailsClass: student.studentDetails?.currentClass,
+          studentDetailsSection: student.studentDetails?.currentSection
         });
       } catch (studentLookupError) {
         console.error('🔍 [RESULTS] ❌ Error during student lookup:', studentLookupError);
