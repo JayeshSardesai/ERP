@@ -147,8 +147,9 @@ exports.createAssignment = async (req, res) => {
           let uploadResult;
           if (file.buffer) {
             // Memory storage - upload buffer directly using the buffer upload function
-            console.log(`[ASSIGNMENT] Uploading from buffer: ${file.originalname}`);
-            uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
+            // Pass mimeType so images are uploaded as images, not raw files
+            console.log(`[ASSIGNMENT] Uploading from buffer: ${file.originalname} (${file.mimetype})`);
+            uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId, file.mimetype);
           } else if (file.path) {
             // Disk storage - upload from path
             console.log(`[ASSIGNMENT] Uploading from path: ${file.path}`);
@@ -770,8 +771,9 @@ exports.updateAssignment = async (req, res) => {
           let uploadResult;
           if (file.buffer) {
             // Memory storage - upload buffer directly
-            console.log(`[UPDATE ASSIGNMENT] Uploading from buffer: ${file.originalname}`);
-            uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
+            // Pass mimeType so images are uploaded as images, not raw files
+            console.log(`[UPDATE ASSIGNMENT] Uploading from buffer: ${file.originalname} (${file.mimetype})`);
+            uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId, file.mimetype);
           } else if (file.path) {
             // Disk storage - upload from path
             console.log(`[UPDATE ASSIGNMENT] Uploading from path: ${file.path}`);

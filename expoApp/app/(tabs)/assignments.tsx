@@ -24,7 +24,7 @@ export default function AssignmentsScreen() {
   const [selectedStatus, setSelectedStatus] = useState<string>('All Status');
   const [sortBy, setSortBy] = useState<'Due Date' | 'Subject'>('Due Date');
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
-  const [downloadingAttachment, setDownloadingAttachment] = useState<string | null>(null);
+  const [viewingAttachment, setViewingAttachment] = useState<string | null>(null);
   const [isTeacher, setIsTeacher] = useState<boolean>(false);
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ show: boolean; assignment: Assignment | null }>({ show: false, assignment: null });
@@ -179,16 +179,16 @@ export default function AssignmentsScreen() {
     });
   };
 
-  const handleDownloadAttachment = async (attachment: { path: string; originalName: string }) => {
+  const handleViewAttachment = async (attachment: { path: string; originalName: string }) => {
     try {
-      setDownloadingAttachment(attachment.originalName);
+      setViewingAttachment(attachment.originalName);
       await downloadFile(attachment.path, attachment.originalName);
-      Alert.alert('Success', 'File downloaded successfully');
+      // File opened in browser - no need for success alert
     } catch (error: any) {
-      console.error('Download error:', error);
-      Alert.alert('Download Failed', error.message || 'Could not download the file');
+      console.error('View error:', error);
+      Alert.alert('Error', error.message || 'Could not open the file');
     } finally {
-      setDownloadingAttachment(null);
+      setViewingAttachment(null);
     }
   };
 
@@ -414,8 +414,8 @@ export default function AssignmentsScreen() {
                       <TouchableOpacity
                         key={index}
                         style={styles.attachmentCard}
-                        onPress={() => handleDownloadAttachment(attachment)}
-                        disabled={downloadingAttachment === attachment.originalName}
+                        onPress={() => handleViewAttachment(attachment)}
+                        disabled={viewingAttachment === attachment.originalName}
                       >
                         <View style={styles.attachmentInfo}>
                           <Text style={styles.attachmentIcon}>📎</Text>
@@ -426,10 +426,10 @@ export default function AssignmentsScreen() {
                             )}
                           </View>
                         </View>
-                        {downloadingAttachment === attachment.originalName ? (
+                        {viewingAttachment === attachment.originalName ? (
                           <ActivityIndicator size="small" color="#60A5FA" />
                         ) : (
-                          <Text style={styles.downloadIcon}>⬇️</Text>
+                          <Text style={styles.downloadIcon}>👁️</Text>
                         )}
                       </TouchableOpacity>
                     ))}

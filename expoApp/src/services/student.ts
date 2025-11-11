@@ -7,6 +7,7 @@ export interface AssignmentAttachment {
   path: string;
   cloudinaryPublicId?: string;
   size?: number;
+  mimeType?: string;
   uploadedAt?: string;
 }
 

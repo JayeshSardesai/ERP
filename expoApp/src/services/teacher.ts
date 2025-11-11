@@ -60,6 +60,7 @@ export interface Assignment {
     path: string;
     originalName: string;
     size?: number;
+    mimeType?: string;
   }>;
 }
 

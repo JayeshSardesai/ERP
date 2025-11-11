@@ -100,22 +100,46 @@ const uploadBufferToCloudinary = (buffer, folder, publicId) => {
   });
 };
 
-// ADD THIS NEW FUNCTION FOR PDFs/RAW FILES
-const uploadPDFBufferToCloudinary = (buffer, folder, publicId) => {
+// ADD THIS NEW FUNCTION FOR PDFs/RAW FILES AND IMAGES
+const uploadPDFBufferToCloudinary = (buffer, folder, publicId, mimeType = 'application/pdf') => {
   return new Promise((resolve, reject) => {
+    // Determine resource type based on MIME type
+    let resourceType = 'raw';
+    let uploadOptions = {
+      folder: folder,
+      public_id: publicId,
+      overwrite: true
+    };
+
+    // Check if it's an image
+    if (mimeType && mimeType.startsWith('image/')) {
+      resourceType = 'image';
+      uploadOptions = {
+        ...uploadOptions,
+        resource_type: 'image',
+        transformation: [
+          { quality: 'auto:good' },
+          { fetch_format: 'auto' }
+        ]
+      };
+      console.log(`📸 Uploading as IMAGE: ${publicId}`);
+    } else {
+      // For PDFs and other documents
+      uploadOptions = {
+        ...uploadOptions,
+        resource_type: 'raw'
+      };
+      console.log(`📄 Uploading as RAW/DOCUMENT: ${publicId}`);
+    }
+
     const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder: folder,
-        public_id: publicId,
-        resource_type: 'raw', // Use 'raw' for PDFs
-        overwrite: true
-      },
+      uploadOptions,
       (error, result) => {
         if (error) {
-          console.error('❌ Cloudinary PDF buffer upload error:', error.message);
+          console.error('❌ Cloudinary buffer upload error:', error.message);
           return reject(error);
         }
-        console.log(`✅ Uploaded PDF buffer to Cloudinary: ${result.secure_url}`);
+        console.log(`✅ Uploaded to Cloudinary (${resourceType}): ${result.secure_url}`);
         resolve(result);
       }
     );
