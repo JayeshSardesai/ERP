@@ -453,13 +453,14 @@ export default function ResultsScreen() {
     return existing && existing.obtainedMarks !== null && existing.obtainedMarks !== undefined;
   };
 
+  // FIX: Replaced emojis with safe ASCII characters to eliminate Unicode/text node errors
   const getIconForExamType = (examType: string) => {
     if (examType.toLowerCase().includes('formative') || examType.toLowerCase().includes('fa')) {
-      return { icon: '✏️', bg: '#D1FAE5', color: '#10B981' };
+      return { icon: 'F', bg: '#D1FAE5', color: '#10B981' }; // F for Formative/FA
     } else if (examType.toLowerCase().includes('mid') || examType.toLowerCase().includes('term')) {
-      return { icon: '📝', bg: '#FEF3C7', color: '#F59E0B' };
+      return { icon: 'M', bg: '#FEF3C7', color: '#F59E0B' }; // M for Mid/Term
     } else {
-      return { icon: '📄', bg: '#FECACA', color: '#EF4444' };
+      return { icon: 'E', bg: '#FECACA', color: '#EF4444' }; // E for Exam/Other
     }
   };
 
@@ -507,11 +508,11 @@ export default function ResultsScreen() {
               <View style={styles.dropdownRow}>
                 <Text style={styles.filterLabel}>Section</Text>
                 <TouchableOpacity 
-                  style={[styles.dropdownButton, !selectedClass && styles.dropdownButtonDisabled]}
+                  style={[styles.dropdownButton, !selectedClass ? styles.dropdownButtonDisabled : null]}
                   onPress={() => selectedClass && setShowSectionModal(true)}
                   disabled={!selectedClass}
                 >
-                  <Text style={[styles.dropdownButtonText, !selectedClass && styles.dropdownButtonTextDisabled]}>
+                  <Text style={[styles.dropdownButtonText, !selectedClass ? styles.dropdownButtonTextDisabled : null]}>
                     {selectedSection || 'Select Section'}
                   </Text>
                   <Ionicons name="chevron-down" size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
@@ -522,11 +523,11 @@ export default function ResultsScreen() {
               <View style={styles.dropdownRow}>
                 <Text style={styles.filterLabel}>Subject</Text>
                 <TouchableOpacity 
-                  style={[styles.dropdownButton, !selectedSection && styles.dropdownButtonDisabled]}
+                  style={[styles.dropdownButton, !selectedSection ? styles.dropdownButtonDisabled : null]}
                   onPress={() => selectedSection && setShowSubjectModal(true)}
                   disabled={!selectedSection}
                 >
-                  <Text style={[styles.dropdownButtonText, !selectedSection && styles.dropdownButtonTextDisabled]}>
+                  <Text style={[styles.dropdownButtonText, !selectedSection ? styles.dropdownButtonTextDisabled : null]}>
                     {selectedSubject || 'Select Subject'}
                   </Text>
                   <Ionicons name="chevron-down" size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
@@ -537,11 +538,11 @@ export default function ResultsScreen() {
               <View style={styles.dropdownRow}>
                 <Text style={styles.filterLabel}>Test Type</Text>
                 <TouchableOpacity 
-                  style={[styles.dropdownButton, !selectedSubject && styles.dropdownButtonDisabled]}
+                  style={[styles.dropdownButton, !selectedSubject ? styles.dropdownButtonDisabled : null]}
                   onPress={() => selectedSubject && setShowTestTypeModal(true)}
                   disabled={!selectedSubject}
                 >
-                  <Text style={[styles.dropdownButtonText, !selectedSubject && styles.dropdownButtonTextDisabled]}>
+                  <Text style={[styles.dropdownButtonText, !selectedSubject ? styles.dropdownButtonTextDisabled : null]}>
                     {selectedTestType || 'Select Test Type'}
                   </Text>
                   <Ionicons name="chevron-down" size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
@@ -552,10 +553,10 @@ export default function ResultsScreen() {
               {selectedTestType && (
                 <View style={styles.filterRow}>
                   <Text style={styles.filterLabel}>
-                    Max Marks {testConfig[selectedTestType] && '(Auto-configured)'}
+                    Max Marks{testConfig[selectedTestType] ? ' (Auto-configured)' : ''}
                   </Text>
                   <TextInput
-                    style={[styles.maxMarksInput, testConfig[selectedTestType] && styles.maxMarksInputReadOnly]}
+                    style={[styles.maxMarksInput, testConfig[selectedTestType] ? styles.maxMarksInputReadOnly : null]}
                     value={maxMarks}
                     onChangeText={setMaxMarks}
                     keyboardType="numeric"
@@ -577,17 +578,17 @@ export default function ResultsScreen() {
                   </Text>
                   <Text style={styles.studentCount}>{students.length} students</Text>
                 </View>
-                {existingResults.some(r => r.frozen) && (
+                {existingResults.some(r => r.frozen) ? (
                   <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Ionicons name="lock-closed" size={16} color="#EF4444" />
                     <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '700' }}>
                       {existingResults.filter(r => r.frozen).length === existingResults.length ? 'ALL FROZEN' : 'PARTIALLY FROZEN'}
                     </Text>
                   </View>
-                )}
+                ) : null}
               </View>
 
-              {existingResults.filter(r => r.frozen).length === existingResults.length && existingResults.length > 0 && (
+              {existingResults.filter(r => r.frozen).length === existingResults.length && existingResults.length > 0 ? (
                 <View style={{ backgroundColor: '#FEE2E2', padding: 12, borderRadius: 12, marginBottom: 12, borderWidth: 2, borderColor: '#EF4444' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Ionicons name="lock-closed" size={20} color="#EF4444" />
@@ -599,7 +600,7 @@ export default function ResultsScreen() {
                     Contact an administrator if changes are needed
                   </Text>
                 </View>
-              )}
+              ) : null}
 
               <View style={styles.marksCard}>
                 <View style={styles.marksHeader}>
@@ -615,23 +616,23 @@ export default function ResultsScreen() {
                   return (
                     <View key={student.userId} style={styles.studentMarksRow}>
                       <View style={styles.studentInfo}>
-                        {isReadOnly && <Ionicons name="lock-closed" size={16} color="#EF4444" style={{ marginRight: 4 }} />}
+                        {isReadOnly ? <Ionicons name="lock-closed" size={16} color="#EF4444" style={{ marginRight: 4 }} /> : null}
                         <Text style={styles.studentNameText}>
                           {student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim()}
                         </Text>
-                        {frozen && (
+                        {frozen ? (
                           <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginLeft: 8 }}>
                             <Text style={{ color: '#EF4444', fontSize: 10, fontWeight: '600' }}>Frozen</Text>
                           </View>
-                        )}
-                        {hasMarks && !frozen && (
+                        ) : null}
+                        {hasMarks && !frozen ? (
                           <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginLeft: 8 }}>
                             <Text style={{ color: '#F59E0B', fontSize: 10, fontWeight: '600' }}>Marked</Text>
                           </View>
-                        )}
+                        ) : null}
                       </View>
                       <TextInput
-                        style={[styles.marksInput, isReadOnly && { opacity: 0.5, backgroundColor: isDark ? '#111827' : '#F3F4F6' }]}
+                        style={[styles.marksInput, isReadOnly ? { opacity: 0.5, backgroundColor: isDark ? '#111827' : '#F3F4F6' } : null]}
                         value={studentMarks[student.userId] || ''}
                         onChangeText={(text) => setStudentMarks(prev => ({ ...prev, [student.userId]: text }))}
                         keyboardType="numeric"
@@ -647,7 +648,7 @@ export default function ResultsScreen() {
               {/* Action Buttons */}
               <View style={styles.actionButtonsContainer}>
                 <TouchableOpacity
-                  style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                  style={[styles.saveButton, saving ? styles.saveButtonDisabled : null]}
                   onPress={handleSaveResults}
                   disabled={saving}
                 >
