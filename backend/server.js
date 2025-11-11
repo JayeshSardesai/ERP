@@ -37,7 +37,12 @@ const io = new Server(server, {
       'https://erpedulogix.web.app',
       'https://jayesh-erp.web.app',
       'https://erpedulogix.firebaseapp.com',
-      'https://erp-backend-1jtx.onrender.com'
+      'https://erp-backend-1jtx.onrender.com',
+      // Expo mobile app origins
+      'exp://localhost:8081',
+      'exp://*',
+      'capacitor://localhost',
+      'ionic://localhost'
     ],
     methods: ['GET', 'POST'],
     credentials: true
@@ -274,6 +279,10 @@ app.use(cors({
       'https://erpedulogix.firebaseapp.com',
       'https://erp-backend-1jtx.onrender.com',// Add the production backend URL
       'http://localhost:5173',
+      // Expo mobile app origins
+      'exp://localhost:8081',
+      'capacitor://localhost',
+      'ionic://localhost'
     ];
 
     if (allowedOrigins.indexOf(origin) !== -1) {
