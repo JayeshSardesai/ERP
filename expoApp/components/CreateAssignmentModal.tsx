@@ -13,8 +13,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getClasses, getTeacherSubjects, createAssignment } from '@/src/services/teacher';
+import * as DocumentPicker from 'expo-document-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '@/contexts/ThemeContext';
+import { getClasses, createAssignment } from '@/src/services/teacher';
+import { getSchoolInfo } from '@/src/services/student';
+import api from '@/src/services/api';
 
 interface CreateAssignmentModalProps {
   visible: boolean;
@@ -33,8 +37,8 @@ interface Subject {
 }
 
 export default function CreateAssignmentModal({ visible, onClose, onSuccess }: CreateAssignmentModalProps) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const styles = getStyles(isDark);
 
   // Form state
@@ -48,6 +52,7 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // 7 days from now
   const [academicYear, setAcademicYear] = useState('2024-25');
   const [term, setTerm] = useState('1');
+  const [attachments, setAttachments] = useState<any[]>([]);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -65,16 +70,32 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
     }
   }, [visible]);
 
+  // Fetch subjects when class or section changes
+  useEffect(() => {
+    if (selectedClass && selectedSection && academicYear) {
+      // Clear subject when class or section changes
+      setSubject('');
+      fetchSubjectsForClass();
+    }
+  }, [selectedClass, selectedSection, academicYear]);
+
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [classData, subjectData] = await Promise.all([
-        getClasses(),
-        getTeacherSubjects()
-      ]);
       
+      // Fetch current academic year from school settings
+      let currentAcademicYear = '2024-25';
+      try {
+        const schoolInfo = await getSchoolInfo();
+        currentAcademicYear = (schoolInfo as any)?.settings?.academicYear?.currentYear || '2024-25';
+        console.log('[CREATE ASSIGNMENT] Current academic year:', currentAcademicYear);
+        setAcademicYear(currentAcademicYear);
+      } catch (err) {
+        console.log('[CREATE ASSIGNMENT] Could not fetch academic year, using default');
+      }
+      
+      const classData = await getClasses();
       setClasses(classData);
-      setSubjects(subjectData);
       
       // Set defaults if available
       if (classData.length > 0) {
@@ -82,16 +103,65 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
         if (classData[0].sections.length > 0) {
           setSelectedSection(classData[0].sections[0].sectionName);
         }
-      }
-      
-      if (subjectData.length > 0) {
-        setSubject(subjectData[0].subjectName);
+        // Subjects will be fetched by useEffect when selectedClass is set
       }
     } catch (error) {
-      console.error('Error fetching initial data:', error);
-      Alert.alert('Error', 'Failed to load classes and subjects');
+      console.error('[CREATE ASSIGNMENT] Error fetching initial data:', error);
+      Alert.alert('Error', 'Failed to load classes');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSubjectsForClass = async () => {
+    if (!selectedClass || !selectedSection) {
+      setSubjects([]);
+      return;
+    }
+
+    try {
+      console.log('[CREATE ASSIGNMENT] Fetching subjects for class:', selectedClass, 'section:', selectedSection);
+      
+      const schoolCode = await AsyncStorage.getItem('schoolCode');
+      const response = await api.get('/class-subjects/classes', {
+        headers: {
+          'x-school-code': schoolCode?.toUpperCase()
+        }
+      });
+      
+      if (response.data?.success && response.data?.data?.classes) {
+        // Find the matching class AND section (same as results page)
+        const classData = response.data.data.classes.find(
+          (c: any) => c.className === selectedClass && c.section === selectedSection
+        );
+        
+        if (classData && classData.subjects) {
+          // Filter active subjects only
+          const activeSubjects = classData.subjects.filter((s: any) => s.isActive !== false);
+          const subjectsList = activeSubjects.map((s: any) => ({
+            subjectName: s.name,
+            subjectCode: s.code || s.name,
+            classes: [selectedClass]
+          }));
+          
+          setSubjects(subjectsList);
+          console.log('[CREATE ASSIGNMENT] Loaded', subjectsList.length, 'subjects for class', selectedClass, 'section', selectedSection);
+          
+          // Set first subject as default if available
+          if (subjectsList.length > 0 && !subject) {
+            setSubject(subjectsList[0].subjectName);
+          }
+        } else {
+          console.log('[CREATE ASSIGNMENT] No subjects found for', selectedClass, selectedSection);
+          setSubjects([]);
+        }
+      } else {
+        console.log('[CREATE ASSIGNMENT] Invalid response from class-subjects API');
+        setSubjects([]);
+      }
+    } catch (error) {
+      console.error('[CREATE ASSIGNMENT] Error fetching subjects:', error);
+      setSubjects([]);
     }
   };
 
@@ -106,6 +176,54 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
     setDueDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
     setAcademicYear('2024-25');
     setTerm('1');
+    setAttachments([]);
+  };
+
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-powerpoint',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'text/plain',
+          'image/*'
+        ],
+        multiple: true,
+        copyToCacheDirectory: true
+      });
+
+      if (!result.canceled && result.assets) {
+        const newFiles = result.assets.map(asset => ({
+          uri: asset.uri,
+          name: asset.name,
+          type: asset.mimeType || 'application/octet-stream',
+          size: asset.size
+        }));
+        
+        setAttachments([...attachments, ...newFiles]);
+        console.log('[CREATE ASSIGNMENT] Added', newFiles.length, 'file(s)');
+      }
+    } catch (error) {
+      console.error('[CREATE ASSIGNMENT] Error picking document:', error);
+      Alert.alert('Error', 'Failed to pick document');
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    const newAttachments = attachments.filter((_, i) => i !== index);
+    setAttachments(newAttachments);
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return 'Unknown size';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   const handleSubmit = async () => {
@@ -144,7 +262,8 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
         startDate: startDate.toISOString(),
         dueDate: dueDate.toISOString(),
         academicYear,
-        term
+        term,
+        attachments: attachments.length > 0 ? attachments : undefined
       };
 
       const success = await createAssignment(assignmentData);
@@ -327,6 +446,40 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
                 numberOfLines={4}
                 textAlignVertical="top"
               />
+            </View>
+
+            {/* Attachments */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Attachments</Text>
+              <TouchableOpacity 
+                style={styles.attachmentButton}
+                onPress={pickDocument}
+              >
+                <Text style={styles.attachmentButtonText}>📎 Add Files</Text>
+              </TouchableOpacity>
+              
+              {attachments.length > 0 && (
+                <View style={styles.attachmentsList}>
+                  {attachments.map((file, index) => (
+                    <View key={index} style={styles.attachmentItem}>
+                      <View style={styles.attachmentInfo}>
+                        <Text style={styles.attachmentName} numberOfLines={1}>
+                          {file.name}
+                        </Text>
+                        <Text style={styles.attachmentSize}>
+                          {formatFileSize(file.size)}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => removeAttachment(index)}
+                        style={styles.removeButton}
+                      >
+                        <Text style={styles.removeButtonText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
 
             {/* Submit Button */}
@@ -641,12 +794,68 @@ function getStyles(isDark: boolean) {
       marginTop: 20
     },
     submitButtonDisabled: {
-      opacity: 0.6
+      opacity: 0.5,
     },
     submitButtonText: {
       color: '#FFFFFF',
       fontSize: 16,
-      fontWeight: '600'
+      fontWeight: '600',
+    },
+    attachmentButton: {
+      backgroundColor: isDark ? '#374151' : '#F3F4F6',
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: isDark ? '#4B5563' : '#D1D5DB',
+      borderStyle: 'dashed',
+      alignItems: 'center',
+      marginTop: 8,
+    },
+    attachmentButtonText: {
+      color: isDark ? '#9CA3AF' : '#6B7280',
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    attachmentsList: {
+      marginTop: 12,
+      gap: 8,
+    },
+    attachmentItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: isDark ? '#374151' : '#F9FAFB',
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: isDark ? '#4B5563' : '#E5E7EB',
+    },
+    attachmentInfo: {
+      flex: 1,
+      marginRight: 12,
+    },
+    attachmentName: {
+      color: isDark ? '#F3F4F6' : '#1F2937',
+      fontSize: 14,
+      fontWeight: '500',
+      marginBottom: 4,
+    },
+    attachmentSize: {
+      color: isDark ? '#9CA3AF' : '#6B7280',
+      fontSize: 12,
+    },
+    removeButton: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: isDark ? '#EF4444' : '#FEE2E2',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    removeButtonText: {
+      color: isDark ? '#FFFFFF' : '#DC2626',
+      fontSize: 16,
+      fontWeight: '600',
     },
     pickerModalContainer: {
       flex: 1,

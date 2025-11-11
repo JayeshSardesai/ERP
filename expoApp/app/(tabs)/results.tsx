@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getStudentResults, Result } from '@/src/services/student';
+import { getStudentResults, Result, getSchoolInfo } from '@/src/services/student';
 import { getClasses, getStudentsByClassSection, getClassSubjects, Student } from '@/src/services/teacher';
 import { usePermissions } from '@/src/hooks/usePermissions';
 import api from '@/src/services/api';
@@ -297,6 +297,16 @@ export default function ResultsScreen() {
         count: validResults.length
       });
 
+      // Get current academic year from school settings
+      let academicYear = '2024-25'; // fallback
+      try {
+        const schoolInfo = await getSchoolInfo();
+        academicYear = (schoolInfo as any)?.settings?.academicYear?.currentYear || '2024-25';
+        console.log('[RESULTS] Using academic year for save:', academicYear);
+      } catch (err) {
+        console.log('[RESULTS] Could not fetch academic year, using fallback');
+      }
+
       const response = await api.post('/results/save', {
         schoolCode,
         class: selectedClass,
@@ -304,7 +314,7 @@ export default function ResultsScreen() {
         subject: selectedSubject,
         testType: selectedTestType,
         maxMarks: parseInt(maxMarks),
-        academicYear: '2024-25',
+        academicYear,
         results: resultsToSave
       });
 
@@ -366,13 +376,23 @@ export default function ResultsScreen() {
         schoolCode
       });
 
+      // Get current academic year from school settings
+      let academicYear = '2024-25'; // fallback
+      try {
+        const schoolInfo = await getSchoolInfo();
+        academicYear = (schoolInfo as any)?.settings?.academicYear?.currentYear || '2024-25';
+        console.log('[RESULTS] Using academic year for freeze:', academicYear);
+      } catch (err) {
+        console.log('[RESULTS] Could not fetch academic year, using fallback');
+      }
+
       const response = await api.post('/results/freeze', {
         schoolCode,
         class: selectedClass,
         section: selectedSection,
         subject: selectedSubject,
         testType: selectedTestType,
-        academicYear: '2024-25'
+        academicYear
       });
 
       if (response.data?.success) {
@@ -617,10 +637,15 @@ export default function ResultsScreen() {
                   const hasMarks = hasExistingMarks(student.userId);
                   const isReadOnly = frozen; // Only lock if frozen, not if has marks
                   
+                  // Try to find marks using multiple possible keys
+                  const marksValue = studentMarks[student.userId] || studentMarks[student._id] || '';
+                  
                   return (
                     <View key={student.userId} style={styles.studentMarksRow}>
                       <View style={styles.studentInfo}>
-                        {isReadOnly ? <Ionicons name="lock-closed" size={16} color="#EF4444" style={{ marginRight: 4 }} /> : null}
+                        {isReadOnly ? (
+                          <Ionicons name="lock-closed" size={16} color="#EF4444" style={{ marginRight: 4 }} />
+                        ) : null}
                         <Text style={styles.studentNameText}>
                           {student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim()}
                         </Text>
@@ -637,7 +662,7 @@ export default function ResultsScreen() {
                       </View>
                       <TextInput
                         style={[styles.marksInput, isReadOnly ? { opacity: 0.5, backgroundColor: isDark ? '#111827' : '#F3F4F6' } : null]}
-                        value={studentMarks[student.userId] || ''}
+                        value={marksValue}
                         onChangeText={(text) => setStudentMarks(prev => ({ ...prev, [student.userId]: text }))}
                         keyboardType="numeric"
                         placeholder="0"

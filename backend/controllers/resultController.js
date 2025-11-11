@@ -552,12 +552,19 @@ exports.saveResults = async (req, res) => {
       results
     } = req.body;
 
-    console.log('💾 Saving results:', { schoolCode, className, section, testType, subject, maxMarks, resultsCount: results?.length });
+    console.log('💾 Saving results:', { schoolCode, className, section, testType, subject, maxMarks, academicYear, resultsCount: results?.length });
 
     if (!schoolCode || !className || !section || !testType || !subject || !results || !Array.isArray(results)) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: schoolCode, class, section, testType, subject, and results array'
+      });
+    }
+
+    if (!academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'Academic year is required. Please ensure the school settings have a current academic year configured.'
       });
     }
 
@@ -661,11 +668,16 @@ exports.saveResults = async (req, res) => {
             ? Math.round((obtainedMarks / totalMarksValue) * 100 * 100) / 100
             : null;
 
+          // Ensure academic year is provided
+          if (!academicYear) {
+            throw new Error('Academic year is required but not provided');
+          }
+
           const newResult = {
             schoolCode: schoolCode.toUpperCase(),
             className,
             section,
-            academicYear: academicYear || '2024-25',
+            academicYear: academicYear,
             studentId,
             studentName: result.studentName,
             userId: result.userId,
@@ -1228,12 +1240,19 @@ exports.freezeResults = async (req, res) => {
       academicYear
     } = req.body;
 
-    console.log('🔒 Freezing results:', { schoolCode, className, section, subject, testType });
+    console.log('🔒 Freezing results:', { schoolCode, className, section, subject, testType, academicYear });
 
     if (!schoolCode || !className || !section || !subject || !testType) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: schoolCode, class, section, subject, and testType'
+      });
+    }
+
+    if (!academicYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'Academic year is required. Please ensure the school settings have a current academic year configured.'
       });
     }
 
@@ -1248,7 +1267,7 @@ exports.freezeResults = async (req, res) => {
         schoolCode: schoolCode.toUpperCase(),
         className,
         section,
-        academicYear: academicYear || '2024-25',
+        academicYear: academicYear,
         'subjects.subjectName': subject,
         'subjects.testType': testType
       },

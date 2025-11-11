@@ -1,5 +1,6 @@
 import api from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSchoolInfo } from './student';
 
 export interface Class {
   classId: string;
@@ -154,7 +155,9 @@ export interface CreateAssignmentData {
   startDate: string;
   class: string;
   section: string;
-  attachments?: File[];
+  academicYear?: string;
+  term?: string;
+  attachments?: any[];
 }
 
 /**
@@ -254,8 +257,8 @@ export async function getTeacherAssignments(): Promise<Assignment[]> {
     // Get current academic year from school settings
     let academicYear: string | undefined;
     try {
-      const schoolResponse = await api.get('/school/info');
-      academicYear = schoolResponse.data?.settings?.academicYear?.currentYear;
+      const schoolInfo = await getSchoolInfo();
+      academicYear = (schoolInfo as any)?.settings?.academicYear?.currentYear;
       console.log('[TEACHER SERVICE] Current academic year:', academicYear);
     } catch (err) {
       console.log('[TEACHER SERVICE] Could not fetch academic year, will show all assignments');
@@ -508,6 +511,7 @@ export async function saveStudentResults(results: Partial<StudentResult>[]): Pro
  */
 export async function createAssignment(assignmentData: CreateAssignmentData): Promise<boolean> {
   try {
+    const schoolCode = await AsyncStorage.getItem('schoolCode');
     const formData = new FormData();
     
     // Add text fields
@@ -517,12 +521,29 @@ export async function createAssignment(assignmentData: CreateAssignmentData): Pr
       }
     });
 
+    // Add school code
+    if (schoolCode) {
+      formData.append('schoolCode', schoolCode);
+    }
+
     // Add attachments if any
     if (assignmentData.attachments && assignmentData.attachments.length > 0) {
+      console.log('[TEACHER SERVICE] Adding', assignmentData.attachments.length, 'attachment(s)');
+      
       assignmentData.attachments.forEach((file, index) => {
-        formData.append('attachments', file);
+        // Create file object for React Native
+        const fileToUpload: any = {
+          uri: file.uri,
+          type: file.type || 'application/octet-stream',
+          name: file.name || `attachment_${index}`
+        };
+        
+        formData.append('attachments', fileToUpload);
+        console.log('[TEACHER SERVICE] Added file:', file.name);
       });
     }
+
+    console.log('[TEACHER SERVICE] Creating assignment with', assignmentData.attachments?.length || 0, 'attachment(s)');
 
     const response = await api.post('/assignments', formData, {
       headers: {
@@ -530,9 +551,11 @@ export async function createAssignment(assignmentData: CreateAssignmentData): Pr
       },
     });
     
+    console.log('[TEACHER SERVICE] Assignment created successfully');
     return response.data?.success || false;
   } catch (error: any) {
     console.error('[TEACHER SERVICE] Error creating assignment:', error);
+    console.error('[TEACHER SERVICE] Error details:', error?.response?.data);
     return false;
   }
 }

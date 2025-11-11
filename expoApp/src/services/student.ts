@@ -96,6 +96,13 @@ export interface SchoolInfo {
   principalName?: string;
   establishedYear?: string;
   affiliation?: string;
+  settings?: {
+    academicYear?: {
+      currentYear?: string;
+      startDate?: string;
+      endDate?: string;
+    };
+  };
 }
 
 export interface FeeRecord {
