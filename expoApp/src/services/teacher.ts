@@ -530,17 +530,32 @@ export async function createAssignment(assignmentData: CreateAssignmentData): Pr
     if (assignmentData.attachments && assignmentData.attachments.length > 0) {
       console.log('[TEACHER SERVICE] Adding', assignmentData.attachments.length, 'attachment(s)');
       
-      assignmentData.attachments.forEach((file, index) => {
-        // Create file object for React Native
-        const fileToUpload: any = {
-          uri: file.uri,
-          type: file.type || 'application/octet-stream',
-          name: file.name || `attachment_${index}`
-        };
+      for (let index = 0; index < assignmentData.attachments.length; index++) {
+        const file = assignmentData.attachments[index];
         
-        formData.append('attachments', fileToUpload);
-        console.log('[TEACHER SERVICE] Added file:', file.name);
-      });
+        try {
+          // For web platform, convert blob URI to File object
+          if (file.uri.startsWith('blob:')) {
+            console.log('[TEACHER SERVICE] Converting blob URI to File object for web');
+            const response = await fetch(file.uri);
+            const blob = await response.blob();
+            const fileObject = new File([blob], file.name, { type: file.type });
+            formData.append('attachments', fileObject);
+            console.log('[TEACHER SERVICE] Added file (web):', file.name, 'size:', blob.size);
+          } else {
+            // For native mobile, use the standard format
+            const fileToUpload: any = {
+              uri: file.uri,
+              type: file.type || 'application/octet-stream',
+              name: file.name || `attachment_${index}`
+            };
+            formData.append('attachments', fileToUpload);
+            console.log('[TEACHER SERVICE] Added file (mobile):', file.name);
+          }
+        } catch (error) {
+          console.error('[TEACHER SERVICE] Error processing file:', file.name, error);
+        }
+      }
     }
 
     console.log('[TEACHER SERVICE] Creating assignment with', assignmentData.attachments?.length || 0, 'attachment(s)');
@@ -576,9 +591,32 @@ export async function updateAssignment(assignmentId: string, assignmentData: Par
 
     // Add attachments if any
     if (assignmentData.attachments && assignmentData.attachments.length > 0) {
-      assignmentData.attachments.forEach((file, index) => {
-        formData.append('attachments', file);
-      });
+      for (let index = 0; index < assignmentData.attachments.length; index++) {
+        const file = assignmentData.attachments[index];
+        
+        try {
+          // For web platform, convert blob URI to File object
+          if (file.uri && file.uri.startsWith('blob:')) {
+            const response = await fetch(file.uri);
+            const blob = await response.blob();
+            const fileObject = new File([blob], file.name, { type: file.type });
+            formData.append('attachments', fileObject);
+          } else if (file.uri) {
+            // For native mobile
+            const fileToUpload: any = {
+              uri: file.uri,
+              type: file.type || 'application/octet-stream',
+              name: file.name || `attachment_${index}`
+            };
+            formData.append('attachments', fileToUpload);
+          } else {
+            // Already a File object
+            formData.append('attachments', file);
+          }
+        } catch (error) {
+          console.error('[TEACHER SERVICE] Error processing file for update:', file.name, error);
+        }
+      }
     }
 
     const response = await api.put(`/assignments/${assignmentId}`, formData, {

@@ -314,6 +314,7 @@ exports.createAssignment = async (req, res) => {
     }
 
     res.status(201).json({
+      success: true,
       message: `Assignment sent to ${className} • Section ${section} • Due ${dueDateObj.toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'short',
