@@ -4,7 +4,7 @@ const Submission = require('../models/Submission');
 const User = require('../models/User');
 const School = require('../models/School');
 const DatabaseManager = require('../utils/databaseManager');
-const { uploadPDFToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
+const { uploadPDFToCloudinary, uploadPDFBufferToCloudinary, deletePDFFromCloudinary, deleteFromCloudinary, extractPublicId, deleteLocalFile } = require('../config/cloudinary');
 const { getCurrentAcademicYear } = require('../utils/academicYearHelper');
 const path = require('path');
 const fs = require('fs');
@@ -146,9 +146,9 @@ exports.createAssignment = async (req, res) => {
           // Handle both buffer (memory storage) and path (disk storage)
           let uploadResult;
           if (file.buffer) {
-            // Memory storage - upload buffer directly
+            // Memory storage - upload buffer directly using the buffer upload function
             console.log(`[ASSIGNMENT] Uploading from buffer: ${file.originalname}`);
-            uploadResult = await uploadPDFToCloudinary(file.buffer, cloudinaryFolder, publicId);
+            uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
           } else if (file.path) {
             // Disk storage - upload from path
             console.log(`[ASSIGNMENT] Uploading from path: ${file.path}`);
@@ -264,7 +264,7 @@ exports.createAssignment = async (req, res) => {
       });
 
       console.log(`[ASSIGNMENT] Created assignment object for school_${schoolCode}.assignments`);
-      console.log(`[ASSIGNMENT] Assignment data:`, {
+      console.log(`[ASSIGNMENT] Assignment data BEFORE save:`, {
         schoolCode,
         class: className,
         section,
@@ -272,20 +272,35 @@ exports.createAssignment = async (req, res) => {
         academicYear: resolvedAcademicYear,
         teacher: teacherId,
         attachmentsCount: processedAttachments.length,
-        attachments: processedAttachments.map(a => ({ name: a.originalName, url: a.path }))
+        attachmentsArray: assignment.attachments,
+        processedAttachmentsArray: processedAttachments
       });
 
       await assignment.save();
+      
+      console.log(`[ASSIGNMENT] Assignment data AFTER save:`, {
+        attachmentsCount: assignment.attachments?.length || 0,
+        attachmentsArray: assignment.attachments
+      });
       console.log(`[ASSIGNMENT] ✅ Successfully saved assignment to school_${schoolCode}.assignments`);
       console.log(`[ASSIGNMENT] Assignment ID: ${assignment._id}`);
       console.log(`[ASSIGNMENT] Assignment custom ID: ${assignment.assignmentId}`);
       
-      // Verify the assignment was actually saved
+      // Verify the assignment was actually saved with attachments
       const savedAssignment = await SchoolAssignment.findById(assignment._id);
       if (savedAssignment) {
         console.log(`[ASSIGNMENT] ✅ VERIFIED: Assignment exists in database`);
         console.log(`[ASSIGNMENT] Saved in collection: ${SchoolAssignment.collection.name}`);
         console.log(`[ASSIGNMENT] Database: ${schoolConn.db.databaseName}`);
+        console.log(`[ASSIGNMENT] ✅ ATTACHMENTS IN DB:`, {
+          count: savedAssignment.attachments?.length || 0,
+          attachments: savedAssignment.attachments?.map(a => ({
+            filename: a.filename,
+            originalName: a.originalName,
+            path: a.path,
+            size: a.size
+          })) || []
+        });
       } else {
         console.error(`[ASSIGNMENT] ❌ WARNING: Assignment not found after save!`);
       }
@@ -742,32 +757,47 @@ exports.updateAssignment = async (req, res) => {
     let processedAttachments = [];
     if (req.files && req.files.length > 0) {
       console.log(`[UPDATE ASSIGNMENT] Processing ${req.files.length} new file(s)`);
-      
+
       for (const file of req.files) {
         try {
           const timestamp = Date.now();
-          
+
           // Upload to Cloudinary
           const cloudinaryFolder = `assignments/${schoolCode}`;
           const publicId = `assignment_${timestamp}_${Math.random().toString(36).substring(7)}`;
-          
-          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
-          
+
+          // Handle both buffer (memory storage) and path (disk storage)
+          let uploadResult;
+          if (file.buffer) {
+            // Memory storage - upload buffer directly
+            console.log(`[UPDATE ASSIGNMENT] Uploading from buffer: ${file.originalname}`);
+            uploadResult = await uploadPDFBufferToCloudinary(file.buffer, cloudinaryFolder, publicId);
+          } else if (file.path) {
+            // Disk storage - upload from path
+            console.log(`[UPDATE ASSIGNMENT] Uploading from path: ${file.path}`);
+            uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
+            deleteLocalFile(file.path);
+          } else {
+            throw new Error('File has neither buffer nor path');
+          }
+
           processedAttachments.push({
-            filename: file.filename,
+            filename: file.filename || file.originalname,
             originalName: file.originalname,
             path: uploadResult.secure_url,
             cloudinaryPublicId: uploadResult.public_id,
             size: file.size,
+            mimeType: file.mimetype,
             uploadedAt: new Date()
           });
-          
-          console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
-          deleteLocalFile(file.path);
-          
+
+          console.log(`✅ Uploaded ${file.originalname} to Cloudinary: ${uploadResult.secure_url}`);
+
         } catch (error) {
           console.error(`❌ Error uploading ${file.originalname}:`, error);
-          deleteLocalFile(file.path);
+          if (file.path) {
+            deleteLocalFile(file.path);
+          }
         }
       }
       console.log(`[UPDATE ASSIGNMENT] ${processedAttachments.length} files uploaded to Cloudinary`);

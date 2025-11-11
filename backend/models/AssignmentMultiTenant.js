@@ -21,6 +21,7 @@ const assignmentSchema = new mongoose.Schema({
     path: String,
     cloudinaryPublicId: String,
     size: Number,
+    mimeType: String,
     uploadedAt: { type: Date, default: Date.now }
   }],
   
