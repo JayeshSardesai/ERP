@@ -100,8 +100,22 @@ exports.createAssignment = async (req, res) => {
 
     // Process uploaded files and upload to Cloudinary
     let processedAttachments = [];
+    console.log('[ASSIGNMENT] Checking for files:', {
+      hasFiles: !!req.files,
+      filesLength: req.files?.length,
+      filesType: typeof req.files
+    });
+    
     if (req.files && req.files.length > 0) {
       console.log(`📎 Processing ${req.files.length} attachment(s) for assignment`);
+      console.log('[ASSIGNMENT] First file structure:', {
+        hasBuffer: !!req.files[0].buffer,
+        hasPath: !!req.files[0].path,
+        filename: req.files[0].filename,
+        originalname: req.files[0].originalname,
+        mimetype: req.files[0].mimetype,
+        size: req.files[0].size
+      });
       
       for (const file of req.files) {
         try {
@@ -111,28 +125,46 @@ exports.createAssignment = async (req, res) => {
           const cloudinaryFolder = `assignments/${schoolCode}`;
           const publicId = `assignment_${timestamp}_${Math.random().toString(36).substring(7)}`;
           
-          const uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
+          // Handle both buffer (memory storage) and path (disk storage)
+          let uploadResult;
+          if (file.buffer) {
+            // Memory storage - upload buffer directly
+            console.log(`[ASSIGNMENT] Uploading from buffer: ${file.originalname}`);
+            uploadResult = await uploadPDFToCloudinary(file.buffer, cloudinaryFolder, publicId);
+          } else if (file.path) {
+            // Disk storage - upload from path
+            console.log(`[ASSIGNMENT] Uploading from path: ${file.path}`);
+            uploadResult = await uploadPDFToCloudinary(file.path, cloudinaryFolder, publicId);
+            // Delete local temp file after upload
+            deleteLocalFile(file.path);
+          } else {
+            throw new Error('File has neither buffer nor path');
+          }
           
           processedAttachments.push({
-            filename: file.filename,
+            filename: file.filename || file.originalname,
             originalName: file.originalname,
             path: uploadResult.secure_url, // Store Cloudinary URL
             cloudinaryPublicId: uploadResult.public_id,
             size: file.size,
+            mimeType: file.mimetype,
             uploadedAt: new Date()
           });
           
-          console.log(`✅ Uploaded ${file.originalname} to Cloudinary`);
-          
-          // Delete local temp file
-          deleteLocalFile(file.path);
+          console.log(`✅ Uploaded ${file.originalname} to Cloudinary: ${uploadResult.secure_url}`);
           
         } catch (error) {
           console.error(`❌ Error uploading ${file.originalname} to Cloudinary:`, error);
-          // Clean up temp file on error
-          deleteLocalFile(file.path);
+          // Clean up temp file on error if it exists
+          if (file.path) {
+            deleteLocalFile(file.path);
+          }
         }
       }
+      
+      console.log(`[ASSIGNMENT] Successfully processed ${processedAttachments.length} attachments`);
+    } else {
+      console.log('[ASSIGNMENT] No files to process');
     }
 
     // Fetch current academic year from school settings if not provided
@@ -220,7 +252,9 @@ exports.createAssignment = async (req, res) => {
         section,
         subject,
         academicYear: resolvedAcademicYear,
-        teacher: teacherId
+        teacher: teacherId,
+        attachmentsCount: processedAttachments.length,
+        attachments: processedAttachments.map(a => ({ name: a.originalName, url: a.path }))
       });
 
       await assignment.save();
@@ -1014,17 +1048,25 @@ exports.deleteAssignment = async (req, res) => {
     }
 
     if (!assignment) {
-      return res.status(404).json({ message: 'Assignment not found in any database' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Assignment not found in any database' 
+      });
     }
 
     res.json({
+      success: true,
       message: 'Assignment deleted successfully',
       deletedFrom: deletedFromSchoolDB ? 'school-specific database' : 'main database'
     });
 
   } catch (error) {
     console.error('Error deleting assignment:', error);
-    res.status(500).json({ message: 'Error deleting assignment', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error deleting assignment', 
+      error: error.message 
+    });
   }
 };
 
