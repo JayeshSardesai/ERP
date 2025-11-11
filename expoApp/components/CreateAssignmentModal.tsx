@@ -266,17 +266,30 @@ export default function CreateAssignmentModal({ visible, onClose, onSuccess }: C
         attachments: attachments.length > 0 ? attachments : undefined
       };
 
+      console.log('[CREATE ASSIGNMENT MODAL] Submitting assignment with attachments:', attachments.length);
+      if (attachments.length > 0) {
+        console.log('[CREATE ASSIGNMENT MODAL] Attachment details:', attachments.map(a => ({
+          name: a.name,
+          type: a.type,
+          size: a.size,
+          uri: a.uri
+        })));
+      }
+      
       const success = await createAssignment(assignmentData);
       
       if (success) {
-        Alert.alert('Success', 'Assignment created successfully', [
-          { text: 'OK', onPress: () => {
-            resetForm();
-            onSuccess();
-            onClose();
-          }}
-        ]);
+        console.log('[CREATE ASSIGNMENT MODAL] Assignment created successfully');
+        // Call onSuccess immediately to refresh the list
+        resetForm();
+        onSuccess();
+        onClose();
+        // Show success message after refresh
+        setTimeout(() => {
+          Alert.alert('Success', 'Assignment created successfully!');
+        }, 100);
       } else {
+        console.error('[CREATE ASSIGNMENT MODAL] Failed to create assignment');
         Alert.alert('Error', 'Failed to create assignment');
       }
     } catch (error) {

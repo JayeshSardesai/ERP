@@ -12,6 +12,24 @@ const fs = require('fs');
 // Create a new assignment
 exports.createAssignment = async (req, res) => {
   try {
+    console.log('[ASSIGNMENT] ========== CREATE ASSIGNMENT REQUEST ==========');
+    console.log('[ASSIGNMENT] Request body keys:', Object.keys(req.body));
+    console.log('[ASSIGNMENT] Request files:', {
+      hasFiles: !!req.files,
+      filesCount: req.files?.length || 0,
+      filesType: typeof req.files
+    });
+    if (req.files && req.files.length > 0) {
+      console.log('[ASSIGNMENT] Files received:', req.files.map(f => ({
+        fieldname: f.fieldname,
+        originalname: f.originalname,
+        mimetype: f.mimetype,
+        size: f.size,
+        hasBuffer: !!f.buffer,
+        hasPath: !!f.path
+      })));
+    }
+    
     const {
       title,
       description,
