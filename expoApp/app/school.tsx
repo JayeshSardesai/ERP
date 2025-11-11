@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { getSchoolInfo, SchoolInfo } from '@/src/services/student';
 
 export default function SchoolScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = getStyles(isDark);
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const styles = useMemo(() => getStyles(isDark), [isDark]);
 
   const [school, setSchool] = useState<any>(null);
   const [loading, setLoading] = useState(true);

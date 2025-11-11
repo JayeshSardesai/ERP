@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { getStudentProfile, StudentProfile } from '@/src/services/student';
 
 export default function ProfileScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const styles = getStyles(isDark);
 
   const [user, setUser] = useState<StudentProfile | null>(null);
@@ -32,7 +32,7 @@ export default function ProfileScreen() {
         try {
           const userStr = await AsyncStorage.getItem('userData');
           if (userStr) setUser(JSON.parse(userStr));
-        } catch {}
+        } catch { }
       } finally {
         setLoading(false);
       }
@@ -43,10 +43,10 @@ export default function ProfileScreen() {
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
     try {
-      return new Date(dateString).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
       });
     } catch {
       return dateString;

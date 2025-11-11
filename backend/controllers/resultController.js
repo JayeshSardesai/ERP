@@ -1459,10 +1459,10 @@ exports.getResultsForTeacher = async (req, res) => {
             section: section,
             subject: subject,
             testType: testType,
-            obtainedMarks: matchingSubject.obtainedMarks !== null ? matchingSubject.obtainedMarks : 0,
+            obtainedMarks: matchingSubject.obtainedMarks !== null && matchingSubject.obtainedMarks !== undefined ? matchingSubject.obtainedMarks : null,
             totalMarks: matchingSubject.maxMarks || matchingSubject.totalMarks || 100,
             maxMarks: matchingSubject.maxMarks || matchingSubject.totalMarks || 100,
-            percentage: matchingSubject.percentage !== null ? matchingSubject.percentage : 0,
+            percentage: matchingSubject.obtainedMarks !== null && matchingSubject.obtainedMarks !== undefined ? matchingSubject.percentage : null,
             grade: matchingSubject.grade || calculateSimpleGrade(
               matchingSubject.obtainedMarks,
               matchingSubject.maxMarks || matchingSubject.totalMarks || 100

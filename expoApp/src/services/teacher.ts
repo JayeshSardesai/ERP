@@ -250,13 +250,33 @@ export async function getTeacherAssignments(): Promise<Assignment[]> {
     if (!userData) throw new Error('No user data found');
     
     const user = JSON.parse(userData);
-    const response = await api.get('/assignments', {
-      params: {
-        teacherId: user.userId || user._id,
-      }
-    });
     
-    return response.data.assignments || response.data.data || [];
+    // Get current academic year from school settings
+    let academicYear: string | undefined;
+    try {
+      const schoolResponse = await api.get('/school/info');
+      academicYear = schoolResponse.data?.settings?.academicYear?.currentYear;
+      console.log('[TEACHER SERVICE] Current academic year:', academicYear);
+    } catch (err) {
+      console.log('[TEACHER SERVICE] Could not fetch academic year, will show all assignments');
+    }
+    
+    const params: any = {
+      teacherId: user.userId || user._id,
+    };
+    
+    // Add academic year filter if available
+    if (academicYear) {
+      params.academicYear = academicYear;
+      console.log('[TEACHER SERVICE] Filtering assignments by academic year:', academicYear);
+    }
+    
+    const response = await api.get('/assignments', { params });
+    
+    const assignments = response.data.assignments || response.data.data || [];
+    console.log('[TEACHER SERVICE] Fetched', assignments.length, 'assignments for current academic year');
+    
+    return assignments;
   } catch (error: any) {
     console.error('[TEACHER SERVICE] Error fetching assignments:', error);
     return [];

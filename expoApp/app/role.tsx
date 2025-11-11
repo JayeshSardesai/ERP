@@ -1,13 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 
 export default function RoleGate() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = getStyles(isDark);
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const styles = useMemo(() => getStyles(isDark), [isDark]);
   const router = useRouter();
 
   const goToLogin = (role: 'Student' | 'Teacher' | 'Admin') => {

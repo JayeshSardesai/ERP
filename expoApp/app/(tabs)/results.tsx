@@ -237,19 +237,23 @@ export default function ResultsScreen() {
       if (response.data?.success && response.data?.data?.results) {
         const results = response.data.data.results;
         setExistingResults(results);
+        console.log('[RESULTS] Loaded', results.length, 'existing results');
         
         // Pre-fill marks for existing results
         const marks: {[key: string]: string} = {};
         results.forEach((result: any) => {
+          // Show marks even if they are 0 (0 is a valid mark)
           if (result.obtainedMarks !== null && result.obtainedMarks !== undefined) {
-            marks[result.studentId || result.userId] = result.obtainedMarks.toString();
+            marks[result.studentId || result.userId] = String(result.obtainedMarks);
           }
         });
         setStudentMarks(marks);
         
-        console.log('[RESULTS] Loaded', results.length, 'existing results');
+        console.log('[RESULTS] Pre-filled marks for', Object.keys(marks).length, 'students');
+        if (Object.keys(marks).length > 0) {
+          console.log('[RESULTS] Sample marks:', Object.entries(marks).slice(0, 3));
+        }
         
-        // Check if any are frozen
         const frozenCount = results.filter((r: any) => r.frozen).length;
         if (frozenCount > 0) {
           Alert.alert('Info', `${frozenCount} result(s) are frozen and cannot be modified`);
