@@ -17,7 +17,7 @@
       "versionCode": 1,
       "name": "EduLogix",
       "label": "EduLogix",
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/images/logo.png",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
