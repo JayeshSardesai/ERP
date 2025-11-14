@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Alert, Image, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -10,6 +10,8 @@ import { usePermissions } from '@/src/hooks/usePermissions';
 
 type Assignment = StudentAssignment | TeacherAssignment;
 import { downloadFile, formatFileSize } from '@/src/utils/fileDownload';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function AssignmentsScreen() {
   const { theme } = useTheme();
@@ -25,6 +27,7 @@ export default function AssignmentsScreen() {
   const [sortBy, setSortBy] = useState<'Due Date' | 'Subject'>('Due Date');
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [viewingAttachment, setViewingAttachment] = useState<string | null>(null);
+  const [viewingImage, setViewingImage] = useState<{ url: string; name: string } | null>(null);
   const [isTeacher, setIsTeacher] = useState<boolean>(false);
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ show: boolean; assignment: Assignment | null }>({ show: false, assignment: null });
@@ -179,11 +182,23 @@ export default function AssignmentsScreen() {
     });
   };
 
+  const isImageFile = (filename: string): boolean => {
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+    const extension = filename.split('.').pop()?.toLowerCase() || '';
+    return imageExtensions.includes(extension);
+  };
+
   const handleViewAttachment = async (attachment: { path: string; originalName: string }) => {
     try {
-      setViewingAttachment(attachment.originalName);
-      await downloadFile(attachment.path, attachment.originalName);
-      // File opened in browser - no need for success alert
+      // Check if it's an image file
+      if (isImageFile(attachment.originalName)) {
+        // Display image in modal
+        setViewingImage({ url: attachment.path, name: attachment.originalName });
+      } else {
+        // For non-image files, open in browser (existing behavior)
+        setViewingAttachment(attachment.originalName);
+        await downloadFile(attachment.path, attachment.originalName);
+      }
     } catch (error: any) {
       console.error('View error:', error);
       Alert.alert('Error', error.message || 'Could not open the file');
@@ -445,6 +460,42 @@ export default function AssignmentsScreen() {
         </View>
       </Modal>
 
+      {/* Image Viewer Modal */}
+      <Modal
+        visible={viewingImage !== null}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setViewingImage(null)}
+      >
+        <SafeAreaView style={styles.imageModalContainer} edges={['top', 'bottom']}>
+          <View style={styles.imageModalHeader}>
+            <Text style={styles.imageModalTitle} numberOfLines={1}>
+              {viewingImage?.name || 'Image'}
+            </Text>
+            <TouchableOpacity
+              style={styles.imageModalCloseButton}
+              onPress={() => setViewingImage(null)}
+            >
+              <Text style={styles.imageModalCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            style={styles.imageModalScrollView}
+            contentContainerStyle={styles.imageModalContent}
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
+          >
+            {viewingImage && (
+              <Image
+                source={{ uri: viewingImage.url }}
+                style={styles.imageModalImage}
+                resizeMode="contain"
+              />
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       {/* Delete Confirmation Modal */}
       <Modal
         visible={deleteConfirmation.show}
@@ -642,6 +693,54 @@ function getStyles(isDark: boolean) {
       color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '600'
+    },
+    // Image Viewer Modal Styles
+    imageModalContainer: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    },
+    imageModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    imageModalTitle: {
+      flex: 1,
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#FFFFFF',
+      marginRight: 12,
+    },
+    imageModalCloseButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    imageModalCloseText: {
+      fontSize: 20,
+      color: '#FFFFFF',
+      fontWeight: '600',
+    },
+    imageModalScrollView: {
+      flex: 1,
+    },
+    imageModalContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    imageModalImage: {
+      width: SCREEN_WIDTH - 40,
+      height: SCREEN_HEIGHT * 0.7,
+      maxWidth: '100%',
     },
   });
 }

@@ -74,11 +74,11 @@ export default function MenuScreen() {
       await AsyncStorage.multiRemove(['authToken', 'userData', 'schoolCode']);
 
       // Navigate to the role selection screen (first page) and reset the navigation stack
-      router.replace('/role');
+      router.replace('/login');
     } catch (error) {
       console.error('Error during logout:', error);
       // Even if there's an error clearing storage, still navigate to role selection
-      router.replace('/role');
+      router.replace('/login');
     }
   };
 
