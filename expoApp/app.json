@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "expoApp",
+    "name": "EduLogix",
     "slug": "expoApp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,11 +9,15 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.edulogix.app"
     },
     "android": {
-      "package": "com.erpedulogix.app",
+      "package": "com.edulogix.app",
       "versionCode": 1,
+      "name": "EduLogix",
+      "label": "EduLogix",
+      "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -51,6 +55,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3d4f3aa2-4222-46ae-92b1-b1e88cfa3e56"
+      }
     }
   }
 }

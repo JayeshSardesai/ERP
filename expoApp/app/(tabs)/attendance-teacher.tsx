@@ -399,7 +399,7 @@ export default function TeacherAttendanceScreen() {
       {/* Attendance Marking Modal */}
       <Modal visible={showMarkAttendance} transparent={true} animationType="slide">
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+          <SafeAreaView style={styles.modalContent} edges={['top', 'bottom']}>
             {/* Header - Fixed */}
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -418,12 +418,14 @@ export default function TeacherAttendanceScreen() {
             {/* Scrollable Content */}
             <ScrollView 
               style={styles.modalScrollContent}
+              contentContainerStyle={{ paddingBottom: 16 }}
               showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
             >
               {/* Day Selector - Similar to Website */}
               <View style={styles.daySelectorContainer}>
-              <Text style={styles.daySelectorLabel}>Select Day</Text>
-              <View style={styles.dayPickerWrapper}>
+                <Text style={styles.daySelectorLabel}>Select Day</Text>
+                <View style={styles.dayPickerWrapper}>
                 {Platform.OS === 'web' ? (
                   <input
                     type="date"
@@ -516,7 +518,7 @@ export default function TeacherAttendanceScreen() {
               {/* Divider */}
               <View style={styles.modalDivider} />
               
-              {/* Student List - No separate scroll */}
+              {/* Student List */}
               <View style={styles.studentsList}>
                 {students.length === 0 ? (
                   <View style={{ padding: 20, alignItems: 'center' }}>
@@ -593,7 +595,7 @@ export default function TeacherAttendanceScreen() {
                 )}
               </View>
             </View>
-          </View>
+          </SafeAreaView>
         </View>
       </Modal>
 
@@ -671,17 +673,27 @@ function getStyles(isDark: boolean) {
     },
     markAttendanceButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
     // Modal styles
-    modalContainer: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center', paddingVertical: 20 },
+    modalContainer: { 
+      flex: 1, 
+      backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      padding: 20 
+    },
     modalContent: { 
       backgroundColor: isDark ? '#1F2937' : '#FFFFFF', 
       borderRadius: 16, 
-      width: '90%', 
-      maxHeight: '85%',
+      width: '100%',
+      maxWidth: 500,
+      maxHeight: '90%',
+      flex: 1,
+      overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
     },
     modalScrollContent: {
       flex: 1,
+      minHeight: 0,
     },
     modalHeader: { marginBottom: 12, paddingHorizontal: 20, paddingTop: 20 },
     modalTitle: { fontSize: 20, fontWeight: '700', color: isDark ? '#E5E7EB' : '#1F2937', marginBottom: 4 },

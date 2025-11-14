@@ -358,8 +358,8 @@ export default function AssignmentsScreen() {
         transparent={true}
         onRequestClose={closeAssignmentDetail}
       >
-        <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
-          <View style={styles.modalContent}>
+        <View style={styles.modalContainer}>
+          <SafeAreaView style={styles.modalContent} edges={['top', 'bottom']}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Assignment Details</Text>
               <TouchableOpacity onPress={closeAssignmentDetail} style={styles.closeButton}>
@@ -368,7 +368,11 @@ export default function AssignmentsScreen() {
             </View>
 
             {selectedAssignment && (
-              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <ScrollView 
+                style={styles.modalBody} 
+                contentContainerStyle={{ paddingBottom: 20 }}
+                showsVerticalScrollIndicator={true}
+              >
                 <View style={styles.detailSection}>
                   <Text style={styles.detailLabel}>Subject</Text>
                   <Text style={styles.detailValue}>{selectedAssignment.subject}</Text>
@@ -437,8 +441,8 @@ export default function AssignmentsScreen() {
                 )}
               </ScrollView>
             )}
-          </View>
-        </SafeAreaView>
+          </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Delete Confirmation Modal */}
@@ -517,27 +521,36 @@ function getStyles(isDark: boolean) {
     noDataContainer: { alignItems: 'center', marginTop: 40, paddingVertical: 40 },
     noDataText: { fontSize: 16, color: isDark ? '#93C5FD' : '#1E3A8A', fontWeight: '600' },
     attachmentIndicator: { fontSize: 11, color: isDark ? '#60A5FA' : '#2563EB', marginTop: 4 },
-    modalContainer: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
+    modalContainer: { 
+      flex: 1, 
+      backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20
+    },
     modalContent: { 
       backgroundColor: isDark ? '#0F172A' : '#FFFFFF', 
-      borderTopLeftRadius: 20, 
-      borderTopRightRadius: 20, 
+      borderRadius: 20, 
+      width: '100%',
+      maxWidth: 500,
       maxHeight: '90%',
-      paddingBottom: 20
+      flex: 1,
+      overflow: 'hidden'
     },
     modalHeader: { 
       flexDirection: 'row', 
       justifyContent: 'space-between', 
       alignItems: 'center', 
       padding: 20, 
+      paddingBottom: 16,
       borderBottomWidth: 1, 
       borderBottomColor: isDark ? '#1F2937' : '#E5E7EB' 
     },
     modalTitle: { fontSize: 20, fontWeight: '700', color: isDark ? '#E5E7EB' : '#1F2937' },
     closeButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: isDark ? '#1F2937' : '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
     closeButtonText: { fontSize: 18, color: isDark ? '#E5E7EB' : '#1F2937', fontWeight: '600' },
-    modalBody: { flex: 1, padding: 20 },
-    detailSection: { marginBottom: 20 },
+    modalBody: { flex: 1 },
+    detailSection: { marginBottom: 20, paddingHorizontal: 20 },
     detailLabel: { fontSize: 12, fontWeight: '600', color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 8, textTransform: 'uppercase' },
     detailValue: { fontSize: 16, color: isDark ? '#E5E7EB' : '#1F2937', lineHeight: 24 },
     attachmentCard: { 

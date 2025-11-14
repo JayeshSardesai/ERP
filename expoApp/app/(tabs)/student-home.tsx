@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Image, Modal, Alert, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +7,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { getStudentMessages, getStudentAssignments, getStudentAttendance, getStudentResults } from '@/src/services/student';
 import { io, Socket } from 'socket.io-client';
 import ENV from '@/src/config/env';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function StudentHomeScreen() {
   const { theme } = useTheme();
@@ -726,10 +728,10 @@ function getStyles(isDark: boolean) {
       alignItems: 'center',
     },
     performanceCircle: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      borderWidth: 8,
+      width: Math.max(100, Math.min(SCREEN_WIDTH * 0.3, 140)),
+      height: Math.max(100, Math.min(SCREEN_WIDTH * 0.3, 140)),
+      borderRadius: Math.max(50, Math.min(SCREEN_WIDTH * 0.3, 140)) / 2,
+      borderWidth: Math.max(8, Math.min(SCREEN_WIDTH * 0.025, 12)),
       borderColor: '#4ADE80',
       borderRightColor: '#EF4444',
       borderBottomColor: '#EF4444',
@@ -738,9 +740,10 @@ function getStyles(isDark: boolean) {
       backgroundColor: isDark ? '#111827' : '#FFFFFF',
     },
     performancePercentage: {
-      fontSize: 24,
+      fontSize: Math.max(16, Math.min(SCREEN_WIDTH * 0.055, 28)),
       fontWeight: '700',
       color: isDark ? '#E5E7EB' : '#1F2937',
+      textAlign: 'center',
     },
     subjectScoresCard: {
       backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
@@ -867,13 +870,13 @@ function getStyles(isDark: boolean) {
       borderColor: isDark ? '#1F2937' : '#93C5FD',
     },
     attendanceCircleContainer: {
-      marginRight: 20,
+      marginRight: Math.max(12, SCREEN_WIDTH * 0.05),
     },
     attendanceCircle: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      borderWidth: 8,
+      width: Math.max(100, Math.min(SCREEN_WIDTH * 0.3, 140)),
+      height: Math.max(100, Math.min(SCREEN_WIDTH * 0.3, 140)),
+      borderRadius: Math.max(50, Math.min(SCREEN_WIDTH * 0.3, 140)) / 2,
+      borderWidth: Math.max(8, Math.min(SCREEN_WIDTH * 0.025, 12)),
       borderColor: '#4ADE80',
       borderRightColor: '#EF4444',
       borderBottomColor: '#EF4444',
@@ -886,9 +889,10 @@ function getStyles(isDark: boolean) {
       alignItems: 'center',
     },
     attendancePercentage: {
-      fontSize: 24,
+      fontSize: Math.max(16, Math.min(SCREEN_WIDTH * 0.055, 28)),
       fontWeight: '700',
       color: isDark ? '#E5E7EB' : '#1F2937',
+      textAlign: 'center',
     },
     attendanceStats: {
       flex: 1,
