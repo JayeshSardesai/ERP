@@ -591,11 +591,16 @@ const ManageUsers: React.FC = () => {
       const fatherName = studentDetails?.fatherName || data.fatherName;
       const motherName = studentDetails?.motherName || data.motherName;
 
-      if (!fatherName || fatherName.trim() === '') {
-        errors.push("Father's name is required for students");
+      // Father and Mother names are optional now (per request)
+
+      // Enrollment and TC are required per request
+      const enrollmentNo = studentDetails?.enrollmentNo || data.enrollmentNo;
+      const tcNumber = studentDetails?.tcNo || data.tcNo || data.tcNumber;
+      if (!enrollmentNo || enrollmentNo.toString().trim() === '') {
+        errors.push('Enrollment number is required for students');
       }
-      if (!motherName || motherName.trim() === '') {
-        errors.push("Mother's name is required for students");
+      if (!tcNumber || tcNumber.toString().trim() === '') {
+        errors.push('TC number is required for students');
       }
 
       // Karnataka SATS Specific Validations
@@ -613,7 +618,10 @@ const ManageUsers: React.FC = () => {
       const fatherAadhaar = studentDetails?.fatherAadhaar || data.fatherAadhaar;
       const motherAadhaar = studentDetails?.motherAadhaar || data.motherAadhaar;
 
-      if (studentAadhaar && !/^\d{12}$/.test(studentAadhaar)) {
+      // Student Aadhaar/KPR is mandatory
+      if (!studentAadhaar || studentAadhaar.toString().trim() === '') {
+        errors.push('Student Aadhaar/KPR number is required');
+      } else if (!/^\d{12}$/.test(studentAadhaar)) {
         errors.push('Student Aadhaar number must be 12 digits');
       }
       if (fatherAadhaar && !/^\d{12}$/.test(fatherAadhaar)) {
@@ -621,6 +629,12 @@ const ManageUsers: React.FC = () => {
       }
       if (motherAadhaar && !/^\d{12}$/.test(motherAadhaar)) {
         errors.push('Mother Aadhaar number must be 12 digits');
+      }
+
+      // Student caste certificate is mandatory
+      const studentCasteCertNo = studentDetails?.studentCasteCertNo || data.studentCasteCertNo;
+      if (!studentCasteCertNo || studentCasteCertNo.toString().trim() === '') {
+        errors.push('Student caste certificate number is required for students');
       }
 
       // Phone number validation for family
@@ -634,9 +648,26 @@ const ManageUsers: React.FC = () => {
         errors.push('Mother phone number must be a valid 10-digit mobile number');
       }
 
-      // IFSC Code validation for banking
-      const bankIFSC = studentDetails?.bankIFSC || formData.bankIFSC;
-      if (bankIFSC && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIFSC)) {
+      // School admission date and Banking validations for students
+      const schoolAdmissionDateVal = studentDetails?.schoolAdmissionDate || data.schoolAdmissionDate || data.admissionDate;
+      if (!schoolAdmissionDateVal) {
+        errors.push('School admission date is required for students');
+      }
+
+      const bankNameVal = studentDetails?.bankName || data.bankName;
+      if (!bankNameVal || bankNameVal.toString().trim() === '') {
+        errors.push('Bank Name is required for students');
+      }
+
+      const bankAccountNoVal = studentDetails?.bankAccountNo || data.bankAccountNo || data.bankAccountNumber;
+      if (!bankAccountNoVal || bankAccountNoVal.toString().trim() === '') {
+        errors.push('Bank account number is required for students');
+      }
+
+      const bankIFSC = studentDetails?.bankIFSC || data.bankIFSC || data.bankIfsc;
+      if (!bankIFSC || bankIFSC.toString().trim() === '') {
+        errors.push('Bank IFSC code is required for students');
+      } else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIFSC)) {
         errors.push('Bank IFSC code must be in valid format (e.g., SBIN0012345)');
       }
 
@@ -872,6 +903,7 @@ const ManageUsers: React.FC = () => {
 
   const [showCredentials, setShowCredentials] = useState<{ userId: string, password: string, email: string, role: string } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addFormServerErrors, setAddFormServerErrors] = useState<string[]>([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState<DisplayUser | null>(null);
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
@@ -1849,6 +1881,11 @@ const ManageUsers: React.FC = () => {
     }
   }, [showAddModal]); // only run when modal opens, do not re-run on users list changes
 
+  // Clear server validation errors when the Add modal opens/close
+  useEffect(() => {
+    if (showAddModal) setAddFormServerErrors([]);
+  }, [showAddModal]);
+
   // Update formData userId when nextUserId is fetched
   useEffect(() => {
     if (nextUserId) {
@@ -1951,32 +1988,66 @@ const ManageUsers: React.FC = () => {
   }, [user]);
 
   const fetchUsers = async () => {
+    console.log('🚀 fetchUsers() called!');
     try {
       setLoading(true);
       // Use the same token retrieval method as Dashboard
       const authData = localStorage.getItem('erp.auth');
       const token = authData ? JSON.parse(authData).token : null;
-      const schoolCode = user?.schoolCode || 'P'; // Use 'P' as fallback since we saw it in the database
+      const schoolCode = user?.schoolCode || 'TST'; // Use context schoolCode, fallback to 'TST'
 
       if (!token) {
+        console.error('❌ No token found!');
         toast.error('Authentication required');
         return;
       }
 
-      console.log('Fetching users for school:', schoolCode);
-      console.log('API URL will be:', `/api/school-users/${schoolCode}/users`);
-      console.log('Token being used:', token ? 'Present' : 'Missing');
+      console.log('👤 User object:', user);
+      console.log('🏫 Fetching users for school:', schoolCode);
+      console.log('📡 API URL will be:', `/api/school-users/${schoolCode}/users`);
+      console.log('🔐 Token being used:', token ? 'Present' : 'Missing');
 
       try {
         // Fetch all users from the school-specific collections
         const response = await schoolUserAPI.getAllUsers(schoolCode, token);
-        console.log('API Response:', response);
+        console.log('🔍 ========== API RESPONSE DEBUG ==========');
+        console.log('🔍 response type:', typeof response);
+        console.log('🔍 response is object:', response !== null && typeof response === 'object');
+        console.log('🔍 response keys:', Object.keys(response || {}));
+        console.log('🔍 response.success:', response?.success);
+        console.log('🔍 response.data type:', typeof response?.data);
+        console.log('🔍 Is response.data an array?', Array.isArray(response?.data));
+        console.log('🔍 response.data length:', (response?.data as any)?.length);
+        console.log('🔍 response.totalCount:', response?.totalCount);
+        console.log('🔍 response.breakdown:', response?.breakdown);
+        console.log('🔍 ========== END DEBUG ==========');
+        console.log('Full response object:', JSON.stringify(response, null, 2));
 
         const allUsers: User[] = [];
 
-        // Extract users from each role collection based on the actual response structure
-        if (response.data && Array.isArray(response.data)) {
-          response.data.forEach((userData: any) => {
+        // Extract users from the response
+        // Backend response: { success: true, data: [...users array], totalCount, breakdown }
+        let usersArray: any[] = [];
+        
+        // The API returns { success, data: [...], totalCount, breakdown }
+        // So response.data should be the array
+        if (response?.data && Array.isArray(response.data)) {
+          console.log('✅ Found users array in response.data');
+          usersArray = response.data;
+        } else {
+          console.warn('⚠️ Could not find users array in response. Response structure:', {
+            hasSuccess: 'success' in (response || {}),
+            hasData: 'data' in (response || {}),
+            dataType: typeof response?.data,
+            isArray: Array.isArray(response?.data),
+            responseKeys: Object.keys(response || {})
+          });
+        }
+        
+        console.log(`📊 Users array length: ${usersArray.length}`);
+        
+        if (usersArray && Array.isArray(usersArray) && usersArray.length > 0) {
+          usersArray.forEach((userData: any) => {
             // Initialize processedUser with potential studentDetails structure
             const processedUser: User = {
               _id: userData._id || userData.userId,
@@ -1992,21 +2063,30 @@ const ManageUsers: React.FC = () => {
               address: userData.address,
               isActive: userData.isActive !== false,
               createdAt: userData.createdAt || new Date().toISOString(),
-              profileImage: userData.profileImage || userData.profilePicture || null, // 
-              // Initialize studentDetails as an empty object or undefined
-              studentDetails: userData.role === 'student' ? {} : undefined
+              profileImage: userData.profileImage || userData.profilePicture || null,
+              // Initialize studentDetails - will be populated if role is student
+              studentDetails: undefined
             };
 
             // Add role-specific details - preserve ALL fields from backend
-            if (userData.role === 'student' && userData.studentDetails) {
-              // Use the ENTIRE studentDetails object from backend
-              processedUser.studentDetails = {
-                ...userData.studentDetails, // Spread all fields from backend
-                // Add convenience fields for backward compatibility
-                class: userData.studentDetails.currentClass || userData.class || 'Not assigned',
-                section: userData.studentDetails.currentSection || userData.section || 'Not assigned',
-                studentId: userData.userId || userData._id
-              };
+            if (userData.role === 'student') {
+              if (userData.studentDetails) {
+                // Use the ENTIRE studentDetails object from backend, preserving all nested data
+                processedUser.studentDetails = {
+                  ...userData.studentDetails, // Spread all fields from backend (academic, personal, family, transport, financial, medical)
+                  // Add convenience fields for backward compatibility
+                  class: userData.studentDetails.academic?.currentClass || userData.studentDetails.class || userData.class || 'Not assigned',
+                  section: userData.studentDetails.academic?.currentSection || userData.studentDetails.section || userData.section || 'Not assigned',
+                  studentId: userData.userId || userData._id
+                };
+              } else {
+                // Fallback if studentDetails is missing
+                processedUser.studentDetails = {
+                  class: userData.class || 'Not assigned',
+                  section: userData.section || 'Not assigned',
+                  studentId: userData.userId || userData._id
+                };
+              }
             } else if (userData.role === 'teacher' && userData.teacherDetails) {
               // Ensure teacherDetails is properly structured if needed later
               processedUser.teacherDetails = {
@@ -2025,6 +2105,21 @@ const ManageUsers: React.FC = () => {
             // Make sure to add the processed user to the list
             allUsers.push(processedUser);
           });
+        } else if (!usersArray || usersArray.length === 0) {
+          console.warn('⚠️ Users array is empty or undefined');
+          console.log('Response structure:', {
+            isArray: Array.isArray(response.data),
+            hasData: !!response.data,
+            hasDataProperty: !!response.data?.data,
+            responseKeys: Object.keys(response.data || {}),
+            responseDataKeys: Object.keys(response.data?.data || {})
+          });
+          
+          // Try one more fallback: check if response has a different structure
+          if (response.success && response.data && Array.isArray(response.data)) {
+            console.log('Found users in response.data (alternate structure)');
+            usersArray = response.data;
+          }
         } else {
           // Handle grouped response structure - exclude parents
           ['students', 'teachers', 'admins'].forEach(roleKey => {
@@ -2050,12 +2145,22 @@ const ManageUsers: React.FC = () => {
 
                 // Add role-specific details
                 if (role === 'student') {
-                  processedUser.studentDetails = {
-                    studentId: userData.userId || userData._id,
-                    class: userData.academicInfo?.class || userData.class || 'Not assigned',
-                    section: userData.academicInfo?.section || userData.section || 'Not assigned',
-                    rollNumber: userData.studentDetails?.rollNumber || userData.rollNumber || ''
-                  };
+                  // Preserve ALL studentDetails from backend if available
+                  if (userData.studentDetails) {
+                    processedUser.studentDetails = {
+                      ...userData.studentDetails, // Spread all nested fields
+                      studentId: userData.userId || userData._id,
+                      class: userData.studentDetails.academic?.currentClass || userData.studentDetails.class || userData.class || 'Not assigned',
+                      section: userData.studentDetails.academic?.currentSection || userData.studentDetails.section || userData.section || 'Not assigned'
+                    };
+                  } else {
+                    processedUser.studentDetails = {
+                      studentId: userData.userId || userData._id,
+                      class: userData.academicInfo?.class || userData.class || 'Not assigned',
+                      section: userData.academicInfo?.section || userData.section || 'Not assigned',
+                      rollNumber: userData.studentDetails?.rollNumber || userData.rollNumber || ''
+                    };
+                  }
                 } else if (role === 'teacher') {
                   processedUser.teacherDetails = {
                     employeeId: userData.teacherDetails?.employeeId || userData.employeeId || userData.teacherId || 'Not assigned',
@@ -2077,6 +2182,11 @@ const ManageUsers: React.FC = () => {
         }
 
         console.log('Processed users:', allUsers);
+        console.log(`📊 Total processed users: ${allUsers.length}`);
+        if (allUsers.length === 0) {
+          console.warn('⚠️ No users were processed from the API response!');
+          console.log('Full API response:', response);
+        }
         console.log('Processed Users with Passwords:', allUsers.filter(u => u.role === 'teacher').map(t => ({
           id: t.userId,
           name: t.name,
@@ -2242,6 +2352,8 @@ const ManageUsers: React.FC = () => {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Clear any previous server-side validation errors when submitting
+      setAddFormServerErrors([]);
       // Prevent double submit
       if (isSubmittingRef.current) return;
 
@@ -2379,8 +2491,8 @@ const ManageUsers: React.FC = () => {
             admissionClass: formData.studentDetails?.admissionClass || '',
             rollNumber: formData.studentDetails?.rollNumber || formData.rollNumber || '',
             admissionNumber: formData.studentDetails?.admissionNumber || formData.admissionNumber || '',
-            enrollmentNo: formData.studentDetails?.enrollmentNo || '',
-            tcNo: formData.studentDetails?.tcNo || '',
+            enrollmentNo: formData.studentDetails?.enrollmentNo || formData.enrollmentNo || '',
+            tcNo: formData.studentDetails?.tcNo || formData.tcNo || '',
 
             previousSchool: {
               name: formData.studentDetails?.previousSchoolName || formData.previousSchool || '',
@@ -2514,62 +2626,38 @@ const ManageUsers: React.FC = () => {
             lastMedicalCheckup: formData.studentDetails.lastMedicalCheckup ? new Date(formData.studentDetails.lastMedicalCheckup) : undefined
           } : undefined
         };
+
+        // ===== CRITICAL FIX: Add flat fields for backend validator =====
+        // The backend validator expects these fields at the top level of userData
+        // We already set them in studentDetails but also need them flat for validation
+        userData.class = userData.studentDetails.academic.currentClass;
+        userData.section = userData.studentDetails.academic.currentSection;
+        userData.enrollmentNo = userData.studentDetails.academic.enrollmentNo;
+        userData.tcNo = userData.studentDetails.academic.tcNo;
+        userData.studentAadhaar = userData.studentDetails.personal.studentAadhaar;
+        userData.studentCasteCertNo = userData.studentDetails.personal.studentCasteCertNo;
+        userData.schoolAdmissionDate = formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) : 
+                                       (formData.studentDetails?.schoolAdmissionDate ? new Date(formData.studentDetails.schoolAdmissionDate) : undefined);
+        userData.bankName = userData.studentDetails.financial?.bankDetails?.bankName;
+        userData.bankAccountNo = userData.studentDetails.financial?.bankDetails?.accountNumber;
+        userData.bankIFSC = userData.studentDetails.financial?.bankDetails?.ifscCode;
+        userData.nationality = userData.studentDetails.personal.nationality;
+        
+        // Add address fields (backend looks for these at top level or nested)
+        userData.permanentStreet = userData.studentDetails.addressDetails?.permanent?.street || formData.address;
+        userData.permanentCity = userData.studentDetails.addressDetails?.permanent?.city || formData.city;
+        userData.permanentState = userData.studentDetails.addressDetails?.permanent?.state || formData.state;
+        userData.permanentPincode = userData.studentDetails.addressDetails?.permanent?.pincode || formData.pinCode;
+        // ===== END CRITICAL FIX =====
       } else if (formData.role === 'teacher') {
-        userData.teacherDetails = {
-          employeeId: formData.teacherDetails?.employeeId || formData.employeeId || '',
-          joiningDate: formData.teacherDetails?.joiningDate ? new Date(formData.teacherDetails.joiningDate) : undefined,
-
-          qualification: {
-            highest: formData.teacherDetails?.highestQualification || formData.qualification || '',
-            specialization: formData.teacherDetails?.specialization || '',
-            university: formData.teacherDetails?.university || '',
-            year: formData.teacherDetails?.graduationYear || 0
-          },
-
-          experience: {
-            total: formData.teacherDetails?.totalExperience || Number(formData.experience) || 0,
-            atCurrentSchool: formData.teacherDetails?.experienceAtCurrentSchool || 0,
-            previousSchools: formData.teacherDetails?.previousSchools || []
-          },
-
-          subjects: formData.teacherDetails?.subjects?.map(subject => ({
-            subjectCode: subject,
-            subjectName: subject,
-            classes: [],
-            isPrimary: formData.teacherDetails?.primarySubjects?.includes(subject) || false
-          })) || (typeof formData.subjects === 'string' ? formData.subjects.split(',').map(s => ({
-            subjectCode: s.trim(),
-            subjectName: s.trim(),
-            classes: [],
-            isPrimary: true
-          })) : []),
-
-          classTeacherOf: formData.teacherDetails?.classTeacherOf || '',
-          responsibilities: formData.teacherDetails?.responsibilities || [],
-
-          workSchedule: {
-            workingDays: formData.teacherDetails?.workingDays || [],
-            workingHours: {
-              start: formData.teacherDetails?.workingHoursStart || '',
-              end: formData.teacherDetails?.workingHoursEnd || ''
-            },
-            maxPeriodsPerDay: formData.teacherDetails?.maxPeriodsPerDay || 0,
-            maxPeriodsPerWeek: formData.teacherDetails?.maxPeriodsPerWeek || 0
-          },
-
-          salary: formData.teacherDetails?.basicSalary ? {
-            basic: formData.teacherDetails.basicSalary,
-            allowances: formData.teacherDetails.allowances || [],
-            currency: 'INR'
-          } : undefined,
-
-          bankDetails: formData.teacherDetails?.bankAccountNumber ? {
-            accountNumber: formData.teacherDetails.bankAccountNumber,
-            ifscCode: formData.teacherDetails.bankIFSC || '',
-            bankName: formData.teacherDetails.bankName || '',
-            branchName: formData.teacherDetails.bankBranchName || ''
-          } : undefined
-        };
+        // Send data in the format backend expects (simple fields)
+        userData.employeeId = formData.teacherDetails?.employeeId || formData.employeeId || '';
+        userData.joiningDate = formData.teacherDetails?.joiningDate || formData.joiningDate;
+        userData.qualification = formData.teacherDetails?.highestQualification || formData.qualification || '';
+        userData.experience = formData.teacherDetails?.totalExperience || Number(formData.experience) || 0;
+        userData.subjects = formData.subjects || [];
+        userData.designation = formData.teacherDetails?.designation || formData.designation || '';
+        userData.department = formData.teacherDetails?.department || formData.department || '';
       } else if (formData.role === 'admin') {
         userData.adminDetails = {
           adminType: formData.adminDetails?.adminType || formData.adminLevel || '',
@@ -2627,6 +2715,9 @@ const ManageUsers: React.FC = () => {
         userData.userId = formData.userId;
       }
 
+      // Log the exact request before sending to help debug validation failures
+      console.log('📤 Sending to server:', JSON.stringify(userData, null, 2));
+
       // Call API and capture server-assigned user info
       const createRes: any = await schoolUserAPI.addUser(schoolCode, userData, token);
 
@@ -2667,7 +2758,22 @@ const ManageUsers: React.FC = () => {
       fetchUsers();
     } catch (error: any) {
       console.error('Error creating user:', error);
-      toast.error(error.response?.data?.message || error.message || 'Failed to create user');
+      // If backend returned a list of validation errors, show them clearly to the user
+      const serverMessage = error?.response?.data?.message;
+      const serverErrors: string[] = error?.response?.data?.errors || [];
+      console.log('📥 Server response data:', error?.response?.data);
+      if (serverErrors && serverErrors.length > 0) {
+        // Show primary server message first (if any)
+        if (serverMessage) toast.error(serverMessage);
+        // Then show individual errors (limit to first 6 to avoid spamming)
+        serverErrors.slice(0, 6).forEach(errMsg => toast.error(String(errMsg)));
+        // Also expose validation errors inside the Add modal so admin can see them
+        try { setAddFormServerErrors(serverErrors.map(String)); } catch (e) { console.warn('Could not set addFormServerErrors', e); }
+        // Also attach full errors array to console for debugging
+        console.warn('Server validation errors:', serverErrors);
+      } else {
+        toast.error(serverMessage || error.message || 'Failed to create user');
+      }
     } finally {
       setLoading(false);
       isSubmittingRef.current = false;
@@ -3727,22 +3833,34 @@ const ManageUsers: React.FC = () => {
       userEmail.includes(searchLower) ||
       userId.includes(searchLower);
     const matchesRole = user.role === activeTab;
-    const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || user.studentDetails?.currentClass === selectedGrade;
-    const matchesSection = activeTab !== 'student' || selectedSection === 'all' || user.studentDetails?.currentSection === selectedSection;
+    // Get class from multiple possible locations (handles both old and new data formats)
+    const studentClass = user.studentDetails?.academic?.currentClass || 
+                        user.studentDetails?.currentClass || 
+                        (user as any).academicInfo?.class || 
+                        (user as any).class;
+    // Get section from multiple possible locations (handles both old and new data formats)
+    const studentSection = user.studentDetails?.academic?.currentSection || 
+                          user.studentDetails?.currentSection || 
+                          (user as any).academicInfo?.section || 
+                          (user as any).section;
+    const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || studentClass === selectedGrade;
+    const matchesSection = activeTab !== 'student' || selectedSection === 'all' || studentSection === selectedSection;
     
     // Filter students by viewing academic year
+    // academicYear is stored in studentDetails.academic.academicYear
+    const studentAcademicYear = user.studentDetails?.academic?.academicYear || user.studentDetails?.academicYear;
     const matchesAcademicYear = activeTab !== 'student' || 
-      (user.studentDetails?.academicYear === viewingAcademicYear);
+      (studentAcademicYear === viewingAcademicYear);
     
     // Debug logging for academic year filtering
     if (activeTab === 'student' && user.userId === 'AVM-S-0063') {
       console.log('🔍 Filtering AVM-S-0063:', {
-        studentAcademicYear: user.studentDetails?.academicYear,
+        studentAcademicYear: studentAcademicYear,
         viewingAcademicYear,
         matchesAcademicYear,
         matchesGrade,
         matchesSection,
-        currentClass: user.studentDetails?.currentClass,
+        currentClass: user.studentDetails?.academic?.currentClass || user.studentDetails?.currentClass,
         selectedGrade
       });
     }
@@ -3822,10 +3940,62 @@ const ManageUsers: React.FC = () => {
     return 0;
   });
 
-  // Simple form validity check for disabling submit button
+  // Lightweight form validity check used only to enable/disable the Add button.
+  // This mirrors the asterisk-marked fields in the Add User modal UI so the
+  // button becomes active as soon as the visually-required inputs are filled.
+  // Full validation still runs on submit (validateFormBeforeSubmit) to show
+  // detailed errors and prevent bad submissions.
   const isFormValid = () => {
-    const errors = validateFormBeforeSubmit(formData);
-    return errors.length === 0;
+    try {
+      // Always require basic identity/contact fields present
+      if (!formData) return false;
+      const hasFirst = String(formData.firstName || '').trim() !== '';
+      const hasLast = String(formData.lastName || '').trim() !== '';
+      const hasEmail = String(formData.email || '').trim() !== '' && /\S+@\S+\.\S+/.test(formData.email);
+      const phoneToValidate = String(formData.phone || formData.primaryPhone || '').trim();
+      const hasPhone = phoneToValidate !== '';
+      const dob = String(formData.dateOfBirth || formData.studentDetails?.dateOfBirth || '').trim();
+      const hasDob = dob !== '';
+      const gender = String(formData.gender || formData.studentDetails?.gender || '').trim();
+      const hasGender = gender !== '';
+
+      // Role-specific quick checks
+      if (formData.role === 'student') {
+        const classVal = String(formData.class || formData.studentDetails?.currentClass || '').trim();
+        const sectionVal = String(formData.section || formData.studentDetails?.currentSection || '').trim();
+        const enrollment = String(formData.enrollmentNo || formData.studentDetails?.enrollmentNo || formData.studentDetails?.admissionNumber || formData.admissionNumber || '').trim();
+        const tcno = String(formData.tcNo || formData.studentDetails?.tcNo || formData.tcNumber || '').trim();
+        const studentCasteCert = String(formData.studentCasteCertNo || formData.studentDetails?.studentCasteCertNo || '').trim();
+        const schoolAdmission = String(formData.schoolAdmissionDate || formData.studentDetails?.admissionDate || formData.admissionDate || '').trim();
+        const bankName = String(formData.bankName || formData.studentDetails?.bankName || '').trim();
+        const bankAccount = String(formData.bankAccountNo || formData.studentDetails?.bankAccountNo || formData.bankAccountNumber || '').trim();
+        const bankIfsc = String(formData.bankIFSC || formData.studentDetails?.bankIFSC || formData.bankIfsc || '').trim();
+        const addressVal = String(formData.address || formData.permanentStreet || '').trim();
+        const cityVal = String(formData.cityVillageTown || formData.city || formData.permanentCity || '').trim();
+        const pinVal = String(formData.pinCode || formData.permanentPincode || '').trim();
+        const nationality = String(formData.nationality || formData.studentDetails?.nationality || '').trim();
+
+        const requiredPresent = [hasFirst, hasLast, hasEmail, hasPhone, hasDob, hasGender,
+          classVal !== '', /* admission class */
+          enrollment !== '', tcno !== '', studentCasteCert !== '', schoolAdmission !== '',
+          bankName !== '', bankAccount !== '', bankIfsc !== '',
+          addressVal !== '', cityVal !== '', pinVal !== '', nationality !== ''
+        ].every(Boolean);
+
+        return requiredPresent;
+      }
+
+      // For teacher/admin keep a lighter check: name + email + phone (if shown required)
+      if (formData.role === 'teacher' || formData.role === 'admin') {
+        return hasFirst && hasLast && hasEmail && hasPhone;
+      }
+
+      // Default conservative fallback
+      return hasFirst && hasLast && hasEmail;
+    } catch (e) {
+      console.error('Error in isFormValid quick-check:', e);
+      return false;
+    }
   };
 
   // Compute human-friendly missing fields list for tooltip
@@ -3833,7 +4003,7 @@ const ManageUsers: React.FC = () => {
     const errors = validateFormBeforeSubmit(formData);
     if (errors.length === 0) return '';
     // Map validation messages to shorter labels where possible
-    const mapLabel = (msg: string) => {
+      const mapLabel = (msg: string) => {
       if (msg.includes('First name')) return 'First name';
       if (msg.includes('Last name')) return 'Last name';
       if (msg.includes('email')) return 'Email';
@@ -3844,6 +4014,14 @@ const ManageUsers: React.FC = () => {
       if (msg.includes('Class selection')) return 'Class';
       if (msg.includes("Father's name")) return "Father's name";
       if (msg.includes("Mother's name")) return "Mother's name";
+      if (msg.includes('Enrollment')) return 'Enrollment No';
+      if (msg.includes('TC Number') || msg.includes('TC No') || msg.includes('TC number')) return 'TC No';
+        if (msg.toLowerCase().includes('school admission') || msg.toLowerCase().includes('admission date')) return 'School Admission Date';
+        if (msg.toLowerCase().includes('bank name')) return 'Bank Name';
+        if (msg.toLowerCase().includes('account') && msg.toLowerCase().includes('number')) return 'Bank Account No';
+        if (msg.toLowerCase().includes('ifsc')) return 'Bank IFSC Code';
+      if (msg.toLowerCase().includes('student caste') && msg.toLowerCase().includes('certificate')) return 'Student Caste Cert No';
+      if (msg.toLowerCase().includes('aadhaar') || msg.toLowerCase().includes('aadhar') || msg.toLowerCase().includes('kpr')) return 'Aadhaar/KPR No';
       return msg;
     };
 
@@ -3992,77 +4170,39 @@ const ManageUsers: React.FC = () => {
     let csvRows: string[] = [];
 
     if (role === 'student') {
-      // Comprehensive student export headers - matching template fields
+      // Simplified student export headers - only required fields
       headers = [
-        // Basic Information
-        'User ID', 'First Name', 'Middle Name', 'Last Name', 'Email', 'Phone',
-
-        // Student Academic Details
-        'Student ID', 'Admission Number', 'Roll Number', 'Class', 'Section', 'Academic Year', 'Admission Date', 'Admission Class',
-        'Stream', 'Electives', 'Enrollment No', 'TC No',
-
-        // Personal Information - Basic
-        'Date of Birth', 'Place of Birth', 'Gender', 'Blood Group', 'Nationality', 'Religion', 'Religion Other',
-        'Caste', 'Caste Other', 'Category', 'Category Other', 'Mother Tongue', 'Mother Tongue Other', 'Languages Known',
-
-        // Karnataka SATS Specific Personal Fields
-        'Student Name Kannada', 'Age Years', 'Age Months', 'Social Category', 'Social Category Other',
-        'Student Caste', 'Student Caste Other', 'Student Aadhaar', 'Student Caste Certificate No',
-        'Belonging to BPL', 'BPL Card No', 'Bhagyalakshmi Bond No',
-        'Disability', 'Disability Other', 'Is RTE Candidate*',
-
-        // Address Information - Current
-        'Current Address Line 1', 'Current Address Line 2', 'Current City', 'Current District', 'Current State', 'Current Pin Code',
-        'Current Taluka', 'Current Urban Rural',
-
-        // Address Information - Permanent  
-        'Permanent Address Line 1', 'Permanent Address Line 2', 'Permanent City', 'Permanent District', 'Permanent State', 'Permanent Pin Code',
-        'Permanent Taluka', 'Permanent Urban Rural',
-
-        // Father Information
-        'Father Name', 'Father Name Kannada', 'Father Occupation', 'Father Qualification', 'Father Phone', 'Father Email',
-        'Father Work Address', 'Father Annual Income', 'Father Aadhaar', 'Father Caste', 'Father Caste Other', 'Father Caste Certificate No',
-
-        // Mother Information
-        'Mother Name', 'Mother Name Kannada', 'Mother Occupation', 'Mother Qualification', 'Mother Phone', 'Mother Email',
-        'Mother Work Address', 'Mother Annual Income', 'Mother Aadhaar', 'Mother Caste', 'Mother Caste Other', 'Mother Caste Certificate No',
-
-        // Guardian Information
-        'Guardian Name', 'Guardian Relationship', 'Guardian Phone', 'Guardian Email', 'Guardian Address', 'Guardian Is Emergency Contact',
-
-        // Siblings Information (up to 3 siblings)
-        'Sibling 1 Name', 'Sibling 1 Age', 'Sibling 1 Relationship', 'Sibling 1 School', 'Sibling 1 Class',
-        'Sibling 2 Name', 'Sibling 2 Age', 'Sibling 2 Relationship', 'Sibling 2 School', 'Sibling 2 Class',
-        'Sibling 3 Name', 'Sibling 3 Age', 'Sibling 3 Relationship', 'Sibling 3 School', 'Sibling 3 Class',
-
-        // Medical Information
-        'Allergies', 'Chronic Conditions', 'Medications', 'Emergency Doctor Name', 'Emergency Hospital Name', 'Emergency Hospital Phone',
-        'Last Medical Checkup', 'Vaccination Status',
-
-        // Transportation
-        'Transport Mode', 'Bus Route', 'Pickup Point', 'Drop Point', 'Pickup Time', 'Drop Time',
-
-        // Financial Information
-        'Fee Category', 'Concession Type', 'Concession Percentage', 'Scholarship Name', 'Scholarship Amount', 'Scholarship Provider',
-
-        // Banking Information
-        'Bank Name', 'Account Number', 'IFSC Code', 'Account Holder Name',
-
-        'Profile Image Path', // <--- ADDED THE NEW FIELD FOR STUDENT
-
-        // Previous School Information
-        'Previous School Name', 'Previous School Board', 'Previous School Last Class', 'Previous School TC Number', 'Previous School TC Date', 'Reason for Transfer',
-
-        // Emergency Contacts (additional)
-        'Emergency Contact 1 Name', 'Emergency Contact 1 Relationship', 'Emergency Contact 1 Phone', 'Emergency Contact 1 Address', 'Emergency Contact 1 Is Primary',
-        'Emergency Contact 2 Name', 'Emergency Contact 2 Relationship', 'Emergency Contact 2 Phone', 'Emergency Contact 2 Address', 'Emergency Contact 2 Is Primary',
-
-        // Academic History (current year)
-        'Current Academic Year', 'Current Class Result', 'Current Percentage', 'Current Rank', 'Current Attendance',
-
-        // System Information
-        'Status', 'Created Date', 'Last Modified', 'Source', 'Import Batch', 'Tags', 'Notes'
+        'First Name',
+        'Last Name',
+        'Email',
+        'Phone',
+        'Date of Birth',
+        'Gender',
+        'Current Class',
+        'Current Section',
+        'Admission Number',
+        'Address'
       ];
+      csvRows = filteredUsers.map(user => {
+        const userData = user as any;
+        const name = userData.name || {};
+        const contact = userData.contact || {};
+        const studentDetails = userData.studentDetails || {};
+        const address = userData.address || '';
+        return [
+          name.firstName || '',
+          name.lastName || '',
+          user.email || '',
+          contact.primaryPhone || '',
+          studentDetails.dateOfBirth ? new Date(studentDetails.dateOfBirth).toISOString().split('T')[0] : '',
+          studentDetails.gender || '',
+          studentDetails.currentClass || '',
+          studentDetails.currentSection || '',
+          studentDetails.admissionNumber || '',
+          typeof address === 'string' ? address : (address.permanent?.street || '')
+        ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
+      });
+    
 
       csvRows = filteredUsers.map(user => {
         const userData = user as any;
@@ -4290,72 +4430,22 @@ const ManageUsers: React.FC = () => {
       });
 
     } else if (activeTab === 'teacher') {
-      // Comprehensive teacher export headers - matching template fields
+      // Simplified teacher export headers - matching UI form fields
       headers = [
         // Basic Information
-        'User ID', 'First Name', 'Middle Name', 'Last Name', 'Email', 'Phone',
-
-        // Personal Information
-        'Date of Birth', 'Place of Birth', 'Gender', 'Blood Group', 'Nationality', 'Religion', 'Caste', 'Category',
-        'Mother Tongue', 'Languages Known', 'Marital Status', 'Spouse Name',
-
-        // Address Information - Current
-        'Current Address Line 1', 'Current Address Line 2', 'Current City', 'Current District', 'Current State', 'Current Pin Code',
-
-        // Address Information - Permanent  
-        'Permanent Address Line 1', 'Permanent Address Line 2', 'Permanent City', 'Permanent District', 'Permanent State', 'Permanent Pin Code',
-
-        // Identity Documents
-        'Aadhaar Number', 'PAN Number', 'Passport Number', 'Driving License',
-
+        'First Name',
+        'Last Name', 
+        'Email',
+        'Phone Number',
+        'Date of Birth',
+        'Gender',
+        
         // Professional Information
-        'Employee ID', 'Joining Date', 'Designation', 'Department',
-
-        // Qualification Information
-        'Highest Qualification', 'Specialization', 'University', 'Qualification Year', 'Teaching License',
-
-        // Additional Certificates (up to 3)
-        'Certificate 1 Name', 'Certificate 1 Institution', 'Certificate 1 Year',
-        'Certificate 2 Name', 'Certificate 2 Institution', 'Certificate 2 Year',
-        'Certificate 3 Name', 'Certificate 3 Institution', 'Certificate 3 Year',
-
-        // Experience Information
-        'Total Experience (Years)', 'Experience at Current School (Years)',
-
-        // Previous Schools (up to 3)
-        'Previous School 1 Name', 'Previous School 1 Duration', 'Previous School 1 Position', 'Previous School 1 Reason for Leaving',
-        'Previous School 2 Name', 'Previous School 2 Duration', 'Previous School 2 Position', 'Previous School 2 Reason for Leaving',
-        'Previous School 3 Name', 'Previous School 3 Duration', 'Previous School 3 Position', 'Previous School 3 Reason for Leaving',
-
-        // Subject and Class Information
-        'Primary Subject 1 Code', 'Primary Subject 1 Name', 'Primary Subject 1 Classes', 'Primary Subject 1 Is Primary',
-        'Secondary Subject 2 Code', 'Secondary Subject 2 Name', 'Secondary Subject 2 Classes', 'Secondary Subject 2 Is Primary',
-        'Secondary Subject 3 Code', 'Secondary Subject 3 Name', 'Secondary Subject 3 Classes', 'Secondary Subject 3 Is Primary',
-        'Class Teacher Of', 'Responsibilities',
-
-        // Work Schedule
-        'Working Days', 'Working Hours Start', 'Working Hours End', 'Max Periods Per Day', 'Max Periods Per Week',
-
-        // Performance Review (Latest)
-        'Latest Review Academic Year', 'Latest Review Rating', 'Latest Review Comments',
-
-        // Salary Information
-        'Basic Salary', 'HRA Allowance', 'Transport Allowance', 'Medical Allowance', 'Other Allowances', 'Currency',
-
-        // Banking Information
-        'Bank Name', 'Account Number', 'IFSC Code', 'Branch Name', 'Account Holder Name',
-
-        'Profile Image Path', // <--- ADDED THE NEW FIELD FOR TEACHER
-
-        // Emergency Contact Information
-        'Emergency Contact 1 Name', 'Emergency Contact 1 Relationship', 'Emergency Contact 1 Phone', 'Emergency Contact 1 Address',
-        'Emergency Contact 2 Name', 'Emergency Contact 2 Relationship', 'Emergency Contact 2 Phone', 'Emergency Contact 2 Address',
-
-        // Administrative
-        'Assigned By', 'Admin Role Level', 'Permissions', 'Last Login',
-
-        // System Information
-        'Status', 'Created Date', 'Last Modified', 'Source', 'Import Batch', 'Tags', 'Notes'
+        'Qualification',
+        'Experience (Years)',
+        'Subjects Taught',
+        'Employee ID',
+        'Address'
       ];
 
       csvRows = filteredUsers.map(user => {
@@ -4364,196 +4454,37 @@ const ManageUsers: React.FC = () => {
         const name = userData.name || {};
         const address = userData.address || {};
         const contact = userData.contact || {};
-        const personalInfo = userData.personalInfo || {};
-        const identity = userData.identity || {};
-        const qualification = teacherDetails.qualification || {};
-        const certificates = qualification.certificates || [];
-        const experience = teacherDetails.experience || {};
-        const previousSchools = experience.previousSchools || [];
         const subjects = teacherDetails.subjects || [];
-        const responsibilities = teacherDetails.responsibilities || [];
-        const workSchedule = teacherDetails.workSchedule || {};
-        const performanceReviews = teacherDetails.performanceReviews || [];
-        const latestReview = performanceReviews[0] || {};
-        const salary = teacherDetails.salary || {};
-        const allowances = salary.allowances || [];
-        const bankDetails = teacherDetails.bankDetails || {};
-        const emergencyContacts = userData.emergencyContacts || [];
-        const metadata = userData.metadata || {};
-        const contactEmergency = contact.emergencyContact || {};
 
-        const defaultExperience = { total: 0, atCurrentSchool: 0, previousSchools: [] };
-        const exp = teacherDetails.experience || defaultExperience;
-        const qual = teacherDetails.qualification || {};
-        const workSch = teacherDetails.workSchedule || {};
+        // Format subjects as comma-separated string
+        const subjectsString = Array.isArray(subjects) 
+          ? subjects.map((s: any) => s.subjectName || s).join(', ')
+          : '';
 
-        // Map allowances to easy access structure
-        const allowanceMap = new Map(allowances.map((a: any) => [a.type, a.amount]));
-
-        // Get subjects (handling array of objects or just array of strings from the backend)
-        const formattedSubjects = subjects.map((s: any) => ({
-          subjectCode: s.subjectCode || s,
-          subjectName: s.subjectName || s,
-          classes: Array.isArray(s.classes) ? s.classes.join(', ') : '',
-          isPrimary: s.isPrimary === true ? 'TRUE' : 'FALSE'
-        })).filter(Boolean);
+        // Combine address fields into a single address string
+        const fullAddress = [
+          address.current?.street,
+          address.current?.area,
+          address.current?.city,
+          address.current?.state,
+          address.current?.pincode
+        ].filter(Boolean).join(', ');
 
         return [
           // Basic Information
-          userData.userId || user._id || '',
           name.firstName || '',
-          name.middleName || '',
           name.lastName || '',
           user.email || '',
           contact.primaryPhone || contact.phone || user.phone || '',
-
-          // Personal Information (using top-level contact/details fields if available)
           teacherDetails.dateOfBirth ? new Date(teacherDetails.dateOfBirth).toISOString().split('T')[0] : '',
-          personalInfo.placeOfBirth || '',
           teacherDetails.gender || '',
-          teacherDetails.bloodGroup || '',
-          teacherDetails.nationality || '',
-          teacherDetails.religion || '',
-          personalInfo.caste || '',
-          personalInfo.category || '',
-          personalInfo.motherTongue || '',
-          Array.isArray(personalInfo.languagesKnown) ? personalInfo.languagesKnown.join(', ') : '',
-          personalInfo.maritalStatus || '',
-          personalInfo.spouseName || '',
-
-          // Address Information - Current
-          address.current?.street || '',
-          address.current?.area || '', // Using area for Address Line 2
-          address.current?.city || '',
-          address.current?.district || '',
-          address.current?.state || '',
-          address.current?.pincode || '',
-
-          // Address Information - Permanent  
-          address.permanent?.street || '',
-          address.permanent?.area || '',
-          address.permanent?.city || '',
-          address.permanent?.district || '',
-          address.permanent?.state || '',
-          address.permanent?.pincode || '',
-
-          // Identity Documents
-          identity.aadharNumber || '',
-          identity.panNumber || '',
-          identity.passportNumber || '',
-          identity.drivingLicenseNumber || '',
-
+          
           // Professional Information
+          teacherDetails.qualification?.highest || '',
+          teacherDetails.experience?.total || '',
+          subjectsString,
           teacherDetails.employeeId || '',
-          teacherDetails.joiningDate ? new Date(teacherDetails.joiningDate).toISOString().split('T')[0] : '',
-          teacherDetails.designation || '',
-          teacherDetails.department || '',
-
-          // Qualification Information
-          qual.highest || '',
-          qual.specialization || '',
-          qual.university || '',
-          qual.year || '',
-          '', // Teaching License field not explicitly mapped to user model yet
-
-          // Additional Certificates (up to 3)
-          certificates[0]?.name || '',
-          certificates[0]?.institution || '',
-          certificates[0]?.year || '',
-          certificates[1]?.name || '',
-          certificates[1]?.institution || '',
-          certificates[1]?.year || '',
-          certificates[2]?.name || '',
-          certificates[2]?.institution || '',
-          certificates[2]?.year || '',
-
-          // Experience Information
-          exp.total || '',
-          exp.atCurrentSchool || '',
-
-          // Previous Schools (up to 3)
-          exp.previousSchools[0]?.schoolName || '',
-          exp.previousSchools[0]?.duration || '',
-          exp.previousSchools[0]?.position || '',
-          exp.previousSchools[0]?.reasonForLeaving || '',
-          exp.previousSchools[1]?.schoolName || '',
-          exp.previousSchools[1]?.duration || '',
-          exp.previousSchools[1]?.position || '',
-          exp.previousSchools[1]?.reasonForLeaving || '',
-          exp.previousSchools[2]?.schoolName || '',
-          exp.previousSchools[2]?.duration || '',
-          exp.previousSchools[2]?.position || '',
-          exp.previousSchools[2]?.reasonForLeaving || '',
-
-          // Subject and Class Information
-          formattedSubjects[0]?.subjectCode || '',
-          formattedSubjects[0]?.subjectName || '',
-          formattedSubjects[0]?.classes || '',
-          formattedSubjects[0]?.isPrimary || '',
-          formattedSubjects[1]?.subjectCode || '',
-          formattedSubjects[1]?.subjectName || '',
-          formattedSubjects[1]?.classes || '',
-          formattedSubjects[1]?.isPrimary || '',
-          formattedSubjects[2]?.subjectCode || '',
-          formattedSubjects[2]?.subjectName || '',
-          formattedSubjects[2]?.classes || '',
-          formattedSubjects[2]?.isPrimary || '',
-          teacherDetails.classTeacherOf || '',
-          Array.isArray(teacherDetails.responsibilities) ? teacherDetails.responsibilities.join(', ') : '',
-
-          // Work Schedule
-          Array.isArray(workSch.workingDays) ? workSch.workingDays.join(', ') : '',
-          workSch.workingHours?.start || '',
-          workSch.workingHours?.end || '',
-          workSch.maxPeriodsPerDay || '',
-          workSch.maxPeriodsPerWeek || '',
-
-          // Performance Review (Latest)
-          latestReview.academicYear || '',
-          latestReview.rating || '',
-          latestReview.comments || '',
-
-          // Salary Information
-          salary.basic || '',
-          allowanceMap.get('HRA') || '',
-          allowanceMap.get('Transport') || '',
-          allowanceMap.get('Medical') || '',
-          allowances.filter((a: any) => !['HRA', 'Transport', 'Medical'].includes(a.type)).map((a: any) => `${a.type}: ${a.amount}`).join(', ') || '',
-          salary.currency || '',
-
-          // Banking Information
-          bankDetails.bankName || '',
-          bankDetails.accountNumber || '',
-          bankDetails.ifscCode || '',
-          bankDetails.branchName || '',
-          bankDetails.accountHolderName || name.firstName && name.lastName ? `${name.firstName} ${name.lastName}` : '',
-
-          userData.profileImage || userData.profilePicture || '', // <--- MAPPING FOR TEACHER
-
-          // Emergency Contact Information (using main contact.emergencyContact for simplicity)
-          contactEmergency.name || '',
-          contactEmergency.relationship || '',
-          contactEmergency.phone || '',
-          contactEmergency.address || '', // Address not directly available in model structure for emergencyContact
-          emergencyContacts[0]?.name || '',
-          emergencyContacts[0]?.relationship || '',
-          emergencyContacts[0]?.phone || '',
-          emergencyContacts[0]?.address || '',
-
-          // Administrative
-          (userData as any).schoolAccess?.assignedBy || '',
-          user.role || 'teacher',
-          Array.isArray(userData.permissions) ? userData.permissions.join(', ') : '', // Assuming top-level permissions might exist
-          userData.lastLogin ? new Date(userData.lastLogin).toLocaleDateString() : '',
-
-          // System Information
-          user.isActive ? 'Active' : 'Inactive',
-          new Date(user.createdAt).toLocaleDateString(),
-          (userData as any).updatedAt ? new Date((userData as any).updatedAt).toLocaleDateString() : '',
-          metadata.source || '',
-          metadata.importBatch || '',
-          Array.isArray(metadata.tags) ? metadata.tags.join(', ') : '',
-          metadata.notes || ''
+          fullAddress
         ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
       });
 
@@ -4922,12 +4853,7 @@ const ManageUsers: React.FC = () => {
         if (!row['Class*']) {
           rowErrors.push('Class is required for students');
         }
-        if (!row['Father Name*']) {
-          rowErrors.push('Father Name is required for students');
-        }
-        if (!row['Mother Name*']) {
-          rowErrors.push('Mother Name is required for students');
-        }
+        // Father and Mother names are optional in import as well
 
         // Karnataka SATS specific validations
         if (row['Student Aadhaar'] && !/^\d{12}$/.test(row['Student Aadhaar'])) {
@@ -4953,22 +4879,21 @@ const ManageUsers: React.FC = () => {
         }
 
       } else if (role === 'teacher') {
-        if (!row['Highest Qualification*']) {
-          rowErrors.push('Highest Qualification is required for teachers');
+        // Simplified teacher validation - matching UI form fields
+        if (!row['Qualification']) {
+          rowErrors.push('Qualification is required for teachers');
         }
-        if (!row['Total Experience (Years)*']) {
-          rowErrors.push('Total Experience is required for teachers');
+        if (row['Experience (Years)'] && isNaN(parseInt(row['Experience (Years)']))) {
+          rowErrors.push('Experience (Years) must be a valid number');
         }
-        if (row['Total Experience (Years)*'] && isNaN(parseInt(row['Total Experience (Years)*']))) {
-          rowErrors.push('Total Experience must be a valid number');
+        if (!row['Date of Birth']) {
+          rowErrors.push('Date of Birth is required for teachers');
         }
-
-        // Teacher specific validations
-        if (row['Employee ID'] && !/^[A-Z]{3}_[A-Z]{3}\d{3}$/.test(row['Employee ID'])) {
-          rowErrors.push('Employee ID should follow format: SCH_TEA001');
+        if (row['Date of Birth'] && !/^\d{4}-\d{2}-\d{2}$/.test(row['Date of Birth'])) {
+          rowErrors.push('Date of Birth must be in YYYY-MM-DD format');
         }
-        if (row['Joining Date (YYYY-MM-DD)'] && !/^\d{4}-\d{2}-\d{2}$/.test(row['Joining Date (YYYY-MM-DD)'])) {
-          rowErrors.push('Joining Date must be in YYYY-MM-DD format');
+        if (!row['Gender'] || !['Male', 'Female', 'Other'].includes(row['Gender'])) {
+          rowErrors.push('Gender must be Male, Female, or Other');
         }
 
       } else if (role === 'admin') {
@@ -5485,138 +5410,45 @@ const ManageUsers: React.FC = () => {
             }
 
           } else if (activeTab === 'teacher') {
-            // Comprehensive teacher data mapping
+            // Simplified teacher data mapping - matching UI form fields
             userData.teacherDetails = {
               employeeId: row['Employee ID'] || '',
-              joiningDate: row['Joining Date (YYYY-MM-DD)'] ? new Date(row['Joining Date (YYYY-MM-DD)']) : new Date(),
-              designation: row['Designation'] || '',
-              department: row['Department'] || '',
-
+              dateOfBirth: row['Date of Birth'] ? new Date(row['Date of Birth']) : null,
+              gender: row['Gender'] || '',
+              
               // Qualification
               qualification: {
-                highest: row['Highest Qualification*'],
-                specialization: row['Specialization'] || '',
-                university: row['University'] || '',
-                year: row['Qualification Year'] ? parseInt(row['Qualification Year']) : null,
-                teachingLicense: row['Teaching License'] || '',
-                certificates: []
+                highest: row['Qualification'] || ''
               },
 
               // Experience
               experience: {
-                total: row['Total Experience (Years)*'] ? parseInt(row['Total Experience (Years)*']) : 0,
-                atCurrentSchool: row['Experience at Current School (Years)'] ? parseInt(row['Experience at Current School (Years)']) : 0,
-                previousSchools: []
+                total: row['Experience (Years)'] ? parseInt(row['Experience (Years)']) : 0
               },
 
-              // Subjects
-              subjects: [],
-
-              // Class teacher and responsibilities
-              classTeacherOf: row['Class Teacher Of'] || '',
-              responsibilities: row['Responsibilities'] ? row['Responsibilities'].split(',').map((s: string) => s.trim()) : [],
-
-              // Work schedule
-              workSchedule: {
-                workingDays: row['Working Days'] ? row['Working Days'].split(',').map((s: string) => s.trim()) : [],
-                workingHours: {
-                  start: row['Working Hours Start'] || '',
-                  end: row['Working Hours End'] || ''
-                },
-                maxPeriodsPerDay: row['Max Periods Per Day'] ? parseInt(row['Max Periods Per Day']) : null,
-                maxPeriodsPerWeek: row['Max Periods Per Week'] ? parseInt(row['Max Periods Per Week']) : null
-              },
-
-              // Performance reviews
-              performanceReviews: row['Latest Review Academic Year'] ? [{
-                academicYear: row['Latest Review Academic Year'],
-                rating: row['Latest Review Rating'] ? parseFloat(row['Latest Review Rating']) : null,
-                comments: row['Latest Review Comments'] || '',
-                reviewedBy: null,
-                reviewDate: new Date()
-              }] : [],
-
-              // Salary
-              salary: {
-                basic: row['Basic Salary'] ? parseFloat(row['Basic Salary']) : null,
-                allowances: [],
-                currency: row['Currency'] || 'INR'
-              },
-
-              // Bank details
-              bankDetails: {
-                bankName: row['Bank Name'] || '',
-                accountNumber: row['Account Number'] || '',
-                ifscCode: row['IFSC Code'] || '',
-                branchName: row['Branch Name'] || '',
-                accountHolderName: row['Account Holder Name'] || `${row['First Name*']} ${row['Last Name*']}`
-              }
+              // Subjects - parse comma-separated string
+              subjects: row['Subjects Taught'] 
+                ? row['Subjects Taught'].split(',').map((subject: string) => ({
+                    subjectName: subject.trim(),
+                    subjectCode: '',
+                    classes: [],
+                    isPrimary: false
+                  }))
+                : []
             };
 
-            // Add certificates
-            for (let i = 1; i <= 3; i++) {
-              if (row[`Certificate ${i} Name`]) {
-                userData.teacherDetails.qualification.certificates.push({
-                  name: row[`Certificate ${i} Name`],
-                  institution: row[`Certificate ${i} Institution`] || '',
-                  year: row[`Certificate ${i} Year`] ? parseInt(row[`Certificate ${i} Year`]) : null,
-                  documentUrl: ''
-                });
-              }
-            }
-
-            // Add previous schools
-            for (let i = 1; i <= 3; i++) {
-              if (row[`Previous School ${i} Name`]) {
-                userData.teacherDetails.experience.previousSchools.push({
-                  schoolName: row[`Previous School ${i} Name`],
-                  duration: row[`Previous School ${i} Duration`] || '',
-                  position: row[`Previous School ${i} Position`] || '',
-                  reasonForLeaving: row[`Previous School ${i} Reason for Leaving`] || ''
-                });
-              }
-            }
-
-            // Add subjects
-            for (let i = 1; i <= 3; i++) {
-              const codeField = i === 1 ? 'Primary Subject 1 Code' : `Secondary Subject ${i} Code`;
-              const nameField = i === 1 ? 'Primary Subject 1 Name' : `Secondary Subject ${i} Name`;
-              const classesField = i === 1 ? 'Primary Subject 1 Classes' : `Secondary Subject ${i} Classes`;
-              const isPrimaryField = i === 1 ? 'Primary Subject 1 Is Primary' : `Secondary Subject ${i} Is Primary`;
-
-              if (row[codeField] || row[nameField]) {
-                userData.teacherDetails.subjects.push({
-                  subjectCode: row[codeField] || '',
-                  subjectName: row[nameField] || '',
-                  classes: row[classesField] ? row[classesField].split(',').map((s: string) => s.trim()) : [],
-                  isPrimary: ['true', 'yes'].includes((row[isPrimaryField] || '').toLowerCase())
-                });
-              }
-            }
-
-            // Add salary allowances
-            const allowanceTypes = ['HRA', 'Transport', 'Medical'];
-            allowanceTypes.forEach(type => {
-              const amount = row[`${type} Allowance`];
-              if (amount && parseFloat(amount) > 0) {
-                userData.teacherDetails.salary.allowances.push({
-                  type: type,
-                  amount: parseFloat(amount)
-                });
-              }
-            });
-
-            // Add other allowances if specified
-            if (row['Other Allowances']) {
-              row['Other Allowances'].split(',').forEach((allowance: string) => {
-                const [type, amount] = allowance.trim().split(':');
-                if (type && amount) {
-                  userData.teacherDetails.salary.allowances.push({
-                    type: type.trim(),
-                    amount: parseFloat(amount.trim())
-                  });
+            // Parse address from single field
+            if (row['Address']) {
+              const addressParts = row['Address'].split(',').map((part: string) => part.trim());
+              userData.address = {
+                current: {
+                  street: addressParts[0] || '',
+                  area: addressParts[1] || '',
+                  city: addressParts[2] || '',
+                  state: addressParts[3] || '',
+                  pincode: addressParts[4] || ''
                 }
-              });
+              };
             }
 
           } else if (activeTab === 'admin') {
@@ -6109,84 +5941,93 @@ const ManageUsers: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex space-x-2">
-              <button
-                onClick={exportUsers}
-                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <Download className="h-4 w-4" />
-                <span>Export</span>
-              </button>
-              <button
-                onClick={() => {
-                  try {
-                    console.log('Opening import modal for:', activeTab);
-                    setShowImportModal(true);
-                  } catch (error) {
-                    console.error('Error opening import modal:', error);
-                    toast.error('Failed to open import dialog');
-                  }
-                }}
-                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <Upload className="h-4 w-4" />
-                <span>Import</span>
-              </button>
-              <button
-                onClick={() => generateTemplate(activeTab)}
-                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                title={`Download ${activeTab} import template`}
-              >
-                <FileText className="h-4 w-4" />
-                <span>Template</span>
-              </button>
-              {activeTab === 'teacher' && (
+            {activeTab === 'admin' ? (
+              <div className="flex items-center justify-center px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center space-x-2 text-yellow-800">
+                  <Shield className="h-5 w-5" />
+                  <span className="font-medium">Admins are only created by super admin</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex space-x-2">
                 <button
-                  onClick={handleShowAllPasswords}
-                  className={`flex items-center space-x-2 px-4 py-2 border rounded-lg ${allPasswordsVisible
-                    ? 'border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100'
-                    : 'border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100'
-                    }`}
-                  title={allPasswordsVisible ? "Hide all teacher passwords" : "Show all teacher passwords (requires admin password)"}
+                  onClick={exportUsers}
+                  className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
-                  {allPasswordsVisible ? (
-                    <>
-                      <EyeOff className="h-4 w-4" />
-                      <span>Hide All Passwords</span>
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="h-4 w-4" />
-                      <span>Show All Passwords</span>
-                    </>
-                  )}
+                  <Download className="h-4 w-4" />
+                  <span>Export</span>
                 </button>
-              )}
-              <button
-                onClick={async () => {
-                  setShowAddModal(true);
-                  // Set role based on active tab and generate credentials
-                  setFormData(prev => ({
-                    ...prev,
-                    role: activeTab
-                  }));
-                  // Generate credentials automatically
-                  const schoolCode = user?.schoolCode || 'P';
-                  const userId = await generateUserId(activeTab, schoolCode);
-                  // For students, don't generate password until DOB is entered
-                  const password = activeTab === 'student' ? '' : generatePassword();
-                  setFormData(prev => ({
-                    ...prev,
-                    userId: userId,
-                    generatedPassword: password
-                  }));
-                }}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => {
+                    try {
+                      console.log('Opening import modal for:', activeTab);
+                      setShowImportModal(true);
+                    } catch (error) {
+                      console.error('Error opening import modal:', error);
+                      toast.error('Failed to open import dialog');
+                    }
+                  }}
+                  className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Import</span>
+                </button>
+                <button
+                  onClick={() => generateTemplate(activeTab)}
+                  className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  title={`Download ${activeTab} import template`}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Template</span>
+                </button>
+                {activeTab === 'teacher' && (
+                  <button
+                    onClick={handleShowAllPasswords}
+                    className={`flex items-center space-x-2 px-4 py-2 border rounded-lg ${allPasswordsVisible
+                      ? 'border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                      : 'border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100'
+                      }`}
+                    title={allPasswordsVisible ? "Hide all teacher passwords" : "Show all teacher passwords (requires admin password)"}
+                  >
+                    {allPasswordsVisible ? (
+                      <>
+                        <EyeOff className="h-4 w-4" />
+                        <span>Hide All Passwords</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-4 w-4" />
+                        <span>Show All Passwords</span>
+                      </>
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={async () => {
+                    setShowAddModal(true);
+                    // Set role based on active tab and generate credentials
+                    setFormData(prev => ({
+                      ...prev,
+                      role: activeTab
+                    }));
+                    // Generate credentials automatically
+                    const schoolCode = user?.schoolCode || 'P';
+                    const userId = await generateUserId(activeTab, schoolCode);
+                    // For students, don't generate password until DOB is entered
+                    const password = activeTab === 'student' ? '' : generatePassword();
+                    setFormData(prev => ({
+                      ...prev,
+                      userId: userId,
+                      generatedPassword: password
+                    }));
+                  }}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -6405,12 +6246,12 @@ const ManageUsers: React.FC = () => {
                           {activeTab === 'student' && (
                             <>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {/* Reads from the processed studentDetails object */}
-                                {user.studentDetails?.currentClass || 'Not assigned'}
+                                {/* Reads from the processed studentDetails object, with fallback to academicInfo */}
+                                {user.studentDetails?.currentClass || user.studentDetails?.class || (user as any).academicInfo?.class || 'Not assigned'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {/* Reads from the processed studentDetails object */}
-                                {user.studentDetails?.currentSection || 'Not assigned'}
+                                {/* Reads from the processed studentDetails object, with fallback to academicInfo */}
+                                {user.studentDetails?.currentSection || user.studentDetails?.section || (user as any).academicInfo?.section || 'Not assigned'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {(user as any).userId || user._id || 'Not assigned'}
@@ -6546,6 +6387,16 @@ const ManageUsers: React.FC = () => {
               <h3 className="text-xl font-bold text-gray-900 mb-6">
                 Add New {formData.role.charAt(0).toUpperCase() + formData.role.slice(1)} - Enrollment Form
               </h3>
+              {addFormServerErrors && addFormServerErrors.length > 0 && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
+                  <p className="text-sm font-semibold text-red-700">Validation errors:</p>
+                  <ul className="list-disc list-inside text-sm text-red-600 mt-2">
+                    {addFormServerErrors.map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <form onSubmit={handleAddUser} onKeyDown={handleFormKeyDown} className="space-y-6">
 
                 {/* Role Selection */}
@@ -6780,9 +6631,10 @@ const ManageUsers: React.FC = () => {
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Enrollment No</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Enrollment No *</label>
                           <input
                             type="text"
+                            required
                             value={formData.enrollmentNo}
                             onChange={(e) => setFormData({ ...formData, enrollmentNo: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -6790,13 +6642,25 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">TC No</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">TC No *</label>
                           <input
                             type="text"
+                            required
                             value={formData.tcNo}
                             onChange={(e) => setFormData({ ...formData, tcNo: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter TC number"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">School Admission Date *</label>
+                          <input
+                            type="date"
+                            required
+                            value={formData.schoolAdmissionDate}
+                            onChange={(e) => setFormData({ ...formData, schoolAdmissionDate: e.target.value })}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            placeholder="Select admission date"
                           />
                         </div>
                       </div>
@@ -7032,10 +6896,9 @@ const ManageUsers: React.FC = () => {
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">Family Details</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Father Name (English) *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Father Name (English)</label>
                           <input
                             type="text"
-                            required
                             value={formData.fatherName}
                             onChange={(e) => setFormData({
                               ...formData,
@@ -7072,10 +6935,9 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Mother Name (English) *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Mother Name (English)</label>
                           <input
                             type="text"
-                            required
                             value={formData.motherName}
                             onChange={(e) => setFormData({
                               ...formData,
@@ -7119,9 +6981,10 @@ const ManageUsers: React.FC = () => {
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">Identity Documents</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar/KPR No</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar/KPR No *</label>
                           <input
                             type="text"
+                            required
                             value={formData.studentAadhaar}
                             onChange={(e) => setFormData({ ...formData, studentAadhaar: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -7131,9 +6994,10 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Student Caste Certificate No</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Student Caste Certificate No *</label>
                           <input
                             type="text"
+                            required
                             value={formData.studentCasteCertNo}
                             onChange={(e) => setFormData({ ...formData, studentCasteCertNo: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -7540,18 +7404,20 @@ const ManageUsers: React.FC = () => {
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">School and Banking</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">School Admission Date</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">School Admission Date <span className="text-red-500">*</span></label>
                           <input
                             type="date"
+                            required
                             value={formData.schoolAdmissionDate}
                             onChange={(e) => setFormData({ ...formData, schoolAdmissionDate: e.target.value, admissionDate: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name <span className="text-red-500">*</span></label>
                           <input
                             type="text"
+                            required
                             value={formData.bankName}
                             onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -7559,9 +7425,10 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account No</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account No <span className="text-red-500">*</span></label>
                           <input
                             type="text"
+                            required
                             value={formData.bankAccountNo}
                             onChange={(e) => setFormData({ ...formData, bankAccountNo: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -7569,9 +7436,10 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank IFSC Code</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank IFSC Code <span className="text-red-500">*</span></label>
                           <input
                             type="text"
+                            required
                             value={formData.bankIFSC}
                             onChange={(e) => setFormData({ ...formData, bankIFSC: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8287,9 +8155,10 @@ const ManageUsers: React.FC = () => {
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Enrollment No</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Enrollment No *</label>
                           <input
                             type="text"
+                            required
                             value={formData.enrollmentNo}
                             onChange={(e) => setFormData({ ...formData, enrollmentNo: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8297,9 +8166,10 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">TC No</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">TC No *</label>
                           <input
                             type="text"
+                            required
                             value={formData.tcNo}
                             onChange={(e) => setFormData({ ...formData, tcNo: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8506,10 +8376,9 @@ const ManageUsers: React.FC = () => {
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">Family Details</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Father Name (English) *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Father Name (English)</label>
                           <input
                             type="text"
-                            required
                             value={formData.fatherName}
                             onChange={(e) => setFormData({ ...formData, fatherName: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8539,10 +8408,9 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Mother Name (English) *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Mother Name (English)</label>
                           <input
                             type="text"
-                            required
                             value={formData.motherName}
                             onChange={(e) => setFormData({ ...formData, motherName: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8644,9 +8512,10 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Student Caste Certificate No</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Student Caste Certificate No *</label>
                           <input
                             type="text"
+                            required
                             value={formData.studentCasteCertNo}
                             onChange={(e) => setFormData({ ...formData, studentCasteCertNo: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8851,9 +8720,10 @@ const ManageUsers: React.FC = () => {
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">Banking Information</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name <span className="text-red-500">*</span></label>
                           <input
                             type="text"
+                            required
                             value={formData.bankName}
                             onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8861,9 +8731,10 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account No</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account No <span className="text-red-500">*</span></label>
                           <input
                             type="text"
+                            required
                             value={formData.bankAccountNo}
                             onChange={(e) => setFormData({ ...formData, bankAccountNo: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8871,9 +8742,10 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank IFSC Code</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank IFSC Code <span className="text-red-500">*</span></label>
                           <input
                             type="text"
+                            required
                             value={formData.bankIFSC}
                             onChange={(e) => setFormData({ ...formData, bankIFSC: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
