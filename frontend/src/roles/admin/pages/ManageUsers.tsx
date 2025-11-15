@@ -6262,7 +6262,7 @@ const ManageUsers: React.FC = () => {
                             <>
                               {/* Employee ID Column - Access via user.teacherDetails */}
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {user.teacherDetails?.employeeId || 'N/A'}
+                                {(user as any).userId || user._id || 'N/A'}
                               </td>
 
                               {/* Password Column - Access user.temporaryPassword directly */}
