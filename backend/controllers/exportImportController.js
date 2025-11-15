@@ -827,9 +827,9 @@ function getTeacherHeadersSimplified() {
     'Phone Number',
     'Date of Birth',
     'Gender',
-    'Qualification',
-    'Experience (Years)',
-    'Subjects Taught',
+    // 'Qualification',
+    // 'Experience (Years)',
+    // 'Subjects Taught',
     'Employee ID',
     'Address',
     'Profile Image'
@@ -889,10 +889,14 @@ function validateTeacherRow(normalizedRow, rowNumber) {
 }
 
 // --- NEW: Simplified Teacher Validation (matching simplified template) ---
+// REPLACE your old validateTeacherRowSimplified function with this one:
+
 function validateTeacherRowSimplified(normalizedRow, rowNumber) {
   const errors = [];
+  
+  // --- MODIFICATION: Changed 'phonenumber' to 'primaryphone' ---
   const requiredKeys = [
-    'firstname', 'lastname', 'email', 'phonenumber',
+    'firstname', 'lastname', 'email', 'primaryphone',
     'dateofbirth', 'gender', 'qualification'
   ];
   
@@ -909,12 +913,13 @@ function validateTeacherRowSimplified(normalizedRow, rowNumber) {
   
   const gender = normalizedRow['gender']?.toLowerCase(); 
   if (gender && gender.trim() !== '' && !['male', 'female', 'other'].includes(gender)) { 
-    errors.push({ row: rowNumber, error: `Invalid value (must be 'male', 'female', or 'other')`, field: 'gender' }); 
+    errors.push({ row: rowNumber, error: `Invalid value (must be 'male', 'female', 'other')`, field: 'gender' }); 
   }
   
-  const phone = normalizedRow['phonenumber']; 
+  // --- MODIFICATION: Changed 'phonenumber' to 'primaryphone' ---
+  const phone = normalizedRow['primaryphone']; 
   if (phone && phone.trim() !== '' && !/^\d{7,15}$/.test(phone.replace(/\D/g, ''))) { 
-    errors.push({ row: rowNumber, error: `Invalid format (must be 7-15 digits)`, field: 'phonenumber' }); 
+    errors.push({ row: rowNumber, error: `Invalid format (must be 7-15 digits)`, field: 'primaryphone' }); 
   }
   
   if (normalizedRow['dateofbirth']) { 
@@ -998,6 +1003,7 @@ async function createAdminFromRow(normalizedRow, schoolIdAsObjectId, userId, sch
 
 
 // --- Helper to create Teacher Data Object ---
+// REPLACE your entire createTeacherFromRow function with this
 async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, schoolCode, creatingUserIdAsObjectId) {
   const email = normalizedRow['email'];
   const finalDateOfBirth = parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth'); if (!finalDateOfBirth) throw new Error('Date of Birth is required and could not be parsed.');
@@ -1008,7 +1014,7 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
   const sameAsPermanent = normalizedRow['sameaspermanent']?.toLowerCase() !== 'false';
   let permanentPincode = normalizedRow['permanentpincode'] || ''; if (permanentPincode && !/^\d{6}$/.test(permanentPincode)) permanentPincode = '';
   let currentPincode = normalizedRow['currentpincode'] || ''; if (currentPincode && !/^\d{6}$/.test(currentPincode)) currentPincode = '';
-  // Support multiple possible keys for experience coming from different templates
+  
   let totalExperience = 0;
   const experienceCandidates = [
     normalizedRow['totalexperience'],
@@ -1031,9 +1037,27 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
     console.log(`🔍 DEBUG: Teacher profile image path returned: ${profileImagePath}`);
   }
 
-  // Build teacherDetails using the newer schema (teacherDetails). Also support legacy 'teachingInfo' where necessary.
+  // --- START OF SUBJECTS FIX ---
+  // 1. Get the raw string from either new template ('subjectstaught') or old ('subjects')
+  const subjectsString = normalizedRow['subjectstaught'] || normalizedRow['subjects'] || '';
+
+  // 2. Split the string by comma, trim, filter empty, and map to the schema structure
+  const subjectsArray = (typeof subjectsString === 'string')
+    ? subjectsString.split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(subjectName => ({ 
+            subjectName: subjectName, 
+            subjectCode: '', 
+            classes: [], 
+            isPrimary: false 
+        }))
+    : [];
+  // --- END OF SUBJECTS FIX ---
+
+  // Build teacherDetails using the newer schema (teacherDetails)
   const teacherDetails = {
-    subjects: normalizedRow['subjects'] ? (typeof normalizedRow['subjects'] === 'string' ? normalizedRow['subjects'].split(',').map(s => s.trim()).filter(Boolean) : normalizedRow['subjects']) : [],
+    subjects: subjectsArray, // <-- Use the corrected array here
     classes: [],
     employeeId: (normalizedRow['employeeid'] && String(normalizedRow['employeeid']).trim()) || userId,
     joinDate: finalJoiningDate,
@@ -1043,7 +1067,7 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
     department: (normalizedRow['department'] || '').trim(),
   };
 
-  // If there's a simplified 'Address' column (single-cell), try to split it into parts
+  // If there's a simplified 'Address' column (single-cell)
   let permanentStreetVal = normalizedRow['permanentstreet'] || '';
   let permanentAreaVal = normalizedRow['permanentarea'] || '';
   let permanentCityVal = normalizedRow['permanentcity'] || '';
@@ -1052,7 +1076,6 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
 
   if (normalizedRow['address'] && String(normalizedRow['address']).trim() !== '') {
     const addr = String(normalizedRow['address']).trim();
-    // Split by comma and map progressively to street/area/city/state/pincode
     const parts = addr.split(',').map(p => p.trim()).filter(Boolean);
     if (parts.length === 1) {
       permanentStreetVal = permanentStreetVal || parts[0];
@@ -1086,8 +1109,10 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
     isActive: isActive, createdAt: new Date(), updatedAt: new Date(),
     schoolAccess: { joinedDate: finalJoiningDate, assignedBy: creatingUserIdAsObjectId, status: 'active', accessLevel: 'full' },
     auditTrail: { createdBy: creatingUserIdAsObjectId, createdAt: new Date() },
-    // New schema: teacherDetails
-    teacherDetails: teacherDetails,
+    
+    teacherDetails: teacherDetails, // <-- Corrected subjects are in here
+    
+    // This flat 'personal' object is used for backward compatibility
     personal: {
       dateOfBirth: finalDateOfBirth,
       gender: gender,
@@ -1557,12 +1582,13 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
 // --- CSV Generation (Enhanced) ---
 // REPLACE your entire generateCSV function with this one:
 
+// REPLACE your entire generateCSV function with this
 function generateCSV(users, role) {
   let headers;
   let rows;
 
   if (role.toLowerCase() === 'student') {
-    headers = getStudentHeadersRobust(); // Gets the new, correct headers
+    headers = getStudentHeadersRobust(); 
     
     rows = users.map(user => {
       // --- Define data objects for easy access, handling undefined
@@ -1575,7 +1601,7 @@ function generateCSV(users, role) {
       const personal = sDetails.personal || {};
       const family = sDetails.family || {};
       const financial = sDetails.financial || {};
-      const bank = financial.bankDetails || user.banking || {}; // Handle both new and old flat structure
+      const bank = financial.bankDetails || user.banking || {}; 
       const father = family.father || {};
 
       // --- Helper to format dates ---
@@ -1598,24 +1624,26 @@ function generateCSV(users, role) {
         'Last Name': name.lastName || '',
         'Email': user.email || '',
         'Phone Number': contact.primaryPhone || '',
-        'Date of Birth': formatDate(personal.dateOfBirth), // Correct: studentDetails.personal.dateOfBirth
-        'Gender': personal.gender || '', // Correct: studentDetails.personal.gender
-        'Enrollment No': academic.enrollmentNo || '', // Correct: studentDetails.academic.enrollmentNo
-        'TC No': academic.tcNo || '', // Correct: studentDetails.academic.tcNo
-        'Admission to Class': academic.currentClass || '', // Correct: studentDetails.academic.currentClass
-        'Section': academic.currentSection || '', // Correct: studentDetails.academic.currentSection
-        'Academic Year': academic.academicYear || '', // Correct: studentDetails.academic.academicYear
-        'Is RTE Candidate': personal.isRTECandidate || '', // Correct: studentDetails.personal.isRTECandidate
-        'Father Name': father.name || '', // Correct: studentDetails.family.father.name
-        'Permanent Street': permanentAddr.street || '', // Correct: address.permanent.street
-        'City/Village/Town': permanentAddr.city || '', // Correct: address.permanent.city
-        'Pin Code': permanentAddr.pincode || '', // Correct: address.permanent.pincode
-        'Aadhar Number': identity.aadharNumber || personal.studentAadhaar || '', // Use top-level OR personal
-        'Bank Name': bank.bankName || '', // From studentDetails.financial.bankDetails OR flat banking
-        'Bank Account No': bank.accountNumber || '', // From studentDetails.financial.bankDetails OR flat banking
-        'Bank IFSC Code': bank.ifscCode || '', // From studentDetails.financial.bankDetails OR flat banking
-        'Nationality': personal.nationality || '', // Correct: studentDetails.personal.nationality
-        'Student Caste Certificate No': personal.studentCasteCertNo || '', // Correct: studentDetails.personal.studentCasteCertNo
+        'Date of Birth': formatDate(personal.dateOfBirth), 
+        'Gender': personal.gender || '', 
+        'Enrollment No': academic.enrollmentNo || '', 
+        'TC No': academic.tcNo || '', 
+        'Admission to Class': academic.currentClass || '', 
+        'Section': academic.currentSection || '', 
+        'Academic Year': academic.academicYear || '', 
+        'Is RTE Candidate': personal.isRTECandidate || '', 
+        'Father Name': father.name || '', 
+        'Permanent Street': permanentAddr.street || '', 
+        'City/Village/Town': permanentAddr.city || '', 
+        'Pin Code': permanentAddr.pincode || '', 
+        'Aadhar Number': identity.aadharNumber || personal.studentAadhaar || '', 
+        'School Admission Date': formatDate(academic.admissionDate), // Added this back, as it's in the CSV
+        'Address': permanentAddr.street ? [permanentAddr.street, permanentAddr.city, permanentAddr.pincode].filter(Boolean).join(', ') : '', // Added this back
+        'Bank Name': bank.bankName || '', 
+        'Bank Account No': bank.accountNumber || '', 
+        'Bank IFSC Code': bank.ifscCode || '', 
+        'Nationality': personal.nationality || '', 
+        'Student Caste Certificate No': personal.studentCasteCertNo || '', 
         'Profile Image': user.profileImage || ''
       };
 
@@ -1624,101 +1652,105 @@ function generateCSV(users, role) {
     });
 
   } else if (role.toLowerCase() === 'teacher') {
-    // (This is the existing teacher logic from your file, preserved)
-    headers = getTeacherHeadersSimplified(); 
+    headers = getTeacherHeadersSimplified();
     rows = users.map(user => {
-        const teachingInfo = user.teacherDetails || user.teachingInfo || {};
-        const personal = user.teacherDetails || user.personal || {};
-        const name = user.name || {};
-        const contact = user.contact || {};
-        const address = user.address || {};
-        const subjects = teachingInfo.subjects || [];
-        const rowData = {};
+      
+      // --- START OF EXPORT FIX ---
+      // 'teachingInfo' should point to 'teacherDetails'
+      // 'personal' should point to the flat 'user.personal' object
+      const teachingInfo = user.teacherDetails || {}; 
+      const personal = user.personal || {}; // <-- This was the bug
+      // --- END OF EXPORT FIX ---
 
-        const subjectsString = Array.isArray(subjects) 
-          ? subjects.map((s) => s.subjectName || s).join(', ')
-          : '';
+      const name = user.name || {};
+      const contact = user.contact || {};
+      const address = user.address || {};
+      const subjects = teachingInfo.subjects || []; // This now correctly reads user.teacherDetails.subjects
+      const rowData = {};
 
-        let fullAddress = '';
-        if (typeof user.address === 'string') {
-          fullAddress = user.address;
-        } else if (user.address && typeof user.address === 'object') {
-          const currentAddr = user.address.current || {};
-          const permanentAddr = user.address.permanent || {};
-          
-          const addressParts = [
-            currentAddr.street || permanentAddr.street,
-            currentAddr.area || permanentAddr.area,
-            currentAddr.city || permanentAddr.city,
-            currentAddr.state || permanentAddr.state,
-            currentAddr.pincode || permanentAddr.pincode
-          ].filter(Boolean);
-          
-          fullAddress = addressParts.join(', ');
-        }
+      let fullAddress = '';
+      if (typeof user.address === 'string') {
+        fullAddress = user.address;
+      } else if (user.address && typeof user.address === 'object') {
+        const currentAddr = user.address.current || {};
+        const permanentAddr = user.address.permanent || {};
+        
+        const addressParts = [
+          currentAddr.street || permanentAddr.street,
+          currentAddr.area || permanentAddr.area,
+          currentAddr.city || permanentAddr.city,
+          currentAddr.state || permanentAddr.state,
+          currentAddr.pincode || permanentAddr.pincode
+        ].filter(Boolean);
+        
+        fullAddress = addressParts.join(', ');
+      }
 
-        headers.forEach(header => {
-          let value = '';
-          try {
-            switch (header) {
-              case 'First Name': value = name.firstName || user.firstName || user.first_name || ''; break;
-              case 'Last Name': value = name.lastName || user.lastName || user.last_name || ''; break;
-              case 'Email': value = user.email || ''; break;
-              case 'Phone Number': value = contact.primaryPhone || contact.phone || user.phone || user.mobile || user.phoneNumber || user.contactNumber || ''; break;
-              case 'Date of Birth': 
-                value = personal.dateOfBirth || '';
-                if (value) {
-                  try {
-                    value = new Date(value).toISOString().split('T')[0];
-                  } catch (e) {
-                    value = '';
-                  }
-                }
-                break;
-              case 'Gender': 
-                value = personal.gender || '';
-                break;
-              case 'Qualification': 
-                value = teachingInfo.qualification || '';
-                break;
-              case 'Experience (Years)': 
-                value = teachingInfo.experience || '';
-                break;
-              case 'Subjects Taught': 
-                if (Array.isArray(subjects)) {
-                  value = subjects.map((s) => {
-                    if (typeof s === 'string') {
-                      return s;
-                    } else if (typeof s === 'object' && s !== null) {
-                      return s.subjectName || s.name || s.subject || String(s);
-                    } else {
-                      return String(s);
-                    }
-                  }).join(', ');
-                } else if (typeof subjects === 'string') {
-                  value = subjects;
-                } else {
+      headers.forEach(header => {
+        let value = '';
+        try {
+          switch (header) {
+            case 'First Name': value = name.firstName || user.firstName || user.first_name || ''; break;
+            case 'Last Name': value = name.lastName || user.lastName || user.last_name || ''; break;
+            case 'Email': value = user.email || ''; break;
+            case 'Phone Number': value = contact.primaryPhone || contact.phone || user.phone || user.mobile || user.phoneNumber || user.contactNumber || ''; break;
+            case 'Date of Birth': 
+              // This now correctly reads from user.personal.dateOfBirth
+              value = personal.dateOfBirth || ''; 
+              if (value) {
+                try {
+                  value = new Date(value).toISOString().split('T')[0];
+                } catch (e) {
                   value = '';
                 }
-                break;
-              case 'Employee ID': 
-                value = teachingInfo.employeeId || user.userId || '';
-                break;
-              case 'Address': value = fullAddress; break;
-              case 'Profile Image': value = user.profileImage || user.profilePicture || ''; break;
-              default: value = '';
-            }
-          } catch (e) { 
-            console.warn(`Error getting ${header} for teacher ${user.userId}:`, e.message); 
-            value = '';
-          } 
-          rowData[header] = value ?? '';
-        });
-        return headers.map(header => rowData[header]);
+              }
+              break;
+            case 'Gender': 
+              // This now correctly reads from user.personal.gender
+              value = personal.gender || ''; 
+              break;
+            case 'Qualification': 
+              value = teachingInfo.qualification || '';
+              break;
+            case 'Experience (Years)': 
+              value = teachingInfo.experience || '';
+              break;
+            case 'Subjects Taught': 
+              // This now correctly reads from user.teacherDetails.subjects
+              if (Array.isArray(subjects)) {
+                value = subjects.map((s) => {
+                  if (typeof s === 'string') {
+                    return s;
+                  } else if (typeof s === 'object' && s !== null) {
+                    return s.subjectName || s.name || s.subject || String(s);
+                  } else {
+                    return String(s);
+                  }
+                }).join(', ');
+              } else if (typeof subjects === 'string') {
+                value = subjects;
+              } else {
+                value = '';
+              }
+              break;
+            case 'Employee ID': 
+              value = teachingInfo.employeeId || user.userId || '';
+              break;
+            case 'Address': value = fullAddress; break;
+            case 'Profile Image': value = user.profileImage || user.profilePicture || ''; break;
+            default: value = '';
+          }
+        } catch (e) { 
+          console.warn(`Error getting ${header} for teacher ${user.userId}:`, e.message); 
+          value = '';
+        } 
+        rowData[header] = value ?? '';
+      });
+      return headers.map(header => rowData[header]);
     });
 
   } else if (role.toLowerCase() === 'admin') {
-    // (This is the existing admin logic from your file, preserved)
+     // (This is the existing admin logic from your file, preserved)
      headers = getAdminHeaders();
      rows = users.map(user => {
         const adminDetails = user.adminDetails || {};

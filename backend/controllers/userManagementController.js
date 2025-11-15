@@ -335,12 +335,61 @@ exports.createUser = async (req, res) => { /* ... Keep code from previous correc
       };
     }
     else if (role === 'teacher') {
+      const teacherData = userData.teacherDetails || {}; // Get the nested object from frontend
+
+      // 1. Professional Details
       newUser.teacherDetails = {
-        employeeId: userData.employeeId?.trim() || userId, subjects: Array.isArray(userData.subjects) ? userData.subjects.map(s => String(s).trim()) : [], qualification: userData.qualification?.trim() || '', experience: userData.experience || 0,
-        joiningDate: userData.joiningDate ? new Date(userData.joiningDate) : null,
-        specialization: userData.specialization?.trim() || '', previousExperience: userData.previousExperience?.trim() || '', dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
-        gender: userData.gender?.toLowerCase() || 'other', bloodGroup: userData.bloodGroup?.trim() || '', nationality: userData.nationality || 'Indian', religion: userData.religion?.trim() || '',
-        bankName: userData.bankName?.trim() || '', bankAccountNo: userData.bankAccountNo?.trim() || '', bankIFSC: userData.bankIFSC?.trim() || ''
+        employeeId: (teacherData.employeeId?.trim() || userData.employeeId?.trim()) || userId,
+        subjects: Array.isArray(teacherData.subjects) ? teacherData.subjects.map(s => String(s).trim()) : [],
+        qualification: teacherData.qualification?.trim() || '',
+        experience: teacherData.experience || 0,
+        joinDate: teacherData.joiningDate ? new Date(teacherData.joiningDate) : (userData.joiningDate ? new Date(userData.joiningDate) : new Date()),
+        specialization: teacherData.specialization?.trim() || '',
+        designation: teacherData.designation?.trim() || '',
+        department: teacherData.department?.trim() || '',
+        
+        // Bank details (from nested teacherData)
+        bankDetails: {
+          bankName: teacherData.bankDetails?.bankName?.trim() || '',
+          accountNumber: teacherData.bankDetails?.accountNumber?.trim() || '',
+          ifscCode: teacherData.bankDetails?.ifscCode?.trim() || '',
+          accountHolderName: teacherData.bankDetails?.accountHolderName?.trim() || `${newUser.name.firstName} ${newUser.name.lastName}`.trim()
+        }
+      };
+
+      // 2. Personal Details (from flat userData, matching bulk import)
+      newUser.personal = {
+        dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
+        gender: userData.gender?.toLowerCase() || 'other',
+        bloodGroup: userData.bloodGroup?.trim() || '',
+        nationality: userData.nationality || 'Indian',
+        religion: userData.religion?.trim() || '',
+        religionOther: '',
+        caste: userData.caste?.trim() || '',
+        casteOther: '',
+        category: userData.category?.trim() || '',
+        categoryOther: '',
+        motherTongue: '',
+        motherTongueOther: '',
+        aadhaar: newUser.identity.aadharNumber, // Use value from root identity
+        pan: newUser.identity.panNumber,     // Use value from root identity
+        disability: 'Not Applicable',
+        disabilityOther: ''
+      };
+
+      // 3. Family Details (from flat userData, matching bulk import)
+      newUser.family = {
+        father: {
+          name: userData.fatherName?.trim() || '',
+          occupation: ''
+        },
+        mother: {
+          name: userData.motherName?.trim() || '',
+          occupation: ''
+        },
+        spouse: {
+          name: ''
+        }
       };
     }
     else if (role === 'admin') {

@@ -2651,13 +2651,29 @@ const ManageUsers: React.FC = () => {
         // ===== END CRITICAL FIX =====
       } else if (formData.role === 'teacher') {
         // Send data in the format backend expects (simple fields)
-        userData.employeeId = formData.teacherDetails?.employeeId || formData.employeeId || '';
-        userData.joiningDate = formData.teacherDetails?.joiningDate || formData.joiningDate;
-        userData.qualification = formData.teacherDetails?.highestQualification || formData.qualification || '';
-        userData.experience = formData.teacherDetails?.totalExperience || Number(formData.experience) || 0;
-        userData.subjects = formData.subjects || [];
-        userData.designation = formData.teacherDetails?.designation || formData.designation || '';
-        userData.department = formData.teacherDetails?.department || formData.department || '';
+        userData.teacherDetails = {
+          // Professional Info
+          employeeId: formData.teacherDetails?.employeeId || formData.employeeId || '',
+          joiningDate: formData.teacherDetails?.joiningDate ? new Date(formData.teacherDetails.joiningDate) : (formData.joiningDate ? new Date(formData.joiningDate) : undefined),
+          qualification: formData.teacherDetails?.highestQualification || formData.qualification || '', // Use qualification from legacy field as fallback
+          experience: formData.teacherDetails?.totalExperience || Number(formData.experience) || 0, // Use experience from legacy field
+          subjects: formData.teacherDetails?.subjects?.length ? formData.teacherDetails.subjects : (Array.isArray(formData.subjects) ? formData.subjects : (formData.subjects ? String(formData.subjects).split(',').map(s => s.trim()) : [])), // Use legacy subjects
+          specialization: formData.teacherDetails?.specialization || '',
+          designation: formData.teacherDetails?.designation || '',
+          department: formData.teacherDetails?.department || formData.department || '', // use legacy
+
+          // Bank Details (from teacherDetails in form state)
+          bankDetails: {
+            accountNumber: formData.teacherDetails?.bankAccountNumber || '',
+            ifscCode: formData.teacherDetails?.bankIFSC || '',
+            bankName: formData.teacherDetails?.bankName || '',
+            branchName: formData.teacherDetails?.bankBranchName || '',
+            accountHolderName: formData.teacherDetails?.bankAccountHolderName || `${formData.firstName} ${formData.lastName}`.trim()
+          }
+          // Note: Personal info (DOB, gender) is already added to the root `userData` object,
+          // which the backend controller will read.
+        };
+        // --- END OF CORRECTED LOGIC ---
       } else if (formData.role === 'admin') {
         userData.adminDetails = {
           adminType: formData.adminDetails?.adminType || formData.adminLevel || '',
@@ -6158,7 +6174,7 @@ const ManageUsers: React.FC = () => {
                       <>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Password</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Experience</th>
+                        {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Experience</th> */}
                       </>
                     )}
                     {activeTab === 'admin' && (
@@ -6297,12 +6313,7 @@ const ManageUsers: React.FC = () => {
                               </td>
 
                               {/* Experience Column - Access via user.teacherDetails */}
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {/* Check if experience is defined and not null */}
-                                {user.teacherDetails?.experience !== undefined && user.teacherDetails?.experience !== null
-                                  ? `${user.teacherDetails.experience} years`
-                                  : 'N/A'}
-                              </td>
+                              
                             </>
                           )}
                           {activeTab === 'admin' && (
