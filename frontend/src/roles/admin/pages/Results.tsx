@@ -409,11 +409,31 @@ const Results: React.FC = () => {
         // Robust client-side filtering as backend may not filter by class/section
         const rawStudents = response.data.data as any[];
         const filtered = rawStudents.filter((s: any) => {
-          const sClass = s.studentDetails?.currentClass || s.currentclass || s.class || s.className;
-          const sSection = s.studentDetails?.currentSection || s.currentsection || s.section;
-          const studentAcademicYear = s.studentDetails?.academicYear || s.academicYear;
-          const matchesAcademicYear = studentAcademicYear === viewingAcademicYear;
-          return String(sClass) === String(selectedClass) && String(sSection).toUpperCase() === String(selectedSection).toUpperCase() && matchesAcademicYear;
+          // Check all possible locations for class, prioritizing academicInfo
+          const sClass = s.academicInfo?.class ||
+                        s.studentDetails?.academic?.currentClass ||
+                        s.studentDetails?.currentClass || 
+                        s.studentDetails?.class ||
+                        s.currentclass || 
+                        s.class || 
+                        s.className;
+          // Check all possible locations for section, prioritizing academicInfo
+          const sSection = s.academicInfo?.section ||
+                          s.studentDetails?.academic?.currentSection ||
+                          s.studentDetails?.currentSection || 
+                          s.studentDetails?.section ||
+                          s.currentsection || 
+                          s.section;
+          // Check all possible locations for academic year
+          const studentAcademicYear = s.studentDetails?.academicYear || 
+                                     s.studentDetails?.academic?.academicYear ||
+                                     s.academicYear ||
+                                     s.academicInfo?.academicYear;
+          // If academic year is not set, don't filter it out (allow it through)
+          const matchesAcademicYear = !studentAcademicYear || String(studentAcademicYear).trim() === String(viewingAcademicYear).trim();
+          return String(sClass).trim() === String(selectedClass).trim() && 
+                 String(sSection).trim().toUpperCase() === String(selectedSection).trim().toUpperCase() && 
+                 matchesAcademicYear;
         });
 
         const students = filtered.map((student: any, index: number) => ({

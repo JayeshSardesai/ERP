@@ -93,9 +93,27 @@ const ViewAttendance: React.FC = () => {
       const users = data.data || data || [];
       console.log(`👥 [ViewAttendance] Total users received from API (already filtered by backend): ${users.length}`);
 
-      // Backend already filters by class, section, and academic year
-      // Just ensure they are students (defensive check)
-      const filtered = users.filter((u: any) => u.role === 'student');
+      // Backend should filter by class, section, and academic year, but add defensive client-side filtering
+      const filtered = users.filter((u: any) => {
+        if (u.role !== 'student') return false;
+        
+        // Defensive check: verify class and section match (prioritizing academicInfo)
+        const studentClass = u.academicInfo?.class ||
+                            u.studentDetails?.academic?.currentClass ||
+                            u.studentDetails?.currentClass || 
+                            u.studentDetails?.class ||
+                            u.class;
+        const studentSection = u.academicInfo?.section ||
+                              u.studentDetails?.academic?.currentSection ||
+                              u.studentDetails?.currentSection || 
+                              u.studentDetails?.section ||
+                              u.section;
+        
+        const matchesClass = !selectedClass || String(studentClass).trim() === String(selectedClass).trim();
+        const matchesSection = !selectedSection || String(studentSection).trim().toUpperCase() === String(selectedSection).trim().toUpperCase();
+        
+        return matchesClass && matchesSection;
+      });
 
       console.log(`✅ [ViewAttendance] Students for AY ${currentAcademicYear}: ${filtered.length}`);
 

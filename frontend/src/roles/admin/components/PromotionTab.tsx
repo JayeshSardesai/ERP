@@ -149,14 +149,27 @@ const PromotionTab: React.FC<PromotionTabProps> = ({
         }
         
         const classStudents = allStudents.filter((s: any) => {
-          // Handle both studentDetails and direct properties
-          const studentClass = s.studentDetails?.currentClass || s.class;
-          const studentSection = s.studentDetails?.currentSection || s.section;
-          const studentYear = s.studentDetails?.academicYear || s.academicYear;
+          // Check all possible locations for class, section, and academic year, prioritizing academicInfo
+          const studentClass = s.academicInfo?.class ||
+                              s.studentDetails?.academic?.currentClass ||
+                              s.studentDetails?.currentClass || 
+                              s.studentDetails?.class ||
+                              s.class;
+          const studentSection = s.academicInfo?.section ||
+                                s.studentDetails?.academic?.currentSection ||
+                                s.studentDetails?.currentSection || 
+                                s.studentDetails?.section ||
+                                s.section;
+          const studentYear = s.studentDetails?.academicYear || 
+                             s.studentDetails?.academic?.academicYear ||
+                             s.academicYear ||
+                             s.academicInfo?.academicYear;
           
-          const match = studentClass === selectedClass &&
-                       studentSection === selectedSection &&
-                       studentYear === fromYear;
+          const classMatch = String(studentClass).trim() === String(selectedClass).trim();
+          const sectionMatch = String(studentSection).trim().toUpperCase() === String(selectedSection).trim().toUpperCase();
+          const yearMatch = !studentYear || String(studentYear).trim() === String(fromYear).trim();
+          
+          const match = classMatch && sectionMatch && yearMatch;
           
           if (match) {
             console.log('✅ Matched student:', s.userId || s.sequenceId, s.name, { class: studentClass, section: studentSection, year: studentYear });

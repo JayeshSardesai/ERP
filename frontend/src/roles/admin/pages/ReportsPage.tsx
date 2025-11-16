@@ -196,22 +196,37 @@ const ReportsPage: React.FC = () => {
       // Apply filters
       let filteredStudents = students;
       
-      // Filter by academic year (same as ManageUsers)
+      // Filter by academic year - check multiple possible locations
       filteredStudents = filteredStudents.filter((s: any) => {
-        const studentAcademicYear = s.studentDetails?.academicYear || s.academicYear;
-        return studentAcademicYear === viewingAcademicYear;
+        const studentAcademicYear = s.studentDetails?.academicYear || 
+                                   s.studentDetails?.academic?.academicYear ||
+                                   s.academicYear ||
+                                   s.academicInfo?.academicYear;
+        // If academic year is not set, don't filter it out (allow it through)
+        if (!studentAcademicYear) return true;
+        return String(studentAcademicYear).trim() === String(viewingAcademicYear).trim();
       });
       
       if (selectedClass !== 'ALL') {
         filteredStudents = filteredStudents.filter((s: any) => {
-          const studentClass = s.studentDetails?.currentClass || s.class || s.academicInfo?.class;
-          return studentClass === selectedClass;
+          // Check all possible locations for class, prioritizing academicInfo
+          const studentClass = s.academicInfo?.class ||
+                              s.studentDetails?.academic?.currentClass ||
+                              s.studentDetails?.currentClass || 
+                              s.studentDetails?.class ||
+                              s.class;
+          return String(studentClass).trim() === String(selectedClass).trim();
         });
       }
       if (selectedSection !== 'ALL') {
         filteredStudents = filteredStudents.filter((s: any) => {
-          const studentSection = s.studentDetails?.currentSection || s.section || s.academicInfo?.section;
-          return studentSection === selectedSection;
+          // Check all possible locations for section, prioritizing academicInfo
+          const studentSection = s.academicInfo?.section ||
+                              s.studentDetails?.academic?.currentSection ||
+                              s.studentDetails?.currentSection || 
+                              s.studentDetails?.section ||
+                              s.section;
+          return String(studentSection).trim().toUpperCase() === String(selectedSection).trim().toUpperCase();
         });
       }
 
@@ -219,8 +234,19 @@ const ReportsPage: React.FC = () => {
       const classMap = new Map();
       
       filteredStudents.forEach((student: any) => {
-        const className = student.studentDetails?.currentClass || student.class || student.academicInfo?.class || 'Unknown';
-        const section = student.studentDetails?.currentSection || student.section || student.academicInfo?.section || 'Not Assigned';
+        // Check all possible locations for class and section, prioritizing academicInfo
+        const className = student.academicInfo?.class ||
+                         student.studentDetails?.academic?.currentClass ||
+                         student.studentDetails?.currentClass || 
+                         student.studentDetails?.class ||
+                         student.class || 
+                         'Unknown';
+        const section = student.academicInfo?.section ||
+                       student.studentDetails?.academic?.currentSection ||
+                       student.studentDetails?.currentSection || 
+                       student.studentDetails?.section ||
+                       student.section || 
+                       'Not Assigned';
         
         if (!classMap.has(className)) {
           classMap.set(className, {
@@ -351,22 +377,37 @@ const ReportsPage: React.FC = () => {
       // Apply filters
       let filteredStudents = students;
       
-      // Filter by academic year (same as ManageUsers)
+      // Filter by academic year - check multiple possible locations
       filteredStudents = filteredStudents.filter((s: any) => {
-        const studentAcademicYear = s.studentDetails?.academicYear || s.academicYear;
-        return studentAcademicYear === viewingAcademicYear;
+        const studentAcademicYear = s.studentDetails?.academicYear || 
+                                   s.studentDetails?.academic?.academicYear ||
+                                   s.academicYear ||
+                                   s.academicInfo?.academicYear;
+        // If academic year is not set, don't filter it out (allow it through)
+        if (!studentAcademicYear) return true;
+        return String(studentAcademicYear).trim() === String(viewingAcademicYear).trim();
       });
       
       if (selectedClass !== 'ALL') {
         filteredStudents = filteredStudents.filter((s: any) => {
-          const studentClass = s.studentDetails?.currentClass || s.class || s.academicInfo?.class;
-          return studentClass === selectedClass;
+          // Check all possible locations for class, prioritizing academicInfo
+          const studentClass = s.academicInfo?.class ||
+                              s.studentDetails?.academic?.currentClass ||
+                              s.studentDetails?.currentClass || 
+                              s.studentDetails?.class ||
+                              s.class;
+          return String(studentClass).trim() === String(selectedClass).trim();
         });
       }
       if (selectedSection !== 'ALL') {
         filteredStudents = filteredStudents.filter((s: any) => {
-          const studentSection = s.studentDetails?.currentSection || s.section || s.academicInfo?.section;
-          return studentSection === selectedSection;
+          // Check all possible locations for section, prioritizing academicInfo
+          const studentSection = s.academicInfo?.section ||
+                              s.studentDetails?.academic?.currentSection ||
+                              s.studentDetails?.currentSection || 
+                              s.studentDetails?.section ||
+                              s.section;
+          return String(studentSection).trim().toUpperCase() === String(selectedSection).trim().toUpperCase();
         });
       }
 

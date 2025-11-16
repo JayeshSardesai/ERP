@@ -179,21 +179,32 @@ const MarkAttendance: React.FC = () => {
       const users = data.data || data || [];
       console.log(`👥 Total users received: ${users.length}`);
 
-      // Filter students - check multiple possible field structures including currentClass/currentSection AND academic year
+      // Filter students - check multiple possible field structures, prioritizing academicInfo
       const filtered = users.filter((u: any) => {
         const isStudent = u.role === 'student';
-        const matchesClass = u.academicInfo?.class === selectedClass || 
-                            u.studentDetails?.class === selectedClass ||
-                            u.studentDetails?.currentClass === selectedClass ||
-                            u.class === selectedClass;
-        const matchesSection = u.academicInfo?.section === selectedSection || 
-                              u.studentDetails?.section === selectedSection ||
-                              u.studentDetails?.currentSection === selectedSection ||
-                              u.section === selectedSection;
+        // Check all possible locations for class, prioritizing academicInfo
+        const studentClass = u.academicInfo?.class ||
+                            u.studentDetails?.academic?.currentClass ||
+                            u.studentDetails?.currentClass || 
+                            u.studentDetails?.class ||
+                            u.class;
+        // Check all possible locations for section, prioritizing academicInfo
+        const studentSection = u.academicInfo?.section ||
+                              u.studentDetails?.academic?.currentSection ||
+                              u.studentDetails?.currentSection || 
+                              u.studentDetails?.section ||
+                              u.section;
         
-        // Filter by viewing academic year
-        const studentAcademicYear = u.studentDetails?.academicYear || u.academicYear;
-        const matchesAcademicYear = studentAcademicYear === viewingAcademicYear;
+        const matchesClass = String(studentClass).trim() === String(selectedClass).trim();
+        const matchesSection = String(studentSection).trim().toUpperCase() === String(selectedSection).trim().toUpperCase();
+        
+        // Filter by viewing academic year - check multiple possible locations
+        const studentAcademicYear = u.studentDetails?.academicYear || 
+                                   u.studentDetails?.academic?.academicYear ||
+                                   u.academicYear ||
+                                   u.academicInfo?.academicYear;
+        // If academic year is not set, don't filter it out (allow it through)
+        const matchesAcademicYear = !studentAcademicYear || String(studentAcademicYear).trim() === String(viewingAcademicYear).trim();
         
         return isStudent && matchesClass && matchesSection && matchesAcademicYear;
       });
@@ -204,8 +215,18 @@ const MarkAttendance: React.FC = () => {
         _id: u._id,
         userId: u.userId,
         name: u.name?.displayName || u.name || 'Unknown',
-        class: u.academicInfo?.class || u.studentDetails?.class || u.studentDetails?.currentClass || u.class || selectedClass,
-        section: u.academicInfo?.section || u.studentDetails?.section || u.studentDetails?.currentSection || u.section || selectedSection,
+        class: u.academicInfo?.class ||
+               u.studentDetails?.academic?.currentClass ||
+               u.studentDetails?.currentClass || 
+               u.studentDetails?.class ||
+               u.class || 
+               selectedClass,
+        section: u.academicInfo?.section ||
+                u.studentDetails?.academic?.currentSection ||
+                u.studentDetails?.currentSection || 
+                u.studentDetails?.section ||
+                u.section || 
+                selectedSection,
         morningStatus: null,
         afternoonStatus: null
       }));

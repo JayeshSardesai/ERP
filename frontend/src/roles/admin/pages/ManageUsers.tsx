@@ -3845,24 +3845,29 @@ const ManageUsers: React.FC = () => {
       userEmail.includes(searchLower) ||
       userId.includes(searchLower);
     const matchesRole = user.role === activeTab;
-    // Get class from multiple possible locations (handles both old and new data formats)
-    const studentClass = user.studentDetails?.academic?.currentClass || 
+    // Get class from multiple possible locations, prioritizing academicInfo (handles both old and new data formats)
+    const studentClass = (user as any).academicInfo?.class ||
+                        user.studentDetails?.academic?.currentClass || 
                         user.studentDetails?.currentClass || 
-                        (user as any).academicInfo?.class || 
+                        user.studentDetails?.class ||
                         (user as any).class;
-    // Get section from multiple possible locations (handles both old and new data formats)
-    const studentSection = user.studentDetails?.academic?.currentSection || 
+    // Get section from multiple possible locations, prioritizing academicInfo (handles both old and new data formats)
+    const studentSection = (user as any).academicInfo?.section ||
+                          user.studentDetails?.academic?.currentSection || 
                           user.studentDetails?.currentSection || 
-                          (user as any).academicInfo?.section || 
+                          user.studentDetails?.section ||
                           (user as any).section;
-    const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || studentClass === selectedGrade;
-    const matchesSection = activeTab !== 'student' || selectedSection === 'all' || studentSection === selectedSection;
+    const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || String(studentClass).trim() === String(selectedGrade).trim();
+    const matchesSection = activeTab !== 'student' || selectedSection === 'all' || String(studentSection).trim().toUpperCase() === String(selectedSection).trim().toUpperCase();
     
-    // Filter students by viewing academic year
-    // academicYear is stored in studentDetails.academic.academicYear
-    const studentAcademicYear = user.studentDetails?.academic?.academicYear || user.studentDetails?.academicYear;
+    // Filter students by viewing academic year - check multiple possible locations
+    const studentAcademicYear = user.studentDetails?.academic?.academicYear || 
+                               user.studentDetails?.academicYear ||
+                               (user as any).academicYear ||
+                               (user as any).academicInfo?.academicYear;
+    // If academic year is not set, don't filter it out (allow it through)
     const matchesAcademicYear = activeTab !== 'student' || 
-      (studentAcademicYear === viewingAcademicYear);
+      (!studentAcademicYear || String(studentAcademicYear).trim() === String(viewingAcademicYear).trim());
     
     // Debug logging for academic year filtering
     if (activeTab === 'student' && user.userId === 'AVM-S-0063') {
@@ -5680,8 +5685,19 @@ const ManageUsers: React.FC = () => {
     const classOrder = ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
     students.forEach(student => {
-      const className = student.studentDetails?.class || 'Unassigned';
-      const section = student.studentDetails?.section || 'A';
+      // Check all possible locations for class and section, prioritizing academicInfo
+      const className = (student as any).academicInfo?.class ||
+                       student.studentDetails?.academic?.currentClass ||
+                       student.studentDetails?.currentClass || 
+                       student.studentDetails?.class ||
+                       (student as any).class ||
+                       'Unassigned';
+      const section = (student as any).academicInfo?.section ||
+                     student.studentDetails?.academic?.currentSection ||
+                     student.studentDetails?.currentSection || 
+                     student.studentDetails?.section ||
+                     (student as any).section ||
+                     'A';
 
       if (!organized[className]) {
         organized[className] = {};
