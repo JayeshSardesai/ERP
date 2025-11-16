@@ -131,7 +131,7 @@ export default function TeacherHomeScreen() {
             <Text style={styles.logoText}>EduLogix</Text>
           </View>
           <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/menu')}>
-            <Text style={styles.settingsIcon}>⚙️</Text>
+            <Text style={styles.settingsIcon}>☰</Text>
           </TouchableOpacity>
         </View>
 
