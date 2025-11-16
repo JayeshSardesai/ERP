@@ -47,7 +47,7 @@ const SchoolSettings: React.FC = () => {
   const [toYear, setToYear] = useState('');
   const [isAcademicYearSaved, setIsAcademicYearSaved] = useState(false);
   const [savedAcademicYear, setSavedAcademicYear] = useState('');
-  
+
   // Reset saved state when academic year is modified
   useEffect(() => {
     if (savedAcademicYear && currentAcademicYear !== savedAcademicYear) {
@@ -85,20 +85,20 @@ const SchoolSettings: React.FC = () => {
       const endpoint = `/admin/classes/${schoolCode}/tests`;
       console.log('📡 Fetching tests from endpoint:', endpoint);
       console.log('📡 Using school code:', schoolCode);
-      
+
       const response = await api.get(endpoint);
-      
+
       console.log('📥 Tests API Response:', response.data);
-      
+
       if (response.data.success) {
         const tests = response.data.data?.tests || response.data.tests || [];
-        
+
         // Log the first test to see its structure
         if (tests.length > 0) {
           console.log('📋 First test structure:', tests[0]);
           console.log('📋 Test fields:', Object.keys(tests[0]));
         }
-        
+
         setTests(tests);
         console.log('✅ Fetched tests:', tests);
         toast.success(`Loaded ${tests.length} tests`);
@@ -129,20 +129,20 @@ const SchoolSettings: React.FC = () => {
       const endpoint = `/admin/classes/${schoolCode}/classes-sections`;
       console.log('📡 Fetching classes from endpoint:', endpoint);
       console.log('📡 Using school code:', schoolCode);
-      
+
       const response = await api.get(endpoint);
-      
+
       console.log('📥 Classes API Response:', response.data);
-      
+
       if (response.data.success) {
         const classes = response.data.data?.classes || response.data.classes || [];
-        
+
         // Fetch all students once (more efficient than per-class)
         let allStudents: any[] = [];
         try {
           const studentsEndpoint = `/school-users/${schoolCode}/users/role/student`;
           const studentsResponse = await api.get(studentsEndpoint);
-          
+
           if (studentsResponse.data.success) {
             allStudents = studentsResponse.data.data || studentsResponse.data.users || [];
             console.log(`📊 Fetched ${allStudents.length} total students`);
@@ -150,38 +150,78 @@ const SchoolSettings: React.FC = () => {
         } catch (error) {
           console.error('Error fetching students:', error);
         }
-        
+
         // Count students for each class and section
         const classesWithCounts = classes.map((cls: ClassData) => {
-          const classStudents = allStudents.filter((s: any) => 
-            s.studentDetails?.currentClass === cls.className || s.class === cls.className
-          );
-          
+          const targetYear = cls.academicYear || currentAcademicYear;
+
+          const classStudents = allStudents.filter((s: any) => {
+            const studentClass =
+              s.academicInfo?.class ||
+              s.studentDetails?.academic?.currentClass ||
+              s.studentDetails?.currentClass ||
+              s.studentDetails?.class ||
+              s.class ||
+              s.className;
+
+            const studentSection =
+              s.academicInfo?.section ||
+              s.studentDetails?.academic?.currentSection ||
+              s.studentDetails?.currentSection ||
+              s.studentDetails?.section ||
+              s.section;
+
+            const studentYear =
+              s.studentDetails?.academicYear ||
+              s.studentDetails?.academic?.academicYear ||
+              s.academicYear ||
+              s.academicInfo?.academicYear;
+
+            const classMatch = String(studentClass || '').trim() === String(cls.className).trim();
+            const yearMatch =
+              !targetYear ||
+              !studentYear ||
+              String(studentYear).trim() === String(targetYear).trim();
+
+            return classMatch && yearMatch && !!studentSection;
+          });
+
           // Count students per section
           const sectionCounts: Record<string, number> = {};
           cls.sections.forEach(section => {
-            sectionCounts[section] = classStudents.filter((s: any) => 
-              s.studentDetails?.currentSection === section || s.section === section
-            ).length;
+            sectionCounts[section] = classStudents.filter((s: any) => {
+              const studentSection =
+                s.academicInfo?.section ||
+                s.studentDetails?.academic?.currentSection ||
+                s.studentDetails?.currentSection ||
+                s.studentDetails?.section ||
+                s.section;
+
+              return (
+                String(studentSection || '')
+                  .trim()
+                  .toUpperCase() === String(section).trim().toUpperCase()
+              );
+            }).length;
           });
-          
+
           // Total students in class (sum of all sections)
           const totalStudentCount = Object.values(sectionCounts).reduce((sum, count) => sum + count, 0);
-          
-          return { 
-            ...cls, 
+
+          return {
+            ...cls,
             studentCount: totalStudentCount,
-            sectionCounts 
+            sectionCounts
           };
         });
-        
+
         // Sort classes in order: LKG, UKG, then 1-12
         const sortedClasses = classesWithCounts.sort((a: ClassData, b: ClassData) => {
           const classOrder = ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-          
+
           const aIndex = classOrder.indexOf(a.className);
           const bIndex = classOrder.indexOf(b.className);
-          
+
           // If both are in the predefined order, sort by index
           if (aIndex !== -1 && bIndex !== -1) {
             return aIndex - bIndex;
@@ -193,14 +233,14 @@ const SchoolSettings: React.FC = () => {
           // If neither is in the order, sort alphabetically
           return a.className.localeCompare(b.className);
         });
-        
+
         // Sort sections within each class
         sortedClasses.forEach((cls: ClassData) => {
           if (cls.sections && cls.sections.length > 0) {
             cls.sections.sort((a, b) => a.localeCompare(b));
           }
         });
-        
+
         setClasses(sortedClasses);
         console.log('✅ Fetched classes with student counts (sorted):', sortedClasses);
         toast.success(`Loaded ${classes.length} classes`);
@@ -250,7 +290,7 @@ const SchoolSettings: React.FC = () => {
     }
 
     // Get only configured tests (maxMarks must be set)
-    const configuredTests = tests.filter(test => 
+    const configuredTests = tests.filter(test =>
       testScoring[test._id]?.maxMarks
     );
 
@@ -263,7 +303,7 @@ const SchoolSettings: React.FC = () => {
     try {
       console.log('Saving scoring configuration:', testScoring);
       console.log(`Saving ${configuredTests.length} configured test(s)`);
-      
+
       // Prepare data for API - only send configured tests
       const scoringData = configuredTests.map(test => ({
         testId: test._id,
@@ -278,7 +318,7 @@ const SchoolSettings: React.FC = () => {
 
       if (response.data.success) {
         const unconfiguredCount = tests.length - configuredTests.length;
-        const message = unconfiguredCount > 0 
+        const message = unconfiguredCount > 0
           ? `Saved ${configuredTests.length} test(s). ${unconfiguredCount} test(s) not configured yet.`
           : `All ${configuredTests.length} test(s) configured successfully!`;
         toast.success(message);
@@ -325,7 +365,7 @@ const SchoolSettings: React.FC = () => {
 
     try {
       setLoading(true);
-      
+
       // Save academic year
       const response = await api.put(`/admin/academic-year/${schoolCode}`, {
         currentYear: currentAcademicYear,
@@ -351,7 +391,7 @@ const SchoolSettings: React.FC = () => {
           setSavedAcademicYear(currentAcademicYear);
           setIsAcademicYearSaved(true);
         }
-        
+
         // Refresh academic year context so all pages get the new year
         await refreshAcademicYear();
       }
@@ -405,7 +445,7 @@ const SchoolSettings: React.FC = () => {
           hasMaxMarks: !!test.maxMarks,
           hasWeightage: !!test.weightage
         });
-        
+
         if (test.maxMarks || test.weightage) {
           initialScoring[test._id] = {
             maxMarks: test.maxMarks || 0,
@@ -432,7 +472,7 @@ const SchoolSettings: React.FC = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">School Settings</h1>
         {activeTab === 'scoring' && (
-          <button 
+          <button
             onClick={handleSaveScoring}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
           >
@@ -451,13 +491,12 @@ const SchoolSettings: React.FC = () => {
                 key={tab.id}
                 onClick={() => !tab.disabled && setActiveTab(tab.id)}
                 disabled={tab.disabled}
-                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center transition-colors ${
-                  activeTab === tab.id
+                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center transition-colors ${activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : tab.disabled
-                    ? 'border-transparent text-gray-400 cursor-not-allowed'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
                 title={tab.disabled ? 'Please save Academic Year first' : ''}
               >
                 <tab.icon className="h-4 w-4 mr-2" />
@@ -559,7 +598,7 @@ const SchoolSettings: React.FC = () => {
                 <h3 className="text-lg font-medium text-gray-900">Scoring System</h3>
                 <p className="text-sm text-gray-600">Configure max marks and weightage for tests</p>
               </div>
-              
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                 <p className="text-sm text-blue-800">
                   <strong>Note:</strong> Tests are created by SuperAdmin. Here you can configure the scoring parameters (Max Marks and Weightage) for each test.
@@ -585,10 +624,10 @@ const SchoolSettings: React.FC = () => {
                     const classOrder = ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
                     const aClassName = a.className;
                     const bClassName = b.className;
-                    
+
                     const aIndex = classOrder.indexOf(aClassName);
                     const bIndex = classOrder.indexOf(bClassName);
-                    
+
                     if (aIndex !== -1 && bIndex !== -1) {
                       return aIndex - bIndex;
                     }
@@ -599,19 +638,19 @@ const SchoolSettings: React.FC = () => {
                     // Check if configured - only maxMarks is enough to determine configuration
                     const isConfigured = testScoring[test._id]?.maxMarks || test.maxMarks;
                     const isExpanded = expandedTests.has(test._id);
-                    
+
                     // Get test name - handle both testName and name fields
                     const testName = test.testName || (test as any).name || 'Unnamed Test';
-                    
+
                     // Debug log for each test
                     if (!test.testName && !(test as any).name) {
                       console.warn('⚠️ Test missing name:', test);
                     }
-                    
+
                     return (
                       <div key={test._id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
                         {/* Clickable Header */}
-                        <div 
+                        <div
                           onClick={() => toggleTestExpansion(test._id)}
                           className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                         >
@@ -628,11 +667,10 @@ const SchoolSettings: React.FC = () => {
                               <p className="text-sm text-gray-600 mt-0.5">Class {test.className}</p>
                             </div>
                           </div>
-                          <span className={`px-3 py-1 text-xs font-medium rounded-full flex-shrink-0 ${
-                            isConfigured 
-                              ? 'bg-green-100 text-green-800' 
+                          <span className={`px-3 py-1 text-xs font-medium rounded-full flex-shrink-0 ${isConfigured
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-yellow-100 text-yellow-800'
-                          }`}>
+                            }`}>
                             {isConfigured ? 'Configured' : 'Not Configured'}
                           </span>
                         </div>
@@ -732,7 +770,7 @@ const SchoolSettings: React.FC = () => {
                           {cls.sections.length} sections
                         </span>
                       </div>
-                      
+
                       {/* Total student count below class name */}
                       <div className="mb-3 p-2 bg-gray-50 rounded-md">
                         <p className="text-sm font-medium text-gray-700 flex items-center">
