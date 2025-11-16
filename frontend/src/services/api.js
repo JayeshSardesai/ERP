@@ -55,11 +55,11 @@ api.interceptors.request.use(
         console.error('Error parsing auth data:', error);
       }
     }
-    
+
     if (!schoolCode) {
       schoolCode = localStorage.getItem('erp.schoolCode');
     }
-    
+
     if (schoolCode) {
       config.headers['x-school-code'] = schoolCode;
     }
@@ -243,6 +243,9 @@ export const resultsAPI = {
   // Get existing results for a test
   getResults: (params) => api.get('/results', { params }),
 
+  // Teacher-specific formatted results view
+  getResultsForTeacher: (params) => api.get('/results/teacher/view', { params }),
+
   // Update a specific result (use PUT as primary)
   updateResult: (resultId, updateData) => api.put(`/results/${resultId}`, updateData),
 
@@ -391,7 +394,7 @@ export const classesAPI = {
     // Get the token from localStorage to check user role
     const authData = localStorage.getItem('erp.auth');
     let isSuperAdmin = false;
-    
+
     try {
       if (authData) {
         const parsed = JSON.parse(authData);
@@ -400,21 +403,21 @@ export const classesAPI = {
     } catch (err) {
       console.error('Error parsing auth data:', err);
     }
-    
+
     // Use superadmin endpoint for superadmins, regular endpoint for others
-    const endpoint = isSuperAdmin 
+    const endpoint = isSuperAdmin
       ? `/superadmin/classes/schools/${schoolCode}/classes`
       : `/schools/${schoolCode}/classes`;
-      
+
     console.log(`🔍 [classesAPI] Using endpoint: ${endpoint}`);
     return api.get(endpoint);
   },
-  
+
   getSectionsForClass: (schoolCode, classId) => {
     // Get the token from localStorage to check user role
     const authData = localStorage.getItem('erp.auth');
     let isSuperAdmin = false;
-    
+
     try {
       if (authData) {
         const parsed = JSON.parse(authData);
@@ -423,12 +426,12 @@ export const classesAPI = {
     } catch (err) {
       console.error('Error parsing auth data:', err);
     }
-    
+
     // Use superadmin endpoint for superadmins, regular endpoint for others
     const endpoint = isSuperAdmin
       ? `/superadmin/classes/schools/${schoolCode}/classes/${classId}/sections`
       : `/schools/${schoolCode}/classes/${classId}/sections`;
-      
+
     console.log(`🔍 [classesAPI] Using endpoint: ${endpoint}`);
     return api.get(endpoint);
   },
@@ -456,7 +459,7 @@ export const feesAPI = {
     }
 
     console.log(`Attempting to fetch fee record for identifier: ${identifier}`);
-    
+
     try {
       // Use the correct endpoint for fetching fee records
       const response = await api.get(`/fees/records/${identifier}`);
@@ -464,12 +467,12 @@ export const feesAPI = {
       return response;
     } catch (error) {
       console.error('Error fetching student fee record:', error);
-      
+
       // Provide a detailed error message
       let errorMessage = 'Failed to fetch student fee record.\n\n';
       errorMessage += `Tried endpoint: /fees/records/${identifier}\n\n`;
       errorMessage += 'Please check that the student exists and has fee records.';
-      
+
       throw new Error(errorMessage);
     }
   },
@@ -485,12 +488,12 @@ export const feesAPI = {
         return api.get(`/users/role/student?userId=${userId}`)
           .then(response => {
             const students = response.data?.data || [];
-            const student = students.find(s => 
-              s._id === userId || 
+            const student = students.find(s =>
+              s._id === userId ||
               s.userId === userId ||
               s.user_id === userId
             );
-            
+
             if (student) {
               return { data: { data: student } };
             }
@@ -502,13 +505,13 @@ export const feesAPI = {
   downloadReceipt: (receiptNumber) => api.get(`/fees/receipts/${receiptNumber}`, { responseType: 'blob' }),
   recordOfflinePayment: (studentId, paymentData) => api.post(`/fees/records/${studentId}/offline-payment`, paymentData),
   getFeeStats: (params) => api.get('/fees/stats', { params }),
-  
+
   // Generate a new chalan
   generateChalan: async (chalanData) => {
     try {
       // First, get the next available chalan number
       const { data: { chalanNumber } } = await api.get('/chalans/next-chalan-number');
-      
+
       // Add the chalan number to the request data
       const requestData = {
         ...chalanData,
@@ -518,10 +521,10 @@ export const feesAPI = {
         // Add school ID from the current user's context
         schoolId: JSON.parse(localStorage.getItem('user') || '{}').schoolId
       };
-      
+
       // Make the API call to generate the chalan
       const response = await api.post('/chalans/generate', requestData);
-      
+
       // Return the response data with success status
       return {
         success: true,
@@ -530,7 +533,7 @@ export const feesAPI = {
       };
     } catch (error) {
       console.error('Error generating chalan:', error);
-      
+
       // Return a structured error response
       return {
         success: false,

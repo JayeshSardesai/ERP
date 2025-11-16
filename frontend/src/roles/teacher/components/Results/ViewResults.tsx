@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, Filter, Download, Medal, Edit, Save, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { BarChart3, TrendingUp, TrendingDown, Filter, Download, Medal, Edit, Save, X, Search } from 'lucide-react';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSchoolClasses } from '../../../../hooks/useSchoolClasses';
 import { useAcademicYear } from '../../../../contexts/AcademicYearContext';
@@ -11,7 +11,7 @@ const ViewResults: React.FC = () => {
   const { user, token } = useAuth();
   const { currentAcademicYear } = useAcademicYear();
 
-  // Use the useSchoolClasses hook to fetch classes configured by superadmin
+  // Use the useSchoolClasses hook
   const {
     classesData,
     loading: classesLoading,
@@ -31,6 +31,9 @@ const ViewResults: React.FC = () => {
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [loadingTestTypes, setLoadingTestTypes] = useState(false);
 
+  // State for client-side search
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
   // State for inline editing
   const [editingResultId, setEditingResultId] = useState<string | null>(null);
   const [editingMarks, setEditingMarks] = useState<number | null>(null);
@@ -39,7 +42,6 @@ const ViewResults: React.FC = () => {
   // State for freeze functionality
   const [isFrozen, setIsFrozen] = useState(false);
 
-  // Get class list from superadmin configuration
   const classList = classesData?.classes?.map(c => c.className) || [];
 
   // Update available sections when class changes
@@ -47,7 +49,6 @@ const ViewResults: React.FC = () => {
     if (selectedClass && classesData) {
       const sections = getSectionsByClass(selectedClass);
       setAvailableSections(sections);
-      // Don't reset selectedSection here - it's reset in the class onChange handler
     } else {
       setAvailableSections([]);
       setSelectedSection('');
@@ -64,7 +65,6 @@ const ViewResults: React.FC = () => {
       setExamTypes([]);
       return;
     }
-
     setLoadingTestTypes(true);
     try {
       if (classesData && classesData.testsByClass) {
@@ -72,7 +72,6 @@ const ViewResults: React.FC = () => {
         if (classTests.length === 0 && classesData.tests) {
           classTests = classesData.tests.filter((t: any) => String(t.className) === String(className));
         }
-
         const withMarks = classTests.filter((t: any) => typeof t?.maxMarks === 'number' && t.maxMarks > 0);
         if (withMarks.length > 0) {
           const names = withMarks
@@ -111,7 +110,6 @@ const ViewResults: React.FC = () => {
         setSelectedSubject('');
         return;
       }
-
       setLoadingSubjects(true);
       try {
         const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
@@ -119,7 +117,6 @@ const ViewResults: React.FC = () => {
           toast.error('School code not available');
           return;
         }
-
         // Primary API
         try {
           const resp = await api.get('/class-subjects/classes');
@@ -135,7 +132,6 @@ const ViewResults: React.FC = () => {
         } catch (_) {
           // fall through to fallback
         }
-
         // Fallback API
         try {
           const resp2 = await api.get(`/direct-test/class-subjects/${selectedClass}?schoolCode=${schoolCode}`);
@@ -149,7 +145,6 @@ const ViewResults: React.FC = () => {
         } catch (_) {
           // ignore
         }
-
         setSubjects([]);
         setSelectedSubject('');
         toast.error('No subjects found for selected class and section');
@@ -162,16 +157,12 @@ const ViewResults: React.FC = () => {
         setLoadingSubjects(false);
       }
     };
-
     fetchSubjects();
   }, [selectedClass, selectedSection, token, user?.schoolCode]);
 
   const calculateGrade = (obtained: number | null, total: number | null): string => {
     if (obtained === null || obtained === undefined || !total || total === 0) return 'N/A';
-
     const percentage = (obtained / total) * 100;
-
-    // Standard CBSE/ICSE Grading Scheme
     if (percentage >= 91) return 'A1';
     if (percentage >= 81) return 'A2';
     if (percentage >= 71) return 'B1';
@@ -192,7 +183,6 @@ const ViewResults: React.FC = () => {
     return 'bg-gray-100 text-gray-600';
   };
 
-  // Function to start inline editing
   const startInlineEdit = (result: any) => {
     if (isFrozen) {
       toast.error('Results are frozen and cannot be edited');
@@ -202,36 +192,29 @@ const ViewResults: React.FC = () => {
     setEditingMarks(result.obtainedMarks);
   };
 
-  // Function to cancel inline editing
   const cancelInlineEdit = () => {
     setEditingResultId(null);
     setEditingMarks(null);
   };
 
-  // Function to save inline edited result
   const saveInlineEdit = async (result: any) => {
     if (editingMarks === null || editingMarks === undefined) {
       toast.error('Please enter valid marks');
       return;
     }
-
     const totalMarks = result.totalMarks || result.maxMarks;
     if (editingMarks > totalMarks) {
       toast.error(`Marks cannot exceed ${totalMarks}`);
       return;
     }
-
     if (editingMarks < 0) {
       toast.error('Marks cannot be negative');
       return;
     }
-
     const resultId = result._id || result.id;
     setSavingResultId(resultId);
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-
-      // Call update API
       await resultsAPI.updateResult(resultId, {
         schoolCode,
         class: result.className || selectedClass,
@@ -245,8 +228,6 @@ const ViewResults: React.FC = () => {
         studentName: result.studentName,
         userId: result.userId
       });
-
-      // Update local state with new marks and calculated grade
       const updatedGrade = calculateGrade(editingMarks, totalMarks);
       setResults(prev =>
         prev.map(r => {
@@ -256,11 +237,8 @@ const ViewResults: React.FC = () => {
             : r;
         })
       );
-
-      // Clear editing state
       setEditingResultId(null);
       setEditingMarks(null);
-
       toast.success('Result updated successfully!');
     } catch (error: any) {
       console.error('Error updating result:', error);
@@ -270,19 +248,78 @@ const ViewResults: React.FC = () => {
     }
   };
 
+  // Client-side filtering logic
+  const filteredStudents = useMemo(() => {
+    if (!searchTerm) {
+      return results;
+    }
+    const lowerSearch = searchTerm.toLowerCase();
+    return results.filter(result =>
+      result.studentName?.toLowerCase().includes(lowerSearch) ||
+      result.userId?.toLowerCase().includes(lowerSearch) ||
+      result.rollNumber?.toLowerCase().includes(lowerSearch)
+    );
+  }, [results, searchTerm]);
+
+  // Statistics now use filteredStudents
   const classStats = {
-    totalStudents: results.length,
-    averageMarks: results.length > 0 ? Math.round(
-      results.reduce((sum, student) => sum + (student.obtainedMarks || 0), 0) / results.length
+    totalStudents: filteredStudents.length,
+    averageMarks: filteredStudents.length > 0 ? Math.round(
+      filteredStudents.reduce((sum, student) => sum + (student.obtainedMarks || 0), 0) / filteredStudents.length
     ) : 0,
-    averagePercentage: results.length > 0 ? Math.round(
-      results.reduce((sum, student) => {
+    averagePercentage: filteredStudents.length > 0 ? Math.round(
+      filteredStudents.reduce((sum, student) => {
         const percentage = student.totalMarks ? (student.obtainedMarks / student.totalMarks) * 100 : 0;
         return sum + percentage;
-      }, 0) / results.length
+      }, 0) / filteredStudents.length
     ) : 0,
-    highestScore: results.length > 0 ? Math.max(...results.map(student => student.obtainedMarks || 0)) : 0,
-    lowestScore: results.length > 0 ? Math.min(...results.map(student => student.obtainedMarks || 0)) : 0
+    highestScore: filteredStudents.length > 0 ? Math.max(...filteredStudents.map(student => student.obtainedMarks || 0)) : 0,
+    lowestScore: filteredStudents.length > 0 ? Math.min(...filteredStudents.map(student => student.obtainedMarks || 0)) : 0,
+    passRate: filteredStudents.length > 0 ? Math.round((filteredStudents.filter(s => {
+      const total = s.totalMarks || s.maxMarks;
+      if (!total) return false;
+      const percentage = (s.obtainedMarks / total) * 100;
+      return percentage >= 33; // Assuming 33 is pass mark
+    }).length / filteredStudents.length) * 100) : 0
+  };
+
+  // Function to handle CSV export
+  const handleExport = () => {
+    if (filteredStudents.length === 0) {
+      toast.error('No data to export.');
+      return;
+    }
+
+    const headers = ['User ID', 'Student Name', 'Subject', 'Test Type', 'Obtained Marks', 'Total Marks', 'Grade', 'Date'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredStudents.map(s =>
+        [
+          s.userId || '-',
+          `"${s.studentName || s.name}"`,
+          s.subject || selectedSubject,
+          s.testType || selectedExam,
+          s.obtainedMarks,
+          s.totalMarks || s.maxMarks,
+          calculateGrade(s.obtainedMarks, s.totalMarks || s.maxMarks),
+          s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '-'
+        ].join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+
+    const fileName = `Results_${selectedClass}-${selectedSection}_${selectedSubject}_${selectedExam}.csv`;
+
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Results exported!');
   };
 
   return (
@@ -293,7 +330,10 @@ const ViewResults: React.FC = () => {
           <p className="text-gray-600">Student performance reports for your subjects</p>
         </div>
 
-        <button className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mt-4 sm:mt-0">
+        <button
+          onClick={handleExport}
+          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mt-4 sm:mt-0"
+        >
           <Download className="h-4 w-4 mr-2" />
           Export Results
         </button>
@@ -322,6 +362,8 @@ const ViewResults: React.FC = () => {
                 setSelectedSection('');
                 setSelectedSubject('');
                 setSelectedExam('');
+                setResults([]); // Clear results on change
+                setSearchTerm(''); // Clear search
               }}
               className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
@@ -340,6 +382,8 @@ const ViewResults: React.FC = () => {
                 setSelectedSection(e.target.value);
                 setSelectedSubject('');
                 setSelectedExam('');
+                setResults([]); // Clear results on change
+                setSearchTerm(''); // Clear search
               }}
               disabled={!selectedClass}
               className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -358,6 +402,8 @@ const ViewResults: React.FC = () => {
               onChange={(e) => {
                 setSelectedSubject(e.target.value);
                 setSelectedExam('');
+                setResults([]); // Clear results on change
+                setSearchTerm(''); // Clear search
               }}
               disabled={!selectedSection}
               className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -373,7 +419,11 @@ const ViewResults: React.FC = () => {
             <label className="block text-xs font-medium text-gray-700 mb-1">Exam Type</label>
             <select
               value={selectedExam}
-              onChange={(e) => setSelectedExam(e.target.value)}
+              onChange={(e) => {
+                setSelectedExam(e.target.value);
+                setResults([]); // Clear results on change
+                setSearchTerm(''); // Clear search
+              }}
               disabled={!selectedSubject}
               className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
@@ -390,6 +440,7 @@ const ViewResults: React.FC = () => {
               disabled={!selectedClass || !selectedSection || !selectedSubject || !selectedExam || loading}
               onClick={async () => {
                 setLoading(true);
+                setSearchTerm(''); // Clear search on new fetch
                 try {
                   const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
                   if (!schoolCode) {
@@ -398,7 +449,7 @@ const ViewResults: React.FC = () => {
                     return;
                   }
 
-                  console.log('🔍 Fetching results with params:', {
+                  console.log('🔍 [Teacher View] Fetching results with params:', {
                     schoolCode,
                     class: selectedClass,
                     section: selectedSection,
@@ -407,35 +458,39 @@ const ViewResults: React.FC = () => {
                     academicYear: currentAcademicYear
                   });
 
-                  // Use the same API method as admin
-                  const response = await resultsAPI.getResults({
+                  const response = await resultsAPI.getResultsForTeacher({
                     schoolCode,
                     class: selectedClass,
                     section: selectedSection,
                     subject: selectedSubject,
-                    testType: selectedExam
+                    testType: selectedExam,
+                    academicYear: currentAcademicYear
                   });
 
                   if (response.data.success && response.data.data) {
-                    const resultsData = response.data.data || [];
-                    
-                    // Check if results are frozen
+                    const payload = response.data.data;
+                    const resultsData = payload.results || [];
+
                     const firstResult = resultsData[0];
                     const frozen = firstResult?.frozen || false;
                     setIsFrozen(frozen);
 
-                    // Map results to expected format
                     const formattedResults = resultsData.map((r: any) => ({
                       ...r,
                       id: r._id || r.id,
                       studentName: r.studentName || r.name,
+                      obtainedMarks: r.obtainedMarks,
+                      totalMarks: r.totalMarks || r.maxMarks,
                       grade: calculateGrade(r.obtainedMarks, r.totalMarks || r.maxMarks)
                     }));
 
                     setResults(formattedResults);
 
                     if (frozen) {
-                      toast.error(`⚠️ Results are FROZEN and cannot be edited. Loaded ${formattedResults.length} result(s).`, { duration: 5000 });
+                      toast.error(
+                        `⚠️ Results are FROZEN and cannot be edited. Loaded ${formattedResults.length} result(s).`,
+                        { duration: 5000 }
+                      );
                     } else {
                       toast.success(`Found ${formattedResults.length} results`);
                     }
@@ -445,7 +500,7 @@ const ViewResults: React.FC = () => {
                     setIsFrozen(false);
                   }
                 } catch (error: any) {
-                  console.error('Error fetching results:', error);
+                  console.error('Error fetching results for teacher:', error);
                   toast.error(error.response?.data?.message || 'Failed to fetch results');
                   setResults([]);
                   setIsFrozen(false);
@@ -469,7 +524,6 @@ const ViewResults: React.FC = () => {
           </div>
           <p className="text-2xl font-bold text-gray-900">{classStats.totalStudents}</p>
         </div>
-
         <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-600">Class Average</h3>
@@ -477,31 +531,26 @@ const ViewResults: React.FC = () => {
           </div>
           <p className="text-2xl font-bold text-gray-900">{classStats.averagePercentage}%</p>
         </div>
-
         <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-600">Highest Score</h3>
             <Medal className="h-5 w-5 text-yellow-500" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{classStats.highestScore}/100</p>
+          <p className="text-2xl font-bold text-gray-900">{classStats.highestScore}/{results[0]?.totalMarks || results[0]?.maxMarks || 'N/A'}</p>
         </div>
-
         <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-600">Lowest Score</h3>
             <TrendingDown className="h-5 w-5 text-red-500" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{classStats.lowestScore}/100</p>
+          <p className="text-2xl font-bold text-gray-900">{classStats.lowestScore}/{results[0]?.totalMarks || results[0]?.maxMarks || 'N/A'}</p>
         </div>
-
         <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-600">Pass Rate</h3>
             <BarChart3 className="h-5 w-5 text-purple-500" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">
-            {results.length > 0 ? Math.round((results.filter(s => (s.percentage || 0) >= 40).length / results.length) * 100) : 0}%
-          </p>
+          <p className="text-2xl font-bold text-gray-900">{classStats.passRate}%</p>
         </div>
       </div>
 
@@ -509,7 +558,7 @@ const ViewResults: React.FC = () => {
       {results.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   Existing Results for {selectedClass}-{selectedSection}
@@ -517,8 +566,18 @@ const ViewResults: React.FC = () => {
                   {selectedExam && ` (${selectedExam})`}
                 </h3>
                 <p className="text-sm text-gray-600 mt-1">
-                  Found {results.length} results.
+                  Showing {filteredStudents.length} of {results.length} results.
                 </p>
+              </div>
+              <div className="relative w-full md:w-auto">
+                <input
+                  type="text"
+                  placeholder="Search by name or ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full md:w-64 pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               </div>
             </div>
           </div>
@@ -556,7 +615,7 @@ const ViewResults: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {results.map((result, index) => {
+                {filteredStudents.map((result, index) => {
                   const grade = calculateGrade(result.obtainedMarks, result.totalMarks || result.maxMarks);
                   return (
                     <tr key={result.id || index} className="hover:bg-gray-50">
@@ -577,7 +636,19 @@ const ViewResults: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                        {result.obtainedMarks}
+                        {editingResultId === (result._id || result.id) ? (
+                          <input
+                            type="number"
+                            value={editingMarks || ''}
+                            onChange={(e) => setEditingMarks(e.target.value === '' ? null : Number(e.target.value))}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            min="0"
+                            max={result.totalMarks || result.maxMarks}
+                            disabled={savingResultId === (result._id || result.id)}
+                          />
+                        ) : (
+                          result.obtainedMarks
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {result.totalMarks || result.maxMarks}
@@ -593,15 +664,6 @@ const ViewResults: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {editingResultId === (result._id || result.id) ? (
                           <div className="flex items-center space-x-2">
-                            <input
-                              type="number"
-                              value={editingMarks || ''}
-                              onChange={(e) => setEditingMarks(Number(e.target.value))}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              min="0"
-                              max={result.totalMarks || result.maxMarks}
-                              disabled={savingResultId === (result._id || result.id)}
-                            />
                             <button
                               onClick={() => saveInlineEdit(result)}
                               disabled={savingResultId === (result._id || result.id)}
@@ -650,7 +712,7 @@ const ViewResults: React.FC = () => {
       )}
 
       {/* No Results Message */}
-      {results.length === 0 && selectedClass && selectedSection && selectedSubject && selectedExam && (
+      {results.length === 0 && selectedClass && selectedSection && selectedSubject && selectedExam && !loading && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
           <div className="text-center text-gray-500">
             <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-400" />
