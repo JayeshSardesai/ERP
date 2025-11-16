@@ -12,7 +12,7 @@ async function generateChalanNumber(schoolCode, db) {
     const safeSchoolCode = (schoolCode || 'SCH').toUpperCase();
     const countersCol = db.collection('counters');
     const counterKey = `chalan:${safeSchoolCode}`;
-    
+
     const seqDoc = await countersCol.findOneAndUpdate(
       { _id: counterKey },
       {
@@ -22,13 +22,13 @@ async function generateChalanNumber(schoolCode, db) {
       },
       { upsert: true, returnDocument: 'after' }
     );
-    
+
     let seqVal = (seqDoc && seqDoc.value && typeof seqDoc.value.seq === 'number') ? seqDoc.value.seq : undefined;
     if (typeof seqVal !== 'number') {
       const doc = await countersCol.findOne({ _id: counterKey });
       seqVal = (doc && typeof doc.seq === 'number') ? doc.seq : 1;
     }
-    
+
     const sequenceStr = String(seqVal).padStart(4, '0');
     return `CRN-${safeSchoolCode}-${sequenceStr}`;
   } catch (error) {
@@ -41,7 +41,7 @@ async function generateChalanNumber(schoolCode, db) {
 // Export student fee records to CSV
 exports.exportStudentFeeRecords = async (req, res) => {
   console.log('🔵 Starting fee records export process');
-  
+
   try {
     // Validate user and school code
     if (!req.user || !req.user.schoolCode) {
@@ -54,55 +54,55 @@ exports.exportStudentFeeRecords = async (req, res) => {
 
     const { class: className, section, search, status } = req.query;
     console.log('🔍 Export parameters:', { className, section, search, status });
-    
+
     // Build query
-    const query = { 
+    const query = {
       schoolId: new ObjectId(req.user.schoolId || req.user._id),
       totalPending: { $gt: 0 } // Only include records with pending amount
     };
-    
+
     if (className && className !== 'ALL') {
       query.studentClass = className;
     }
-    
+
     if (section && section !== 'ALL') {
       query.studentSection = section;
     }
-    
+
     if (search) {
       query['$or'] = [
         { studentName: { $regex: search, $options: 'i' } },
         { rollNumber: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     if (status && status !== 'ALL') {
       query.status = status.toUpperCase();
     }
-    
+
     console.log('🔍 Final query:', JSON.stringify(query, null, 2));
-    
+
     // Get school connection
     const schoolCode = req.user.schoolCode;
     console.log('🏫 Connecting to school database:', schoolCode);
-    
+
     const conn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     if (!conn) {
       throw new Error('Failed to connect to school database');
     }
-    
+
     const db = conn.db || conn;
-    
+
     // Get or create model for this connection
-    const StudentFeeRecord = conn.models.StudentFeeRecord || 
+    const StudentFeeRecord = conn.models.StudentFeeRecord ||
       conn.model('StudentFeeRecord', require('../models/StudentFeeRecord').schema);
-    
+
     console.log('🔍 Fetching fee records...');
-    
+
     // First, check if there are any records matching the query
     const count = await StudentFeeRecord.countDocuments(query);
     console.log(`📊 Found ${count} matching records`);
-    
+
     if (count === 0) {
       console.log('❌ No records found matching the criteria');
       return res.status(200).json({
@@ -110,7 +110,7 @@ exports.exportStudentFeeRecords = async (req, res) => {
         message: 'No fee records found matching the criteria'
       });
     }
-    
+
     // Fetch records with pagination if needed
     const records = await StudentFeeRecord.aggregate([
       { $match: query },
@@ -193,21 +193,21 @@ exports.exportStudentFeeRecords = async (req, res) => {
         console.log('ℹ️ No records to export');
       }
 
-      const csv = parse(records, { 
+      const csv = parse(records, {
         fields,
         withBOM: true,
         delimiter: ',',
         quote: '"',
         header: true
       });
-      
+
       console.log('✅ Generated CSV successfully');
-      
+
       // Set headers for file download
       const filename = `fee-export-${new Date().toISOString().split('T')[0]}.csv`;
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      
+
       // Send the CSV file
       return res.send(csv);
     } catch (parseError) {
@@ -220,16 +220,16 @@ exports.exportStudentFeeRecords = async (req, res) => {
         });
       }
     }
-    
+
   } catch (error) {
     console.error('❌ Export error:', error);
-    
+
     // Check if headers have already been sent
     if (res.headersSent) {
       console.error('Headers already sent, cannot send error response');
       return res.end();
     }
-    
+
     return res.status(500).json({
       success: false,
       message: 'Failed to export fee records',
@@ -242,7 +242,7 @@ exports.exportStudentFeeRecords = async (req, res) => {
 exports.createFeeStructure = async (req, res) => {
   try {
     console.log('💰 Creating fee structure:', req.body);
-    
+
     const {
       name,
       description,
@@ -253,11 +253,11 @@ exports.createFeeStructure = async (req, res) => {
       academicYear: _clientAcademicYear,
       applyToStudents = false
     } = req.body;
-    
+
     // Centralized academic year from School settings; ignore client-provided value
     const schoolDoc = await School.findById(req.user.schoolId).select('settings.academicYear.currentYear').lean();
     const resolvedAcademicYear = schoolDoc?.settings?.academicYear?.currentYear || _clientAcademicYear || null;
-    
+
     // Validate required fields
     if (!name || !targetClass || !totalAmount || !installments || !resolvedAcademicYear) {
       return res.status(400).json({
@@ -265,7 +265,7 @@ exports.createFeeStructure = async (req, res) => {
         message: 'Name, class, total amount, installments, and academic year are required (school current academic year is missing)'
       });
     }
-    
+
     // Validate installments
     if (!Array.isArray(installments) || installments.length === 0) {
       return res.status(400).json({
@@ -273,7 +273,7 @@ exports.createFeeStructure = async (req, res) => {
         message: 'At least one installment is required'
       });
     }
-    
+
     // Validate installment amounts sum to total
     const installmentsSum = installments.reduce((sum, inst) => sum + (inst.amount || 0), 0);
     if (Math.abs(installmentsSum - totalAmount) > 0.01) {
@@ -282,7 +282,7 @@ exports.createFeeStructure = async (req, res) => {
         message: 'Sum of installment amounts must equal total amount'
       });
     }
-    
+
     // Per-school DB connection
     const schoolCode = req.user.schoolCode;
     const conn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
@@ -337,13 +337,13 @@ exports.createFeeStructure = async (req, res) => {
     const insertRes = await feeStructuresCol.insertOne(feeStructureData);
     const feeStructure = { _id: insertRes.insertedId, ...feeStructureData };
     console.log(`✅ Fee structure created: ${feeStructure._id}`);
-    
+
     // Apply to students if requested
     let appliedCount = 0;
     if (applyToStudents) {
       appliedCount = await applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode);
     }
-    
+
     res.json({
       success: true,
       message: 'Fee structure created successfully',
@@ -352,7 +352,7 @@ exports.createFeeStructure = async (req, res) => {
         appliedToStudents: appliedCount
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error creating fee structure:', error);
     res.status(500).json({
@@ -557,7 +557,7 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
   try {
     const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = connection.db || connection;
-    
+
     // Build student query (robust across possible schemas)
     // Prepare matching for either schoolId or schoolCode (case-insensitive)
     const schoolIdObj = new ObjectId(feeStructure.schoolId);
@@ -582,6 +582,17 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
       $or: schoolMatchOr
     };
     const andFilters = [];
+
+    // *** MODIFICATION START ***
+    // Add filter for active students to avoid applying fees to withdrawn students
+    andFilters.push({
+      $or: [
+        { isActive: { $ne: false } }, // Catches true or undefined
+        { status: { $ne: 'inactive' } },
+        { status: { $ne: 'archived' } }
+      ]
+    });
+    // *** MODIFICATION END ***
 
     if (feeStructure.class !== 'ALL') {
       const cls = String(feeStructure.class).trim();
@@ -649,44 +660,44 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
     }
 
     console.log(`👥 Found ${students.length} students for fee structure application (source: ${usedCollection})`);
-  
+
     // Create student fee records
     const studentFeeRecords = students.map(student => {
-    const resolvedClass = student.class ?? student.studentClass ?? student.currentClass ?? student?.studentDetails?.currentClass ?? null;
-    const resolvedSection = student.section ?? student.studentSection ?? student.currentSection ?? student?.studentDetails?.currentSection ?? null;
-    const resolvedRoll = student.rollNumber ?? student.rollno ?? student.admNo ?? null;
-    const resolvedName = student.name?.displayName || [student.name?.firstName, student.name?.lastName].filter(Boolean).join(' ') || student.fullName || student.username || 'Student';
+      const resolvedClass = student.class ?? student.studentClass ?? student.currentClass ?? student?.studentDetails?.currentClass ?? null;
+      const resolvedSection = student.section ?? student.studentSection ?? student.currentSection ?? student?.studentDetails?.currentSection ?? null;
+      const resolvedRoll = student.rollNumber ?? student.rollno ?? student.admNo ?? null;
+      const resolvedName = student.name?.displayName || [student.name?.firstName, student.name?.lastName].filter(Boolean).join(' ') || student.fullName || student.username || 'Student';
       return ({
-    schoolId: new ObjectId(feeStructure.schoolId),
-    studentId: new ObjectId(student._id),
-    userId: student.userId, // User-friendly ID like KVS-S-0003
-    feeStructureId: new ObjectId(feeStructure._id),
-    studentName: resolvedName,
-    studentClass: resolvedClass,
-    studentSection: resolvedSection,
-    rollNumber: resolvedRoll,
-    feeStructureName: feeStructure.name,
-    academicYear: feeStructure.academicYear,
-    totalAmount: feeStructure.totalAmount,
-    installments: feeStructure.installments.map(inst => ({
-      installmentId: new ObjectId(),
-      name: inst.name,
-      amount: inst.amount,
-      dueDate: inst.dueDate,
-      paidAmount: 0,
-      status: 'pending',
-      lateFeeAmount: inst.lateFeeAmount,
-      remarks: ''
-    })),
-    payments: [],
-    status: 'pending',
-    totalPaid: 0,
-    totalPending: feeStructure.totalAmount,
-    createdAt: new Date(),
-    updatedAt: new Date()
+        schoolId: new ObjectId(feeStructure.schoolId),
+        studentId: new ObjectId(student._id),
+        userId: student.userId, // User-friendly ID like KVS-S-0003
+        feeStructureId: new ObjectId(feeStructure._id),
+        studentName: resolvedName,
+        studentClass: resolvedClass,
+        studentSection: resolvedSection,
+        rollNumber: resolvedRoll,
+        feeStructureName: feeStructure.name,
+        academicYear: feeStructure.academicYear,
+        totalAmount: feeStructure.totalAmount,
+        installments: feeStructure.installments.map(inst => ({
+          installmentId: new ObjectId(),
+          name: inst.name,
+          amount: inst.amount,
+          dueDate: inst.dueDate,
+          paidAmount: 0,
+          status: 'pending',
+          lateFeeAmount: inst.lateFeeAmount,
+          remarks: ''
+        })),
+        payments: [],
+        status: 'pending',
+        totalPaid: 0,
+        totalPending: feeStructure.totalAmount,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
     });
-    });
-  
+
     // Bulk insert student fee records
     if (studentFeeRecords.length > 0) {
       const studentFeeCol = db.collection('studentfeerecords');
@@ -700,9 +711,9 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
       { _id: new ObjectId(feeStructure._id) },
       { $set: { appliedToStudents: students.length, updatedAt: new Date() } }
     );
-    
+
     return students.length;
-    
+
   } catch (error) {
     console.error('❌ Error applying fee structure to students:', error);
     throw error;
@@ -730,7 +741,7 @@ exports.getFeeStructures = async (req, res) => {
       .find(query)
       .sort({ createdAt: -1 })
       .toArray();
-    
+
     res.json({
       success: true,
       data: feeStructures.map(structure => ({
@@ -748,7 +759,7 @@ exports.getFeeStructures = async (req, res) => {
         createdBy: 'Admin'
       }))
     });
-    
+
   } catch (error) {
     console.error('❌ Error fetching fee structures:', error);
     res.status(500).json({
@@ -764,73 +775,73 @@ exports.deleteFeeStructure = async (req, res) => {
   try {
     const { id } = req.params;
     const schoolCode = req.user.schoolCode;
-    
+
     console.log('🗑️ Deleting fee structure:', id);
-    
+
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid fee structure ID'
       });
     }
-    
+
     const conn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = conn.db || conn;
     const feeStructuresCol = db.collection('feestructures');
-    
+
     // Check if fee structure exists
     const feeStructure = await feeStructuresCol.findOne({
       _id: new ObjectId(id),
       schoolId: new ObjectId(req.user.schoolId)
     });
-    
+
     if (!feeStructure) {
       return res.status(404).json({
         success: false,
         message: 'Fee structure not found'
       });
     }
-    
+
     // Remove this fee structure from all student fee records first
     const studentFeeCol = db.collection('studentfeerecords');
-    
+
     // Find all students who have this fee structure applied
     const studentsWithStructure = await studentFeeCol.find({
       schoolId: new ObjectId(req.user.schoolId),
       feeStructureId: new ObjectId(id)
     }).toArray();
-    
+
     console.log(`📋 Found ${studentsWithStructure.length} students with this fee structure`);
-    
+
     // Delete the fee records for these students
     const deleteStudentRecordsResult = await studentFeeCol.deleteMany({
       schoolId: new ObjectId(req.user.schoolId),
       feeStructureId: new ObjectId(id)
     });
-    
+
     console.log(`🗑️ Removed fee structure from ${deleteStudentRecordsResult.deletedCount} student records.`);
-    
+
     // Hard delete - permanently remove from feestructures collection
     const result = await feeStructuresCol.deleteOne({
       _id: new ObjectId(id),
       schoolId: new ObjectId(req.user.schoolId)
     });
-    
+
     if (result.deletedCount === 0) {
       return res.status(500).json({
         success: false,
         message: 'Failed to delete fee structure'
       });
     }
-    
+
     console.log(`✅ Fee structure permanently deleted from database.`);
-    
+
     res.json({
       success: true,
       message: `Fee structure deleted successfully. Removed from ${deleteStudentRecordsResult.deletedCount} student(s).`,
       deletedStudentRecords: deleteStudentRecordsResult.deletedCount
     });
-    
+
   } catch (error) {
     console.error('❌ Error deleting fee structure:', error);
     res.status(500).json({
@@ -844,16 +855,16 @@ exports.deleteFeeStructure = async (req, res) => {
 // Get student fee records (per-school DB)
 exports.getStudentFeeRecords = async (req, res) => {
   try {
-    const { 
-      class: targetClass, 
-      section: targetSection, 
-      page = 1, 
+    const {
+      class: targetClass,
+      section: targetSection,
+      page = 1,
       limit = 20,
       search,
       status,
       academicYear
     } = req.query;
-    
+
     const schoolCode = req.user.schoolCode;
     const conn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = conn.db || conn;
@@ -882,7 +893,7 @@ exports.getStudentFeeRecords = async (req, res) => {
         ]
       });
     }
-    
+
     if (targetSection && targetSection !== 'ALL') {
       const sec = String(targetSection).trim();
       andFilters.push({
@@ -895,11 +906,11 @@ exports.getStudentFeeRecords = async (req, res) => {
     if (andFilters.length) {
       query.$and = andFilters;
     }
-    
+
     if (status && status !== 'ALL') {
       query.status = status;
     }
-    
+
     if (search) {
       query.$or = [
         { studentName: { $regex: search, $options: 'i' } },
@@ -907,10 +918,10 @@ exports.getStudentFeeRecords = async (req, res) => {
         { feeStructureName: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     // Pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Execute query with pagination
     const cursor = studentFeeCol
       .find(query)
@@ -918,10 +929,10 @@ exports.getStudentFeeRecords = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
     const records = await cursor.toArray();
-    
+
     // Get total count for pagination
     const totalRecords = await studentFeeCol.countDocuments(query);
-    
+
     // Format response (now includes installments[])
     const formattedRecords = records.map(record => ({
       id: record._id,
@@ -946,7 +957,7 @@ exports.getStudentFeeRecords = async (req, res) => {
         status: inst.status || 'pending'
       }))
     }));
-    
+
     res.json({
       success: true,
       data: {
@@ -959,7 +970,7 @@ exports.getStudentFeeRecords = async (req, res) => {
         }
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error fetching student fee records:', error);
     res.status(500).json({
@@ -974,7 +985,7 @@ exports.getStudentFeeRecords = async (req, res) => {
 exports.recordOfflinePayment = async (req, res) => {
   try {
     console.log('💳 Recording offline payment:', req.body);
-    
+
     const { studentId } = req.params; // can be fee record _id or studentId
     const {
       installmentName,
@@ -984,7 +995,7 @@ exports.recordOfflinePayment = async (req, res) => {
       paymentReference,
       remarks
     } = req.body;
-    
+
     // Validate required fields
     if (!installmentName || !amount || !paymentMethod) {
       return res.status(400).json({
@@ -992,7 +1003,7 @@ exports.recordOfflinePayment = async (req, res) => {
         message: 'Installment name, amount, and payment method are required'
       });
     }
-    
+
     // Validate payment date is provided
     if (!paymentDate) {
       return res.status(400).json({
@@ -1000,7 +1011,7 @@ exports.recordOfflinePayment = async (req, res) => {
         message: 'Payment date is required'
       });
     }
-    
+
     const schoolCode = req.user.schoolCode;
     const conn = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
     const db = conn.db || conn;
@@ -1029,7 +1040,7 @@ exports.recordOfflinePayment = async (req, res) => {
       console.log('[Fees] Non-ObjectId param, fallback query:', JSON.stringify(altQuery));
       feeRecord = await studentFeeCol.findOne(altQuery);
     }
-    
+
     if (!feeRecord) {
       console.warn('[Fees] Student fee record not found for param:', studentId);
       return res.status(404).json({
@@ -1037,7 +1048,7 @@ exports.recordOfflinePayment = async (req, res) => {
         message: 'Student fee record not found'
       });
     }
-    
+
     // Check if installment exists
     const installment = (feeRecord.installments || []).find(inst => inst.name === installmentName);
     if (!installment) {
@@ -1046,7 +1057,7 @@ exports.recordOfflinePayment = async (req, res) => {
         message: 'Installment not found in fee structure'
       });
     }
-    
+
     // Generate sequential receipt number per-school and per-academicYear
     // Use atomic counter in per-school DB to avoid collisions under concurrency
     const countersCol = db.collection('counters');
@@ -1075,7 +1086,7 @@ exports.recordOfflinePayment = async (req, res) => {
     const schoolCodeStr = (typeof schoolCode === 'string' && schoolCode) ? schoolCode : (req.user.schoolCode || 'SCH');
     const academicYear = feeRecord.academicYear || 'AY';
     const receiptNumber = `RCP-${schoolCodeStr}-${academicYear}-${seqPadded}`;
-    
+
     // Create payment record
     // Parse payment date correctly to avoid timezone issues
     // If paymentDate is in YYYY-MM-DD format, treat it as local date at noon to avoid timezone conversion issues
@@ -1093,7 +1104,7 @@ exports.recordOfflinePayment = async (req, res) => {
     } else {
       parsedPaymentDate = new Date();
     }
-    
+
     const payment = {
       paymentId: new ObjectId(),
       installmentName,
@@ -1106,7 +1117,7 @@ exports.recordOfflinePayment = async (req, res) => {
       receiptNumber,
       isVerified: false
     };
-    
+
     // Push payment and recompute fields
     const updatedPayments = [...(feeRecord.payments || []), payment];
 
@@ -1158,14 +1169,14 @@ exports.recordOfflinePayment = async (req, res) => {
         }
       }
     );
-    
+
     console.log(`✅ Payment recorded: ${receiptNumber}`);
-    
+
     // Handle challan generation and updates
     console.log('\n🔍 === CHALLAN MANAGEMENT ===');
     const chalansCol = db.collection('chalans');
     const paidInstallment = installments.find(i => i.name === installmentName);
-    
+
     console.log('Payment details:', {
       installmentName,
       paymentAmount: amount,
@@ -1177,25 +1188,25 @@ exports.recordOfflinePayment = async (req, res) => {
         dueDate: i.dueDate
       }))
     });
-    
+
     if (paidInstallment) {
       const remainingAmount = paidInstallment.amount - paidInstallment.paidAmount;
       console.log(`Paid installment: ${paidInstallment.name}`);
       console.log(`Installment amount: ${paidInstallment.amount}`);
       console.log(`Paid amount: ${paidInstallment.paidAmount}`);
       console.log(`Remaining amount: ${remainingAmount}`);
-      
+
       // Check if there's an existing challan for this installment
       const existingChalan = await chalansCol.findOne({
         feeRecordId: feeRecord._id,
         installmentName: paidInstallment.name,
         status: 'unpaid'
       });
-      
+
       if (existingChalan) {
         // Update existing challan with remaining amount or mark as paid
         if (remainingAmount > 0) {
-          console.log(`� Updating existing challan for ${paidInstallment.name} with remaining amount: ${remainingAmount}`);
+          console.log(` Updating existing challan for ${paidInstallment.name} with remaining amount: ${remainingAmount}`);
           await chalansCol.updateOne(
             { _id: existingChalan._id },
             {
@@ -1223,7 +1234,7 @@ exports.recordOfflinePayment = async (req, res) => {
         console.log(`💰 Generating new challan for remaining amount: ${remainingAmount}`);
         const Chalan = require('../models/Chalan');
         const chalanNumber = await generateChalanNumber(schoolCode, db);
-        
+
         const chalanDoc = {
           chalanNumber,
           schoolId: new ObjectId(req.user.schoolId),
@@ -1240,9 +1251,9 @@ exports.recordOfflinePayment = async (req, res) => {
           createdAt: new Date(),
           updatedAt: new Date()
         };
-        
+
         const chalanResult = await chalansCol.insertOne(chalanDoc);
-        
+
         // Add challan to fee record's challans array
         await studentFeeCol.updateOne(
           { _id: feeRecord._id },
@@ -1263,18 +1274,18 @@ exports.recordOfflinePayment = async (req, res) => {
             }
           }
         );
-        
+
         console.log(`✅ Auto-generated challan ${chalanNumber} for remaining amount: ${remainingAmount}`);
       } else if (Math.abs(remainingAmount) < 0.01) {  // Handle floating point precision
         console.log(`✅ Installment ${installmentName} is FULLY PAID!`);
         console.log('Looking for next pending installment...');
-        
+
         // Find all pending installments (excluding current one)
         const pendingInstallments = installments.filter(i => {
           const isPending = i.status === 'pending' || i.status === 'overdue';
           const isDifferent = i.name !== installmentName;
           const hasUnpaidAmount = !i.paidAmount || i.paidAmount < i.amount;
-          
+
           console.log(`Checking installment ${i.name}:`, {
             status: i.status,
             isPending,
@@ -1282,22 +1293,22 @@ exports.recordOfflinePayment = async (req, res) => {
             hasUnpaidAmount,
             willInclude: isPending && isDifferent && hasUnpaidAmount
           });
-          
+
           return isPending && isDifferent && hasUnpaidAmount;
         });
-        
+
         console.log(`Found ${pendingInstallments.length} pending installments`);
-        
+
         // Get the next one by due date
         const nextPendingInstallment = pendingInstallments.length > 0
           ? pendingInstallments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0]
           : null;
-        
+
         if (nextPendingInstallment) {
           console.log(`📋 Generating challan for next installment: ${nextPendingInstallment.name}`);
-          
+
           const chalanNumber = await generateChalanNumber(schoolCode, db);
-          
+
           const chalanDoc = {
             chalanNumber,
             schoolId: new ObjectId(req.user.schoolId),
@@ -1314,9 +1325,9 @@ exports.recordOfflinePayment = async (req, res) => {
             createdAt: new Date(),
             updatedAt: new Date()
           };
-          
+
           const chalanResult = await chalansCol.insertOne(chalanDoc);
-          
+
           await studentFeeCol.updateOne(
             { _id: feeRecord._id },
             {
@@ -1336,7 +1347,7 @@ exports.recordOfflinePayment = async (req, res) => {
               }
             }
           );
-          
+
           console.log(`✅ Auto-generated challan ${chalanNumber} for next installment: ${nextPendingInstallment.name}`);
         } else {
           console.log(`ℹ️ No more pending installments found. All fees paid!`);
@@ -1347,9 +1358,9 @@ exports.recordOfflinePayment = async (req, res) => {
     } else {
       console.log(`❌ Could not find paid installment: ${installmentName}`);
     }
-    
+
     console.log('=== AUTO-CHALLAN GENERATION CHECK COMPLETE ===\n');
-    
+
     res.json({
       success: true,
       message: 'Payment recorded successfully',
@@ -1362,7 +1373,7 @@ exports.recordOfflinePayment = async (req, res) => {
         status
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error recording payment:', error);
     res.status(500).json({
@@ -1397,7 +1408,7 @@ exports.getFeeStats = async (req, res) => {
         }
       }
     ]).toArray();
-    
+
     const result = stats[0] || {
       totalBilled: 0,
       totalCollected: 0,
@@ -1407,11 +1418,11 @@ exports.getFeeStats = async (req, res) => {
       partialRecords: 0,
       overdueRecords: 0
     };
-    
-    const collectionPercentage = result.totalBilled > 0 
-      ? Math.round((result.totalCollected / result.totalBilled) * 100) 
+
+    const collectionPercentage = result.totalBilled > 0
+      ? Math.round((result.totalCollected / result.totalBilled) * 100)
       : 0;
-    
+
     res.json({
       success: true,
       data: {
@@ -1425,7 +1436,7 @@ exports.getFeeStats = async (req, res) => {
         overdueRecords: result.overdueRecords
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error fetching fee stats:', error);
     res.status(500).json({

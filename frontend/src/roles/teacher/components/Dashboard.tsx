@@ -19,6 +19,7 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import AcademicYearCard from './AcademicYearCard';
 import api from '../../../services/api';
+import { useAcademicYear } from '../../../contexts/AcademicYearContext'; // *** MODIFICATION: Import useAcademicYear ***
 
 interface DashboardProps {
   onNavigate: (page: string) => void;
@@ -40,6 +41,7 @@ interface DashboardStats {
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const { user, token } = useAuth();
+  const { currentAcademicYear } = useAcademicYear(); // *** MODIFICATION: Get currentAcademicYear ***
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
     totalAssignments: 0,
@@ -52,25 +54,35 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [latestMessage, setLatestMessage] = useState<any>(null);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [token]);
+    // *** MODIFICATION: Pass currentAcademicYear to fetchDashboardData ***
+    if (currentAcademicYear) {
+      fetchDashboardData(currentAcademicYear);
+    }
+  }, [token, currentAcademicYear]); // *** MODIFICATION: Add currentAcademicYear to dependency array ***
 
-  const fetchDashboardData = async () => {
+  // *** MODIFICATION: Accept academicYear as an argument ***
+  const fetchDashboardData = async (academicYear: string) => {
     setLoading(true);
     try {
-      console.log('📊 Fetching dashboard data...');
-      
-      // Fetch assignments (the /api/assignments endpoint already filters by teacher role)
+      console.log(`📊 Fetching dashboard data for academic year: ${academicYear}`);
+
+      // *** MODIFICATION START ***
+      // Fetch assignments for ALL classes in the current academic year
+      // The backend (assignmentController) removes teacher-specific filtering for teachers
       let assignmentsData: any = { assignments: [] };
       try {
-        const assignmentsRes = await api.get('/assignments?limit=100');
+        // Fetch all assignments for the current year. Increased limit to 1000.
+        const assignmentsRes = await api.get(
+          `/assignments?limit=1000&page=1&academicYear=${academicYear}`
+        );
         assignmentsData = assignmentsRes.data;
-        console.log('✅ Assignments data:', assignmentsData);
+        console.log('✅ Assignments data (all school, current year):', assignmentsData);
       } catch (error) {
         console.warn('⚠️ Assignments API failed:', error);
       }
-      
-      // Fetch leave requests
+      // *** MODIFICATION END ***
+
+      // Fetch leave requests (specific to teacher)
       let leaveData: any = { requests: [] };
       try {
         const leaveRes = await api.get('/leave-requests/teacher/my-requests');
@@ -86,7 +98,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         const messagesRes = await api.get('/messages/teacher/messages?limit=1');
         messagesData = messagesRes.data;
         console.log('✅ Messages data:', messagesData);
-        
+
         // Store the latest message in state
         const messages = messagesData.messages || messagesData.data || [];
         if (messages.length > 0) {
@@ -98,24 +110,28 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       }
 
       // Calculate stats
+      // `assignmentsArray` now contains all assignments for the school this year
       const assignmentsArray = assignmentsData.assignments || [];
       const leaveRequestsArray = leaveData.data?.leaveRequests || [];
-      
+
       console.log('📦 Extracted assignments:', assignmentsArray.length);
       console.log('📦 Extracted leave requests:', leaveRequestsArray.length);
-      
-      // Store in state for widgets
-      setAssignments(assignmentsArray);
+
+      // Store in state for widgets (only store recent ones for the UI widget)
+      setAssignments(assignmentsArray.slice(0, 4));
       setLeaveRequests(leaveRequestsArray);
-      
+
+      // This totalAssignments is now the total for all classes this year
       const totalAssignments = assignmentsArray.length;
+
+      // Active assignments can still be calculated from the full list
       const activeAssignments = assignmentsArray.filter((a: any) => {
         const dueDate = new Date(a.dueDate);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         return dueDate >= today;
       }).length;
-      
+
       const totalLeaves = leaveRequestsArray.length;
       const pendingLeaves = leaveRequestsArray.filter((l: any) => l.status === 'pending').length;
       const approvedLeaves = leaveRequestsArray.filter((l: any) => l.status === 'approved').length;
@@ -129,7 +145,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       });
 
       setStats({
-        totalAssignments,
+        totalAssignments, // This now reflects the new requirement
         activeAssignments,
         leaveRequests: {
           total: totalLeaves,
@@ -151,7 +167,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       value: stats.totalAssignments.toString(),
       icon: BookOpen,
       color: 'bg-blue-500',
-      change: `${stats.activeAssignments} active`,
+      change: `(All Classes, This Year)`, // *** MODIFICATION: Updated subtitle ***
       onClick: () => onNavigate('assignments')
     },
     {
@@ -186,7 +202,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     const today = new Date();
     const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays < 0) return { text: 'Overdue', color: 'text-red-600', bgColor: 'bg-red-50' };
     if (diffDays === 0) return { text: 'Due Today', color: 'text-orange-600', bgColor: 'bg-orange-50' };
     if (diffDays === 1) return { text: 'Due Tomorrow', color: 'text-yellow-600', bgColor: 'bg-yellow-50' };
@@ -210,10 +226,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="flex items-center bg-white bg-opacity-20 rounded-lg px-4 py-2">
             <Clock className="h-5 w-5 mr-2" />
             <span className="font-medium">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                month: 'short', 
-                day: 'numeric' 
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric'
               })}
             </span>
           </div>
@@ -263,7 +279,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Upcoming Deadlines</h2>
-            <button 
+            <button
               onClick={() => onNavigate('assignments')}
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
@@ -319,7 +335,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="mt-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-900">Recent Messages</h2>
-              <button 
+              <button
                 onClick={() => onNavigate('messages')}
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
@@ -354,8 +370,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                           {latestMessage.senderName || 'Unknown Sender'}
                         </p>
                         <span className="text-xs text-gray-500">
-                          {new Date(latestMessage.createdAt).toLocaleDateString('en-US', { 
-                            month: 'short', 
+                          {new Date(latestMessage.createdAt).toLocaleDateString('en-US', {
+                            month: 'short',
                             day: 'numeric',
                             hour: '2-digit',
                             minute: '2-digit'
@@ -439,11 +455,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                             {leave.numberOfDays} day{leave.numberOfDays > 1 ? 's' : ''}
                           </p>
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          leave.status === 'approved' ? 'bg-green-100 text-green-700' :
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${leave.status === 'approved' ? 'bg-green-100 text-green-700' :
                           leave.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
                           {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
                         </span>
                       </div>
