@@ -408,27 +408,27 @@ interface OldAddUserFormData {
 
 const ManageUsers: React.FC = () => {
   const { user } = useAuth();
-  
+
   // Helper function to format date for date input (YYYY-MM-DD)
   const formatDateForInput = (date: any): string => {
     if (!date) return '';
-    
+
     // If it's already a string in YYYY-MM-DD format, return as is
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return date;
     }
-    
+
     // Convert to Date object and format
     const d = new Date(date);
     if (isNaN(d.getTime())) return '';
-    
+
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    
+
     return `${year}-${month}-${day}`;
   };
-  
+
   const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
   // Use the school classes hook to get dynamic data
   const {
@@ -2049,7 +2049,7 @@ const ManageUsers: React.FC = () => {
         // Extract users from the response
         // Backend response: { success: true, data: [...users array], totalCount, breakdown }
         let usersArray: any[] = [];
-        
+
         // The API returns { success, data: [...], totalCount, breakdown }
         // So response.data should be the array
         if (response?.data && Array.isArray(response.data)) {
@@ -2064,9 +2064,9 @@ const ManageUsers: React.FC = () => {
             responseKeys: Object.keys(response || {})
           });
         }
-        
+
         console.log(`📊 Users array length: ${usersArray.length}`);
-        
+
         if (usersArray && Array.isArray(usersArray) && usersArray.length > 0) {
           usersArray.forEach((userData: any) => {
             // Initialize processedUser with potential studentDetails structure
@@ -2135,7 +2135,7 @@ const ManageUsers: React.FC = () => {
             responseKeys: Object.keys(response.data || {}),
             responseDataKeys: Object.keys(response.data?.data || {})
           });
-          
+
           // Try one more fallback: check if response has a different structure
           if (response.success && response.data && Array.isArray(response.data)) {
             console.log('Found users in response.data (alternate structure)');
@@ -2261,7 +2261,7 @@ const ManageUsers: React.FC = () => {
 
       const response = await api.get(`/users/next-id/${role}`);
       const data = response.data;
-      
+
       console.log('✅ API Response data:', data);
 
       if (data.success && data.nextUserId) {
@@ -2657,13 +2657,13 @@ const ManageUsers: React.FC = () => {
         userData.tcNo = userData.studentDetails.academic.tcNo;
         userData.studentAadhaar = userData.studentDetails.personal.studentAadhaar;
         userData.studentCasteCertNo = userData.studentDetails.personal.studentCasteCertNo;
-        userData.schoolAdmissionDate = formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) : 
-                                       (formData.studentDetails?.schoolAdmissionDate ? new Date(formData.studentDetails.schoolAdmissionDate) : undefined);
+        userData.schoolAdmissionDate = formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) :
+          (formData.studentDetails?.schoolAdmissionDate ? new Date(formData.studentDetails.schoolAdmissionDate) : undefined);
         userData.bankName = userData.studentDetails.financial?.bankDetails?.bankName;
         userData.bankAccountNo = userData.studentDetails.financial?.bankDetails?.accountNumber;
         userData.bankIFSC = userData.studentDetails.financial?.bankDetails?.ifscCode;
         userData.nationality = userData.studentDetails.personal.nationality;
-        
+
         // Add address fields (backend looks for these at top level or nested)
         userData.permanentStreet = userData.studentDetails.addressDetails?.permanent?.street || formData.address;
         userData.permanentCity = userData.studentDetails.addressDetails?.permanent?.city || formData.city;
@@ -2678,7 +2678,7 @@ const ManageUsers: React.FC = () => {
           joiningDate: formData.teacherDetails?.joiningDate ? new Date(formData.teacherDetails.joiningDate) : (formData.joiningDate ? new Date(formData.joiningDate) : undefined),
           qualification: formData.teacherDetails?.qualification || formData.qualification || '', // Flat field as expected by backend
           experience: formData.teacherDetails?.experience || Number(formData.experience) || 0, // Flat field as expected by backend
-          subjects: formData.teacherDetails?.subjects?.length ? formData.teacherDetails.subjects : 
+          subjects: formData.teacherDetails?.subjects?.length ? formData.teacherDetails.subjects :
             (formData.subjects ? String(formData.subjects).split(',').map(s => s.trim()).filter(s => s) : []), // Array of strings
           specialization: formData.teacherDetails?.specialization || '',
           designation: formData.teacherDetails?.designation || '',
@@ -3658,13 +3658,13 @@ const ManageUsers: React.FC = () => {
           }
         });
 
-        // Append profile image
+        // Append profile image (field name must match backend upload.single)
         formDataToSend.append('profileImage', profileImageFile);
 
-        console.log('Sending FormData with image...');
+        console.log('Sending FormData with image via /api/school-users...');
 
-        // Make fetch call with FormData
-        const response = await fetch(`/api/user-management/${schoolCode}/users/${editingUser._id}`, {
+        // Use school-users route which is configured with multer upload.single('profileImage')
+        const response = await fetch(`/api/school-users/${schoolCode}/users/${editingUser._id}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -3673,11 +3673,17 @@ const ManageUsers: React.FC = () => {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to update user with image');
+          let errorMessage = 'Failed to update user with image';
+          try {
+            const errorData = await response.json();
+            if (errorData?.message) errorMessage = errorData.message;
+          } catch (e) {
+            console.warn('Could not parse error response for image upload', e);
+          }
+          throw new Error(errorMessage);
         }
 
-        console.log('✅ User updated with image successfully');
+        console.log('✅ User updated with image successfully via /api/school-users');
       } else {
         // No image - use regular API call
         console.log('Updating without image...');
@@ -3865,35 +3871,35 @@ const ManageUsers: React.FC = () => {
     const userName = (user.name || '').toLowerCase();
     const userEmail = (user.email || '').toLowerCase();
     const searchLower = searchTerm.toLowerCase();
-    
+
     const matchesSearch = userName.includes(searchLower) ||
       userEmail.includes(searchLower) ||
       userId.includes(searchLower);
     const matchesRole = user.role === activeTab;
     // Get class from multiple possible locations, prioritizing academicInfo (handles both old and new data formats)
     const studentClass = (user as any).academicInfo?.class ||
-                        user.studentDetails?.academic?.currentClass || 
-                        user.studentDetails?.currentClass || 
-                        user.studentDetails?.class ||
-                        (user as any).class;
+      user.studentDetails?.academic?.currentClass ||
+      user.studentDetails?.currentClass ||
+      user.studentDetails?.class ||
+      (user as any).class;
     // Get section from multiple possible locations, prioritizing academicInfo (handles both old and new data formats)
     const studentSection = (user as any).academicInfo?.section ||
-                          user.studentDetails?.academic?.currentSection || 
-                          user.studentDetails?.currentSection || 
-                          user.studentDetails?.section ||
-                          (user as any).section;
+      user.studentDetails?.academic?.currentSection ||
+      user.studentDetails?.currentSection ||
+      user.studentDetails?.section ||
+      (user as any).section;
     const matchesGrade = activeTab !== 'student' || selectedGrade === 'all' || String(studentClass).trim() === String(selectedGrade).trim();
     const matchesSection = activeTab !== 'student' || selectedSection === 'all' || String(studentSection).trim().toUpperCase() === String(selectedSection).trim().toUpperCase();
-    
+
     // Filter students by viewing academic year - check multiple possible locations
-    const studentAcademicYear = user.studentDetails?.academic?.academicYear || 
-                               user.studentDetails?.academicYear ||
-                               (user as any).academicYear ||
-                               (user as any).academicInfo?.academicYear;
+    const studentAcademicYear = user.studentDetails?.academic?.academicYear ||
+      user.studentDetails?.academicYear ||
+      (user as any).academicYear ||
+      (user as any).academicInfo?.academicYear;
     // If academic year is not set, don't filter it out (allow it through)
-    const matchesAcademicYear = activeTab !== 'student' || 
+    const matchesAcademicYear = activeTab !== 'student' ||
       (!studentAcademicYear || String(studentAcademicYear).trim() === String(viewingAcademicYear).trim());
-    
+
     // Debug logging for academic year filtering
     if (activeTab === 'student' && user.userId === 'AVM-S-0063') {
       console.log('🔍 Filtering AVM-S-0063:', {
@@ -3906,28 +3912,28 @@ const ManageUsers: React.FC = () => {
         selectedGrade
       });
     }
-    
+
     return matchesSearch && matchesRole && matchesGrade && matchesSection && matchesAcademicYear;
   }).sort((a, b) => {
     // Sort students by userId (Student ID) in ascending order
     if (a.role === 'student' && b.role === 'student') {
       const studentIdA = (a as any).userId || a._id || '';
       const studentIdB = (b as any).userId || b._id || '';
-      
+
       // Extract numeric part from student ID (e.g., "BG-S-0003" -> 3)
       const extractNumber = (id: string) => {
         const match = id.match(/\d+$/);
         return match ? parseInt(match[0]) : 0;
       };
-      
+
       const numA = extractNumber(studentIdA);
       const numB = extractNumber(studentIdB);
-      
+
       // If both have numeric parts, compare numerically
       if (numA !== 0 || numB !== 0) {
         return numA - numB;
       }
-      
+
       // Fallback to string comparison
       return studentIdA.localeCompare(studentIdB);
     }
@@ -3936,21 +3942,21 @@ const ManageUsers: React.FC = () => {
     if (a.role === 'teacher' && b.role === 'teacher') {
       const teacherIdA = (a as any).userId || a._id || '';
       const teacherIdB = (b as any).userId || b._id || '';
-      
+
       // Extract numeric part from teacher ID (e.g., "BG-T-0003" -> 3)
       const extractNumber = (id: string) => {
         const match = id.match(/\d+$/);
         return match ? parseInt(match[0]) : 0;
       };
-      
+
       const numA = extractNumber(teacherIdA);
       const numB = extractNumber(teacherIdB);
-      
+
       // If both have numeric parts, compare numerically
       if (numA !== 0 || numB !== 0) {
         return numA - numB;
       }
-      
+
       // Fallback to string comparison
       return teacherIdA.localeCompare(teacherIdB);
     }
@@ -3959,21 +3965,21 @@ const ManageUsers: React.FC = () => {
     if (a.role === 'admin' && b.role === 'admin') {
       const adminIdA = (a as any).userId || a._id || '';
       const adminIdB = (b as any).userId || b._id || '';
-      
+
       // Extract numeric part from admin ID (e.g., "BG-A-0003" -> 3)
       const extractNumber = (id: string) => {
         const match = id.match(/\d+$/);
         return match ? parseInt(match[0]) : 0;
       };
-      
+
       const numA = extractNumber(adminIdA);
       const numB = extractNumber(adminIdB);
-      
+
       // If both have numeric parts, compare numerically
       if (numA !== 0 || numB !== 0) {
         return numA - numB;
       }
-      
+
       // Fallback to string comparison
       return adminIdA.localeCompare(adminIdB);
     }
@@ -4045,7 +4051,7 @@ const ManageUsers: React.FC = () => {
     const errors = validateFormBeforeSubmit(formData);
     if (errors.length === 0) return '';
     // Map validation messages to shorter labels where possible
-      const mapLabel = (msg: string) => {
+    const mapLabel = (msg: string) => {
       if (msg.includes('First name')) return 'First name';
       if (msg.includes('Last name')) return 'Last name';
       if (msg.includes('email')) return 'Email';
@@ -4058,10 +4064,10 @@ const ManageUsers: React.FC = () => {
       if (msg.includes("Mother's name")) return "Mother's name";
       if (msg.includes('Enrollment')) return 'Enrollment No';
       if (msg.includes('TC Number') || msg.includes('TC No') || msg.includes('TC number')) return 'TC No';
-        if (msg.toLowerCase().includes('school admission') || msg.toLowerCase().includes('admission date')) return 'School Admission Date';
-        if (msg.toLowerCase().includes('bank name')) return 'Bank Name';
-        if (msg.toLowerCase().includes('account') && msg.toLowerCase().includes('number')) return 'Bank Account No';
-        if (msg.toLowerCase().includes('ifsc')) return 'Bank IFSC Code';
+      if (msg.toLowerCase().includes('school admission') || msg.toLowerCase().includes('admission date')) return 'School Admission Date';
+      if (msg.toLowerCase().includes('bank name')) return 'Bank Name';
+      if (msg.toLowerCase().includes('account') && msg.toLowerCase().includes('number')) return 'Bank Account No';
+      if (msg.toLowerCase().includes('ifsc')) return 'Bank IFSC Code';
       if (msg.toLowerCase().includes('student caste') && msg.toLowerCase().includes('certificate')) return 'Student Caste Cert No';
       if (msg.toLowerCase().includes('aadhaar') || msg.toLowerCase().includes('aadhar') || msg.toLowerCase().includes('kpr')) return 'Aadhaar/KPR No';
       return msg;
@@ -4244,7 +4250,7 @@ const ManageUsers: React.FC = () => {
           typeof address === 'string' ? address : (address.permanent?.street || '')
         ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
       });
-    
+
 
       csvRows = filteredUsers.map(user => {
         const userData = user as any;
@@ -4476,12 +4482,12 @@ const ManageUsers: React.FC = () => {
       headers = [
         // Basic Information
         'First Name',
-        'Last Name', 
+        'Last Name',
         'Email',
         'Phone Number',
         'Date of Birth',
         'Gender',
-        
+
         // Professional Information
         'Qualification',
         'Experience (Years)',
@@ -4499,7 +4505,7 @@ const ManageUsers: React.FC = () => {
         const subjects = teacherDetails.subjects || [];
 
         // Format subjects as comma-separated string
-        const subjectsString = Array.isArray(subjects) 
+        const subjectsString = Array.isArray(subjects)
           ? subjects.map((s: any) => s.subjectName || s).join(', ')
           : '';
 
@@ -4520,7 +4526,7 @@ const ManageUsers: React.FC = () => {
           contact.primaryPhone || contact.phone || user.phone || '',
           teacherDetails.dateOfBirth ? new Date(teacherDetails.dateOfBirth).toISOString().split('T')[0] : '',
           teacherDetails.gender || '',
-          
+
           // Professional Information
           teacherDetails.qualification?.highest || '',
           teacherDetails.experience?.total || '',
@@ -5457,7 +5463,7 @@ const ManageUsers: React.FC = () => {
               employeeId: row['Employee ID'] || '',
               dateOfBirth: row['Date of Birth'] ? new Date(row['Date of Birth']) : null,
               gender: row['Gender'] || '',
-              
+
               // Qualification
               qualification: {
                 highest: row['Qualification'] || ''
@@ -5469,13 +5475,13 @@ const ManageUsers: React.FC = () => {
               },
 
               // Subjects - parse comma-separated string
-              subjects: row['Subjects Taught'] 
+              subjects: row['Subjects Taught']
                 ? row['Subjects Taught'].split(',').map((subject: string) => ({
-                    subjectName: subject.trim(),
-                    subjectCode: '',
-                    classes: [],
-                    isPrimary: false
-                  }))
+                  subjectName: subject.trim(),
+                  subjectCode: '',
+                  classes: [],
+                  isPrimary: false
+                }))
                 : []
             };
 
@@ -5712,17 +5718,17 @@ const ManageUsers: React.FC = () => {
     students.forEach(student => {
       // Check all possible locations for class and section, prioritizing academicInfo
       const className = (student as any).academicInfo?.class ||
-                       student.studentDetails?.academic?.currentClass ||
-                       student.studentDetails?.currentClass || 
-                       student.studentDetails?.class ||
-                       (student as any).class ||
-                       'Unassigned';
+        student.studentDetails?.academic?.currentClass ||
+        student.studentDetails?.currentClass ||
+        student.studentDetails?.class ||
+        (student as any).class ||
+        'Unassigned';
       const section = (student as any).academicInfo?.section ||
-                     student.studentDetails?.academic?.currentSection ||
-                     student.studentDetails?.currentSection || 
-                     student.studentDetails?.section ||
-                     (student as any).section ||
-                     'A';
+        student.studentDetails?.academic?.currentSection ||
+        student.studentDetails?.currentSection ||
+        student.studentDetails?.section ||
+        (student as any).section ||
+        'A';
 
       if (!organized[className]) {
         organized[className] = {};
@@ -5754,21 +5760,21 @@ const ManageUsers: React.FC = () => {
         sortedSections[section] = organized[className][section].sort((a, b) => {
           const studentIdA = (a as any).userId || a._id || '';
           const studentIdB = (b as any).userId || b._id || '';
-          
+
           // Extract numeric part from student ID (e.g., "BG-S-0003" -> 3)
           const extractNumber = (id: string) => {
             const match = id.match(/\d+$/);
             return match ? parseInt(match[0]) : 0;
           };
-          
+
           const numA = extractNumber(studentIdA);
           const numB = extractNumber(studentIdB);
-          
+
           // If both have numeric parts, compare numerically
           if (numA !== 0 || numB !== 0) {
             return numA - numB;
           }
-          
+
           // Fallback to string comparison
           return studentIdA.localeCompare(studentIdB);
         });
@@ -6350,7 +6356,7 @@ const ManageUsers: React.FC = () => {
                               </td>
 
                               {/* Experience Column - Access via user.teacherDetails */}
-                              
+
                             </>
                           )}
                           {activeTab === 'admin' && (
@@ -8869,7 +8875,7 @@ const ManageUsers: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
+
                 {/* Form Actions */}
                 <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
                   <button

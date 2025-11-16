@@ -224,6 +224,21 @@ const ViewResults: React.FC = () => {
     setEditingMarks(null);
   };
 
+  const updateResultMarks = (rowKey: string, value: number | null) => {
+    setResults(prev =>
+      prev.map(r => {
+        const key = String(r.id || r.studentId || r._id || '');
+        if (key === rowKey) {
+          return {
+            ...r,
+            obtainedMarks: value
+          };
+        }
+        return r;
+      })
+    );
+  };
+
   const saveInlineEdit = async (result: any) => {
     if (editingMarks === null || editingMarks === undefined) {
       toast.error('Please enter valid marks');
@@ -338,6 +353,88 @@ const ViewResults: React.FC = () => {
       }
 
       toast.success(`Saved ${validResults.length} result(s)`);
+
+      // Refresh list so that newly saved marks appear as existing results with Edit actions
+      try {
+        const refreshedSchoolCode = schoolCode;
+        const response = await resultsAPI.getResultsForTeacher({
+          schoolCode: refreshedSchoolCode,
+          class: selectedClass,
+          section: selectedSection,
+          subject: selectedSubject,
+          testType: selectedExam,
+          academicYear: currentAcademicYear
+        });
+
+        if (response.data.success && response.data.data) {
+          const payload = response.data.data;
+          const resultsData: any[] = Array.isArray(payload.results) ? payload.results : [];
+
+          const byUserId = new Map<string, any>();
+          const byStudentId = new Map<string, any>();
+
+          resultsData.forEach((r: any) => {
+            const uid = (r.userId || '').toString().trim();
+            const sid = (r.studentId || '').toString().trim();
+            if (uid) {
+              byUserId.set(uid, r);
+            }
+            if (sid) {
+              byStudentId.set(sid, r);
+            }
+          });
+
+          const merged = results.map(student => {
+            const uidKey = (student.userId || '').toString().trim();
+            const sidKey = (student.studentId || student.id || '').toString().trim();
+
+            const r =
+              (uidKey && byUserId.get(uidKey)) ||
+              (sidKey && byStudentId.get(sidKey)) ||
+              null;
+
+            const totalMarks =
+              (r && (r.totalMarks || r.maxMarks)) ||
+              student.totalMarks ||
+              testMaxMarks ||
+              null;
+
+            const obtainedMarks =
+              r && r.obtainedMarks !== null && r.obtainedMarks !== undefined
+                ? r.obtainedMarks
+                : student.obtainedMarks ?? null;
+
+            const grade =
+              obtainedMarks !== null && totalMarks
+                ? calculateGrade(obtainedMarks, totalMarks)
+                : 'N/A';
+
+            return {
+              ...student,
+              ...r,
+              id: r?._id || r?.id || student.id,
+              _id: r?._id || student._id,
+              studentId: student.studentId || r?.studentId,
+              studentName: student.studentName || r?.studentName || r?.name,
+              className: selectedClass,
+              section: selectedSection,
+              subject: selectedSubject,
+              testType: selectedExam,
+              totalMarks,
+              maxMarks: totalMarks,
+              obtainedMarks,
+              grade,
+              frozen: r?.frozen || false
+            };
+          });
+
+          const frozen = merged.some(r => r.frozen);
+          setIsFrozen(frozen);
+          setResults(merged);
+        }
+      } catch (refreshError) {
+        console.error('Error refreshing results after save (teacher):', refreshError);
+      }
     } catch (error: any) {
       console.error('Error saving results (teacher):', error);
       toast.error(error.response?.data?.message || 'Failed to save results. Please try again.');
@@ -948,6 +1045,12 @@ const ViewResults: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredStudents.map((result, index) => {
                   const grade = calculateGrade(result.obtainedMarks, result.totalMarks || result.maxMarks);
+                  const rowKey = String(result.id || result.studentId || result._id || index);
+                  const hasExistingResult = Boolean(result._id || result.resultId);
+                  const isEditingThis = editingResultId === (result.resultId || result._id || result.id);
+                  const isNewRow = !hasExistingResult;
+                  const totalMarks = result.totalMarks || result.maxMarks || testMaxMarks || undefined;
+
                   return (
                     <tr key={result.id || index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -957,18 +1060,45 @@ const ViewResults: React.FC = () => {
                         {result.studentName || result.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.totalMarks || result.maxMarks || testMaxMarks || '-'}
+                        {totalMarks || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                        {editingResultId === (result._id || result.id) ? (
+                        {isFrozen || result.frozen ? (
+                          result.obtainedMarks ?? 'N/A'
+                        ) : isNewRow ? (
                           <input
                             type="number"
-                            value={editingMarks || ''}
-                            onChange={(e) => setEditingMarks(e.target.value === '' ? null : Number(e.target.value))}
+                            value={result.obtainedMarks ?? ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const parsed = value === '' ? null : Number(value);
+                              if (parsed !== null) {
+                                if (parsed < 0) return;
+                                if (totalMarks && parsed > totalMarks) return;
+                              }
+                              updateResultMarks(rowKey, parsed);
+                            }}
                             className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             min="0"
-                            max={result.totalMarks || result.maxMarks || testMaxMarks || undefined}
-                            disabled={savingResultId === (result._id || result.id)}
+                            max={totalMarks}
+                          />
+                        ) : isEditingThis ? (
+                          <input
+                            type="number"
+                            value={editingMarks ?? ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const parsed = value === '' ? null : Number(value);
+                              if (parsed !== null) {
+                                if (parsed < 0) return;
+                                if (totalMarks && parsed > totalMarks) return;
+                              }
+                              setEditingMarks(parsed);
+                            }}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            min="0"
+                            max={totalMarks}
+                            disabled={savingResultId === (result.resultId || result._id || result.id)}
                           />
                         ) : (
                           result.obtainedMarks ?? 'N/A'
@@ -980,15 +1110,17 @@ const ViewResults: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {editingResultId === (result._id || result.id) ? (
+                        {isNewRow ? (
+                          <span className="text-gray-400 text-xs">Save all to create result</span>
+                        ) : isEditingThis ? (
                           <div className="flex items-center space-x-2">
                             <button
                               onClick={() => saveInlineEdit(result)}
-                              disabled={savingResultId === (result._id || result.id)}
+                              disabled={savingResultId === (result.resultId || result._id || result.id)}
                               className="p-1.5 text-green-600 hover:bg-green-50 rounded-md transition-colors disabled:opacity-50"
                               title="Save"
                             >
-                              {savingResultId === (result._id || result.id) ? (
+                              {savingResultId === (result.resultId || result._id || result.id) ? (
                                 <div className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full" />
                               ) : (
                                 <Save className="h-4 w-4" />
@@ -996,7 +1128,7 @@ const ViewResults: React.FC = () => {
                             </button>
                             <button
                               onClick={cancelInlineEdit}
-                              disabled={savingResultId === (result._id || result.id)}
+                              disabled={savingResultId === (result.resultId || result._id || result.id)}
                               className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
                               title="Cancel"
                             >
