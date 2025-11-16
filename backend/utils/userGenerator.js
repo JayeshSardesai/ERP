@@ -200,15 +200,60 @@ class UserGenerator {
           accountHolderName: userData.accountHolderName || ''
         };
       } else if (userData.role.toLowerCase() === 'teacher') {
+        // Use teacherDetails object if provided (from UI), otherwise use flat fields (for backward compatibility)
+        const teacherInfo = userData.teacherDetails || {};
+        
+        // Format subjects properly to match CSV import structure
+        const subjects = teacherInfo.subjects || userData.subjects || [];
+        const formattedSubjects = Array.isArray(subjects) 
+          ? subjects.map(subject => {
+              if (typeof subject === 'string') {
+                return {
+                  subjectName: subject,
+                  subjectCode: subject,
+                  classes: [],
+                  isPrimary: false
+                };
+              } else if (subject && typeof subject === 'object') {
+                return {
+                  subjectName: subject.subjectName || subject.name || subject,
+                  subjectCode: subject.subjectCode || subject.code || subject.subjectName || subject,
+                  classes: subject.classes || [],
+                  isPrimary: subject.isPrimary || false
+                };
+              }
+              return {
+                subjectName: subject,
+                subjectCode: subject,
+                classes: [],
+                isPrimary: false
+              };
+            })
+          : [];
+        
+        userDocument.teacherDetails = {
+          subjects: formattedSubjects,
+          classes: teacherInfo.classes || [],
+          employeeId: teacherInfo.employeeId || userData.employeeId || userId,
+          joiningDate: teacherInfo.joiningDate || userData.joinDate || new Date(),
+          qualification: teacherInfo.qualification || userData.qualification || '',
+          experience: teacherInfo.experience || userData.experience || 0,
+          designation: teacherInfo.designation || userData.designation || '',
+          department: teacherInfo.department || userData.department || '',
+          specialization: teacherInfo.specialization || '',
+          bankDetails: teacherInfo.bankDetails || {}
+        };
+        
+        // Keep teachingInfo for backward compatibility if needed elsewhere
         userDocument.teachingInfo = {
-          subjects: userData.subjects || [],
-          classes: userData.classes || [],
-          employeeId: userData.employeeId || userId,
-          joinDate: userData.joinDate || new Date(),
-          qualification: userData.qualification || '',
-          experience: userData.experience || 0,
-          designation: userData.designation || '',
-          department: userData.department || ''
+          subjects: formattedSubjects,
+          classes: teacherInfo.classes || [],
+          employeeId: teacherInfo.employeeId || userData.employeeId || userId,
+          joinDate: teacherInfo.joiningDate || userData.joinDate || new Date(),
+          qualification: teacherInfo.qualification || userData.qualification || '',
+          experience: teacherInfo.experience || userData.experience || 0,
+          designation: teacherInfo.designation || userData.designation || '',
+          department: teacherInfo.department || userData.department || ''
         };
         
         // Teacher Personal Information with "Other" fields

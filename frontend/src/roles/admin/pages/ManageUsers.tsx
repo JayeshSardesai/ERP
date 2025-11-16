@@ -408,6 +408,27 @@ interface OldAddUserFormData {
 
 const ManageUsers: React.FC = () => {
   const { user } = useAuth();
+  
+  // Helper function to format date for date input (YYYY-MM-DD)
+  const formatDateForInput = (date: any): string => {
+    if (!date) return '';
+    
+    // If it's already a string in YYYY-MM-DD format, return as is
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return date;
+    }
+    
+    // Convert to Date object and format
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  };
+  
   const { currentAcademicYear, viewingAcademicYear, isViewingHistoricalYear, setViewingYear, availableYears, loading: academicYearLoading } = useAcademicYear();
   // Use the school classes hook to get dynamic data
   const {
@@ -2866,7 +2887,7 @@ const ManageUsers: React.FC = () => {
       firstName: userData.name?.firstName || parsedFirstName || userData.firstName || userData.studentDetails?.firstName || '',
       middleName: userData.name?.middleName || userData.middleName || userData.studentDetails?.middleName || '',
       lastName: userData.name?.lastName || parsedLastName || userData.lastName || userData.studentDetails?.lastName || '',
-      dateOfBirth: userData.dateOfBirth || userData.studentDetails?.dateOfBirth || '',
+      dateOfBirth: formatDateForInput(userData.dateOfBirth || userData.studentDetails?.dateOfBirth || ''),
       ageYears: userData.ageYears || userData.studentDetails?.ageYears || 0,
       ageMonths: userData.ageMonths || userData.studentDetails?.ageMonths || 0,
       gender: userData.gender || userData.studentDetails?.gender || 'male',
@@ -3595,6 +3616,10 @@ const ManageUsers: React.FC = () => {
         updateData.department = formData.department;
         updateData.employeeId = formData.employeeId;
         updateData.joiningDate = formData.joiningDate;
+        updateData.dateOfBirth = formData.dateOfBirth;
+        updateData.gender = formData.gender;
+        updateData.phone = formData.phone;
+        updateData.email = formData.email;
 
         // Add complete teacherDetails object
         if (formData.teacherDetails) {
@@ -8146,10 +8171,9 @@ const ManageUsers: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
                       <input
                         type="date"
-                        required
                         value={formData.dateOfBirth}
                         onChange={(e) => handleDOBChange(e.target.value)}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2"

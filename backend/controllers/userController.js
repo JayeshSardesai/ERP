@@ -1198,12 +1198,8 @@ exports.addTeacher = async (req, res) => {
           subjectName: getSubjectName(subject),
           isPrimary: true
         })) : [],
-        qualification: {
-          highest: qualification || ''
-        },
-        experience: {
-          total: experience || 0
-        },
+        qualification: qualification || '',
+        experience: experience || 0,
         joiningDate: new Date()
       },
       auditTrail: {
@@ -1708,8 +1704,8 @@ exports.getUsersByRole = async (req, res) => {
         } : undefined,
         teacherDetails: obj.teacherDetails ? {
           subjects: Array.isArray(obj.teacherDetails.subjects) ? obj.teacherDetails.subjects.map(s => s.subjectCode || s.subjectName).filter(Boolean) : [],
-          qualification: obj.teacherDetails.qualification?.highest || '',
-          experience: obj.teacherDetails.experience?.total || 0
+          qualification: obj.teacherDetails.qualification || '',
+          experience: obj.teacherDetails.experience || 0
         } : undefined,
         parentDetails: obj.parentDetails ? {
           parentId: obj.parentDetails.parentId || '',

@@ -1,18 +1,16 @@
 //
 // File: jayeshsardesai/erp/ERP-7a5c138ae65bf53237b3e294be93792d26fb324a/frontend/src/api/schoolUsers.ts
 //
-import axios from 'axios';
 import api from './axios'; // Use the same axios instance
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
 // School User Management API
 export const schoolUserAPI = {
   // Add user to school
   addUser: async (schoolCode: string, userData: any, token: string) => {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/school-users/${schoolCode}/users`,
+      const response = await api.post(
+        `/school-users/${schoolCode}/users`,
         userData,
         {
           headers: {
@@ -30,11 +28,11 @@ export const schoolUserAPI = {
   // Get all users in a school
   getAllUsers: async (schoolCode: string, token: string) => {
     try {
-      console.log(`🔍 Calling API: GET ${API_BASE_URL}/school-users/${schoolCode}/users`);
+      console.log(`🔍 Calling API: GET /school-users/${schoolCode}/users`);
       console.log(`🔐 Using token: ${token ? token.substring(0, 20) + '...' : 'MISSING'}`);
 
-      const response = await axios.get(
-        `${API_BASE_URL}/school-users/${schoolCode}/users`,
+      const response = await api.get(
+        `/school-users/${schoolCode}/users`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -63,8 +61,8 @@ export const schoolUserAPI = {
   // Get users by role
   getUsersByRole: async (schoolCode: string, role: string, token: string) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/school-users/${schoolCode}/users/role/${role}`,
+      const response = await api.get(
+        `/school-users/${schoolCode}/users/role/${role}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -80,8 +78,8 @@ export const schoolUserAPI = {
   // Get specific user
   getUser: async (schoolCode: string, userId: string, token: string) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/school-users/${schoolCode}/users/${userId}`,
+      const response = await api.get(
+        `/school-users/${schoolCode}/users/${userId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -97,8 +95,8 @@ export const schoolUserAPI = {
   // Update user
   updateUser: async (schoolCode: string, userId: string, updateData: any, token: string) => {
     try {
-      const response = await axios.put(
-        `${API_BASE_URL}/school-users/${schoolCode}/users/${userId}`,
+      const response = await api.put(
+        `/school-users/${schoolCode}/users/${userId}`,
         updateData,
         {
           headers: {
@@ -116,8 +114,8 @@ export const schoolUserAPI = {
   // Reset user password
   resetPassword: async (schoolCode: string, userId: string, token: string) => {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/school-users/${schoolCode}/users/${userId}/reset-password`,
+      const response = await api.post(
+        `/school-users/${schoolCode}/users/${userId}/reset-password`,
         {},
         {
           headers: {
@@ -134,8 +132,8 @@ export const schoolUserAPI = {
   // Change user password (admin sets new password)
   changePassword: async (schoolCode: string, userId: string, newPassword: string, token: string) => {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/school-users/${schoolCode}/users/${userId}/change-password`,
+      const response = await api.post(
+        `/school-users/${schoolCode}/users/${userId}/change-password`,
         { newPassword },
         {
           headers: {
@@ -153,8 +151,8 @@ export const schoolUserAPI = {
   // Toggle user status
   toggleStatus: async (schoolCode: string, userId: string, isActive: boolean, token: string) => {
     try {
-      const response = await axios.patch(
-        `${API_BASE_URL}/school-users/${schoolCode}/users/${userId}/status`,
+      const response = await api.patch(
+        `/school-users/${schoolCode}/users/${userId}/status`,
         { isActive },
         {
           headers: {
@@ -183,8 +181,8 @@ export const schoolUserAPI = {
   // Delete user
   deleteUser: async (schoolCode: string, userId: string, token: string) => {
     try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/school-users/${schoolCode}/users/${userId}`,
+      const response = await api.delete(
+        `/school-users/${schoolCode}/users/${userId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -200,8 +198,8 @@ export const schoolUserAPI = {
   // Get access matrix
   getAccessMatrix: async (schoolCode: string, token: string) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/school-users/${schoolCode}/access-matrix`,
+      const response = await api.get(
+        `/school-users/${schoolCode}/access-matrix`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -217,8 +215,8 @@ export const schoolUserAPI = {
   // Update access matrix
   updateAccessMatrix: async (schoolCode: string, matrix: any, token: string) => {
     try {
-      const response = await axios.put(
-        `${API_BASE_URL}/school-users/${schoolCode}/access-matrix`,
+      const response = await api.put(
+        `/school-users/${schoolCode}/access-matrix`,
         { matrix },
         {
           headers: {
@@ -240,8 +238,8 @@ export const schoolUserAPI = {
       formData.append('file', file);
       formData.append('role', role);
 
-      const response = await axios.post(
-        `${API_BASE_URL}/school-users/${schoolCode}/import/users`,
+      const response = await api.post(
+        `/school-users/${schoolCode}/import/users`,
         formData,
         {
           headers: {
@@ -263,8 +261,8 @@ export const schoolUserAPI = {
   // Verify admin password and get teacher passwords
   verifyAdminAndGetPasswords: async (schoolCode: string, adminPassword: string, teacherUserId: string | null, token: string) => {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/school-users/${schoolCode}/verify-admin-password`,
+      const response = await api.post(
+        `/school-users/${schoolCode}/verify-admin-password`,
         {
           adminPassword,
           teacherUserId
@@ -287,7 +285,7 @@ export const schoolUserAPI = {
 export const schoolAuthAPI = {
   login: async (identifier: string, password: string, schoolCode: string) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/school-login`, {
+      const response = await api.post(`/auth/school-login`, {
         identifier,
         password,
         schoolCode

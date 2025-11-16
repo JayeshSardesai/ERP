@@ -804,7 +804,6 @@ function getAdminHeaders() {
 }
 
 // --- Define Headers (Teacher) ---
-// --- Original Teacher Headers (kept for export functionality) ---
 function getTeacherHeaders() {
   return [
     'userId', 'firstName', 'middleName', 'lastName', 'email', 'primaryPhone',
@@ -818,74 +817,21 @@ function getTeacherHeaders() {
   ];
 }
 
-// --- NEW: Simplified Teacher Headers for Template (matching UI form) ---
 function getTeacherHeadersSimplified() {
   return [
     'First Name',
-    'Last Name', 
+    'Last Name',
     'Email',
     'Phone Number',
     'Date of Birth',
     'Gender',
-    // 'Qualification',
-    // 'Experience (Years)',
-    // 'Subjects Taught',
+    'Qualification',
+    'Experience (Years)',
+    'Subjects Taught',
     'Employee ID',
     'Address',
     'Profile Image'
   ];
-}
-
-// --- Validation function for Admin <--- NEW FUNCTION
-function validateAdminRow(normalizedRow, rowNumber) {
-  // ... (rest of the code remains the same)
-  const errors = [];
-  const requiredKeys = [
-    'firstname', 'lastname', 'email', 'primaryphone',
-    'dateofbirth', 'gender', 'joiningdate',
-    'admintype', 'designation'
-  ];
-  requiredKeys.forEach(key => {
-    if (!normalizedRow.hasOwnProperty(key) || normalizedRow[key] === undefined || normalizedRow[key] === null || String(normalizedRow[key]).trim() === '') {
-      errors.push({ row: rowNumber, error: `is required`, field: key });
-    }
-  });
-  // Optional Field Validations...
-  if (normalizedRow['email'] && !/\S+@\S+\.\S+/.test(normalizedRow['email'])) { errors.push({ row: rowNumber, error: `Invalid format`, field: 'email' }); }
-  const pincode = normalizedRow['permanentpincode']; if (pincode && pincode.trim() !== '' && !/^\d{6}$/.test(pincode)) { errors.push({ row: rowNumber, error: `Invalid format (must be 6 digits if provided)`, field: 'permanentpincode' }); }
-  const currentPincode = normalizedRow['currentpincode']; if (currentPincode && currentPincode.trim() !== '' && !/^\d{6}$/.test(currentPincode)) { errors.push({ row: rowNumber, error: `Invalid format (must be 6 digits if provided)`, field: 'currentpincode' }); }
-  const gender = normalizedRow['gender']?.toLowerCase(); if (gender && gender.trim() !== '' && !['male', 'female', 'other'].includes(gender)) { errors.push({ row: rowNumber, error: `Invalid value (must be 'male', 'female', or 'other' if provided)`, field: 'gender' }); }
-  const phone = normalizedRow['primaryphone']; if (phone && phone.trim() !== '' && !/^\d{7,15}$/.test(phone.replace(/\D/g, ''))) { errors.push({ row: rowNumber, error: `Invalid format (must be 7-15 digits if provided)`, field: 'primaryphone' }); }
-  if (normalizedRow['dateofbirth']) { try { parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth'); } catch (e) { errors.push({ row: rowNumber, error: e.message, field: 'dateofbirth' }); } }
-  if (normalizedRow['joiningdate']) { try { parseFlexibleDate(normalizedRow['joiningdate'], 'Joining Date'); } catch (e) { errors.push({ row: rowNumber, error: e.message, field: 'joiningdate' }); } }
-  return errors;
-}
-
-
-// --- Validation function for Teacher ---
-function validateTeacherRow(normalizedRow, rowNumber) {
-  // (Keep this function exactly as it was in the previous 'role-aware' version)
-  const errors = [];
-  const requiredKeys = [
-    'firstname', 'lastname', 'email', 'primaryphone',
-    'dateofbirth', 'gender', 'joiningdate',
-    'highestqualification', 'totalexperience'
-  ];
-  requiredKeys.forEach(key => {
-    if (!normalizedRow.hasOwnProperty(key) || normalizedRow[key] === undefined || normalizedRow[key] === null || String(normalizedRow[key]).trim() === '') {
-      errors.push({ row: rowNumber, error: `is required`, field: key });
-    }
-  });
-  // Optional Field Validations... (email, pincode, gender, phone, dates, experience)
-  if (normalizedRow['email'] && !/\S+@\S+\.\S+/.test(normalizedRow['email'])) { errors.push({ row: rowNumber, error: `Invalid format`, field: 'email' }); }
-  const pincode = normalizedRow['permanentpincode']; if (pincode && pincode.trim() !== '' && !/^\d{6}$/.test(pincode)) { errors.push({ row: rowNumber, error: `Invalid format (must be 6 digits if provided)`, field: 'permanentpincode' }); }
-  const currentPincode = normalizedRow['currentpincode']; if (currentPincode && currentPincode.trim() !== '' && !/^\d{6}$/.test(currentPincode)) { errors.push({ row: rowNumber, error: `Invalid format (must be 6 digits if provided)`, field: 'currentpincode' }); }
-  const gender = normalizedRow['gender']?.toLowerCase(); if (gender && gender.trim() !== '' && !['male', 'female', 'other'].includes(gender)) { errors.push({ row: rowNumber, error: `Invalid value (must be 'male', 'female', or 'other' if provided)`, field: 'gender' }); }
-  const phone = normalizedRow['primaryphone']; if (phone && phone.trim() !== '' && !/^\d{7,15}$/.test(phone.replace(/\D/g, ''))) { errors.push({ row: rowNumber, error: `Invalid format (must be 7-15 digits if provided)`, field: 'primaryphone' }); }
-  if (normalizedRow['dateofbirth']) { try { parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth'); } catch (e) { errors.push({ row: rowNumber, error: e.message, field: 'dateofbirth' }); } }
-  if (normalizedRow['joiningdate']) { try { parseFlexibleDate(normalizedRow['joiningdate'], 'Joining Date'); } catch (e) { errors.push({ row: rowNumber, error: e.message, field: 'joiningdate' }); } }
-  const exp = normalizedRow['totalexperience']; if (exp && isNaN(Number(exp))) { errors.push({ row: rowNumber, error: `must be a number`, field: 'totalexperience' }); }
-  return errors;
 }
 
 // --- NEW: Simplified Teacher Validation (matching simplified template) ---
@@ -894,7 +840,7 @@ function validateTeacherRow(normalizedRow, rowNumber) {
 function validateTeacherRowSimplified(normalizedRow, rowNumber) {
   const errors = [];
   
-  // --- MODIFICATION: Changed 'phonenumber' to 'primaryphone' ---
+  // Updated required keys to include new headers
   const requiredKeys = [
     'firstname', 'lastname', 'email', 'primaryphone',
     'dateofbirth', 'gender', 'qualification'
@@ -911,12 +857,11 @@ function validateTeacherRowSimplified(normalizedRow, rowNumber) {
     errors.push({ row: rowNumber, error: `Invalid format`, field: 'email' }); 
   }
   
-  const gender = normalizedRow['gender']?.toLowerCase(); 
-  if (gender && gender.trim() !== '' && !['male', 'female', 'other'].includes(gender)) { 
+  const genderVal = normalizedRow['gender']?.toLowerCase(); 
+  if (genderVal && genderVal.trim() !== '' && !['male', 'female', 'other'].includes(genderVal)) { 
     errors.push({ row: rowNumber, error: `Invalid value (must be 'male', 'female', 'other')`, field: 'gender' }); 
   }
   
-  // --- MODIFICATION: Changed 'phonenumber' to 'primaryphone' ---
   const phone = normalizedRow['primaryphone']; 
   if (phone && phone.trim() !== '' && !/^\d{7,15}$/.test(phone.replace(/\D/g, ''))) { 
     errors.push({ row: rowNumber, error: `Invalid format (must be 7-15 digits)`, field: 'primaryphone' }); 
@@ -930,6 +875,7 @@ function validateTeacherRowSimplified(normalizedRow, rowNumber) {
     } 
   }
   
+  // Validate experience (years) - optional field
   const exp = normalizedRow['experience(years)']; 
   if (exp && exp.trim() !== '' && isNaN(Number(exp))) { 
     errors.push({ row: rowNumber, error: `must be a number`, field: 'experience(years)' }); 
@@ -938,82 +884,26 @@ function validateTeacherRowSimplified(normalizedRow, rowNumber) {
   return errors;
 }
 
-// --- Helper to create Admin Data Object <--- NEW FUNCTION
-async function createAdminFromRow(normalizedRow, schoolIdAsObjectId, userId, schoolCode, creatingUserIdAsObjectId) {
-  const email = normalizedRow['email'];
-  const finalDateOfBirth = parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth'); if (!finalDateOfBirth) throw new Error('Date of Birth is required and could not be parsed.');
-  const finalJoiningDate = parseFlexibleDate(normalizedRow['joiningdate'], 'Joining Date'); if (!finalJoiningDate) throw new Error('Joining Date is required and could not be parsed.');
-  let temporaryPassword = generateRandomPassword(8); const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-  let gender = normalizedRow['gender']?.toLowerCase(); if (!['male', 'female', 'other'].includes(gender)) gender = 'other';
-  const isActiveValue = normalizedRow['isactive']?.toLowerCase(); let isActive = true; if (isActiveValue === 'false' || isActiveValue === 'inactive' || isActiveValue === 'no' || isActiveValue === '0') { isActive = false; }
-  const sameAsPermanent = normalizedRow['sameaspermanent']?.toLowerCase() !== 'false';
-  let permanentPincode = normalizedRow['permanentpincode'] || ''; if (permanentPincode && !/^\d{6}$/.test(permanentPincode)) permanentPincode = '';
-  let currentPincode = normalizedRow['currentpincode'] || ''; if (currentPincode && !/^\d{6}$/.test(currentPincode)) currentPincode = '';
-  const firstName = normalizedRow['firstname'] || ''; const lastName = normalizedRow['lastname'] || '';
-
-  // Handle profile image if provided <--- IMAGE UPLOAD
-  let profileImagePath = '';
-  if (normalizedRow['profileimage']) {
-    profileImagePath = await copyProfilePicture(normalizedRow['profileimage'], userId, schoolCode);
-    console.log(`🔍 DEBUG: Admin profile image path returned: ${profileImagePath}`);
-  }
-
-  const newAdmin = {
-    _id: new ObjectId(), userId, schoolCode: schoolCode.toUpperCase(), schoolId: schoolIdAsObjectId,
-    name: { firstName, middleName: normalizedRow['middlename'] || '', lastName, displayName: `${firstName} ${lastName}`.trim() },
-    email: email, password: hashedPassword, temporaryPassword: temporaryPassword, passwordChangeRequired: true, role: 'admin',
-    contact: { primaryPhone: normalizedRow['primaryphone'] || '', secondaryPhone: normalizedRow['secondaryphone'] || '', whatsappNumber: normalizedRow['whatsappnumber'] || '', },
-    address: {
-      permanent: { street: normalizedRow['permanentstreet'] || '', area: normalizedRow['permanentarea'] || '', city: normalizedRow['permanentcity'] || '', state: normalizedRow['permanentstate'] || '', country: normalizedRow['permanentcountry'] || 'India', pincode: permanentPincode, landmark: normalizedRow['permanentlandmark'] || '' },
-      current: sameAsPermanent ? undefined : { street: normalizedRow['currentstreet'] || '', area: normalizedRow['currentarea'] || '', city: normalizedRow['currentcity'] || '', state: normalizedRow['currentstate'] || '', country: normalizedRow['currentcountry'] || 'India', pincode: currentPincode, landmark: normalizedRow['currentlandmark'] || '' },
-      sameAsPermanent: sameAsPermanent
-    },
-    identity: { aadharNumber: normalizedRow['aadharnumber'] || '', panNumber: normalizedRow['pannumber'] || '' },
-    profileImage: profileImagePath,
-    isActive: isActive, createdAt: new Date(), updatedAt: new Date(),
-    schoolAccess: { joinedDate: finalJoiningDate, assignedBy: creatingUserIdAsObjectId, status: 'active', accessLevel: 'full' },
-    auditTrail: { createdBy: creatingUserIdAsObjectId, createdAt: new Date() },
-    adminDetails: {
-      employeeId: normalizedRow['employeeid']?.trim() || userId,
-      joiningDate: finalJoiningDate,
-      designation: normalizedRow['designation']?.trim() || '',
-      adminType: normalizedRow['admintype']?.trim() || 'admin',
-      department: normalizedRow['department']?.trim() || '',
-      permissions: {
-        userManagement: normalizedRow['permissions_usermanagement']?.toLowerCase() === 'true',
-        academicManagement: normalizedRow['permissions_academicmanagement']?.toLowerCase() === 'true',
-        feeManagement: normalizedRow['permissions_feemanagement']?.toLowerCase() === 'true',
-        reportGeneration: normalizedRow['permissions_reportgeneration']?.toLowerCase() === 'true',
-        systemSettings: normalizedRow['permissions_systemsettings']?.toLowerCase() === 'true',
-        schoolSettings: normalizedRow['permissions_schoolsettings']?.toLowerCase() === 'true',
-        dataExport: normalizedRow['permissions_dataexport']?.toLowerCase() === 'true',
-        auditLogs: normalizedRow['permissions_auditlogs']?.toLowerCase() === 'true'
-      },
-      bankDetails: {
-        accountNumber: normalizedRow['bankaccountno']?.trim() || '',
-        ifscCode: normalizedRow['bankifsc']?.trim() || '',
-        bankName: normalizedRow['bankname']?.trim() || '',
-        branchName: normalizedRow['bankbranchname']?.trim() || '',
-        accountHolderName: normalizedRow['accountholdername']?.trim() || `${firstName} ${lastName}`.trim()
-      }
-    }
-  };
-  return newAdmin;
-}
-
-
 // --- Helper to create Teacher Data Object ---
-// REPLACE your entire createTeacherFromRow function with this
 async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, schoolCode, creatingUserIdAsObjectId) {
   const email = normalizedRow['email'];
-  const finalDateOfBirth = parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth'); if (!finalDateOfBirth) throw new Error('Date of Birth is required and could not be parsed.');
+  const finalDateOfBirth = parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth'); 
+  if (!finalDateOfBirth) throw new Error('Date of Birth is required and could not be parsed.');
   const finalJoiningDate = parseFlexibleDate(normalizedRow['joiningdate'], 'Joining Date') || new Date(); // Default to current date if not provided
-  let temporaryPassword = generateRandomPassword(8); const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-  let gender = normalizedRow['gender']?.toLowerCase(); if (!['male', 'female', 'other'].includes(gender)) gender = 'other';
-  const isActiveValue = normalizedRow['isactive']?.toLowerCase(); let isActive = true; if (isActiveValue === 'false' || isActiveValue === 'inactive' || isActiveValue === 'no' || isActiveValue === '0') { isActive = false; }
+  let temporaryPassword = generateRandomPassword(8); 
+  const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+  let gender = normalizedRow['gender']?.toLowerCase(); 
+  if (!['male', 'female', 'other'].includes(gender)) gender = 'other';
+  const isActiveValue = normalizedRow['isactive']?.toLowerCase(); 
+  let isActive = true; 
+  if (isActiveValue === 'false' || isActiveValue === 'inactive' || isActiveValue === 'no' || isActiveValue === '0') { 
+    isActive = false; 
+  }
   const sameAsPermanent = normalizedRow['sameaspermanent']?.toLowerCase() !== 'false';
-  let permanentPincode = normalizedRow['permanentpincode'] || ''; if (permanentPincode && !/^\d{6}$/.test(permanentPincode)) permanentPincode = '';
-  let currentPincode = normalizedRow['currentpincode'] || ''; if (currentPincode && !/^\d{6}$/.test(currentPincode)) currentPincode = '';
+  let permanentPincode = normalizedRow['permanentpincode'] || ''; 
+  if (permanentPincode && !/^\d{6}$/.test(permanentPincode)) permanentPincode = '';
+  let currentPincode = normalizedRow['currentpincode'] || ''; 
+  if (currentPincode && !/^\d{6}$/.test(currentPincode)) currentPincode = '';
   
   let totalExperience = 0;
   const experienceCandidates = [
@@ -1028,7 +918,8 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
       if (!isNaN(parsed)) { totalExperience = parsed; break; }
     }
   }
-  const firstName = normalizedRow['firstname'] || ''; const lastName = normalizedRow['lastname'] || '';
+  const firstName = normalizedRow['firstname'] || ''; 
+  const lastName = normalizedRow['lastname'] || '';
 
   // Handle profile image if provided
   let profileImagePath = '';
@@ -1095,20 +986,65 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
     }
   }
   const newTeacher = {
-    _id: new ObjectId(), userId, schoolCode: schoolCode.toUpperCase(), schoolId: schoolIdAsObjectId,
-    name: { firstName, middleName: normalizedRow['middlename'] || '', lastName, displayName: `${firstName} ${lastName}`.trim() },
-    email: email, password: hashedPassword, temporaryPassword: temporaryPassword, passwordChangeRequired: true, role: 'teacher',
-    contact: { primaryPhone: normalizedRow['primaryphone'] || '', secondaryPhone: normalizedRow['secondaryphone'] || '', whatsappNumber: normalizedRow['whatsappnumber'] || '', },
+    _id: new ObjectId(), 
+    userId, 
+    schoolCode: schoolCode.toUpperCase(), 
+    schoolId: schoolIdAsObjectId,
+    name: { 
+      firstName, 
+      middleName: normalizedRow['middlename'] || '', 
+      lastName, 
+      displayName: `${firstName} ${lastName}`.trim() 
+    },
+    email: email, 
+    password: hashedPassword, 
+    temporaryPassword: temporaryPassword, 
+    passwordChangeRequired: true, 
+    role: 'teacher',
+    contact: { 
+      primaryPhone: normalizedRow['primaryphone'] || '', 
+      secondaryPhone: normalizedRow['secondaryphone'] || '', 
+      whatsappNumber: normalizedRow['whatsappnumber'] || '', 
+    },
     address: {
-      permanent: { street: permanentStreetVal || '', area: permanentAreaVal || '', city: permanentCityVal || '', state: permanentStateVal || '', country: normalizedRow['permanentcountry'] || 'India', pincode: permanentPincodeVal || permanentPincode || '', landmark: normalizedRow['permanentlandmark'] || '' },
-      current: sameAsPermanent ? undefined : { street: normalizedRow['currentstreet'] || '', area: normalizedRow['currentarea'] || '', city: normalizedRow['currentcity'] || '', state: normalizedRow['currentstate'] || '', country: normalizedRow['currentcountry'] || 'India', pincode: currentPincode || '', landmark: normalizedRow['currentlandmark'] || '' },
+      permanent: { 
+        street: permanentStreetVal || '', 
+        area: permanentAreaVal || '', 
+        city: permanentCityVal || '', 
+        state: permanentStateVal || '', 
+        country: normalizedRow['permanentcountry'] || 'India', 
+        pincode: permanentPincodeVal || permanentPincode || '', 
+        landmark: normalizedRow['permanentlandmark'] || '' 
+      },
+      current: sameAsPermanent ? undefined : { 
+        street: normalizedRow['currentstreet'] || '', 
+        area: normalizedRow['currentarea'] || '', 
+        city: normalizedRow['currentcity'] || '', 
+        state: normalizedRow['currentstate'] || '', 
+        country: normalizedRow['currentcountry'] || 'India', 
+        pincode: currentPincode || '', 
+        landmark: normalizedRow['currentlandmark'] || '' 
+      },
       sameAsPermanent: sameAsPermanent
     },
-    identity: { aadharNumber: normalizedRow['aadharnumber'] || '', panNumber: normalizedRow['pannumber'] || '' },
+    identity: { 
+      aadharNumber: normalizedRow['aadharnumber'] || '', 
+      panNumber: normalizedRow['pannumber'] || '' 
+    },
     profileImage: profileImagePath,
-    isActive: isActive, createdAt: new Date(), updatedAt: new Date(),
-    schoolAccess: { joinedDate: finalJoiningDate, assignedBy: creatingUserIdAsObjectId, status: 'active', accessLevel: 'full' },
-    auditTrail: { createdBy: creatingUserIdAsObjectId, createdAt: new Date() },
+    isActive: isActive, 
+    createdAt: new Date(), 
+    updatedAt: new Date(),
+    schoolAccess: { 
+      joinedDate: finalJoiningDate, 
+      assignedBy: creatingUserIdAsObjectId, 
+      status: 'active', 
+      accessLevel: 'full' 
+    },
+    auditTrail: { 
+      createdBy: creatingUserIdAsObjectId, 
+      createdAt: new Date() 
+    },
     
     teacherDetails: teacherDetails, // <-- Corrected subjects are in here
     
@@ -1148,45 +1084,6 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
   };
   return newTeacher;
 }
-
-// ... (rest of the code remains the same)
-// --- Define Robust Headers (Student) ---
-// REPLACE your entire getStudentHeadersRobust function with this one:
-
-function getStudentHeadersRobust() {
-  // Use the exact column names requested by the admin for the student import/export template
-  // REMOVED 'Address' and 'School Admission Date' from this list
-  return [
-    'User ID',
-    'First Name',
-    'Last Name',
-    'Email',
-    'Phone Number',
-    'Date of Birth',
-    'Gender',
-    'Enrollment No',
-    'TC No',
-    'Admission to Class',
-    'Section',
-    'Academic Year',
-    'Is RTE Candidate',
-    'Father Name',
-    'Permanent Street',
-    'City/Village/Town',
-    'Pin Code',
-    'Aadhar Number',
-    'Bank Name',
-    'Bank Account No',
-    'Bank IFSC Code',
-    'Nationality',
-    'Student Caste Certificate No',
-    'Profile Image'
-  ];
-}
-
-// --- Robust Validation (Student) ---
-// REPLACE your validateStudentRowRobust function with this
-// REPLACE your entire validateStudentRowRobust function with this one:
 
 function validateStudentRowRobust(normalizedRow, rowNumber) {
   const errors = [];
