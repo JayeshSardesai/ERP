@@ -584,14 +584,13 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
     const andFilters = [];
 
     // *** MODIFICATION START ***
-    // Add filter for active students to avoid applying fees to withdrawn students
-    andFilters.push({
-      $or: [
-        { isActive: { $ne: false } }, // Catches true or undefined
-        { status: { $ne: 'inactive' } },
-        { status: { $ne: 'archived' } }
-      ]
-    });
+    // Add robust filters for active students.
+    // This ensures we don't apply fees to withdrawn/inactive students.
+    // We check that isActive is NOT false (so true or undefined is OK)
+    // AND status is NOT 'inactive' AND status is NOT 'archived'.
+    andFilters.push({ isActive: { $ne: false } });
+    andFilters.push({ status: { $ne: 'inactive' } });
+    andFilters.push({ status: { $ne: 'archived' } });
     // *** MODIFICATION END ***
 
     if (feeStructure.class !== 'ALL') {
@@ -638,9 +637,10 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
     // Try 'students' collection first (most schools store student docs here)
     const studentsCol = db.collection('students');
     const usersCol = db.collection('users');
-    const studentQueryForStudentsCol = andFilters.length > 0
-      ? { ...baseForStudentsCol, $and: andFilters }
-      : baseForStudentsCol;
+
+    const studentQueryForStudentsCol = { ...baseForStudentsCol, $and: andFilters };
+
+    console.log('[Fees] Query for "students" collection:', JSON.stringify(studentQueryForStudentsCol, null, 2));
     const countStudentsCol = await studentsCol.countDocuments(studentQueryForStudentsCol).catch(() => 0);
 
     let students = [];
@@ -651,10 +651,9 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
       students = await studentsCol.find(studentQueryForStudentsCol).toArray();
     } else {
       // Fallback to users collection with role: 'student'
-      const studentQueryForUsersCol = andFilters.length > 0
-        ? { ...baseForUsersCol, $and: andFilters }
-        : baseForUsersCol;
+      const studentQueryForUsersCol = { ...baseForUsersCol, $and: andFilters };
       console.log('[Fees] Using users collection (role: student) for application');
+      console.log('[Fees] Query for "users" collection:', JSON.stringify(studentQueryForUsersCol, null, 2));
       students = await usersCol.find(studentQueryForUsersCol).toArray();
       usedCollection = 'users';
     }
