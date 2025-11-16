@@ -834,6 +834,37 @@ function getTeacherHeadersSimplified() {
   ];
 }
 
+function getStudentHeadersRobust() {
+  return [
+    'User ID',
+    'First Name',
+    'Last Name',
+    'Email',
+    'Phone Number',
+    'Date of Birth',
+    'Gender',
+    'Enrollment No',
+    'TC No',
+    'Admission to Class',
+    'Section',
+    'Academic Year',
+    'Is RTE Candidate',
+    'Father Name',
+    'Permanent Street',
+    'City/Village/Town',
+    'Pin Code',
+    'Aadhar Number',
+    'School Admission Date',
+    'Address',
+    'Bank Name',
+    'Bank Account No',
+    'Bank IFSC Code',
+    'Nationality',
+    'Student Caste Certificate No',
+    'Profile Image'
+  ];
+}
+
 // --- NEW: Simplified Teacher Validation (matching simplified template) ---
 // REPLACE your old validateTeacherRowSimplified function with this one:
 
