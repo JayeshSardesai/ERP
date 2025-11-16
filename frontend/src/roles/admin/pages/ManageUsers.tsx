@@ -675,8 +675,8 @@ const ManageUsers: React.FC = () => {
       // Teacher-specific validation
       const teacherDetails = formData.teacherDetails;
 
-      const qualification = teacherDetails?.highestQualification || formData.qualification;
-      const experience = teacherDetails?.totalExperience || Number(formData.experience);
+      const qualification = teacherDetails?.qualification || formData.qualification;
+      const experience = teacherDetails?.experience || Number(formData.experience);
       const subjects = teacherDetails?.subjects || (typeof formData.subjects === 'string' ? formData.subjects.split(',') : formData.subjects);
 
       if (!qualification || qualification.trim() === '') {
@@ -2650,17 +2650,18 @@ const ManageUsers: React.FC = () => {
         userData.permanentPincode = userData.studentDetails.addressDetails?.permanent?.pincode || formData.pinCode;
         // ===== END CRITICAL FIX =====
       } else if (formData.role === 'teacher') {
-        // Send data in the format backend expects (simple fields)
+        // Send data in the format backend expects (flat fields like bulk import)
         userData.teacherDetails = {
-          // Professional Info
+          // Professional Info (flat fields as expected by backend)
           employeeId: formData.teacherDetails?.employeeId || formData.employeeId || '',
           joiningDate: formData.teacherDetails?.joiningDate ? new Date(formData.teacherDetails.joiningDate) : (formData.joiningDate ? new Date(formData.joiningDate) : undefined),
-          qualification: formData.teacherDetails?.highestQualification || formData.qualification || '', // Use qualification from legacy field as fallback
-          experience: formData.teacherDetails?.totalExperience || Number(formData.experience) || 0, // Use experience from legacy field
-          subjects: formData.teacherDetails?.subjects?.length ? formData.teacherDetails.subjects : (Array.isArray(formData.subjects) ? formData.subjects : (formData.subjects ? String(formData.subjects).split(',').map(s => s.trim()) : [])), // Use legacy subjects
+          qualification: formData.teacherDetails?.qualification || formData.qualification || '', // Flat field as expected by backend
+          experience: formData.teacherDetails?.experience || Number(formData.experience) || 0, // Flat field as expected by backend
+          subjects: formData.teacherDetails?.subjects?.length ? formData.teacherDetails.subjects : 
+            (formData.subjects ? String(formData.subjects).split(',').map(s => s.trim()).filter(s => s) : []), // Array of strings
           specialization: formData.teacherDetails?.specialization || '',
           designation: formData.teacherDetails?.designation || '',
-          department: formData.teacherDetails?.department || formData.department || '', // use legacy
+          department: formData.teacherDetails?.department || formData.department || '',
 
           // Bank Details (from teacherDetails in form state)
           bankDetails: {
@@ -3035,8 +3036,8 @@ const ManageUsers: React.FC = () => {
       subjects: Array.isArray(userData.teacherDetails?.subjects) ?
         userData.teacherDetails.subjects.map((s: any) => s.subjectName || s).join(', ') :
         userData.teacherDetails?.subjects || userData.subjects || '',
-      qualification: userData.teacherDetails?.qualification?.highest || userData.qualification || '',
-      experience: userData.teacherDetails?.experience?.total || userData.experience || 0,
+      qualification: userData.teacherDetails?.qualification || userData.qualification || '', // Flat field as expected by backend
+      experience: userData.teacherDetails?.experience || userData.experience || 0, // Flat field as expected by backend
       employeeId: userData.teacherDetails?.employeeId || userData.employeeId || '',
       department: userData.department || userData.teacherDetails?.department || '',
       joiningDate: userData.joiningDate || userData.teacherDetails?.joiningDate || '',
@@ -3371,17 +3372,12 @@ const ManageUsers: React.FC = () => {
         lastMedicalCheckup: userData.studentDetails?.lastMedicalCheckup || '',
       },
 
-      // Teacher Details Object
+      // Teacher Details Object (flat fields as expected by backend)
       teacherDetails: {
         employeeId: userData.teacherDetails?.employeeId || userData.employeeId || '',
         joiningDate: userData.teacherDetails?.joiningDate || userData.joiningDate || '',
-        highestQualification: userData.teacherDetails?.highestQualification || userData.qualification || '',
-        specialization: userData.teacherDetails?.specialization || '',
-        university: userData.teacherDetails?.university || '',
-        graduationYear: userData.teacherDetails?.graduationYear || 0,
-        totalExperience: userData.teacherDetails?.totalExperience || userData.experience || 0,
-        experienceAtCurrentSchool: userData.teacherDetails?.experienceAtCurrentSchool || 0,
-        previousSchools: userData.teacherDetails?.previousSchools || [],
+        qualification: userData.teacherDetails?.qualification || userData.qualification || '', // Flat field as expected by backend
+        experience: userData.teacherDetails?.experience || userData.experience || 0, // Flat field as expected by backend
         subjects: userData.teacherDetails?.subjects || [],
         primarySubjects: userData.teacherDetails?.primarySubjects || [],
         classTeacherOf: userData.teacherDetails?.classTeacherOf || '',
@@ -8086,7 +8082,7 @@ const ManageUsers: React.FC = () => {
                 {/* Basic Information */}
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h4 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
                       <input
@@ -8128,23 +8124,25 @@ const ManageUsers: React.FC = () => {
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        placeholder="Enter phone number (10 digits)"
+                        placeholder="Enter phone number"
                         pattern="[0-9]{10}"
                         maxLength={10}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
                       <input
                         type="date"
+                        required
                         value={formData.dateOfBirth}
                         onChange={(e) => handleDOBChange(e.target.value)}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
                       <select
+                        required
                         value={formData.gender}
                         onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'male' | 'female' | 'other' })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8153,6 +8151,17 @@ const ManageUsers: React.FC = () => {
                         <option value="female">Female</option>
                         <option value="other">Other</option>
                       </select>
+                    </div>
+                    <div className="md:col-span-2 lg:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
+                      <textarea
+                        required
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        placeholder="Enter complete address"
+                        rows={2}
+                      />
                     </div>
                   </div>
                 </div>
@@ -8771,23 +8780,14 @@ const ManageUsers: React.FC = () => {
                 )}
 
                 {editingUser.role === 'teacher' && (
-                  <div className="bg-yellow-50 p-4 rounded-lg">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Teacher Information</h4>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Professional Information</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Qualification *</label>
                         <input
                           type="text"
-                          value={formData.employeeId}
-                          onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                          placeholder="Enter employee ID"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Qualification</label>
-                        <input
-                          type="text"
+                          required
                           value={formData.qualification}
                           onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -8801,61 +8801,20 @@ const ManageUsers: React.FC = () => {
                           value={formData.experience}
                           onChange={(e) => setFormData({ ...formData, experience: parseInt(e.target.value) || 0 })}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                          placeholder="Enter years of experience"
+                          placeholder="Enter experience in years"
                           min="0"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Subjects (comma-separated)</label>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Subjects Taught</label>
                         <input
                           type="text"
                           value={formData.subjects}
                           onChange={(e) => setFormData({ ...formData, subjects: e.target.value })}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                          placeholder="e.g., Mathematics, Physics"
+                          placeholder="Enter subjects separated by commas (e.g., Mathematics, Physics, Chemistry)"
                         />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {editingUser.role === 'admin' && (
-                  <div className="bg-red-50 p-4 rounded-lg">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Administrative Information</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Admin Level *</label>
-                        <select
-                          required
-                          value={formData.adminLevel}
-                          onChange={(e) => setFormData({ ...formData, adminLevel: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        >
-                          <option value="">Select Admin Level</option>
-                          <option value="Super Admin">Super Admin</option>
-                          <option value="Principal">Principal</option>
-                          <option value="Vice Principal">Vice Principal</option>
-                          <option value="Academic Coordinator">Academic Coordinator</option>
-                          <option value="Administrative Officer">Administrative Officer</option>
-                          <option value="Office Staff">Office Staff</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                        <select
-                          value={formData.department}
-                          onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        >
-                          <option value="">Select Department</option>
-                          <option value="Administration">Administration</option>
-                          <option value="Academic Affairs">Academic Affairs</option>
-                          <option value="Student Affairs">Student Affairs</option>
-                          <option value="Finance">Finance</option>
-                          <option value="Human Resources">Human Resources</option>
-                          <option value="IT Department">IT Department</option>
-                          <option value="Facilities">Facilities</option>
-                        </select>
+                        <p className="text-sm text-gray-500 mt-1">Enter subjects separated by commas</p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
@@ -8864,124 +8823,13 @@ const ManageUsers: React.FC = () => {
                           value={formData.employeeId}
                           onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                          placeholder="Enter employee ID"
+                          placeholder="Enter employee ID (optional)"
                         />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Access Level</label>
-                        <select
-                          value={formData.accessLevel}
-                          onChange={(e) => setFormData({ ...formData, accessLevel: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        >
-                          <option value="">Select Access Level</option>
-                          <option value="Full Access">Full Access</option>
-                          <option value="Limited Access">Limited Access</option>
-                          <option value="Read Only">Read Only</option>
-                          <option value="Department Specific">Department Specific</option>
-                        </select>
                       </div>
                     </div>
                   </div>
                 )}
-
-                {/* Address Information */}
-                <div className="bg-indigo-50 p-4 rounded-lg">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4">Address Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                      <textarea
-                        value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        placeholder="Enter complete address"
-                        rows={2}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                      <input
-                        type="text"
-                        value={formData.city}
-                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        placeholder="Enter city"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Pin Code</label>
-                      <input
-                        type="text"
-                        value={formData.pinCode}
-                        onChange={(e) => setFormData({ ...formData, pinCode: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        placeholder="Enter pin code"
-                        pattern="[0-9]{6}"
-                        maxLength={6}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <h5 className="text-md font-medium text-gray-800 mb-2">Location Details</h5>
-                    <LocationSelector
-                      selectedState={formData.stateId}
-                      selectedDistrict={formData.districtId}
-                      selectedTaluka={formData.talukaId}
-                      districtText={formData.districtText}
-                      talukaText={formData.talukaText}
-                      onStateChange={(stateId, state) => {
-                        setFormData(prev => ({
-                          ...prev,
-                          stateId: stateId.toString(),
-                          state: state.name,
-                          permanentState: state.name,
-                          districtId: '',
-                          district: '',
-                          talukaId: '',
-                          taluka: '',
-                          districtText: '',
-                          talukaText: ''
-                        }));
-                      }}
-                      onDistrictChange={(districtId, district) => {
-                        setFormData(prev => ({
-                          ...prev,
-                          districtId: districtId.toString(),
-                          district: district.name,
-                          talukaId: '',
-                          taluka: '',
-                          talukaText: ''
-                        }));
-                      }}
-                      onTalukaChange={(talukaId, taluka) => {
-                        setFormData(prev => ({
-                          ...prev,
-                          talukaId: talukaId.toString(),
-                          taluka: taluka.name
-                        }));
-                      }}
-                      onDistrictTextChange={(text) => {
-                        setFormData(prev => ({
-                          ...prev,
-                          districtText: text,
-                          district: text,
-                          talukaText: ''
-                        }));
-                      }}
-                      onTalukaTextChange={(text) => {
-                        setFormData(prev => ({
-                          ...prev,
-                          talukaText: text,
-                          taluka: text
-                        }));
-                      }}
-                      required={false}
-                      className="grid grid-cols-1 md:grid-cols-3 gap-4"
-                    />
-                  </div>
-                </div>
-
+                
                 {/* Form Actions */}
                 <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
                   <button
