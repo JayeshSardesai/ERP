@@ -602,12 +602,14 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
           { currentClass: cls },
           { grade: cls },
           { 'studentDetails.currentClass': cls },
+          { 'studentDetails.academic.currentClass': cls }, // --- FIX --- Added correct path based on User.js
           // Also try numeric if possible
           ...(isNaN(Number(cls)) ? [] : [
             { class: Number(cls) },
             { studentClass: Number(cls) },
             { currentClass: Number(cls) },
             { grade: Number(cls) },
+            { 'studentDetails.academic.currentClass': Number(cls) } // --- FIX --- Added correct path for numeric
           ])
         ]
       });
@@ -629,7 +631,10 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
           { sectionName: sec },
           { sectionName: secUpper },
           { sectionName: secLower },
-          { 'studentDetails.currentSection': sec }
+          { 'studentDetails.currentSection': sec },
+          { 'studentDetails.academic.currentSection': sec }, // --- FIX --- Added correct path based on User.js
+          { 'studentDetails.academic.currentSection': secUpper }, // --- FIX --- Added path with upper
+          { 'studentDetails.academic.currentSection': secLower }  // --- FIX --- Added path with lower
         ]
       });
     }
@@ -662,9 +667,26 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
 
     // Create student fee records
     const studentFeeRecords = students.map(student => {
-      const resolvedClass = student.class ?? student.studentClass ?? student.currentClass ?? student?.studentDetails?.currentClass ?? null;
-      const resolvedSection = student.section ?? student.studentSection ?? student.currentSection ?? student?.studentDetails?.currentSection ?? null;
-      const resolvedRoll = student.rollNumber ?? student.rollno ?? student.admNo ?? null;
+      // --- FIX START --- Corrected paths to read data based on User.js
+      const resolvedClass = student.class ??
+        student.studentClass ??
+        student.currentClass ??
+        student?.studentDetails?.academic?.currentClass ?? // Corrected path
+        student?.studentDetails?.currentClass ?? // Kept old path as fallback
+        null;
+      const resolvedSection = student.section ??
+        student.studentSection ??
+        student.currentSection ??
+        student?.studentDetails?.academic?.currentSection ?? // Corrected path
+        student?.studentDetails?.currentSection ?? // Kept old path as fallback
+        null;
+      const resolvedRoll = student.rollNumber ??
+        student.rollno ??
+        student.admNo ??
+        student?.studentDetails?.rollNumber ?? // Added path from User.js
+        student?.studentDetails?.admissionNumber ?? // Added path from User.js
+        null;
+      // --- FIX END ---
       const resolvedName = student.name?.displayName || [student.name?.firstName, student.name?.lastName].filter(Boolean).join(' ') || student.fullName || student.username || 'Student';
       return ({
         schoolId: new ObjectId(feeStructure.schoolId),
