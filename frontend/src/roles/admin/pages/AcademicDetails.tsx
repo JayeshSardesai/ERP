@@ -604,6 +604,7 @@ const AcademicDetails: React.FC = () => {
     }
   };
 
+  // --- START OF FIX: fetchStudentsForClass ---
   // Fetch students for class (hall tickets)
   const fetchStudentsForClass = async () => {
     if (!hallTicketClass || !hallTicketSection) {
@@ -613,7 +614,6 @@ const AcademicDetails: React.FC = () => {
 
     try {
       const schoolCode = localStorage.getItem('erp.schoolCode') || user?.schoolCode || '';
-      // Use token from useAuth hook instead of localStorage
       const authToken = token || localStorage.getItem('erp.authToken');
 
       if (!schoolCode || !authToken) {
@@ -623,138 +623,127 @@ const AcademicDetails: React.FC = () => {
       }
 
       console.log(`📡 Fetching students for Hall Tickets - Class ${hallTicketClass} Section ${hallTicketSection}`);
+      
+      let foundStudents: Student[] = [];
 
-      // Try to fetch real students from API
+      // Helper function to map student data
+      const mapStudent = (student: any, index: number): Student => ({
+        id: student._id || student.id,
+        name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.firstname + ' ' + student.lastname || 'Unknown Student',
+        rollNumber: student.studentDetails?.rollNumber || student.rollNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
+        sequenceId: student.userId || student.studentDetails?.admissionNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
+        className: hallTicketClass,
+        section: hallTicketSection,
+        profileImage: (() => {
+          const rawImageUrl = student.profileImage || student.profilePicture;
+          if (!rawImageUrl) return null;
+          if (rawImageUrl.startsWith('/uploads')) {
+            const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
+            const baseUrl = envBase.replace(/\/api\/?$/, '');
+            return `${baseUrl}${rawImageUrl}`;
+          }
+          return rawImageUrl;
+        })()
+      });
+
+      // Helper function for robust filtering
+      const filterStudent = (student: any, targetClass: string, targetSection: string, apiName: string): boolean => {
+        // --- FIX: Check academicInfo as per schoolUsers.ts ---
+        const studentClass = (
+          student.studentDetails?.currentClass || 
+          student.currentclass || 
+          student.class || 
+          student.className || 
+          student.academicInfo?.class || // <-- NEW
+          ''
+        );
+        const studentSection = (
+          student.studentDetails?.currentSection || 
+          student.currentsection || 
+          student.section || 
+          student.academicInfo?.section || // <-- NEW
+          ''
+        );
+        
+        const classMatch = String(studentClass).trim() === String(targetClass).trim();
+        const sectionMatch = String(studentSection).trim().toUpperCase() === String(targetSection).trim().toUpperCase();
+
+        if (!classMatch || !sectionMatch) {
+          console.log(`🚫 Student ${student.name?.displayName || student.userId} filtered out (${apiName}). Class: '${studentClass}' (Req: '${targetClass}'), Section: '${studentSection}' (Req: '${targetSection}')`);
+        }
+
+        return classMatch && sectionMatch;
+      };
+
+      // --- PRIMARY ATTEMPT ---
       try {
-        const response = await api.get('/users/role/student');
+        console.log(`🔄 Trying school-users (by role) endpoint first...`);
+        const response = await api.get(`/school-users/${schoolCode}/users/role/student`);
         const data = response.data;
 
         if (data && data.success && data.data && data.data.length > 0) {
-          // Filter for students in the specific class and section
-          const filteredStudents = data.data.filter((student: any) => {
-            const studentClass = student.studentDetails?.currentClass || student.currentclass || student.class || student.className;
-            const studentSection = student.studentDetails?.currentSection || student.currentsection || student.section;
-
-            return String(studentClass) === String(hallTicketClass) &&
-              String(studentSection).toUpperCase() === String(hallTicketSection).toUpperCase();
-          });
+          const filteredStudents = data.data.filter((student: any) => 
+            filterStudent(student, hallTicketClass, hallTicketSection, "Primary API")
+          );
 
           if (filteredStudents.length > 0) {
-            // Transform real students to include sequence IDs and profile images
-            const studentsWithSeqId = filteredStudents.map((student: any, index: number) => ({
-              id: student._id || student.id,
-              name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.firstname + ' ' + student.lastname || 'Unknown Student',
-              rollNumber: student.studentDetails?.rollNumber || student.rollNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-              sequenceId: student.userId || student.studentDetails?.admissionNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-              className: hallTicketClass,
-              section: hallTicketSection,
-              // Include profile image from database with proper URL construction
-              profileImage: (() => {
-                const rawImageUrl = student.profileImage || student.profilePicture;
-                if (!rawImageUrl) return null;
-
-                // If it starts with /uploads, construct full URL
-                if (rawImageUrl.startsWith('/uploads')) {
-                  const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
-                  const baseUrl = envBase.replace(/\/api\/?$/, '');
-                  return `${baseUrl}${rawImageUrl}`;
-                }
-
-                // Otherwise return as is (for external URLs or full URLs)
-                return rawImageUrl;
-              })()
-            }));
-
-            setStudents(studentsWithSeqId);
-            toast.success(`Loaded ${studentsWithSeqId.length} students for Class ${hallTicketClass} Section ${hallTicketSection}`);
-            console.log('✅ Real students loaded:', studentsWithSeqId);
-            return;
+            console.log(`✅ Found ${filteredStudents.length} students via (by role) endpoint.`);
+            foundStudents = filteredStudents.map(mapStudent);
           } else {
-            console.log(`⚠️ No students found for Class ${hallTicketClass} Section ${hallTicketSection} in ${data.data.length} total students`);
-            setStudents([]);
-            toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}`);
-            return;
+            console.log(`⚠️ No students found for Class ${hallTicketClass} Section ${hallTicketSection} in ${data.data.length} total students from (by role) endpoint. Will try fallback.`);
           }
         }
       } catch (apiError) {
-        console.log('❌ Students API failed:', apiError);
+        console.log('❌ Students API (/role/student) failed, trying fallback:', apiError);
       }
 
-      // Try school-users endpoint pattern as fallback
-      try {
-        console.log('🔄 Trying school-users endpoint pattern...');
+      // --- FALLBACK ATTEMPT (if primary failed or found no one) ---
+      if (foundStudents.length === 0) {
+        console.log('🔄 Trying school-users (get all) endpoint as fallback...');
+        try {
+          const altResponse = await api.get(`/school-users/${schoolCode}/users`);
+          const altData = altResponse.data;
 
-        const altResponse = await api.get(`/school-users/${schoolCode}/users`);
-        const altData = altResponse.data;
-        console.log('📥 School-users API Response:', altData);
+          if (altData && altData.success && altData.data && altData.data.length > 0) {
+            const filteredStudents = altData.data.filter((user: any) => {
+              const isStudent = user.role === 'student';
+              if (!isStudent) return false;
+              
+              return filterStudent(user, hallTicketClass, hallTicketSection, "Fallback API");
+            });
 
-        if (altData && altData.success && altData.data && altData.data.length > 0) {
-          // Filter for students in the specific class and section
-          const filteredStudents = altData.data.filter((user: any) => {
-            const isStudent = user.role === 'student';
-            const userClass = user.studentDetails?.currentClass || user.currentclass || user.class || user.className;
-            const userSection = user.studentDetails?.currentSection || user.currentsection || user.section;
-            const userName = `${user.name?.firstName || user.firstname || ''} ${user.name?.lastName || user.lastname || ''}`.trim();
-
-            console.log(`🔍 School-user: ${userName}, Role: ${user.role}, Class: ${userClass}, Section: ${userSection}`);
-
-            return isStudent &&
-              String(userClass) === String(hallTicketClass) &&
-              String(userSection).toUpperCase() === String(hallTicketSection).toUpperCase();
-          });
-
-          console.log(`🔍 Filtered students from school-users for Class ${hallTicketClass} Section ${hallTicketSection}:`, filteredStudents);
-
-          if (filteredStudents.length > 0) {
-            const studentsWithSeqId = filteredStudents.map((student: any, index: number) => ({
-              id: student._id || student.id,
-              name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || student.firstname + ' ' + student.lastname || 'Unknown Student',
-              rollNumber: student.studentDetails?.rollNumber || student.rollNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-              sequenceId: student.userId || student.studentDetails?.admissionNumber || student.sequenceId || `${schoolCode}-${hallTicketSection}-${String(index + 1).padStart(4, '0')}`,
-              className: hallTicketClass,
-              section: hallTicketSection,
-              // Include profile image from database with proper URL construction
-              profileImage: (() => {
-                const rawImageUrl = student.profileImage || student.profilePicture;
-                if (!rawImageUrl) return null;
-
-                // If it starts with /uploads, construct full URL
-                if (rawImageUrl.startsWith('/uploads')) {
-                  const envBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5050/api';
-                  const baseUrl = envBase.replace(/\/api\/?$/, '');
-                  return `${baseUrl}${rawImageUrl}`;
-                }
-
-                // Otherwise return as is (for external URLs or full URLs)
-                return rawImageUrl;
-              })()
-            }));
-
-            setStudents(studentsWithSeqId);
-            toast.success(`Loaded ${studentsWithSeqId.length} students for Class ${hallTicketClass} Section ${hallTicketSection}`);
-            console.log('✅ Real students loaded from school-users endpoint:', studentsWithSeqId);
-            return;
-          } else {
-            console.log(`⚠️ No students found in school-users endpoint for Class ${hallTicketClass} Section ${hallTicketSection}`);
-            setStudents([]);
-            toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}`);
-            return;
+            if (filteredStudents.length > 0) {
+              console.log(`✅ Found ${filteredStudents.length} students via (get all) fallback endpoint.`);
+              foundStudents = filteredStudents.map(mapStudent);
+            } else {
+              console.log(`⚠️ Fallback (get all) endpoint also found no matching students.`);
+            }
           }
+        } catch (altApiError) {
+          console.log('❌ School-users (get all) API also failed:', altApiError);
         }
-      } catch (altApiError) {
-        console.log('❌ School-users API also failed:', altApiError);
       }
-
-      // No students found - show error message
-      console.log('⚠️ No students found for the selected class and section');
-      setStudents([]);
-      toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}. Please add students to this class first.`);
+      
+      // --- Final check ---
+      if (foundStudents.length > 0) {
+        setStudents(foundStudents);
+        toast.success(`Loaded ${foundStudents.length} students for Class ${hallTicketClass} Section ${hallTicketSection}`);
+        console.log('✅ Real students loaded:', foundStudents);
+      } else {
+        console.log('⚠️ No students found for the selected class and section after all attempts.');
+        setStudents([]);
+        toast.error(`No students found for Class ${hallTicketClass} Section ${hallTicketSection}. Please check student data.`);
+      }
+      
     } catch (error: any) {
       console.error('Error in fetchStudentsForClass:', error);
       setStudents([]);
     }
   };
+  // --- END OF FIX: fetchStudentsForClass ---
 
+
+  // --- START OF FIX: fetchStudentsForIdCards ---
   // Fetch students for ID card generation
   const fetchStudentsForIdCards = async () => {
     try {
@@ -766,65 +755,122 @@ const AcademicDetails: React.FC = () => {
       }
 
       console.log(`📡 Fetching students for ID Cards - Class ${idCardClass} Section ${idCardSection}`);
+      
+      let foundStudents: Student[] = [];
+      
+      // Helper function to map student data for ID Cards
+      const mapStudentForIdCard = (student: any, index: number): Student => ({
+        _id: student._id || student.id,
+        id: student._id || student.id,
+        name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || 'Unknown Student',
+        rollNumber: student.studentDetails?.rollNumber || student.rollNumber || `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
+        sequenceId: student.userId || student.studentDetails?.admissionNumber || `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
+        className: idCardClass,
+        section: idCardSection,
+        profileImage: student.profileImage || student.profilePicture || null,
+        fatherName: student.parentDetails?.fatherName || student.fatherName || student.parent?.father?.name || 'Not Available',
+        motherName: student.parentDetails?.motherName || student.motherName || student.parent?.mother?.name || 'Not Available',
+        dateOfBirth: student.personalDetails?.dateOfBirth || student.dateOfBirth || student.dob || student.personal?.dateOfBirth || 'Not Available',
+        bloodGroup: student.personalDetails?.bloodGroup || student.bloodGroup || student.personal?.bloodGroup || student.medicalInfo?.bloodGroup || 'Not Available',
+        address: student.address?.permanent?.street || student.address?.street || student.personalDetails?.address || student.address || 'Not Available',
+        phone: student.contact?.primaryPhone || student.contact?.phone || student.phone || student.personalDetails?.phone || 'Not Available'
+      });
+      
+      // Helper function for robust filtering
+      const filterStudent = (student: any, targetClass: string, targetSection: string, apiName: string): boolean => {
+        // --- FIX: Check academicInfo as per schoolUsers.ts ---
+        const studentClass = (
+          student.studentDetails?.currentClass || 
+          student.currentclass || 
+          student.class || 
+          student.className || 
+          student.academicInfo?.class || // <-- NEW
+          ''
+        );
+        const studentSection = (
+          student.studentDetails?.currentSection || 
+          student.currentsection || 
+          student.section || 
+          student.academicInfo?.section || // <-- NEW
+          ''
+        );
+        
+        const classMatch = String(studentClass).trim() === String(targetClass).trim();
+        const sectionMatch = String(studentSection).trim().toUpperCase() === String(targetSection).trim().toUpperCase();
 
-      // Use the same API pattern as hall tickets
+        if (!classMatch || !sectionMatch) {
+          console.log(`🚫 Student ${student.name?.displayName || student.userId} filtered out (${apiName}). Class: '${studentClass}' (Req: '${targetClass}'), Section: '${studentSection}' (Req: '${targetSection}')`);
+        }
+
+        return classMatch && sectionMatch;
+      };
+
+      // --- PRIMARY ATTEMPT ---
       try {
-        const response = await api.get('/users/role/student');
+        console.log(`🔄 Trying school-users (by role) endpoint first for ID Cards...`);
+        const response = await api.get(`/school-users/${schoolCode}/users/role/student`);
         const data = response.data;
         
         if (data && data.success && data.data && data.data.length > 0) {
-          // Filter students by class and section
-          const filteredStudents = data.data.filter((student: any) => {
-            const studentClass = student.studentDetails?.currentClass || student.currentclass || student.class || student.className;
-            const studentSection = student.studentDetails?.currentSection || student.currentsection || student.section;
-
-            return String(studentClass) === String(idCardClass) &&
-              String(studentSection).toUpperCase() === String(idCardSection).toUpperCase();
-          });
+          const filteredStudents = data.data.filter((student: any) => 
+            filterStudent(student, idCardClass, idCardSection, "Primary API")
+          );
 
           if (filteredStudents.length > 0) {
-            const studentsWithData = filteredStudents.map((student: any, index: number) => ({
-              _id: student._id || student.id,
-              id: student._id || student.id,
-              name: student.name?.displayName || `${student.name?.firstName || ''} ${student.name?.lastName || ''}`.trim() || 'Unknown Student',
-              rollNumber: student.studentDetails?.rollNumber || student.rollNumber || `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
-              sequenceId: student.userId || student.studentDetails?.admissionNumber || `${schoolCode}-${idCardSection}-${String(index + 1).padStart(4, '0')}`,
-              className: idCardClass,
-              section: idCardSection,
-              profileImage: student.profileImage || student.profilePicture || null,
-              // Additional fields for ID cards - try multiple field paths
-              fatherName: student.parentDetails?.fatherName || student.fatherName || student.parent?.father?.name || 'Not Available',
-              motherName: student.parentDetails?.motherName || student.motherName || student.parent?.mother?.name || 'Not Available',
-              dateOfBirth: student.personalDetails?.dateOfBirth || student.dateOfBirth || student.dob || student.personal?.dateOfBirth || 'Not Available',
-              bloodGroup: student.personalDetails?.bloodGroup || student.bloodGroup || student.personal?.bloodGroup || student.medicalInfo?.bloodGroup || 'Not Available',
-              address: student.address?.permanent?.street || student.address?.street || student.personalDetails?.address || student.address || 'Not Available',
-              phone: student.contact?.primaryPhone || student.contact?.phone || student.phone || student.personalDetails?.phone || 'Not Available'
-            }));
-
-            setIdCardStudents(studentsWithData);
-            toast.success(`Loaded ${studentsWithData.length} students for ID card generation`);
-            console.log('✅ ID Card students loaded:', studentsWithData);
-            return;
+            console.log(`✅ Found ${filteredStudents.length} students via (by role) endpoint.`);
+            foundStudents = filteredStudents.map(mapStudentForIdCard);
           } else {
-            console.log(`⚠️ No students found for Class ${idCardClass} Section ${idCardSection}`);
-            setIdCardStudents([]);
-            toast.error(`No students found for Class ${idCardClass} Section ${idCardSection}`);
-            return;
+            console.log(`⚠️ No students found for Class ${idCardClass} Section ${idCardSection} in ${data.data.length} total students from (by role) endpoint. Will try fallback.`);
           }
         }
       } catch (apiError) {
-        console.log('❌ ID Card Students API failed:', apiError);
+        console.log('❌ ID Card Students API (/role/student) failed, trying fallback:', apiError);
       }
 
-      // No students found - show error message
-      console.log('⚠️ No students found for the selected class and section');
-      setIdCardStudents([]);
-      toast.error(`No students found for Class ${idCardClass} Section ${idCardSection}. Please add students to this class first.`);
+      // --- FALLBACK ATTEMPT (if primary failed or found no one) ---
+      if (foundStudents.length === 0) {
+        console.log('🔄 Trying school-users (get all) endpoint for ID Cards...');
+        try {
+          const altResponse = await api.get(`/school-users/${schoolCode}/users`);
+          const altData = altResponse.data;
+
+          if (altData && altData.success && altData.data && altData.data.length > 0) {
+            const filteredStudents = altData.data.filter((student: any) => {
+              const isStudent = student.role === 'student';
+              if (!isStudent) return false;
+              
+              return filterStudent(student, idCardClass, idCardSection, "Fallback API");
+            });
+
+            if (filteredStudents.length > 0) {
+              console.log(`✅ Found ${filteredStudents.length} students via (get all) fallback endpoint.`);
+              foundStudents = filteredStudents.map(mapStudentForIdCard);
+            } else {
+               console.log(`⚠️ Fallback (get all) endpoint also found no matching students.`);
+            }
+          }
+        } catch (altApiError) {
+          console.log('❌ School-users (get all) API also failed:', altApiError);
+        }
+      }
+
+      // --- Final check ---
+      if (foundStudents.length > 0) {
+        setIdCardStudents(foundStudents);
+        toast.success(`Loaded ${foundStudents.length} students for ID card generation`);
+        console.log('✅ ID Card students loaded:', foundStudents);
+      } else {
+        console.log('⚠️ No students found for the selected class and section after all attempts.');
+        setIdCardStudents([]);
+        toast.error(`No students found for Class ${idCardClass} Section ${idCardSection}. Please add students to this class first.`);
+      }
     } catch (error: any) {
       console.error('Error in fetchStudentsForIdCards:', error);
       setIdCardStudents([]);
     }
   };
+  // --- END OF FIX: fetchStudentsForIdCards ---
+
 
   const updateHallTicketData = (subjectId: string, field: 'examDate' | 'examTime' | 'examHour' | 'examMinute' | 'examAmPm' | 'roomNumber', value: string) => {
     setHallTicketData(prev => {
@@ -1540,7 +1586,7 @@ const AcademicDetails: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
