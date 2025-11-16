@@ -586,11 +586,11 @@ async function applyFeeStructureToStudents_PerschoolDB(feeStructure, schoolCode)
     // *** MODIFICATION START ***
     // Add robust filters for active students.
     // This ensures we don't apply fees to withdrawn/inactive students.
-    // We check that isActive is NOT false (so true or undefined is OK)
-    // AND status is NOT 'inactive' AND status is NOT 'archived'.
+    // 1. isActive must not be false (catches true or undefined/null)
     andFilters.push({ isActive: { $ne: false } });
-    andFilters.push({ status: { $ne: 'inactive' } });
-    andFilters.push({ status: { $ne: 'archived' } });
+    // 2. status must not be 'inactive' or 'archived'.
+    //    Using $nin correctly includes documents where 'status' is null or undefined.
+    andFilters.push({ status: { $nin: ["inactive", "archived"] } });
     // *** MODIFICATION END ***
 
     if (feeStructure.class !== 'ALL') {
