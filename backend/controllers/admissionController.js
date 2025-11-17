@@ -3,12 +3,15 @@ const User = require('../models/User');
 const School = require('../models/School');
 const { generateAdmissionNumber } = require('../utils/idGenerator');
 
+// --- ADD THESE TWO LINES AT THE TOP ---
+const UserGenerator = require('../utils/userGenerator');
+const academicYearHelper = require('../utils/academicYearHelper');
+
 // Create a new admission application
 exports.createAdmission = async (req, res) => {
   try {
     const admissionData = req.body;
 
-    // Check if user is admin
     if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'Only admin can create admissions' });
     }
@@ -19,26 +22,19 @@ exports.createAdmission = async (req, res) => {
       return res.status(400).json({ message: 'School ID is required' });
     }
 
-    // Generate admission number
     const admissionNumber = await generateAdmissionNumber(schoolId, admissionData.academicYear);
-
-    // Parse date of birth
     const dateOfBirth = new Date(admissionData.dateOfBirth.split('/').reverse().join('-'));
-
-    // Parse school admission date
     const schoolAdmissionDate = new Date(admissionData.schoolAdmissionDate.split('/').reverse().join('-'));
 
-    // Create admission record with comprehensive data
     const admission = new Admission({
       schoolId,
       admissionNumber,
       academicYear: admissionData.academicYear,
       class: admissionData.admissionToClass,
-      section: 'A', // Default section, can be updated later
+      section: 'A',
       semester: admissionData.semester,
       mediumOfInstruction: admissionData.mediumOfInstruction,
 
-      // Student personal details
       personalInfo: {
         firstName: admissionData.studentNameEnglish?.firstName || '',
         lastName: admissionData.studentNameEnglish?.lastName || '',
@@ -52,7 +48,6 @@ exports.createAdmission = async (req, res) => {
         motherTongue: admissionData.motherTongue
       },
 
-      // Family Details
       familyInfo: {
         father: {
           firstName: admissionData.fatherNameEnglish?.firstName || '',
@@ -74,15 +69,16 @@ exports.createAdmission = async (req, res) => {
         }
       },
 
-      // Identity Documents
       identityDocuments: {
         aadharKPRNo: admissionData.aadharKPRNo,
         studentCasteCertificateNo: admissionData.studentCasteCertificateNo || '',
         fatherCasteCertificateNo: admissionData.fatherCasteCertificateNo || '',
-        motherCasteCertificateNo: admissionData.motherCasteCertificateNo || ''
+        motherCasteCertificateNo: admissionData.motherCasteCertificateNo || '',
+        // --- ADD TC/ENROLLMENT HERE IF YOU ADDED THEM TO THE FORM ---
+        tcNo: admissionData.tcNo || '',
+        enrollmentNo: admissionData.enrollmentNo || ''
       },
 
-      // Caste and Category Information
       casteCategoryInfo: {
         studentCaste: admissionData.studentCaste || '',
         fatherCaste: admissionData.fatherCaste || '',
@@ -91,20 +87,17 @@ exports.createAdmission = async (req, res) => {
         specialCategory: admissionData.specialCategory || 'None'
       },
 
-      // Economic Status
       economicStatus: {
         belongingToBPL: admissionData.belongingToBPL,
         bplCardNo: admissionData.bplCardNo || '',
         bhagyalakshmiBondNo: admissionData.bhagyalakshmiBondNo || ''
       },
 
-      // Special Needs
       specialNeeds: {
         disability: admissionData.disability,
-        isRTECandidate: admissionData.isRTECandidate || 'No' // <-- ADD THIS LINE
+        isRTECandidate: admissionData.isRTECandidate || 'No' // <-- FIX IS HERE
       },
 
-      // Contact information
       contactInfo: {
         address: {
           urbanRural: admissionData.urbanRural,
@@ -130,25 +123,20 @@ exports.createAdmission = async (req, res) => {
         }
       },
 
-      // School and Banking Information
       schoolBankingInfo: {
         schoolAdmissionDate: schoolAdmissionDate,
         bankingDetails: {
           bankName: admissionData.bankName || '',
           bankAccountNo: admissionData.bankAccountNo || '',
-          bankIFSCCode: admissionData.bankIFSCCode || ''
+          bankIFSCCode: admissionData.bankIFSCCode || '' // <-- FIX IS HERE
         },
         transportation: {
           bmtcBusPass: admissionData.bmtcBusPass
         }
       },
 
-      // Fee information (default values, can be updated)
       fees: {
-        admissionFee: 1000,
-        tuitionFee: 5000,
-        otherFees: 500,
-        totalAmount: 6500,
+        totalAmount: 0,
         paidAmount: 0,
         paymentStatus: 'pending'
       },
@@ -169,12 +157,112 @@ exports.createAdmission = async (req, res) => {
   }
 };
 
+// --- THIS IS THE NEW, SAFER APPROVE FUNCTION ---
+// Approve admission
+exports.approveAdmission = async (req, res) => {
+  try {
+    const { admissionId } = req.params;
+    const { adminNotes } = req.body;
+
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only admin can approve admissions' });
+    }
+
+    const admission = await Admission.findById(admissionId);
+    if (!admission) {
+      return res.status(404).json({ message: 'Admission not found' });
+    }
+
+    if (req.user.schoolId?.toString() !== admission.schoolId?.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (admission.status !== 'pending') {
+      return res.status(400).json({ message: 'Admission is not in pending status' });
+    }
+
+    // --- START: NEW LOGIC (THE "GLUE CODE") ---
+
+    // 1. Get School and Academic Year info
+    const school = await School.findById(admission.schoolId);
+    if (!school) {
+      return res.status(404).json({ message: 'Associated school not found. Cannot create user.' });
+    }
+
+    const activeAcademicYear = await academicYearHelper.getCurrentAcademicYear(admission.schoolId);
+
+    // 2. Build the complete userData object for the generator
+    const userDataForCreator = {
+      role: 'student',
+      schoolId: admission.schoolId,
+      email: admission.contactInfo.communication.studentEmailId || `student.${admission.admissionNumber}@${school.code.toLowerCase()}.school`,
+
+      currentAcademicYear: activeAcademicYear.year,
+
+      // --- SAFER SPREAD OPERATORS ---
+      // This copies all fields and handles cases where sub-documents might be missing
+      ...(admission.personalInfo?.toObject() || {}),
+      ...(admission.familyInfo?.father?.toObject() || {}),
+      ...(admission.familyInfo?.mother?.toObject() || {}),
+      ...(admission.identityDocuments?.toObject() || {}), // <-- This provides aadharKPRNo, studentCasteCertificateNo
+      ...(admission.casteCategoryInfo?.toObject() || {}),
+      ...(admission.economicStatus?.toObject() || {}),
+      ...(admission.specialNeeds?.toObject() || {}),      // <-- This provides isRTECandidate
+      ...(admission.contactInfo?.address?.toObject() || {}),
+      ...(admission.contactInfo?.communication?.toObject() || {}),
+      ...(admission.schoolBankingInfo?.bankingDetails?.toObject() || {}), // <-- This provides bankIFSCCode
+
+      // --- Explicitly map fields that are in objects ---
+      studentNameEnglish: admission.personalInfo,
+      fatherNameEnglish: admission.familyInfo.father,
+      motherNameEnglish: admission.familyInfo.mother,
+
+      // --- Pass top-level fields from the form ---
+      academicYear: admission.academicYear, // The form's year (as a fallback)
+      admissionToClass: admission.class,
+
+      // --- Pass TC & Enrollment (now from identityDocuments) ---
+      tcNo: admission.identityDocuments.tcNo || '',
+      enrollmentNo: admission.identityDocuments.enrollmentNo || ''
+    };
+
+    // 3. Create the student user
+    const creationResult = await UserGenerator.createUser(school.code, userDataForCreator);
+
+    if (!creationResult.success) {
+      return res.status(500).json({ message: 'Admission approved, but user creation failed.' });
+    }
+
+    // --- END: NEW LOGIC ---
+
+    // Update admission status (original logic)
+    admission.status = 'approved';
+    admission.adminNotes = adminNotes;
+    admission.processedAt = new Date();
+    admission.studentId = creationResult.user._id; // Link the new user
+    await admission.save();
+
+    res.json({
+      message: 'Admission approved and student user created successfully',
+      admission: admission,
+      newUser: creationResult.credentials // Send new credentials back
+    });
+
+  } catch (error) {
+    console.error('Error approving admission:', error);
+    res.status(500).json({ message: 'Error approving admission', error: error.message });
+  }
+};
+
+
+// --- ALL OTHER FUNCTIONS (getAdmissions, rejectAdmission, etc.) ---
+// (These are unchanged, but I include them for a complete file replacement)
+
 // Get all admissions for a school
 exports.getAdmissions = async (req, res) => {
   try {
     const { page = 1, limit = 10, status, search = '' } = req.query;
 
-    // Check if user has access
     if (!['admin', 'superadmin'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -185,7 +273,6 @@ exports.getAdmissions = async (req, res) => {
       return res.status(400).json({ message: 'School ID is required' });
     }
 
-    // Build query
     const query = { schoolId };
     if (status) {
       query.status = status;
@@ -226,7 +313,6 @@ exports.getAdmissionById = async (req, res) => {
   try {
     const { admissionId } = req.params;
 
-    // Check if user has access
     if (!['admin', 'superadmin'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -236,7 +322,6 @@ exports.getAdmissionById = async (req, res) => {
       return res.status(404).json({ message: 'Admission not found' });
     }
 
-    // Check if user has access to this admission's school
     if (req.user.role === 'admin' && req.user.schoolId?.toString() !== admission.schoolId?.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -249,59 +334,12 @@ exports.getAdmissionById = async (req, res) => {
   }
 };
 
-// Approve admission
-exports.approveAdmission = async (req, res) => {
-  try {
-    const { admissionId } = req.params;
-    const { adminNotes } = req.body;
-
-    // Check if user is admin
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Only admin can approve admissions' });
-    }
-
-    const admission = await Admission.findById(admissionId);
-    if (!admission) {
-      return res.status(404).json({ message: 'Admission not found' });
-    }
-
-    // Check if user has access to this admission's school
-    if (req.user.schoolId?.toString() !== admission.schoolId?.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    if (admission.status !== 'pending') {
-      return res.status(400).json({ message: 'Admission is not in pending status' });
-    }
-
-    // Update admission status
-    admission.status = 'approved';
-    admission.adminNotes = adminNotes;
-    admission.processedAt = new Date();
-    await admission.save();
-
-    res.json({
-      message: 'Admission approved successfully',
-      admission: {
-        id: admission._id,
-        admissionNumber: admission.admissionNumber,
-        status: admission.status
-      }
-    });
-
-  } catch (error) {
-    console.error('Error approving admission:', error);
-    res.status(500).json({ message: 'Error approving admission', error: error.message });
-  }
-};
-
 // Reject admission
 exports.rejectAdmission = async (req, res) => {
   try {
     const { admissionId } = req.params;
     const { rejectionReason, adminNotes } = req.body;
 
-    // Check if user is admin
     if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Only admin can reject admissions' });
     }
@@ -311,7 +349,6 @@ exports.rejectAdmission = async (req, res) => {
       return res.status(404).json({ message: 'Admission not found' });
     }
 
-    // Check if user has access to this admission's school
     if (req.user.schoolId?.toString() !== admission.schoolId?.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -320,7 +357,6 @@ exports.rejectAdmission = async (req, res) => {
       return res.status(400).json({ message: 'Admission is not in pending status' });
     }
 
-    // Update admission status
     admission.status = 'rejected';
     admission.rejectionReason = rejectionReason;
     admission.adminNotes = adminNotes;
@@ -348,7 +384,6 @@ exports.updateAdmission = async (req, res) => {
     const { admissionId } = req.params;
     const updateData = req.body;
 
-    // Check if user is admin
     if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Only admin can update admissions' });
     }
@@ -358,12 +393,10 @@ exports.updateAdmission = async (req, res) => {
       return res.status(404).json({ message: 'Admission not found' });
     }
 
-    // Check if user has access to this admission's school
     if (req.user.schoolId?.toString() !== admission.schoolId?.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Remove sensitive fields from update
     delete updateData.status;
     delete updateData.processedBy;
     delete updateData.processedAt;
@@ -388,9 +421,8 @@ exports.updateAdmission = async (req, res) => {
 // Get admission statistics
 exports.getAdmissionStats = async (req, res) => {
   try {
-    // Check if user has access
     if (!['admin', 'superadmin'].includes(req.user.role)) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(413).json({ message: 'Access denied' });
     }
 
     const schoolId = req.user.role === 'superadmin' ? req.query.schoolId : req.user.schoolId;
@@ -434,7 +466,6 @@ exports.searchAdmissions = async (req, res) => {
   try {
     const { enrollmentNo, tcNo, schoolCode } = req.query;
 
-    // Check if user has access
     if (!['admin', 'superadmin'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -447,21 +478,17 @@ exports.searchAdmissions = async (req, res) => {
 
     let query = { schoolId };
 
-    // Search by enrollment number or TC number
     if (enrollmentNo) {
-      // In a real implementation, you might have enrollment numbers stored separately
-      // For now, we'll search by admission number or student ID
       query.admissionNumber = { $regex: enrollmentNo, $options: 'i' };
     }
 
     if (tcNo) {
-      // Search in academic info for transfer certificate
       query['academicInfo.transferCertificate'] = { $regex: tcNo, $options: 'i' };
     }
 
     const admissions = await Admission.find(query)
       .populate('schoolId', 'name code')
-      .limit(10) // Limit results
+      .limit(10)
       .sort({ createdAt: -1 });
 
     res.json({

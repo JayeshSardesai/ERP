@@ -2429,9 +2429,13 @@ const ManageUsers: React.FC = () => {
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
         address: formData.address,
-        city: formData.cityVillageTown || formData.city,
-        state: formData.state,
-        pinCode: formData.pinCode,
+        city: formData.cityVillageTown || (formData as any).city || formData.permanentCity,
+        state: (formData as any).state || formData.permanentState,
+        pinCode: (formData as any).pinCode || formData.permanentPincode,
+        // Location helpers for UserGenerator.createUser
+        cityVillageTown: formData.cityVillageTown,
+        locality: (formData as any).locality || formData.permanentArea || '',
+        district: (formData as any).district || formData.districtText || '',
 
         // Enhanced Name Structure (matching backend)
         name: {
@@ -2507,7 +2511,7 @@ const ManageUsers: React.FC = () => {
           academic: {
             currentClass: formData.studentDetails?.currentClass || formData.class || '',
             currentSection: formData.studentDetails?.currentSection || formData.section || '',
-            academicYear: formData.studentDetails?.academicYear || '2024-25',
+            academicYear: formData.studentDetails?.academicYear || currentAcademicYear || '2024-25',
             admissionDate: formData.studentDetails?.admissionDate ? new Date(formData.studentDetails.admissionDate) : undefined,
             admissionClass: formData.studentDetails?.admissionClass || '',
             rollNumber: formData.studentDetails?.rollNumber || formData.rollNumber || '',
@@ -2662,7 +2666,7 @@ const ManageUsers: React.FC = () => {
           (formData.studentDetails?.schoolAdmissionDate ? new Date(formData.studentDetails.schoolAdmissionDate) : undefined);
         userData.bankName = formData.bankName || userData.studentDetails.financial?.bankDetails?.bankName; // <-- FIX
         userData.bankAccountNo = formData.bankAccountNo || userData.studentDetails.financial?.bankDetails?.accountNumber; // <-- FIX
-        userData.bankIFSC = formData.bankIFSC || userData.studentDetails.financial?.bankDetails?.ifscCode; // <-- FIX
+        userData.bankIFSC = formData.bankIFSC || userData.studentDetails.financial?.bankDetails?.ifscCode; // <-- FIX (for legacy createUser)
         userData.accountHolderName = formData.accountHolderName || userData.studentDetails.financial?.bankDetails?.accountHolderName; // <-- ADD THIS
         userData.nationality = formData.nationality || userData.studentDetails.personal.nationality;
         userData.cityVillageTown = formData.cityVillageTown || userData.addressDetails?.permanent?.city;
@@ -2672,6 +2676,44 @@ const ManageUsers: React.FC = () => {
         userData.permanentState = userData.studentDetails.addressDetails?.permanent?.state || formData.state;
         userData.permanentPincode = userData.studentDetails.addressDetails?.permanent?.pincode || formData.pinCode;
         // ===== END CRITICAL FIX =====
+
+        // Academic year for UserGenerator.createUser (school-users)
+        userData.academicYear = formData.studentDetails?.academicYear || currentAcademicYear || '2024-25';
+
+        // Map Aadhaar and caste certificate fields for UserGenerator.createUser
+        userData.aadharKPRNo = formData.studentAadhaar
+          || userData.studentDetails.personal.studentAadhaar
+          || formData.aadharNumber
+          || userData.identity?.aadharNumber;
+        userData.studentCasteCertificateNo = formData.studentCasteCertNo
+          || userData.studentDetails.personal.studentCasteCertNo
+          || '';
+
+        // Map SATS caste/category fields for UserGenerator.createUser
+        userData.studentCaste = formData.studentCaste
+          || userData.studentDetails.personal.studentCaste
+          || '';
+        userData.socialCategory = formData.socialCategory
+          || userData.studentDetails.personal.socialCategory
+          || '';
+        userData.motherTongue = formData.motherTongue
+          || userData.studentDetails.personal.motherTongue
+          || '';
+        userData.belongingToBPL = formData.belongingToBPL
+          || userData.studentDetails.personal.belongingToBPL
+          || 'No';
+        userData.bplCardNo = formData.bplCardNo
+          || userData.studentDetails.personal.bplCardNo
+          || '';
+        userData.bhagyalakshmiBondNo = formData.bhagyalakshmiBondNo
+          || userData.studentDetails.personal.bhagyalakshmiBondNo
+          || '';
+
+        // Map bank IFSC specifically for UserGenerator.createUser (uses bankIFSCCode)
+        userData.bankIFSCCode = formData.bankIFSC
+          || userData.studentDetails.financial?.bankDetails?.ifscCode
+          || userData.bankIFSC
+          || '';
       } else if (formData.role === 'teacher') {
         // Send data in the format backend expects (flat fields like bulk import)
         userData.teacherDetails = {
