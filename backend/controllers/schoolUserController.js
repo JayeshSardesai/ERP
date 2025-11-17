@@ -198,16 +198,17 @@ exports.getUserById = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { schoolCode, userId } = req.params;
-
-    // --- START: MODIFIED LOGIC FOR IMAGE UPLOAD ---
     let updateData;
 
-    // Check if the request is multipart/form-data (contains a file)
-    if (req.is('multipart/form-data')) {
-      console.log('Received multipart/form-data request (with image)');
+    // --- START: SIMPLIFIED LOGIC FOR IMAGE UPLOAD ---
 
-      // If it is, the user data is in the 'userData' field as a JSON string
+    // Check if a file was uploaded by multer. This is the most reliable way.
+    if (req.file) {
+      console.log('[updateUser] Received multipart request with file.');
+
+      // If a file is present, data is in req.body.userData
       if (!req.body.userData) {
+        console.error('[updateUser] Error: req.file exists but req.body.userData is missing.');
         return res.status(400).json({
           success: false,
           message: "Missing 'userData' field in multipart request"
@@ -217,38 +218,52 @@ exports.updateUser = async (req, res) => {
       try {
         // Parse the JSON string to get the user data object
         updateData = JSON.parse(req.body.userData);
+        console.log('[updateUser] Parsed userData from req.body.userData.');
       } catch (e) {
-        console.error("Invalid 'userData' JSON string:", e);
+        console.error("[updateUser] Invalid 'userData' JSON string:", e);
         return res.status(400).json({
           success: false,
           message: "Invalid 'userData' JSON string"
         });
       }
 
-      // Check if a file was uploaded by multer
-      if (req.file) {
-        console.log(`📸 File uploaded, path: ${req.file.path}`);
-        // Add the image URL (e.g., from Cloudinary) to the update data
-        // The field name 'profileImage' must match your User model schema
-        updateData.profileImage = req.file.path;
-      }
+      // CRITICAL: Add the uploaded image's path to the updateData
+      // The field name 'profileImage' must match your User model schema
+      updateData.profileImage = req.file.path;
+      console.log(`[updateUser] 📸 Added profileImage to updateData: ${req.file.path}`);
+
     } else {
-      // No file, just a normal JSON request
-      console.log('Received application/json request (no image)');
+      // No file, this is a normal application/json request
+      console.log('[updateUser] Received application/json request (no file).');
       updateData = req.body;
     }
-    // --- END: MODIFIED LOGIC FOR IMAGE UPLOAD ---
+    // --- END: SIMPLIFIED LOGIC FOR IMAGE UPLOAD ---
+
+    // Log the final data being sent to the generator
+    console.log(`[updateUser] Calling UserGenerator.updateUser for user: ${userId} with data keys:`, Object.keys(updateData));
+    if (updateData.profileImage) {
+      console.log(`[updateUser] Data includes profileImage: ${updateData.profileImage}`);
+    } else {
+      console.log('[updateUser] Data does NOT include profileImage.');
+    }
 
     const result = await UserGenerator.updateUser(schoolCode, userId, updateData);
+
+    // 'result' here is what UserGenerator.updateUser returns.
+    // The frontend log shows this is {success: true, message: '...'}
+    // This is fine, but the *actual updated user* is what's important.
+    // The 'result' should ideally be the updated user document.
+    console.log('[updateUser] UserGenerator.updateUser finished. Sending success response.');
+
 
     res.json({
       success: true,
       message: 'User updated successfully',
-      data: result
+      data: result // This 'data' is what the frontend logs.
     });
 
   } catch (error) {
-    console.error('Error updating user:', error);
+    console.error('[updateUser] Error updating user:', error);
     res.status(500).json({
       success: false,
       message: 'Error updating user',
