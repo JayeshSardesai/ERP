@@ -6,11 +6,11 @@ const { ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs'); // Added missing import
 
 // -----------------------------------------------------------------
-// 💡 ADD THESE IMPORTS AT THE TOP OF THE FILE
+// 💡 IMPORT 'uploadBufferToCloudinary' INSTEAD OF 'uploadToCloudinary'
 // -----------------------------------------------------------------
 const {
-  uploadToCloudinary,
-  deleteLocalFile,
+  uploadBufferToCloudinary, // <-- Use the buffer upload function
+  deleteLocalFile, // Still needed for other parts of the app, just not here
   extractPublicId,
   deleteFromCloudinary
 } = require('../config/cloudinary');
@@ -223,8 +223,7 @@ exports.updateUser = async (req, res) => {
 
       if (!req.body.userData) {
         console.error('[updateUser] Error: req.file exists but req.body.userData is missing.');
-        // Clean up the uploaded file if data is missing
-        deleteLocalFile(req.file.path);
+        // No local file to delete, just return
         return res.status(400).json({
           success: false,
           message: "Missing 'userData' field in multipart request"
@@ -237,8 +236,7 @@ exports.updateUser = async (req, res) => {
         console.log('[updateUser] Parsed userData from req.body.userData.');
       } catch (e) {
         console.error("[updateUser] Invalid 'userData' JSON string:", e);
-        // Clean up the uploaded file if JSON is bad
-        deleteLocalFile(req.file.path);
+        // No local file to delete, just return
         return res.status(400).json({
           success: false,
           message: "Invalid 'userData' JSON string"
@@ -248,7 +246,6 @@ exports.updateUser = async (req, res) => {
       // --- 💡 NEW CLOUDINARY UPLOAD LOGIC ---
       try {
         // 1. 💡 FIX: Find the user manually to get their old profile image
-        // We cannot use UserGenerator.getUserByIdOrEmail as it may not support query by _id
         const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
         const collections = ['admins', 'teachers', 'students', 'parents'];
         let existingUser = null;
@@ -287,10 +284,10 @@ exports.updateUser = async (req, res) => {
         const uniqueIdForCloudinary = existingUser?.userId || userId;
         const publicId = `${uniqueIdForCloudinary}_${Date.now()}`;
 
-        // 4. Upload the new file (from req.file.path) to Cloudinary
-        console.log(`[updateUser] Uploading new image to Cloudinary... Path: ${req.file.path}`);
-        const uploadResult = await uploadToCloudinary(
-          req.file.path, // The path from multer
+        // 4. 💡 FIX: Upload the new file (from req.file.buffer) to Cloudinary
+        console.log(`[updateUser] Uploading new image buffer to Cloudinary... Buffer size: ${req.file.buffer.length} bytes`);
+        const uploadResult = await uploadBufferToCloudinary(
+          req.file.buffer, // <-- Use the buffer
           folder,
           publicId
         );
@@ -302,8 +299,8 @@ exports.updateUser = async (req, res) => {
         // 6. Add this new URL to updateData
         updateData.profileImage = uploadedImageUrl;
 
-        // 7. Delete the local temporary file from multer
-        deleteLocalFile(req.file.path);
+        // 7. 💡 FIX: NO local file to delete, as we used memoryStorage.
+        // deleteLocalFile(req.file.path); // <-- REMOVED
 
         // 8. Delete the *old* Cloudinary image (if one existed)
         if (oldPublicId) {
@@ -313,8 +310,8 @@ exports.updateUser = async (req, res) => {
 
       } catch (uploadError) {
         console.error('[updateUser] ❌ Error during Cloudinary upload/user-find:', uploadError);
-        // Clean up local file even if upload fails
-        deleteLocalFile(req.file.path);
+        // 💡 FIX: No local file to delete
+        // deleteLocalFile(req.file.path); // <-- REMOVED
 
         // 💡 SAFER CATCH BLOCK
         let errorMessage = 'File upload to Cloudinary failed';
@@ -322,6 +319,8 @@ exports.updateUser = async (req, res) => {
           errorMessage = uploadError.message;
         } else if (typeof uploadError === 'string') {
           errorMessage = uploadError;
+        } else if (uploadError && typeof uploadError === 'object' && uploadError.message) {
+          errorMessage = uploadError.message; // Handle error objects
         } else {
           console.error('[updateUser] Unknown upload error structure:', uploadError);
         }
@@ -397,10 +396,7 @@ exports.updateUser = async (req, res) => {
 
   } catch (error) {
     console.error('[updateUser] Error updating user:', error);
-    // Ensure local file is deleted if an error happened before cleanup
-    if (req.file && req.file.path) {
-      deleteLocalFile(req.file.path);
-    }
+    // 💡 FIX: No local file to delete
     res.status(500).json({
       success: false,
       message: 'Error updating user',
