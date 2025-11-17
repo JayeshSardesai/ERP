@@ -3668,23 +3668,17 @@ const ManageUsers: React.FC = () => {
         // Use school-users route which is configured with multer upload.single('profileImage')
         const response = await api.put(
           `/school-users/${schoolCode}/users/${editingUser._id}`,
-          formDataToSend
-          // No need to set Content-Type, axios does it for FormData
+          formDataToSend,
+          {
+            // Let the browser/axios set proper multipart boundary instead of default JSON header
+            headers: {
+              'Content-Type': undefined
+            }
+          }
           // No need to set auth token, the interceptor does it
         );
 
-        if (!response.ok) {
-          let errorMessage = 'Failed to update user with image';
-          try {
-            const errorData = await response.json();
-            if (errorData?.message) errorMessage = errorData.message;
-          } catch (e) {
-            console.warn('Could not parse error response for image upload', e);
-          }
-          throw new Error(errorMessage);
-        }
-
-        console.log('✅ User updated with image successfully via /api/school-users');
+        console.log('✅ User updated with image successfully via /api/school-users', response.data);
       } else {
         // No image - use regular API call
         console.log('Updating without image...');
