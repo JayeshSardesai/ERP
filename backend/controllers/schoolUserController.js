@@ -5,6 +5,18 @@ const School = require('../models/School');
 const { ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs'); // Added missing import
 
+// -----------------------------------------------------------------
+// 💡 ADD THESE IMPORTS AT THE TOP OF THE FILE
+// -----------------------------------------------------------------
+const {
+  uploadToCloudinary,
+  deleteLocalFile,
+  extractPublicId,
+  deleteFromCloudinary
+} = require('../config/cloudinary');
+// -----------------------------------------------------------------
+
+
 // Helper function to resolve school identifier (name or code) to school code
 const resolveSchoolCode = async (schoolIdentifier) => {
   console.log(`🔍 Resolving school identifier: ${schoolIdentifier}`);
@@ -195,20 +207,23 @@ exports.getUserById = async (req, res) => {
 };
 
 // Update user information
+// -----------------------------------------------------------------
+// 💡 REPLACED 'updateUser' FUNCTION
+// -----------------------------------------------------------------
 exports.updateUser = async (req, res) => {
   try {
     const { schoolCode, userId } = req.params;
     let updateData;
+    let oldPublicId = null; // Variable to hold the old image ID for deletion
 
-    // --- START: SIMPLIFIED LOGIC FOR IMAGE UPLOAD ---
-
-    // Check if a file was uploaded by multer. This is the most reliable way.
+    // Check if a file was uploaded by multer
     if (req.file) {
       console.log('[updateUser] Received multipart request with file.');
 
-      // If a file is present, data is in req.body.userData
       if (!req.body.userData) {
         console.error('[updateUser] Error: req.file exists but req.body.userData is missing.');
+        // Clean up the uploaded file if data is missing
+        deleteLocalFile(req.file.path);
         return res.status(400).json({
           success: false,
           message: "Missing 'userData' field in multipart request"
@@ -221,49 +236,111 @@ exports.updateUser = async (req, res) => {
         console.log('[updateUser] Parsed userData from req.body.userData.');
       } catch (e) {
         console.error("[updateUser] Invalid 'userData' JSON string:", e);
+        // Clean up the uploaded file if JSON is bad
+        deleteLocalFile(req.file.path);
         return res.status(400).json({
           success: false,
           message: "Invalid 'userData' JSON string"
         });
       }
 
-      // CRITICAL: Add the uploaded image's path to the updateData
-      // The field name 'profileImage' must match your User model schema
-      updateData.profileImage = req.file.path;
-      console.log(`[updateUser] 📸 Added profileImage to updateData: ${req.file.path}`);
+      // --- 💡 NEW CLOUDINARY UPLOAD LOGIC ---
+      try {
+        // 1. Get the user's existing document to see if they have an old image
+        const existingUser = await UserGenerator.getUserByIdOrEmail(schoolCode, userId);
+        if (existingUser && existingUser.profileImage) {
+          oldPublicId = extractPublicId(existingUser.profileImage);
+          if (oldPublicId) {
+            console.log(`[updateUser] Found existing image. Old Public ID: ${oldPublicId}`);
+          }
+        }
+
+        // 2. Define Cloudinary folder and publicId
+        const folder = `profiles/${schoolCode.toUpperCase()}`;
+        // Use userId and a timestamp to ensure a unique ID and overwrite
+        const publicId = `${userId}_${Date.now()}`;
+
+        // 3. Upload the new file (from req.file.path) to Cloudinary
+        console.log(`[updateUser] Uploading new image to Cloudinary... Path: ${req.file.path}`);
+        const uploadResult = await uploadToCloudinary(
+          req.file.path, // The path from multer
+          folder,
+          publicId
+        );
+
+        // 4. Get the secure URL from the result
+        const uploadedImageUrl = uploadResult.secure_url;
+        console.log(`[updateUser] ✅ Upload successful. URL: ${uploadedImageUrl}`);
+
+        // 5. Add this new URL to updateData
+        updateData.profileImage = uploadedImageUrl;
+
+        // 6. Delete the local temporary file from multer
+        deleteLocalFile(req.file.path);
+
+        // 7. Delete the *old* Cloudinary image (if one existed)
+        if (oldPublicId) {
+          console.log(`[updateUser] Deleting old Cloudinary image: ${oldPublicId}`);
+          await deleteFromCloudinary(oldPublicId);
+        }
+
+      } catch (uploadError) {
+        console.error('[updateUser] ❌ Error during Cloudinary upload:', uploadError);
+        // Clean up local file even if upload fails
+        deleteLocalFile(req.file.path);
+        return res.status(500).json({
+          success: false,
+          message: 'File upload to Cloudinary failed',
+          error: uploadError.message
+        });
+      }
+      // --- 💡 END OF NEW LOGIC ---
 
     } else {
       // No file, this is a normal application/json request
       console.log('[updateUser] Received application/json request (no file).');
       updateData = req.body;
+
+      // Check if the frontend is asking to *remove* the image
+      if (updateData.profileImage === null || updateData.profileImage === '') {
+        console.log('[updateUser] Request to remove profile image.');
+        const existingUser = await UserGenerator.getUserByIdOrEmail(schoolCode, userId);
+        if (existingUser && existingUser.profileImage) {
+          const publicId = extractPublicId(existingUser.profileImage);
+          if (publicId) {
+            console.log(`[updateUser] Deleting Cloudinary image: ${publicId}`);
+            await deleteFromCloudinary(publicId);
+          }
+        }
+        // Ensure the DB field is set to null
+        updateData.profileImage = null;
+      }
     }
-    // --- END: SIMPLIFIED LOGIC FOR IMAGE UPLOAD ---
 
     // Log the final data being sent to the generator
     console.log(`[updateUser] Calling UserGenerator.updateUser for user: ${userId} with data keys:`, Object.keys(updateData));
     if (updateData.profileImage) {
       console.log(`[updateUser] Data includes profileImage: ${updateData.profileImage}`);
     } else {
-      console.log('[updateUser] Data does NOT include profileImage.');
+      console.log('[updateUser] Data does NOT include profileImage or is null.');
     }
 
     const result = await UserGenerator.updateUser(schoolCode, userId, updateData);
 
-    // 'result' here is what UserGenerator.updateUser returns.
-    // The frontend log shows this is {success: true, message: '...'}
-    // This is fine, but the *actual updated user* is what's important.
-    // The 'result' should ideally be the updated user document.
     console.log('[updateUser] UserGenerator.updateUser finished. Sending success response.');
-
 
     res.json({
       success: true,
       message: 'User updated successfully',
-      data: result // This 'data' is what the frontend logs.
+      data: result
     });
 
   } catch (error) {
     console.error('[updateUser] Error updating user:', error);
+    // Ensure local file is deleted if an error happened before cleanup
+    if (req.file && req.file.path) {
+      deleteLocalFile(req.file.path);
+    }
     res.status(500).json({
       success: false,
       message: 'Error updating user',
@@ -271,6 +348,9 @@ exports.updateUser = async (req, res) => {
     });
   }
 };
+// -----------------------------------------------------------------
+// 💡 END OF REPLACEMENT
+// -----------------------------------------------------------------
 
 // Reset user password
 exports.resetUserPassword = async (req, res) => {
