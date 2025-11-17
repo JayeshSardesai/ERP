@@ -3,7 +3,7 @@ const SchoolDatabaseManager = require('./schoolDatabaseManager');
 const { ObjectId } = require('mongodb');
 
 class UserGenerator {
-  
+
   /**
    * Generate a unique user ID based on school code and role
    * Format: SCHOOL-ROLE-####
@@ -20,7 +20,7 @@ class UserGenerator {
       throw error;
     }
   }
-  
+
   /**
    * Generate a random password
    * Format: 8 characters with mix of letters and numbers
@@ -28,14 +28,14 @@ class UserGenerator {
   static generateRandomPassword(length = 8) {
     const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     let password = '';
-    
+
     for (let i = 0; i < length; i++) {
       password += charset.charAt(Math.floor(Math.random() * charset.length));
     }
-    
+
     return password;
   }
-  
+
   /**
    * Hash a password using bcrypt
    */
@@ -43,323 +43,323 @@ class UserGenerator {
     const saltRounds = 10;
     return await bcrypt.hash(password, saltRounds);
   }
-  
+
   /**
    * Create a new user in the appropriate school collection
    */
   static async createUser(schoolCode, userData) {
     try {
       const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-      
+
       // Generate user ID and password
       const userId = await this.generateUserId(schoolCode, userData.role);
       const plainPassword = this.generateRandomPassword();
       const hashedPassword = await this.hashPassword(plainPassword);
-      
+
+      let userDocument = {
+        userId,
+        email: userData.email,
+        password: hashedPassword,
+        temporaryPassword: plainPassword,
+        schoolCode,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      // --- STUDENT STRUCTURE (MATCHING SchoolUser({...}) EXACTLY) ---
+      if (userData.role.toLowerCase() === 'student') {
+
+        const studentId = userId;
+        const targetSchoolId = userData.schoolId || null;
+
+        // Normalize name
+        const name = userData.name?.displayName ||
+          `${userData.firstName || 'Student'} ${userData.lastName || 'User'}`;
+
+        const firstName = name.split(' ')[0] || 'Student';
+        const lastName = name.split(' ').slice(1).join(' ') || 'User';
+
+        const email = userData.email;
+        const password = plainPassword;
+        const phone = userData.phone || userData.contact?.primaryPhone || '9999999999';
+
+        // Address formatting exactly same as SchoolUser snippet
+        const address = userData.address ?
+          (typeof userData.address === 'string' ? {
+            permanent: {
+              street: userData.address,
+              area: '',
+              city: 'NA',
+              state: 'NA',
+              country: 'India',
+              pincode: '560001',
+              landmark: ''
+            },
+            current: undefined,
+            sameAsPermanent: true
+          } : userData.address) : {
+            permanent: {
+              street: 'Address not provided',
+              area: '',
+              city: 'NA',
+              state: 'NA',
+              country: 'India',
+              pincode: '560001',
+              landmark: ''
+            },
+            current: undefined,
+            sameAsPermanent: true
+          };
+
+        const createdBy = userData.createdBy || null;
+
+        const className = userData.class || userData.studentDetails?.currentClass || '';
+        const section = userData.section || userData.studentDetails?.currentSection || '';
+        const academicYear = userData.academicYear || userData.studentDetails?.academicYear || `${new Date().getFullYear()}-${(new Date().getFullYear() + 1).toString().slice(-2)}`;
+        const dateOfBirth = userData.dateOfBirth ? new Date(userData.dateOfBirth) : new Date();
+        const gender = userData.gender || 'other';
+
+        const parentName = userData.fatherName || userData.guardianName || '';
+        const parentPhone = userData.fatherPhone || '';
+        const parentEmail = userData.fatherEmail || '';
+        const parentOccupation = userData.fatherOccupation || '';
+        const parentRelationship = userData.guardianRelation || '';
+
+        // -----------------------
+        // CREATE FINAL DOCUMENT
+        // -----------------------
+        userDocument = {
+          _id: new ObjectId(),
+          userId: studentId,
+          schoolCode: schoolCode.toUpperCase(),
+          schoolId: targetSchoolId,
+
+          name: {
+            firstName,
+            middleName: '',
+            lastName,
+            displayName: name
+          },
+
+          email,
+          password: hashedPassword,
+          temporaryPassword: password,
+          passwordChangeRequired: true,
+          role: 'student',
+
+          contact: {
+            primaryPhone: phone || '9999999999',
+            secondaryPhone: '',
+            whatsappNumber: phone || '9999999999'
+          },
+
+
+
+          address,
+
+          identity: {
+            aadharNumber: '',
+            panNumber: ''
+          },
+
+          profileImage: null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+
+          schoolAccess: {
+            joinedDate: new Date(),
+            assignedBy: createdBy,
+            status: 'active',
+            accessLevel: 'full'
+          },
+
+          auditTrail: {
+            createdBy: createdBy,
+            createdAt: new Date()
+          },
+
+          // studentDetails EXACT as SchoolUser()
+          studentDetails: {
+            studentId,
+            admissionNumber: studentId,
+            rollNumber: `${className}${section}${Date.now().toString().slice(-3)}`,
+
+            academic: {
+              currentClass: className,
+              currentSection: section,
+              academicYear: academicYear,
+              admissionDate: new Date(),
+              admissionClass: className,
+              enrollmentNo: studentId,
+              tcNo: '',
+              previousSchool: {
+                name: '',
+                board: '',
+                lastClass: '',
+                tcNumber: '',
+                reasonForTransfer: ''
+              }
+            },
+
+            personal: {
+              dateOfBirth: new Date(dateOfBirth),
+              placeOfBirth: '',
+              gender: gender?.toLowerCase() || 'other',
+              bloodGroup: '',
+              nationality: 'Indian',
+              religion: '',
+              caste: '',
+              category: '',
+              motherTongue: '',
+              studentAadhaar: '',
+              studentCasteCertNo: '',
+              belongingToBPL: 'No',
+              bplCardNo: '',
+              bhagyalakshmiBondNo: '',
+              disability: 'Not Applicable',
+              isRTECandidate: 'No'
+            },
+
+            medical: {
+              allergies: [],
+              chronicConditions: []
+            },
+
+            family: {
+              father: {
+                name: parentName || '',
+                phone: parentPhone || '',
+                email: parentEmail || ''
+              },
+              mother: {
+                name: '',
+                phone: '',
+                email: ''
+              },
+              guardian: {
+                name: parentName || ''
+              }
+            },
+
+            transport: {
+              mode: '',
+              busRoute: '',
+              pickupPoint: ''
+            },
+
+            financial: {
+              feeCategory: '',
+              concessionType: '',
+              concessionPercentage: 0,
+              bankDetails: {
+                bankName: '',
+                accountNumber: '',
+                ifscCode: '',
+                accountHolderName: name
+              }
+            }
+          },
+
+          // Backward compatibility
+          academicInfo: {
+            class: className,
+            section: section,
+            rollNumber: `${className}${section}${Date.now().toString().slice(-3)}`,
+            admissionNumber: studentId,
+            admissionDate: new Date()
+          },
+
+          parentIds: [],
+
+          personal: {
+            dateOfBirth: new Date(dateOfBirth),
+            gender: gender?.toLowerCase() || 'other',
+            bloodGroup: '',
+            nationality: 'Indian',
+            religion: '',
+            religionOther: '',
+            caste: '',
+            casteOther: '',
+            category: '',
+            categoryOther: '',
+            motherTongue: '',
+            placeOfBirth: '',
+            studentAadhaar: '',
+            studentCasteCertNo: '',
+            belongingToBPL: 'No',
+            bplCardNo: '',
+            bhagyalakshmiBondNo: '',
+            disability: 'Not Applicable',
+            isRTECandidate: 'No'
+          },
+
+          parents: {
+            father: {
+              name: parentName || '',
+              nameKannada: '',
+              aadhaar: '',
+              caste: '',
+              casteOther: '',
+              casteCertNo: '',
+              occupation: parentOccupation || '',
+              qualification: '',
+              phone: parentPhone || '',
+              email: parentEmail || ''
+            },
+            mother: {
+              name: '',
+              nameKannada: '',
+              aadhaar: '',
+              caste: '',
+              casteOther: '',
+              casteCertNo: '',
+              occupation: '',
+              qualification: '',
+              phone: '',
+              email: ''
+            },
+            guardian: {
+              name: parentName || '',
+              relationship: parentRelationship || '',
+              phone: parentPhone || '',
+              email: parentEmail || ''
+            }
+          },
+
+          banking: {
+            bankName: '',
+            accountNumber: '',
+            ifscCode: '',
+            accountHolderName: name
+          }
+        };
+      } else {
+        // Handle other roles (admin, teacher, parent) with basic structure
+        throw new Error(`Role ${userData.role} not yet implemented in userGenerator`);
+      }
+
       // Determine collection based on role
       const collectionMap = {
         'admin': 'admins',
-        'teacher': 'teachers', 
+        'teacher': 'teachers',
         'student': 'students',
         'parent': 'parents'
       };
-      
+
       const collectionName = collectionMap[userData.role.toLowerCase()];
       if (!collectionName) {
         throw new Error(`Invalid role: ${userData.role}`);
       }
-      
+
       const collection = connection.collection(collectionName);
-      
-      // Prepare user document
-      const userDocument = {
-        userId,
-        email: userData.email,
-        password: hashedPassword,
-        temporaryPassword: plainPassword, // Store plain password for admin access
-        role: userData.role.toLowerCase(),
-        name: {
-          firstName: userData.firstName || userData.name?.firstName || 'User',
-          lastName: userData.lastName || userData.name?.lastName || 'Name',
-          displayName: userData.displayName || userData.name?.displayName || `${userData.firstName || 'User'} ${userData.lastName || 'Name'}`
-        },
-        contact: {
-          primaryPhone: userData.phone || userData.contact?.primaryPhone || '',
-          secondaryPhone: userData.contact?.secondaryPhone || '',
-          emergencyContact: userData.contact?.emergencyContact || ''
-        },
-        address: userData.address || {
-          permanent: {
-            street: 'Not provided',
-            city: 'Not provided',
-            state: 'Not provided',
-            country: 'India',
-            pincode: '000000'
-          }
-        },
-        schoolCode,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        createdBy: userData.createdBy || null,
-        loginAttempts: 0,
-        lastLogin: null,
-        profileImage: userData.profileImage || null
-      };
-      
-      // Add role-specific fields
-      if (userData.role.toLowerCase() === 'student') {
-        userDocument.academicInfo = {
-          class: userData.class || '',
-          section: userData.section || '',
-          rollNumber: userData.rollNumber || '',
-          admissionNumber: userData.admissionNumber || userId,
-          admissionDate: userData.admissionDate || new Date(),
-          parentIds: userData.parentIds || []
-        };
-        
-        // Karnataka SATS Personal Information
-        userDocument.personal = {
-          dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
-          gender: userData.gender || 'male',
-          bloodGroup: userData.bloodGroup || '',
-          nationality: userData.nationality || 'Indian',
-          religion: userData.religion || '',
-          religionOther: userData.religionOther || '',
-          caste: userData.caste || '',
-          casteOther: userData.casteOther || '',
-          category: userData.category || '',
-          categoryOther: userData.categoryOther || '',
-          motherTongue: userData.motherTongue || '',
-          motherTongueOther: userData.motherTongueOther || '',
-          
-          // Karnataka SATS Specific Fields
-          studentNameKannada: userData.studentNameKannada || '',
-          ageYears: userData.ageYears || 0,
-          ageMonths: userData.ageMonths || 0,
-          socialCategory: userData.socialCategory || '',
-          socialCategoryOther: userData.socialCategoryOther || '',
-          studentCaste: userData.studentCaste || '',
-          studentCasteOther: userData.studentCasteOther || '',
-          studentAadhaar: userData.studentAadhaar || '',
-          studentCasteCertNo: userData.studentCasteCertNo || '',
-          
-          // Additional SATS Fields
-          specialCategory: userData.specialCategory || '',
-          specialCategoryOther: userData.specialCategoryOther || '',
-          
-          // Economic Status
-          belongingToBPL: userData.belongingToBPL || 'No',
-          bplCardNo: userData.bplCardNo || '',
-          bhagyalakshmiBondNo: userData.bhagyalakshmiBondNo || '',
-          
-          // Special Needs
-          disability: userData.disability || 'Not Applicable',
-          disabilityOther: userData.disabilityOther || ''
-        };
-        
-        // Karnataka SATS Family Information
-        userDocument.family = {
-          father: {
-            name: userData.fatherName || '',
-            nameKannada: userData.fatherNameKannada || '',
-            aadhaar: userData.fatherAadhaar || '',
-            caste: userData.fatherCaste || '',
-            casteOther: userData.fatherCasteOther || '',
-            casteCertNo: userData.fatherCasteCertNo || '',
-            occupation: userData.fatherOccupation || '',
-            qualification: userData.fatherEducation || '',
-            phone: userData.fatherPhone || userData.fatherMobile || '',
-            email: userData.fatherEmail || ''
-          },
-          mother: {
-            name: userData.motherName || '',
-            nameKannada: userData.motherNameKannada || '',
-            aadhaar: userData.motherAadhaar || '',
-            caste: userData.motherCaste || '',
-            casteOther: userData.motherCasteOther || '',
-            casteCertNo: userData.motherCasteCertNo || '',
-            occupation: userData.motherOccupation || '',
-            qualification: userData.motherEducation || '',
-            phone: userData.motherPhone || userData.motherMobile || '',
-            email: userData.motherEmail || ''
-          },
-          guardian: {
-            name: userData.guardianName || '',
-            relationship: userData.guardianRelation || '',
-            phone: userData.emergencyContactPhone || '',
-            email: userData.parentEmail || ''
-          }
-        };
-        
-        // Banking Information
-        userDocument.banking = {
-          bankName: userData.bankName || '',
-          accountNumber: userData.bankAccountNo || userData.bankAccountNumber || '',
-          ifscCode: userData.bankIFSC || userData.ifscCode || '',
-          accountHolderName: userData.accountHolderName || ''
-        };
-      } else if (userData.role.toLowerCase() === 'teacher') {
-        // Use teacherDetails object if provided (from UI), otherwise use flat fields (for backward compatibility)
-        const teacherInfo = userData.teacherDetails || {};
-        
-        // Format subjects properly to match CSV import structure
-        const subjects = teacherInfo.subjects || userData.subjects || [];
-        const formattedSubjects = Array.isArray(subjects) 
-          ? subjects.map(subject => {
-              if (typeof subject === 'string') {
-                return {
-                  subjectName: subject,
-                  subjectCode: subject,
-                  classes: [],
-                  isPrimary: false
-                };
-              } else if (subject && typeof subject === 'object') {
-                return {
-                  subjectName: subject.subjectName || subject.name || subject,
-                  subjectCode: subject.subjectCode || subject.code || subject.subjectName || subject,
-                  classes: subject.classes || [],
-                  isPrimary: subject.isPrimary || false
-                };
-              }
-              return {
-                subjectName: subject,
-                subjectCode: subject,
-                classes: [],
-                isPrimary: false
-              };
-            })
-          : [];
-        
-        userDocument.teacherDetails = {
-          subjects: formattedSubjects,
-          classes: teacherInfo.classes || [],
-          employeeId: teacherInfo.employeeId || userData.employeeId || userId,
-          joiningDate: teacherInfo.joiningDate || userData.joinDate || new Date(),
-          qualification: teacherInfo.qualification || userData.qualification || '',
-          experience: teacherInfo.experience || userData.experience || 0,
-          designation: teacherInfo.designation || userData.designation || '',
-          department: teacherInfo.department || userData.department || '',
-          specialization: teacherInfo.specialization || '',
-          bankDetails: teacherInfo.bankDetails || {}
-        };
-        
-        // Keep teachingInfo for backward compatibility if needed elsewhere
-        userDocument.teachingInfo = {
-          subjects: formattedSubjects,
-          classes: teacherInfo.classes || [],
-          employeeId: teacherInfo.employeeId || userData.employeeId || userId,
-          joinDate: teacherInfo.joiningDate || userData.joinDate || new Date(),
-          qualification: teacherInfo.qualification || userData.qualification || '',
-          experience: teacherInfo.experience || userData.experience || 0,
-          designation: teacherInfo.designation || userData.designation || '',
-          department: teacherInfo.department || userData.department || ''
-        };
-        
-        // Teacher Personal Information with "Other" fields
-        userDocument.personal = {
-          dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
-          gender: userData.gender || 'male',
-          bloodGroup: userData.bloodGroup || '',
-          nationality: userData.nationality || 'Indian',
-          religion: userData.religion || '',
-          religionOther: userData.religionOther || '',
-          caste: userData.caste || '',
-          casteOther: userData.casteOther || '',
-          category: userData.category || '',
-          categoryOther: userData.categoryOther || '',
-          motherTongue: userData.motherTongue || '',
-          motherTongueOther: userData.motherTongueOther || '',
-          aadhaar: userData.aadhaar || '',
-          pan: userData.pan || '',
-          
-          // Disability information
-          disability: userData.disability || 'Not Applicable',
-          disabilityOther: userData.disabilityOther || ''
-        };
-        
-        // Teacher Family Information
-        userDocument.family = {
-          father: {
-            name: userData.fatherName || '',
-            occupation: userData.fatherOccupation || '',
-            caste: userData.fatherCaste || '',
-            casteOther: userData.fatherCasteOther || ''
-          },
-          mother: {
-            name: userData.motherName || '',
-            occupation: userData.motherOccupation || '',
-            caste: userData.motherCaste || '',
-            casteOther: userData.motherCasteOther || ''
-          },
-          spouse: {
-            name: userData.spouseName || '',
-            occupation: userData.spouseOccupation || ''
-          }
-        };
-      } else if (userData.role.toLowerCase() === 'admin') {
-        userDocument.adminInfo = {
-          permissions: userData.permissions || ['manage_users', 'view_reports'],
-          employeeId: userData.employeeId || userId,
-          joinDate: userData.joinDate || new Date(),
-          department: userData.department || 'Administration'
-        };
-        
-        // Admin Personal Information with "Other" fields
-        userDocument.personal = {
-          dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
-          gender: userData.gender || 'male',
-          bloodGroup: userData.bloodGroup || '',
-          nationality: userData.nationality || 'Indian',
-          religion: userData.religion || '',
-          religionOther: userData.religionOther || '',
-          caste: userData.caste || '',
-          casteOther: userData.casteOther || '',
-          category: userData.category || '',
-          categoryOther: userData.categoryOther || '',
-          motherTongue: userData.motherTongue || '',
-          motherTongueOther: userData.motherTongueOther || '',
-          aadhaar: userData.aadhaar || '',
-          pan: userData.pan || '',
-          
-          // Disability information
-          disability: userData.disability || 'Not Applicable',
-          disabilityOther: userData.disabilityOther || ''
-        };
-      } else if (userData.role.toLowerCase() === 'parent') {
-        userDocument.parentInfo = {
-          children: userData.children || [],
-          occupation: userData.occupation || '',
-          relationToStudent: userData.relationToStudent || 'Parent'
-        };
-        
-        // Parent Personal Information with "Other" fields
-        userDocument.personal = {
-          dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
-          gender: userData.gender || 'male',
-          bloodGroup: userData.bloodGroup || '',
-          nationality: userData.nationality || 'Indian',
-          religion: userData.religion || '',
-          religionOther: userData.religionOther || '',
-          caste: userData.caste || '',
-          casteOther: userData.casteOther || '',
-          category: userData.category || '',
-          categoryOther: userData.categoryOther || '',
-          motherTongue: userData.motherTongue || '',
-          motherTongueOther: userData.motherTongueOther || '',
-          aadhaar: userData.aadhaar || '',
-          
-          // Disability information
-          disability: userData.disability || 'Not Applicable',
-          disabilityOther: userData.disabilityOther || ''
-        };
-      }
-      
+
       // Insert user
       const result = await collection.insertOne(userDocument);
-      
+
       console.log(`👤 Created ${userData.role} user: ${userId} (${userData.email})`);
-      
+
       return {
         success: true,
         user: {
@@ -373,35 +373,35 @@ class UserGenerator {
         credentials: {
           userId,
           email: userData.email,
-          password: plainPassword, // Return plain password for initial communication
+          password: plainPassword,
           loginUrl: `/login/${schoolCode.toLowerCase()}`
         }
       };
-      
+
     } catch (error) {
       console.error('Error creating user:', error);
       throw error;
     }
   }
-  
+
   /**
    * Reset user password
    */
   static async resetUserPassword(schoolCode, userId) {
     try {
       const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
-      
+
       // Find user in appropriate collection
       const collections = ['admins', 'teachers', 'students', 'parents'];
       let user = null;
       let userCollection = null;
-      
+
       for (const collectionName of collections) {
         const collection = connection.collection(collectionName);
-        
+
         // Build query - only use ObjectId if userId is a valid ObjectId format
         const query = { userId: userId };
-        
+
         // Check if userId is a valid ObjectId format (24 character hex string)
         if (/^[0-9a-fA-F]{24}$/.test(userId)) {
           query.$or = [
@@ -410,26 +410,26 @@ class UserGenerator {
           ];
           delete query.userId;
         }
-        
+
         user = await collection.findOne(query);
         if (user) {
           userCollection = collection;
           break;
         }
       }
-      
+
       if (!user) {
         throw new Error(`User with ID ${userId} not found`);
       }
-      
+
       // Generate new password
       const newPassword = this.generateRandomPassword();
       const hashedPassword = await this.hashPassword(newPassword);
-      
+
       // Update user password
       // Build update query - only use ObjectId if userId is a valid ObjectId format
       const updateQuery = { userId: userId };
-      
+
       // Check if userId is a valid ObjectId format (24 character hex string)
       if (/^[0-9a-fA-F]{24}$/.test(userId)) {
         updateQuery.$or = [
@@ -438,20 +438,20 @@ class UserGenerator {
         ];
         delete updateQuery.userId;
       }
-      
+
       await userCollection.updateOne(
         updateQuery,
-        { 
-          $set: { 
+        {
+          $set: {
             password: hashedPassword,
             updatedAt: new Date(),
             loginAttempts: 0 // Reset login attempts
           }
         }
       );
-      
+
       console.log(`🔑 Password reset for user: ${userId}`);
-      
+
       return {
         success: true,
         credentials: {
@@ -461,13 +461,13 @@ class UserGenerator {
           message: 'Password has been reset successfully'
         }
       };
-      
+
     } catch (error) {
       console.error('Error resetting password:', error);
       throw error;
     }
   }
-  
+
   /**
    * Get user by ID or email from school database
    */
@@ -479,7 +479,7 @@ class UserGenerator {
       const isObjectId = ObjectId.isValid(raw);
       const looksLikeEmail = raw.includes('@');
       const emailRegex = looksLikeEmail ? new RegExp(`^${raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') : null;
-      
+
       for (const collectionName of collections) {
         const collection = connection.collection(collectionName);
         const orQueries = [];
@@ -487,7 +487,7 @@ class UserGenerator {
         if (raw) orQueries.push({ userId: raw });
         if (looksLikeEmail) orQueries.push({ email: emailRegex }); // case-insensitive exact match
         const user = await collection.findOne(orQueries.length ? { $or: orQueries } : {});
-        
+
         if (user) {
           // Determine role from collection name
           const roleMap = {
@@ -497,7 +497,7 @@ class UserGenerator {
             'parents': 'parent'
           };
           const role = roleMap[collectionName] || user.role;
-          
+
           // Optionally remove password from return object
           if (includePassword) {
             const result = {
@@ -519,52 +519,52 @@ class UserGenerator {
           }
         }
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error getting user:', error);
       throw error;
     }
   }
-  
+
   /**
    * Get all users from a school by role
    */
   static async getUsersByRole(schoolCode, role) {
     try {
       console.log(`🔍 Getting ${role}s from school_${schoolCode.toLowerCase()}`);
-      
+
       const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
       const collectionMap = {
         'admin': 'admins',
         'teacher': 'teachers',
-        'student': 'students', 
+        'student': 'students',
         'parent': 'parents'
       };
-      
+
       const collectionName = collectionMap[role.toLowerCase()];
       if (!collectionName) {
         throw new Error(`Invalid role: ${role}`);
       }
-      
+
       console.log(`📂 Accessing collection: ${collectionName} in school_${schoolCode.toLowerCase()}`);
-      
+
       const collection = connection.collection(collectionName);
       const users = await collection.find(
         { _placeholder: { $ne: true } },
         { projection: { password: 0 } } // Exclude hashed password only, keep temporaryPassword
       ).toArray();
-      
+
       console.log(`✅ Found ${users.length} ${role}s in ${collectionName} collection`);
       console.log(`🔑 Sample user fields:`, users.length > 0 ? Object.keys(users[0]) : 'No users');
-      
+
       return users;
     } catch (error) {
       console.error(`❌ Error getting ${role}s from school_${schoolCode.toLowerCase()}:`, error);
       throw error;
     }
   }
-  
+
   /**
    * Update user information
    */
@@ -572,7 +572,7 @@ class UserGenerator {
     try {
       const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
       const collections = ['admins', 'teachers', 'students', 'parents'];
-      
+
       let userCollection = null;
       for (const collectionName of collections) {
         const collection = connection.collection(collectionName);
@@ -586,18 +586,18 @@ class UserGenerator {
           ];
           delete query.userId;
         }
-        
+
         const user = await collection.findOne(query);
         if (user) {
           userCollection = collection;
           break;
         }
       }
-      
+
       if (!userCollection) {
         throw new Error(`User with ID ${userId} not found`);
       }
-      
+
       // Get the user to determine role
       const updateQuery = { userId: userId };
       if (userId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -607,20 +607,20 @@ class UserGenerator {
         ];
         delete updateQuery.userId;
       }
-      
+
       const user = await userCollection.findOne(updateQuery);
       if (!user) {
         throw new Error(`User with ID ${userId} not found`);
       }
-      
+
       // Build proper update object with nested structures
       const updateFields = {};
-      
+
       // Handle password update separately
       if (updateData.password && updateData.password.trim()) {
         updateFields.password = await this.hashPassword(updateData.password);
       }
-      
+
       // Update basic name fields
       if (updateData.firstName || updateData.lastName || updateData.middleName) {
         if (updateData.firstName) updateFields['name.firstName'] = updateData.firstName.trim();
@@ -629,21 +629,21 @@ class UserGenerator {
         const displayName = `${updateData.firstName || user.name?.firstName || ''} ${updateData.lastName || user.name?.lastName || ''}`.trim();
         if (displayName) updateFields['name.displayName'] = displayName;
       }
-      
+
       // Update email
       if (updateData.email) updateFields.email = updateData.email.trim().toLowerCase();
-      
+
       // Update contact fields
       if (updateData.primaryPhone !== undefined) updateFields['contact.primaryPhone'] = updateData.primaryPhone;
       if (updateData.secondaryPhone !== undefined) updateFields['contact.secondaryPhone'] = updateData.secondaryPhone;
       if (updateData.whatsappNumber !== undefined) updateFields['contact.whatsappNumber'] = updateData.whatsappNumber;
-      
+
       // Update address fields - handle conversion from string to object if needed
-      const hasAddressUpdates = updateData.permanentStreet !== undefined || updateData.permanentArea !== undefined || 
-                                updateData.permanentCity !== undefined || updateData.permanentState !== undefined ||
-                                updateData.permanentPincode !== undefined || updateData.permanentCountry !== undefined ||
-                                updateData.permanentLandmark !== undefined || updateData.sameAsPermanent !== undefined;
-      
+      const hasAddressUpdates = updateData.permanentStreet !== undefined || updateData.permanentArea !== undefined ||
+        updateData.permanentCity !== undefined || updateData.permanentState !== undefined ||
+        updateData.permanentPincode !== undefined || updateData.permanentCountry !== undefined ||
+        updateData.permanentLandmark !== undefined || updateData.sameAsPermanent !== undefined;
+
       if (hasAddressUpdates) {
         // Check if current address is a string - if so, convert to object first
         if (typeof user.address === 'string') {
@@ -673,7 +673,7 @@ class UserGenerator {
           if (updateData.sameAsPermanent !== undefined) updateFields['address.sameAsPermanent'] = updateData.sameAsPermanent;
         }
       }
-      
+
       // Update role-specific fields
       const rolePrefix = `${user.role}Details`;
       if (user.role === 'student') {
@@ -685,7 +685,7 @@ class UserGenerator {
         if (updateData.admissionDate !== undefined) updateFields[`${rolePrefix}.admissionDate`] = updateData.admissionDate ? new Date(updateData.admissionDate) : null;
         if (updateData.dateOfBirth !== undefined) updateFields[`${rolePrefix}.dateOfBirth`] = updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null;
         if (updateData.gender !== undefined) updateFields[`${rolePrefix}.gender`] = updateData.gender;
-        
+
         // Family fields - only update if non-empty
         if (updateData.fatherName !== undefined && updateData.fatherName !== '') updateFields[`${rolePrefix}.fatherName`] = updateData.fatherName;
         if (updateData.fatherPhone !== undefined && updateData.fatherPhone !== '') updateFields[`${rolePrefix}.fatherPhone`] = updateData.fatherPhone;
@@ -698,30 +698,30 @@ class UserGenerator {
         if (updateData.guardianName !== undefined && updateData.guardianName !== '') updateFields[`${rolePrefix}.guardianName`] = updateData.guardianName;
         const guardianRel = updateData.guardianRelation || updateData.guardianRelationship;
         if (guardianRel !== undefined && guardianRel !== '') updateFields[`${rolePrefix}.guardianRelationship`] = guardianRel;
-        
+
         // Personal fields
         if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.bloodGroup`] = updateData.bloodGroup;
         if (updateData.nationality !== undefined) updateFields[`${rolePrefix}.nationality`] = updateData.nationality;
         if (updateData.religion !== undefined) updateFields[`${rolePrefix}.religion`] = updateData.religion;
         if (updateData.caste !== undefined || updateData.studentCaste !== undefined) updateFields[`${rolePrefix}.caste`] = updateData.caste || updateData.studentCaste;
         if (updateData.category !== undefined || updateData.socialCategory !== undefined) updateFields[`${rolePrefix}.category`] = updateData.category || updateData.socialCategory;
-        
+
         // Banking fields
         if (updateData.bankName !== undefined) updateFields[`${rolePrefix}.bankName`] = updateData.bankName;
         if (updateData.bankAccountNo !== undefined || updateData.bankAccountNumber !== undefined) updateFields[`${rolePrefix}.bankAccountNo`] = updateData.bankAccountNo || updateData.bankAccountNumber;
         if (updateData.ifscCode !== undefined || updateData.bankIFSC !== undefined) updateFields[`${rolePrefix}.bankIFSC`] = updateData.ifscCode || updateData.bankIFSC;
-        
+
         // Medical fields
         if (updateData.medicalConditions !== undefined) updateFields[`${rolePrefix}.medicalConditions`] = updateData.medicalConditions;
         if (updateData.allergies !== undefined) updateFields[`${rolePrefix}.allergies`] = updateData.allergies;
         if (updateData.specialNeeds !== undefined) updateFields[`${rolePrefix}.specialNeeds`] = updateData.specialNeeds;
         if (updateData.disability !== undefined) updateFields[`${rolePrefix}.disability`] = updateData.disability;
         if (updateData.isRTECandidate !== undefined) updateFields[`${rolePrefix}.isRTECandidate`] = updateData.isRTECandidate;
-        
+
         // Mother tongue
         if (updateData.motherTongue !== undefined) updateFields[`${rolePrefix}.motherTongue`] = updateData.motherTongue;
         if (updateData.motherTongueOther !== undefined) updateFields[`${rolePrefix}.motherTongueOther`] = updateData.motherTongueOther;
-        
+
         // Previous school
         if (updateData.previousSchoolName !== undefined) updateFields[`${rolePrefix}.previousSchoolName`] = updateData.previousSchoolName;
         if (updateData.tcNumber !== undefined) updateFields[`${rolePrefix}.tcNumber`] = updateData.tcNumber;
@@ -732,23 +732,23 @@ class UserGenerator {
           updateFields[`${rolePrefix}.subjects`] = updateData.subjects.map(s => String(s).trim()).filter(Boolean);
         }
       }
-      
+
       updateFields.updatedAt = new Date();
-      
+
       console.log(`📝 Updating user ${userId} with fields:`, Object.keys(updateFields));
-      
+
       const result = await userCollection.updateOne(
         updateQuery,
         { $set: updateFields }
       );
-      
+
       if (result.modifiedCount === 0) {
         throw new Error('No changes made to user');
       }
-      
+
       console.log(`📝 Updated user: ${userId}`);
       return { success: true, message: 'User updated successfully' };
-      
+
     } catch (error) {
       console.error('Error updating user:', error);
       throw error;
