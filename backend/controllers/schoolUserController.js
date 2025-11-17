@@ -3,6 +3,7 @@ const SchoolDatabaseManager = require('../utils/schoolDatabaseManager');
 const Timetable = require('../models/Timetable');
 const School = require('../models/School');
 const { ObjectId } = require('mongodb');
+const bcrypt = require('bcryptjs'); // Added missing import
 
 // Helper function to resolve school identifier (name or code) to school code
 const resolveSchoolCode = async (schoolIdentifier) => {
@@ -238,9 +239,6 @@ exports.updateUser = async (req, res) => {
     }
     // --- END: MODIFIED LOGIC FOR IMAGE UPLOAD ---
 
-    // This line is now replaced by the logic above
-    // const updateData = req.body; 
-
     const result = await UserGenerator.updateUser(schoolCode, userId, updateData);
 
     res.json({
@@ -299,7 +297,6 @@ exports.changeUserPassword = async (req, res) => {
     const collections = ['admins', 'teachers', 'students', 'parents'];
 
     // Hash the new password
-    const bcrypt = require('bcryptjs');
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     let updated = false;
@@ -373,6 +370,205 @@ exports.changeUserPassword = async (req, res) => {
     console.error('Error changing password:', error);
     res.status(500).json({
       success: false,
+      message: 'Error changing password',
+      error: error.message
+    });
+  }
+};
+
+// Delete user
+exports.deleteUser = async (req, res) => {
+  try {
+    const { schoolCode, userId } = req.params;
+
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const collections = ['admins', 'teachers', 'students', 'parents'];
+
+    let deleted = false;
+    for (const collectionName of collections) {
+      const collection = connection.collection(collectionName);
+
+      // Build query to handle both ObjectId and custom userId formats
+      let query = { userId: userId };
+
+      // If userId looks like a MongoDB ObjectId, also try _id field
+      if (userId.match(/^[0-9a-fA-F]{24}$/)) {
+        query = {
+          $or: [
+            { _id: new ObjectId(userId) },
+            { userId: userId }
+          ]
+        };
+      }
+
+      const result = await collection.deleteOne(query);
+      if (result.deletedCount > 0) {
+        deleted = true;
+        console.log(`🗑️ Deleted user: ${userId} from ${collectionName}`);
+        break;
+      }
+    }
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting user',
+      error: error.message
+    });
+  }
+};
+
+// Toggle user status (active/inactive)
+exports.toggleUserStatus = async (req, res) => {
+  try {
+    const { schoolCode, userId } = req.params;
+    const { isActive } = req.body;
+
+    const result = await UserGenerator.updateUser(schoolCode, userId, { isActive });
+
+    res.json({
+      success: true,
+      message: `User ${isActive ? 'activated' : 'deactivated'} successfully`,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Error toggling user status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating user status',
+      error: error.message
+    });
+  }
+};
+
+// Get access matrix for a school
+exports.getAccessMatrix = async (req, res) => {
+  try {
+    const { schoolCode } = req.params;
+
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const accessCollection = connection.collection('access_matrix');
+
+    const accessMatrix = await accessCollection.findOne({ _id: 'school_permissions' });
+
+    if (!accessMatrix) {
+      return res.status(404).json({
+        success: false,
+        message: 'Access matrix not found for this school'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: accessMatrix.matrix
+    });
+
+  } catch (error) {
+    console.error('Error getting access matrix:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching access matrix',
+      error: error.message
+    });
+  }
+};
+
+// Update access matrix for a school
+exports.updateAccessMatrix = async (req, res) => {
+  try {
+    const { schoolCode } = req.params;
+    const { matrix } = req.body;
+
+    // Check if user has permission to update access matrix
+    if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only superadmins and admins can update access matrix.'
+      });
+    }
+
+    const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+    const accessCollection = connection.collection('access_matrix');
+
+    const result = await accessCollection.updateOne(
+      { _id: 'school_permissions' },
+      {
+        $set: {
+          matrix,
+          updatedAt: new Date(),
+          updatedBy: req.user._id
+        }
+      },
+      { upsert: true }
+    );
+
+    console.log(`🔐 Access matrix updated for school: ${schoolCode}`);
+
+    res.json({
+      success: true,
+      message: 'Access matrix updated successfully',
+      data: { matrix }
+    });
+
+  } catch (error) {
+    console.error('Error updating access matrix:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating access matrix',
+      error: error.message
+    });
+  }
+};
+
+// Timetable Management Methods
+
+// Get all timetables for a school
+exports.getAllTimetables = async (req, res) => {
+  try {
+    const { schoolCode } = req.params;
+
+    const timetables = await Timetable.find({
+      schoolCode,
+      status: { $in: ['active', 'draft'] }
+    }).sort({ class: 1, section: 1 });
+
+    res.json({
+      success: true,
+      data: timetables
+    });
+
+  } catch (error) {
+    console.error('Error fetching timetables:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching timetables',
+      error: error.message
+    });
+  }
+};
+
+// Get timetable by class and section
+exports.getTimetableByClass = async (req, res) => {
+  try {
+    const { schoolCode, className, section } = req.params;
+
+    const timetable = await Timetable.findOne({
+      schoolCode,
+      class: className,
       section: section.toUpperCase(),
       status: { $in: ['active', 'draft'] }
     });
@@ -555,7 +751,6 @@ exports.updateTimetable = async (req, res) => {
     console.error('Error updating timetable:', error);
     res.status(500).json({
       success: false,
-      s: 2,
       message: 'Error updating timetable',
       error: error.message
     });
@@ -574,7 +769,7 @@ exports.deleteTimetable = async (req, res) => {
     });
 
     if (!result) {
-      return res.status(404).json({
+      return res.status(44).json({
         success: false,
         message: 'Timetable not found'
       });
@@ -639,9 +834,8 @@ exports.verifyAdminAndGetPasswords = async (req, res) => {
     }
 
     // Verify admin password
-    const bcrypt = require('bcryptjs');
     const isPasswordValid = await bcrypt.compare(adminPassword, adminWithPassword.password);
-    G
+
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -662,7 +856,6 @@ exports.verifyAdminAndGetPasswords = async (req, res) => {
 
       if (teacher.role !== 'teacher') {
         return res.status(400).json({
-          s: 2,
           success: false,
           message: 'User is not a teacher'
         });

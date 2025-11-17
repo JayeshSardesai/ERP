@@ -48,10 +48,11 @@ class UserGenerator {
     try {
       const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
 
-      // Generate user ID and password
+      // Generate user ID and a DEFAULT random password
+      // This will be overridden for students if DOB is available
       const userId = await this.generateUserId(schoolCode, userData.role);
-      const plainPassword = this.generateRandomPassword();
-      const hashedPassword = await this.hashPassword(plainPassword);
+      let plainPassword = this.generateRandomPassword();
+      let hashedPassword = await this.hashPassword(plainPassword);
 
       let userDocument = {
         userId,
@@ -70,6 +71,44 @@ class UserGenerator {
         const studentId = userId;
         const targetSchoolId = userData.schoolId || null;
 
+        // <-- START: DOB Processing & Password Generation -->
+        let dateOfBirth;
+        let dobWasProvided = false; // Flag to track
+        if (userData.dateOfBirth) {
+          try {
+            // Try parsing DD/MM/YYYY
+            if (userData.dateOfBirth.includes('/')) {
+              dateOfBirth = new Date(userData.dateOfBirth.split('/').reverse().join('-'));
+            } else {
+              // Assume it's an ISO string or other valid Date format
+              dateOfBirth = new Date(userData.dateOfBirth);
+            }
+            if (isNaN(dateOfBirth.getTime())) {
+              dateOfBirth = new Date(); // Fallback for invalid date
+            } else {
+              dobWasProvided = true; // A valid date was parsed
+            }
+          } catch (e) {
+            dateOfBirth = new Date(); // Fallback for parsing error
+          }
+        } else {
+          dateOfBirth = new Date(); // Fallback if no DOB provided
+        }
+
+        // --- OVERRIDE PASSWORD LOGIC (USER REQUEST) ---
+        if (dobWasProvided) {
+          const day = dateOfBirth.getDate().toString().padStart(2, '0');
+          const month = (dateOfBirth.getMonth() + 1).toString().padStart(2, '0'); // getMonth() is 0-indexed
+          const year = dateOfBirth.getFullYear().toString();
+          plainPassword = `${day}${month}${year}`;
+          hashedPassword = await this.hashPassword(plainPassword); // Re-hash!
+          console.log(`🔑 Generated DOB password for ${userId}: ${plainPassword}`);
+        } else {
+          // Keep the default random password generated earlier
+          console.log(`⚠️ DOB not provided for ${userId}. Using random password.`);
+        }
+        // <-- END: DOB Processing & Password Generation -->
+
         // <-- FIX: Reads from the nested studentNameEnglish object
         const firstName = userData.studentNameEnglish?.firstName || userData.firstName || 'Student';
         const lastName = userData.studentNameEnglish?.lastName || userData.lastName || 'User';
@@ -77,7 +116,6 @@ class UserGenerator {
         const name = `${firstName} ${lastName}`.trim();
 
         const email = userData.email || userData.studentEmailId; // <-- FIX: Check for studentEmailId
-        const password = plainPassword;
         // <-- FIX: Check for fatherMobileNo and motherMobileNo
         const phone = userData.phone || userData.contact?.primaryPhone || userData.fatherMobileNo || userData.motherMobileNo || '9999999999';
 
@@ -104,24 +142,7 @@ class UserGenerator {
         // <-- FIX: Ensures 'academicYear' from form is prioritized
         const academicYear = userData.currentAcademicYear || userData.academicYear || userData.studentDetails?.academicYear || `${new Date().getFullYear()}-${(new Date().getFullYear() + 1).toString().slice(-2)}`;
 
-        // <-- FIX: Robustly handles DD/MM/YYYY format from form
-        let dateOfBirth;
-        if (userData.dateOfBirth) {
-          try {
-            // Try parsing DD/MM/YYYY
-            if (userData.dateOfBirth.includes('/')) {
-              dateOfBirth = new Date(userData.dateOfBirth.split('/').reverse().join('-'));
-            } else {
-              // Assume it's an ISO string or other valid Date format
-              dateOfBirth = new Date(userData.dateOfBirth);
-            }
-            if (isNaN(dateOfBirth.getTime())) dateOfBirth = new Date(); // Fallback for invalid date
-          } catch (e) {
-            dateOfBirth = new Date(); // Fallback for parsing error
-          }
-        } else {
-          dateOfBirth = new Date(); // Fallback if no DOB provided
-        }
+        // Note: dateOfBirth object is already created above for password generation
 
         const gender = userData.gender || 'other';
 
@@ -152,8 +173,8 @@ class UserGenerator {
           },
 
           email,
-          password: hashedPassword,
-          temporaryPassword: password,
+          password: hashedPassword, // Uses the (potentially overridden) hashed password
+          temporaryPassword: plainPassword, // Uses the (potentially overridden) plain password
           passwordChangeRequired: true,
           role: 'student',
 
@@ -351,6 +372,7 @@ class UserGenerator {
         };
       } else {
         // Handle other roles (admin, teacher, parent) with basic structure
+        // They will use the default random password generated at the start
         throw new Error(`Role ${userData.role} not yet implemented in userGenerator`);
       }
 
@@ -387,7 +409,7 @@ class UserGenerator {
         credentials: {
           userId,
           email: userData.email,
-          password: plainPassword,
+          password: plainPassword, // This will be the DOB password for students
           loginUrl: `/login/${schoolCode.toLowerCase()}`
         }
       };
@@ -718,7 +740,7 @@ class UserGenerator {
 
         // Personal fields
         if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.bloodGroup`] = updateData.bloodGroup;
-        if (updateData.nationality !== undefined) updateFields[`${roleFrefix}.nationality`] = updateData.nationality;
+        if (updateData.nationality !== undefined) updateFields[`${rolePrefix}.nationality`] = updateData.nationality;
         if (updateData.religion !== undefined) updateFields[`${rolePrefix}.religion`] = updateData.religion;
         if (updateData.caste !== undefined || updateData.studentCaste !== undefined) updateFields[`${rolePrefix}.caste`] = updateData.caste || updateData.studentCaste;
         if (updateData.category !== undefined || updateData.socialCategory !== undefined) updateFields[`${rolePrefix}.category`] = updateData.category || updateData.socialCategory;
