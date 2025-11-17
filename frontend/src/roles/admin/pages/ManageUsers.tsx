@@ -2631,10 +2631,11 @@ const ManageUsers: React.FC = () => {
 
             // Karnataka SATS Banking Information
             bankDetails: {
-              bankName: formData.studentDetails?.bankName || formData.bankName || '',
-              accountNumber: formData.studentDetails?.bankAccountNo || formData.bankAccountNo || '',
-              ifscCode: formData.studentDetails?.bankIFSC || formData.bankIFSC || '',
-              accountHolderName: formData.studentDetails?.bankAccountHolderName || ''
+              // --- FIX: Read from the correct nested path set by the form's onChange ---
+              bankName: formData.studentDetails?.financial?.bankDetails?.bankName || formData.bankName || '',
+              accountNumber: formData.studentDetails?.financial?.bankDetails?.accountNumber || formData.bankAccountNo || '',
+              ifscCode: formData.studentDetails?.financial?.bankDetails?.ifscCode || formData.bankIFSC || '',
+              accountHolderName: formData.studentDetails?.financial?.bankDetails?.accountHolderName || formData.accountHolderName || ''
             }
           },
 
@@ -2661,6 +2662,7 @@ const ManageUsers: React.FC = () => {
         userData.tcNo = formData.tcNo || userData.studentDetails.academic.tcNo; // <-- FIX
         userData.studentAadhaar = formData.studentAadhaar || userData.studentDetails.personal.studentAadhaar;
         userData.studentCasteCertNo = formData.studentCasteCertNo || userData.studentDetails.personal.studentCasteCertNo;
+        userData.isRTECandidate = formData.isRTECandidate || userData.studentDetails.personal.isRTECandidate;
         userData.fatherName = formData.fatherName || userData.studentDetails.family?.father?.name; // <-- ADD THIS
         userData.schoolAdmissionDate = formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) :
           (formData.studentDetails?.schoolAdmissionDate ? new Date(formData.studentDetails.schoolAdmissionDate) : undefined);
@@ -3695,17 +3697,25 @@ const ManageUsers: React.FC = () => {
         console.log('📸 Uploading with profile image...');
         const formDataToSend = new FormData();
 
-        // Append all user data
-        Object.entries(updateData).forEach(([key, value]) => {
-          if (value !== null && value !== undefined) {
-            formDataToSend.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
-          }
-        });
+        // ---
+        // FIX: Append all user data as a *single* JSON string field.
+        // The backend controller must be updated to look for this 'userData' field
+        // and JSON.parse() it when the request is multipart/form-data.
+        // ---
+        formDataToSend.append('userData', JSON.stringify(updateData));
+
+        // --- OLD (INCORRECT) CODE ---
+        // Object.entries(updateData).forEach(([key, value]) => {
+        //   if (value !== null && value !== undefined) {
+        //     formDataToSend.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+        //   }
+        // });
+        // --- END OLD CODE ---
 
         // Append profile image (field name must match backend upload.single)
         formDataToSend.append('profileImage', profileImageFile);
 
-        console.log('Sending FormData with image via /api/school-users...');
+        console.log('Sending FormData with image and userData string...');
 
         // Use school-users route which is configured with multer upload.single('profileImage')
         const response = await api.put(
@@ -6823,7 +6833,8 @@ const ManageUsers: React.FC = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year *</label>
                           <select
                             required
-                            value={formData.studentDetails?.academicYear || '2024-25'}
+                            // --- FIX: Default value should be the actual currentAcademicYear from context ---
+                            value={formData.studentDetails?.academicYear || currentAcademicYear}
                             onChange={(e) => {
                               const newYear = e.target.value;
                               setFormData({
@@ -6836,8 +6847,16 @@ const ManageUsers: React.FC = () => {
                             }}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                           >
-                            <option value="2024-25">2024-25</option>
-                            <option value="2025-26">2025-26</option>
+                            {/* --- FIX: Populate options dynamically from context --- */}
+                            {academicYearLoading ? (
+                              <option>Loading years...</option>
+                            ) : (
+                              availableYears.map(year => (
+                                <option key={year} value={year}>
+                                  {year} {year === currentAcademicYear && '(Current)'}
+                                </option>
+                              ))
+                            )}
                           </select>
                         </div>
                         <div>
