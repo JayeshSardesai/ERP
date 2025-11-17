@@ -658,6 +658,13 @@ class UserGenerator {
         updateFields.password = await this.hashPassword(updateData.password);
       }
 
+      // --- START: FIX FOR PROFILE IMAGE ---
+      // Update profile image
+      if (updateData.profileImage) {
+        updateFields.profileImage = updateData.profileImage;
+      }
+      // --- END: FIX FOR PROFILE IMAGE ---
+
       // Update basic name fields
       if (updateData.firstName || updateData.lastName || updateData.middleName) {
         if (updateData.firstName) updateFields['name.firstName'] = updateData.firstName.trim();
@@ -720,6 +727,7 @@ class UserGenerator {
         if (updateData.rollNumber !== undefined) updateFields[`${rolePrefix}.rollNumber`] = updateData.rollNumber;
         if (updateData.admissionNumber !== undefined) updateFields[`${rolePrefix}.admissionNumber`] = updateData.admissionNumber;
         if (updateData.admissionDate !== undefined) updateFields[`${rolePrefix}.admissionDate`] = updateData.admissionDate ? new Date(updateData.admissionDate) : null;
+        // <-- LINT FIX: 'roleFile' to 'rolePrefix'
         if (updateData.dateOfBirth !== undefined) updateFields[`${rolePrefix}.dateOfBirth`] = updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null;
         if (updateData.gender !== undefined) updateFields[`${rolePrefix}.gender`] = updateData.gender;
 
@@ -729,17 +737,16 @@ class UserGenerator {
         if (updateData.fatherEmail !== undefined && updateData.fatherEmail !== '') updateFields[`${rolePrefix}.fatherEmail`] = updateData.fatherEmail;
         if (updateData.fatherOccupation !== undefined && updateData.fatherOccupation !== '') updateFields[`${rolePrefix}.fatherOccupation`] = updateData.fatherOccupation;
         if (updateData.motherName !== undefined && updateData.motherName !== '') updateFields[`${rolePrefix}.motherName`] = updateData.motherName;
-        // <-- LINT FIX: 'roleP refix' to 'rolePrefix'
         if (updateData.motherPhone !== undefined && updateData.motherPhone !== '') updateFields[`${rolePrefix}.motherPhone`] = updateData.motherPhone;
         if (updateData.motherEmail !== undefined && updateData.motherEmail !== '') updateFields[`${rolePrefix}.motherEmail`] = updateData.motherEmail;
         if (updateData.motherOccupation !== undefined && updateData.motherOccupation !== '') updateFields[`${rolePrefix}.motherOccupation`] = updateData.motherOccupation;
         if (updateData.guardianName !== undefined && updateData.guardianName !== '') updateFields[`${rolePrefix}.guardianName`] = updateData.guardianName;
         const guardianRel = updateData.guardianRelation || updateData.guardianRelationship;
-        // <-- LINT FIX: 'roleD etails' to 'rolePrefix'
         if (guardianRel !== undefined && guardianRel !== '') updateFields[`${rolePrefix}.guardianRelationship`] = guardianRel;
 
         // Personal fields
         if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.bloodGroup`] = updateData.bloodGroup;
+        // <-- LINT FIX: 'roleFrefix' to 'rolePrefix'
         if (updateData.nationality !== undefined) updateFields[`${rolePrefix}.nationality`] = updateData.nationality;
         if (updateData.religion !== undefined) updateFields[`${rolePrefix}.religion`] = updateData.religion;
         if (updateData.caste !== undefined || updateData.studentCaste !== undefined) updateFields[`${rolePrefix}.caste`] = updateData.caste || updateData.studentCaste;
@@ -759,7 +766,6 @@ class UserGenerator {
 
         // Mother tongue
         if (updateData.motherTongue !== undefined) updateFields[`${rolePrefix}.motherTongue`] = updateData.motherTongue;
-        // <-- LINT FIX: 'motherTongfOther' to 'motherTongueOther'
         if (updateData.motherTongueOther !== undefined) updateFields[`${rolePrefix}.motherTongueOther`] = updateData.motherTongueOther;
 
         // Previous school
@@ -767,7 +773,6 @@ class UserGenerator {
         if (updateData.tcNumber !== undefined) updateFields[`${rolePrefix}.tcNumber`] = updateData.tcNumber;
       } else if (user.role === 'teacher') {
         if (updateData.qualification !== undefined) updateFields[`${rolePrefix}.qualification`] = updateData.qualification;
-        // <-- LINT FIX: 'rolePriority' to 'rolePrefix'
         if (updateData.experience !== undefined) updateFields[`${rolePrefix}.experience`] = updateData.experience;
         if (updateData.subjects !== undefined && Array.isArray(updateData.subjects)) {
           updateFields[`${rolePrefix}.subjects`] = updateData.subjects.map(s => String(s).trim()).filter(Boolean);
