@@ -56,7 +56,7 @@ exports.getAllUsers = async (req, res) => {
           console.log('Top-level keys:', Object.keys(sampleUser).filter(k => k !== 'password'));
           console.log('\nstudentDetails keys:', Object.keys(sampleUser.studentDetails || {}));
           console.log('studentDetails content:', JSON.stringify(sampleUser.studentDetails, null, 2));
-          
+
           // Check if fields are at root level
           console.log('\nChecking root-level fields:');
           console.log('  fatherName:', sampleUser.fatherName);
@@ -109,9 +109,10 @@ exports.getAllUsers = async (req, res) => {
               whatsappNumber: user.contact?.whatsappNumber || '',
               emergencyContact: user.contact?.emergencyContact
             },
-            
+
             // 💡 FIX: Include profileImage here
-            profileImage: user.profileImage || null, 
+            profileImage: user.profileImage || null,
+            address: user.address || {},
 
             // --- Conditionally add temporaryPassword for teachers ---
             ...((user.role === 'teacher' || collection === 'teachers') ? // Check both user.role and collection name
@@ -305,7 +306,7 @@ exports.createUser = async (req, res) => { /* ... Keep code from previous correc
         emergencyContact: userData.emergencyContactName ? { name: userData.emergencyContactName.trim(), relationship: userData.emergencyContactRelation?.trim() || '', phone: userData.emergencyContactPhone?.trim() || '' } : undefined
       },
       address: {
-        permanent: { street: userData.permanentStreet?.trim() || '', area: userData.permanentArea?.trim() || '', city: userData.permanentCity?.trim() || '', state: userData.permanentState?.trim() || '', country: userData.permanentCountry || 'India', pincode: userData.permanentPincode?.trim() || '', landmark: userData.permanentLandmark?.trim() || '' },
+        permanent: { street: userData.permanentStreet?.trim() || '', area: userData.permanentArea?.trim() || '', city: userData.permanentCity?.trim() || userData.cityVillageTown?.trim() || '', state: userData.permanentState?.trim() || '', country: userData.permanentCountry || 'India', pincode: userData.permanentPincode?.trim() || '', landmark: userData.permanentLandmark?.trim() || '' },
         current: userData.sameAsPermanent === false ? { street: userData.currentStreet?.trim() || '', area: userData.currentArea?.trim() || '', city: userData.currentCity?.trim() || '', state: userData.currentState?.trim() || '', country: userData.currentCountry || 'India', pincode: userData.currentPincode?.trim() || '', landmark: userData.currentLandmark?.trim() || '' } : undefined,
         sameAsPermanent: userData.sameAsPermanent !== false
       },
@@ -320,18 +321,53 @@ exports.createUser = async (req, res) => { /* ... Keep code from previous correc
     // Add Role-Specific Details
     if (role === 'student') {
       newUser.studentDetails = {
-        currentClass: userData.currentClass?.trim() || '', currentSection: userData.currentSection?.trim() || '', rollNumber: userData.rollNumber?.trim() || '', admissionNumber: userData.admissionNumber?.trim() || '',
-        admissionDate: userData.admissionDate ? new Date(userData.admissionDate) : null, dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null, gender: userData.gender?.toLowerCase() || 'male',
-        fatherName: userData.fatherName?.trim() || '', fatherPhone: userData.fatherPhone?.trim() || '', motherName: userData.motherName?.trim() || '', motherPhone: userData.motherPhone?.trim() || '',
-        bloodGroup: userData.bloodGroup?.trim() || '', nationality: userData.nationality || 'Indian', religion: userData.religion?.trim() || '', caste: userData.caste?.trim() || '', category: userData.category?.trim() || '',
-        fatherEmail: userData.fatherEmail?.trim().toLowerCase() || '', fatherOccupation: userData.fatherOccupation?.trim() || '', fatherAnnualIncome: userData.fatherAnnualIncome || 0,
-        motherEmail: userData.motherEmail?.trim().toLowerCase() || '', motherOccupation: userData.motherOccupation?.trim() || '', motherAnnualIncome: userData.motherAnnualIncome || 0,
-        guardianName: userData.guardianName?.trim() || '', guardianRelationship: userData.guardianRelationship?.trim() || '', guardianPhone: userData.guardianPhone?.trim() || '', guardianEmail: userData.guardianEmail?.trim().toLowerCase() || '',
-        previousSchoolName: userData.previousSchoolName?.trim() || '', previousBoard: userData.previousBoard?.trim() || '', lastClass: userData.lastClass?.trim() || '', tcNumber: userData.tcNumber?.trim() || '',
-        transportMode: userData.transportMode?.trim() || '', busRoute: userData.busRoute?.trim() || '', pickupPoint: userData.pickupPoint?.trim() || '',
-        feeCategory: userData.feeCategory?.trim() || '', concessionType: userData.concessionType?.trim() || '', concessionPercentage: userData.concessionPercentage || 0,
-        bankName: userData.bankName?.trim() || '', bankAccountNo: userData.bankAccountNo?.trim() || '', bankIFSC: userData.bankIFSC?.trim() || '',
-        medicalConditions: userData.medicalConditions?.trim() || '', allergies: userData.allergies?.trim() || '', specialNeeds: userData.specialNeeds?.trim() || ''
+        currentClass: userData.currentClass?.trim() || '',
+        currentSection: userData.currentSection?.trim() || '',
+        rollNumber: userData.rollNumber?.trim() || '',
+        admissionNumber: userData.admissionNumber?.trim() || '',
+        enrollmentNo: userData.enrollmentNo?.trim() || '', // <-- ADD THIS
+        tcNo: userData.tcNo?.trim() || '', // <-- ADD THIS
+        admissionDate: userData.admissionDate ? new Date(userData.admissionDate) : null,
+        dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
+        gender: userData.gender?.toLowerCase() || 'male',
+        fatherName: userData.fatherName?.trim() || '',
+        fatherPhone: userData.fatherPhone?.trim() || '',
+        motherName: userData.motherName?.trim() || '',
+        motherPhone: userData.motherPhone?.trim() || '',
+        bloodGroup: userData.bloodGroup?.trim() || '',
+        nationality: userData.nationality || 'Indian',
+        religion: userData.religion?.trim() || '',
+        caste: userData.caste?.trim() || '',
+        category: userData.category?.trim() || '',
+        fatherEmail: userData.fatherEmail?.trim().toLowerCase() || '',
+        fatherOccupation: userData.fatherOccupation?.trim() || '',
+        fatherAnnualIncome: userData.fatherAnnualIncome || 0,
+        motherEmail: userData.motherEmail?.trim().toLowerCase() || '',
+        motherOccupation: userData.motherOccupation?.trim() || '',
+        motherAnnualIncome: userData.motherAnnualIncome || 0,
+        guardianName: userData.guardianName?.trim() || '',
+        guardianRelationship: userData.guardianRelationship?.trim() || '',
+        guardianPhone: userData.guardianPhone?.trim() || '',
+        guardianEmail: userData.guardianEmail?.trim().toLowerCase() || '',
+        previousSchoolName: userData.previousSchoolName?.trim() || '',
+        previousBoard: userData.previousBoard?.trim() || '',
+        lastClass: userData.lastClass?.trim() || '',
+        tcNumber: userData.tcNumber?.trim() || '',
+        transportMode: userData.transportMode?.trim() || '',
+        busRoute: userData.busRoute?.trim() || '',
+        pickupPoint: userData.pickupPoint?.trim() || '',
+        feeCategory: userData.feeCategory?.trim() || '',
+        concessionType: userData.concessionType?.trim() || '',
+        concessionPercentage: userData.concessionPercentage || 0,
+        bankName: userData.bankName?.trim() || '',
+        bankAccountNo: userData.bankAccountNo?.trim() || '',
+        bankIFSC: userData.bankIFSC?.trim() || '',
+        accountHolderName: userData.accountHolderName?.trim() || '', // <-- ADD THIS
+        studentAadhaar: userData.studentAadhaar?.trim() || '',
+        studentCasteCertNo: userData.studentCasteCertNo?.trim() || '',
+        medicalConditions: userData.medicalConditions?.trim() || '',
+        allergies: userData.allergies?.trim() || '',
+        specialNeeds: userData.specialNeeds?.trim() || ''
       };
     }
     else if (role === 'teacher') {
@@ -347,7 +383,7 @@ exports.createUser = async (req, res) => { /* ... Keep code from previous correc
         specialization: teacherData.specialization?.trim() || '',
         designation: teacherData.designation?.trim() || '',
         department: teacherData.department?.trim() || '',
-        
+
         // Bank details (from nested teacherData)
         bankDetails: {
           bankName: teacherData.bankDetails?.bankName?.trim() || '',
@@ -538,10 +574,10 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
     if (updateData.whatsappNumber !== undefined) setField('contact.whatsappNumber', updateData.whatsappNumber || '');
 
     // Handle address structure conversion and updates
-    const hasAddressUpdates = updateData.permanentStreet !== undefined || updateData.permanentArea !== undefined || 
-                              updateData.permanentCity !== undefined || updateData.permanentState !== undefined ||
-                              updateData.permanentPincode !== undefined || updateData.permanentCountry !== undefined ||
-                              updateData.permanentLandmark !== undefined || updateData.sameAsPermanent !== undefined;
+    const hasAddressUpdates = updateData.permanentStreet !== undefined || updateData.permanentArea !== undefined ||
+      updateData.permanentCity !== undefined || updateData.permanentState !== undefined ||
+      updateData.permanentPincode !== undefined || updateData.permanentCountry !== undefined ||
+      updateData.permanentLandmark !== undefined || updateData.sameAsPermanent !== undefined;
 
     if (hasAddressUpdates) {
       // Check if current address is a string - if so, convert to object structure first
@@ -587,10 +623,10 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
     // Handle profile image upload with Cloudinary
     if (req.file) {
       let tempCompressedPath = null;
-      
+
       try {
         console.log(`📸 Original image: ${req.file.originalname}, Size: ${(req.file.size / 1024).toFixed(2)}KB`);
-        
+
         // Create temp directory for compression
         const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
         if (!fs.existsSync(tempDir)) {
@@ -609,14 +645,14 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
           .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 60 })
           .toFile(tempCompressedPath);
-        
+
         // Release Sharp resources
         sharpInstance.destroy();
-        
+
         // Check file size and re-compress if needed
         let stats = fs.statSync(tempCompressedPath);
         let quality = 60;
-        
+
         while (stats.size > 30 * 1024 && quality > 20) {
           quality -= 10;
           console.log(`🔄 Re-compressing with quality ${quality}...`);
@@ -628,16 +664,16 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
           recompressInstance.destroy();
           stats = fs.statSync(tempCompressedPath);
         }
-        
+
         console.log(`✅ Compressed image: ${(stats.size / 1024).toFixed(2)}KB (quality: ${quality})`);
-        
+
         // Upload to Cloudinary
         const cloudinaryFolder = `profiles/${upperSchoolCode}`;
         const publicId = `${user.userId}_${timestamp}`;
         const uploadResult = await uploadToCloudinary(tempCompressedPath, cloudinaryFolder, publicId);
-        
+
         const newImageUrl = uploadResult.secure_url;
-        
+
         // Extract old image public ID for deletion (check both profileImage and profilePicture)
         const currentProfileImage = user.profileImage || user.profilePicture;
         console.log(`🔍 DEBUG: Current user.profileImage:`, user.profileImage);
@@ -647,19 +683,19 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
         console.log(`🔍 DEBUG: Collection name:`, collectionName);
         const oldImagePublicId = currentProfileImage ? extractPublicId(currentProfileImage) : null;
         console.log(`🔍 DEBUG: Extracted oldImagePublicId:`, oldImagePublicId);
-        
+
         // CRITICAL: Set profileImage directly and mark changes as made
         console.log(`🔍 DEBUG: Before setting profileImage - updateFields:`, JSON.stringify(updateFields));
         console.log(`🔍 DEBUG: changesMade before:`, changesMade);
-        
+
         updateFields['profileImage'] = newImageUrl;
         changesMade = true;
-        
+
         console.log(`🔍 DEBUG: After setting profileImage - updateFields:`, JSON.stringify(updateFields));
         console.log(`🔍 DEBUG: changesMade after:`, changesMade);
         console.log(`✅ Profile image will be saved to DB: ${newImageUrl}`);
         console.log(`📝 Old image public ID (will delete after DB update): ${oldImagePublicId || 'None'}`);
-        
+
         // Store cleanup info for deletion AFTER successful database update
         req.imageCleanup = {
           oldImagePublicId: oldImagePublicId,
@@ -668,7 +704,7 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
         };
       } catch (error) {
         console.error('❌ Error handling profile image upload:', error);
-        
+
         // Clean up temp files immediately on error
         deleteLocalFile(req.file.path);
         if (tempCompressedPath) {
@@ -676,7 +712,7 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
         }
       }
     }
-    
+
     // --- Update Role-Specific Details using setField ---
     const rolePrefix = `${user.role}Details`;
     if (user.role === 'student') {
@@ -689,7 +725,7 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
       if (updateData.dateOfBirth !== undefined) setField(`${rolePrefix}.dateOfBirth`, updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null);
       if (updateData.gender !== undefined) setField(`${rolePrefix}.gender`, updateData.gender);
       if (updateData.academicYear !== undefined) setField(`${rolePrefix}.academicYear`, updateData.academicYear);
-      
+
       // Family Information
       if (updateData.fatherName !== undefined) setField(`${rolePrefix}.fatherName`, updateData.fatherName);
       if (updateData.fatherPhone !== undefined) setField(`${rolePrefix}.fatherPhone`, updateData.fatherPhone);
@@ -701,37 +737,37 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
       if (updateData.motherOccupation !== undefined) setField(`${rolePrefix}.motherOccupation`, updateData.motherOccupation);
       if (updateData.guardianName !== undefined) setField(`${rolePrefix}.guardianName`, updateData.guardianName);
       if (updateData.guardianRelation !== undefined || updateData.guardianRelationship !== undefined) setField(`${rolePrefix}.guardianRelationship`, updateData.guardianRelation || updateData.guardianRelationship);
-      
+
       // Personal Information
       if (updateData.bloodGroup !== undefined) setField(`${rolePrefix}.bloodGroup`, updateData.bloodGroup);
       if (updateData.nationality !== undefined) setField(`${rolePrefix}.nationality`, updateData.nationality);
       if (updateData.religion !== undefined) setField(`${rolePrefix}.religion`, updateData.religion);
       if (updateData.caste !== undefined || updateData.studentCaste !== undefined) setField(`${rolePrefix}.caste`, updateData.caste || updateData.studentCaste);
       if (updateData.category !== undefined || updateData.socialCategory !== undefined) setField(`${rolePrefix}.category`, updateData.category || updateData.socialCategory);
-      
+
       // Previous School
       if (updateData.previousSchoolName !== undefined) setField(`${rolePrefix}.previousSchoolName`, updateData.previousSchoolName);
       if (updateData.previousBoard !== undefined) setField(`${rolePrefix}.previousBoard`, updateData.previousBoard);
       if (updateData.lastClass !== undefined) setField(`${rolePrefix}.lastClass`, updateData.lastClass);
       if (updateData.tcNumber !== undefined) setField(`${rolePrefix}.tcNumber`, updateData.tcNumber);
-      
+
       // Transport
       if (updateData.transportMode !== undefined) setField(`${rolePrefix}.transportMode`, updateData.transportMode);
       if (updateData.busRoute !== undefined) setField(`${rolePrefix}.busRoute`, updateData.busRoute);
       if (updateData.pickupPoint !== undefined) setField(`${rolePrefix}.pickupPoint`, updateData.pickupPoint);
-      
+
       // Banking
       if (updateData.bankName !== undefined) setField(`${rolePrefix}.bankName`, updateData.bankName);
       if (updateData.bankAccountNo !== undefined || updateData.bankAccountNumber !== undefined) setField(`${rolePrefix}.bankAccountNo`, updateData.bankAccountNo || updateData.bankAccountNumber);
       if (updateData.ifscCode !== undefined || updateData.bankIFSC !== undefined) setField(`${rolePrefix}.bankIFSC`, updateData.ifscCode || updateData.bankIFSC);
-      
+
       // Medical & Special Needs
       if (updateData.medicalConditions !== undefined) setField(`${rolePrefix}.medicalConditions`, updateData.medicalConditions);
       if (updateData.allergies !== undefined) setField(`${rolePrefix}.allergies`, updateData.allergies);
       if (updateData.specialNeeds !== undefined) setField(`${rolePrefix}.specialNeeds`, updateData.specialNeeds);
       if (updateData.disability !== undefined) setField(`${rolePrefix}.disability`, updateData.disability);
       if (updateData.isRTECandidate !== undefined) setField(`${rolePrefix}.isRTECandidate`, updateData.isRTECandidate);
-      
+
       // Mother Tongue
       if (updateData.motherTongue !== undefined) setField(`${rolePrefix}.motherTongue`, updateData.motherTongue);
       if (updateData.motherTongueOther !== undefined) setField(`${rolePrefix}.motherTongueOther`, updateData.motherTongueOther);
@@ -752,7 +788,7 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
 
     console.log(`🔍 DEBUG: Before changesMade check - changesMade:`, changesMade);
     console.log(`🔍 DEBUG: Before changesMade check - updateFields:`, JSON.stringify(updateFields));
-    
+
     if (!changesMade) {
       console.log(`⚠️ WARNING: No changes detected, returning early`);
       return res.status(200).json({ success: true, message: 'No changes detected to update.' });
@@ -772,16 +808,16 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
       if (result.matchedCount === 0) { return res.status(404).json({ success: false, message: 'User not found during update operation.' }); }
 
       console.log(`✅ User ${user.userId} updated in ${collectionName}. Matched: ${result.matchedCount}, Modified: ${result.modifiedCount}`);
-      
+
       // Verify profileImage was saved if it was in updateFields
       if (updateFields['profileImage']) {
         console.log(`✅ Profile image URL saved to database: ${updateFields['profileImage']}`);
       }
-      
+
       // NOW delete old image and temp files AFTER successful DB update
       if (req.imageCleanup) {
         const { oldImagePublicId, tempFilePath, tempCompressedPath } = req.imageCleanup;
-        
+
         // Delete old profile image from Cloudinary
         if (oldImagePublicId) {
           try {
@@ -791,12 +827,12 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
             console.warn(`⚠️ Failed to delete old image from Cloudinary: ${err.message}`);
           }
         }
-        
+
         // Delete temp files
         deleteLocalFile(tempFilePath);
         deleteLocalFile(tempCompressedPath);
       }
-      
+
       res.json({ success: true, message: 'User updated successfully' });
 
     } catch (error) {
@@ -876,7 +912,7 @@ exports.deleteUser = async (req, res) => {
     }
 
     console.log(`✅ User ${user.userId} deactivated successfully in ${collectionName}.`);
-    
+
     // NOW delete profile image from Cloudinary AFTER successful database update
     if (imagePublicIdToDelete) {
       try {
@@ -886,7 +922,7 @@ exports.deleteUser = async (req, res) => {
         console.warn(`⚠️ Failed to delete profile image from Cloudinary: ${err.message}`);
       }
     }
-    
+
     res.json({ success: true, message: 'User deactivated successfully' });
 
   } catch (error) {

@@ -1692,7 +1692,7 @@ const ManageUsers: React.FC = () => {
         bankName: '',
         bankAccountNo: '',
         bankIFSC: '',
-        bankAccountHolderName: '',
+        accountHolderName: '',
 
         // Medical Information
         allergies: [],
@@ -2651,19 +2651,21 @@ const ManageUsers: React.FC = () => {
         // ===== CRITICAL FIX: Add flat fields for backend validator =====
         // The backend validator expects these fields at the top level of userData
         // We already set them in studentDetails but also need them flat for validation
-        userData.class = userData.studentDetails.academic.currentClass;
-        userData.section = userData.studentDetails.academic.currentSection;
-        userData.enrollmentNo = userData.studentDetails.academic.enrollmentNo;
-        userData.tcNo = userData.studentDetails.academic.tcNo;
-        userData.studentAadhaar = userData.studentDetails.personal.studentAadhaar;
-        userData.studentCasteCertNo = userData.studentDetails.personal.studentCasteCertNo;
+        userData.class = formData.class || userData.studentDetails.academic.currentClass;
+        userData.section = formData.section || userData.studentDetails.academic.currentSection;
+        userData.enrollmentNo = formData.enrollmentNo || userData.studentDetails.academic.enrollmentNo; // <-- FIX
+        userData.tcNo = formData.tcNo || userData.studentDetails.academic.tcNo; // <-- FIX
+        userData.studentAadhaar = formData.studentAadhaar || userData.studentDetails.personal.studentAadhaar;
+        userData.studentCasteCertNo = formData.studentCasteCertNo || userData.studentDetails.personal.studentCasteCertNo;
+        userData.fatherName = formData.fatherName || userData.studentDetails.family?.father?.name; // <-- ADD THIS
         userData.schoolAdmissionDate = formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) :
           (formData.studentDetails?.schoolAdmissionDate ? new Date(formData.studentDetails.schoolAdmissionDate) : undefined);
-        userData.bankName = userData.studentDetails.financial?.bankDetails?.bankName;
-        userData.bankAccountNo = userData.studentDetails.financial?.bankDetails?.accountNumber;
-        userData.bankIFSC = userData.studentDetails.financial?.bankDetails?.ifscCode;
-        userData.nationality = userData.studentDetails.personal.nationality;
-
+        userData.bankName = formData.bankName || userData.studentDetails.financial?.bankDetails?.bankName; // <-- FIX
+        userData.bankAccountNo = formData.bankAccountNo || userData.studentDetails.financial?.bankDetails?.accountNumber; // <-- FIX
+        userData.bankIFSC = formData.bankIFSC || userData.studentDetails.financial?.bankDetails?.ifscCode; // <-- FIX
+        userData.accountHolderName = formData.accountHolderName || userData.studentDetails.financial?.bankDetails?.accountHolderName; // <-- ADD THIS
+        userData.nationality = formData.nationality || userData.studentDetails.personal.nationality;
+        userData.cityVillageTown = formData.cityVillageTown || userData.addressDetails?.permanent?.city;
         // Add address fields (backend looks for these at top level or nested)
         userData.permanentStreet = userData.studentDetails.addressDetails?.permanent?.street || formData.address;
         userData.permanentCity = userData.studentDetails.addressDetails?.permanent?.city || formData.city;
@@ -3664,13 +3666,12 @@ const ManageUsers: React.FC = () => {
         console.log('Sending FormData with image via /api/school-users...');
 
         // Use school-users route which is configured with multer upload.single('profileImage')
-        const response = await fetch(`/api/school-users/${schoolCode}/users/${editingUser._id}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-          body: formDataToSend
-        });
+        const response = await api.put(
+          `/school-users/${schoolCode}/users/${editingUser._id}`,
+          formDataToSend
+          // No need to set Content-Type, axios does it for FormData
+          // No need to set auth token, the interceptor does it
+        );
 
         if (!response.ok) {
           let errorMessage = 'Failed to update user with image';
@@ -6690,7 +6691,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.enrollmentNo}
-                            onChange={(e) => setFormData({ ...formData, enrollmentNo: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              enrollmentNo: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                academic: { ...formData.studentDetails.academic, enrollmentNo: e.target.value }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter enrollment number"
                           />
@@ -6701,7 +6709,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.tcNo}
-                            onChange={(e) => setFormData({ ...formData, tcNo: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              tcNo: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                academic: { ...formData.studentDetails.academic, tcNo: e.target.value }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter TC number"
                           />
@@ -6959,7 +6974,7 @@ const ManageUsers: React.FC = () => {
                               fatherName: e.target.value,
                               studentDetails: {
                                 ...formData.studentDetails,
-                                fatherName: e.target.value
+                                family: { ...formData.studentDetails.family, father: { ...formData.studentDetails.family?.father, name: e.target.value } }
                               }
                             })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
@@ -7040,7 +7055,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.studentAadhaar}
-                            onChange={(e) => setFormData({ ...formData, studentAadhaar: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              studentAadhaar: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                personal: { ...formData.studentDetails.personal, studentAadhaar: e.target.value }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="12-digit Aadhaar number"
                             pattern="[0-9]{12}"
@@ -7053,7 +7075,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.studentCasteCertNo}
-                            onChange={(e) => setFormData({ ...formData, studentCasteCertNo: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              studentCasteCertNo: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                personal: { ...formData.studentDetails.personal, studentCasteCertNo: e.target.value }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter certificate number"
                           />
@@ -7330,7 +7359,15 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.cityVillageTown}
-                            onChange={(e) => setFormData({ ...formData, cityVillageTown: e.target.value, city: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              cityVillageTown: e.target.value,
+                              city: e.target.value,
+                              addressDetails: {
+                                ...formData.addressDetails,
+                                permanent: { ...formData.addressDetails?.permanent, city: e.target.value }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter city/village/town"
                           />
@@ -7473,7 +7510,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.bankName}
-                            onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              bankName: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                financial: { ...formData.studentDetails.financial, bankDetails: { ...formData.studentDetails.financial?.bankDetails, bankName: e.target.value } }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter bank name"
                           />
@@ -7484,7 +7528,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.bankAccountNo}
-                            onChange={(e) => setFormData({ ...formData, bankAccountNo: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              bankAccountNo: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                financial: { ...formData.studentDetails.financial, bankDetails: { ...formData.studentDetails.financial?.bankDetails, accountNumber: e.target.value } }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter account number"
                           />
@@ -7495,7 +7546,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.bankIFSC}
-                            onChange={(e) => setFormData({ ...formData, bankIFSC: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              bankIFSC: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                financial: { ...formData.studentDetails.financial, bankDetails: { ...formData.studentDetails.financial?.bankDetails, ifscCode: e.target.value } }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="11-character IFSC code"
                             pattern="[A-Z]{4}0[A-Z0-9]{6}"
@@ -8570,7 +8628,14 @@ const ManageUsers: React.FC = () => {
                           <input
                             type="text"
                             value={formData.studentAadhaar}
-                            onChange={(e) => setFormData({ ...formData, studentAadhaar: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              studentAadhaar: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                personal: { ...formData.studentDetails.personal, studentAadhaar: e.target.value }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="12-digit Aadhaar number"
                             pattern="[0-9]{12}"
@@ -8583,7 +8648,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.studentCasteCertNo}
-                            onChange={(e) => setFormData({ ...formData, studentCasteCertNo: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              studentCasteCertNo: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                personal: { ...formData.studentDetails.personal, studentCasteCertNo: e.target.value }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter certificate number"
                           />
@@ -8791,7 +8863,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.bankName}
-                            onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              bankName: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                financial: { ...formData.studentDetails.financial, bankDetails: { ...formData.studentDetails.financial?.bankDetails, bankName: e.target.value } }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter bank name"
                           />
@@ -8802,7 +8881,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.bankAccountNo}
-                            onChange={(e) => setFormData({ ...formData, bankAccountNo: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              bankAccountNo: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                financial: { ...formData.studentDetails.financial, bankDetails: { ...formData.studentDetails.financial?.bankDetails, accountNumber: e.target.value } }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter account number"
                           />
@@ -8813,7 +8899,14 @@ const ManageUsers: React.FC = () => {
                             type="text"
                             required
                             value={formData.bankIFSC}
-                            onChange={(e) => setFormData({ ...formData, bankIFSC: e.target.value })}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              bankIFSC: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                financial: { ...formData.studentDetails.financial, bankDetails: { ...formData.studentDetails.financial?.bankDetails, ifscCode: e.target.value } }
+                              }
+                            })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="11-character IFSC code"
                             pattern="[A-Z]{4}0[A-Z0-9]{6}"
