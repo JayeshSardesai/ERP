@@ -100,7 +100,8 @@ exports.createAdmission = async (req, res) => {
 
       // Special Needs
       specialNeeds: {
-        disability: admissionData.disability
+        disability: admissionData.disability,
+        isRTECandidate: admissionData.isRTECandidate || 'No' // <-- ADD THIS LINE
       },
 
       // Contact information
@@ -179,7 +180,7 @@ exports.getAdmissions = async (req, res) => {
     }
 
     const schoolId = req.user.role === 'superadmin' ? req.query.schoolId : req.user.schoolId;
-    
+
     if (!schoolId) {
       return res.status(400).json({ message: 'School ID is required' });
     }
@@ -279,7 +280,7 @@ exports.approveAdmission = async (req, res) => {
     admission.processedAt = new Date();
     await admission.save();
 
-    res.json({ 
+    res.json({
       message: 'Admission approved successfully',
       admission: {
         id: admission._id,
@@ -326,7 +327,7 @@ exports.rejectAdmission = async (req, res) => {
     admission.processedAt = new Date();
     await admission.save();
 
-    res.json({ 
+    res.json({
       message: 'Admission rejected successfully',
       admission: {
         id: admission._id,
@@ -373,7 +374,7 @@ exports.updateAdmission = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    res.json({ 
+    res.json({
       message: 'Admission updated successfully',
       admission: updatedAdmission
     });
@@ -393,7 +394,7 @@ exports.getAdmissionStats = async (req, res) => {
     }
 
     const schoolId = req.user.role === 'superadmin' ? req.query.schoolId : req.user.schoolId;
-    
+
     if (!schoolId) {
       return res.status(400).json({ message: 'School ID is required' });
     }

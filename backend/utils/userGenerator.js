@@ -102,7 +102,7 @@ class UserGenerator {
         const className = userData.class || userData.studentDetails?.currentClass || userData.admissionToClass || '';
         const section = userData.section || userData.studentDetails?.currentSection || '';
         // <-- FIX: Ensures 'academicYear' from form is prioritized
-        const academicYear = userData.academicYear || userData.studentDetails?.academicYear || `${new Date().getFullYear()}-${(new Date().getFullYear() + 1).toString().slice(-2)}`;
+        const academicYear = userData.currentAcademicYear || userData.academicYear || userData.studentDetails?.academicYear || `${new Date().getFullYear()}-${(new Date().getFullYear() + 1).toString().slice(-2)}`;
 
         // <-- FIX: Robustly handles DD/MM/YYYY format from form
         let dateOfBirth;
