@@ -212,6 +212,7 @@ exports.getUserById = async (req, res) => {
 // -----------------------------------------------------------------
 exports.updateUser = async (req, res) => {
   try {
+    // userId from params can be either the _id or the custom userId
     const { schoolCode, userId } = req.params;
     let updateData;
     let oldPublicId = null; // Variable to hold the old image ID for deletion
@@ -246,8 +247,33 @@ exports.updateUser = async (req, res) => {
 
       // --- 💡 NEW CLOUDINARY UPLOAD LOGIC ---
       try {
-        // 1. Get the user's existing document to see if they have an old image
-        const existingUser = await UserGenerator.getUserByIdOrEmail(schoolCode, userId);
+        // 1. 💡 FIX: Find the user manually to get their old profile image
+        // We cannot use UserGenerator.getUserByIdOrEmail as it may not support query by _id
+        const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+        const collections = ['admins', 'teachers', 'students', 'parents'];
+        let existingUser = null;
+        let query = { userId: userId }; // Default query by custom userId
+
+        // If userId looks like a MongoDB ObjectId, also try _id field
+        if (userId.match(/^[0-9a-fA-F]{24}$/)) {
+          query = {
+            $or: [
+              { _id: new ObjectId(userId) },
+              { userId: userId }
+            ]
+          };
+        }
+
+        for (const collectionName of collections) {
+          const collection = connection.collection(collectionName);
+          existingUser = await collection.findOne(query);
+          if (existingUser) {
+            console.log(`[updateUser] Found existing user in ${collectionName}`);
+            break;
+          }
+        }
+
+        // 2. Check for old image
         if (existingUser && existingUser.profileImage) {
           oldPublicId = extractPublicId(existingUser.profileImage);
           if (oldPublicId) {
@@ -255,12 +281,13 @@ exports.updateUser = async (req, res) => {
           }
         }
 
-        // 2. Define Cloudinary folder and publicId
+        // 3. Define Cloudinary folder and publicId
         const folder = `profiles/${schoolCode.toUpperCase()}`;
-        // Use userId and a timestamp to ensure a unique ID and overwrite
-        const publicId = `${userId}_${Date.now()}`;
+        // Use the *actual* userId (if found) or the param (which might be _id) for a unique name
+        const uniqueIdForCloudinary = existingUser?.userId || userId;
+        const publicId = `${uniqueIdForCloudinary}_${Date.now()}`;
 
-        // 3. Upload the new file (from req.file.path) to Cloudinary
+        // 4. Upload the new file (from req.file.path) to Cloudinary
         console.log(`[updateUser] Uploading new image to Cloudinary... Path: ${req.file.path}`);
         const uploadResult = await uploadToCloudinary(
           req.file.path, // The path from multer
@@ -268,30 +295,41 @@ exports.updateUser = async (req, res) => {
           publicId
         );
 
-        // 4. Get the secure URL from the result
+        // 5. Get the secure URL from the result
         const uploadedImageUrl = uploadResult.secure_url;
         console.log(`[updateUser] ✅ Upload successful. URL: ${uploadedImageUrl}`);
 
-        // 5. Add this new URL to updateData
+        // 6. Add this new URL to updateData
         updateData.profileImage = uploadedImageUrl;
 
-        // 6. Delete the local temporary file from multer
+        // 7. Delete the local temporary file from multer
         deleteLocalFile(req.file.path);
 
-        // 7. Delete the *old* Cloudinary image (if one existed)
+        // 8. Delete the *old* Cloudinary image (if one existed)
         if (oldPublicId) {
           console.log(`[updateUser] Deleting old Cloudinary image: ${oldPublicId}`);
           await deleteFromCloudinary(oldPublicId);
         }
 
       } catch (uploadError) {
-        console.error('[updateUser] ❌ Error during Cloudinary upload:', uploadError);
+        console.error('[updateUser] ❌ Error during Cloudinary upload/user-find:', uploadError);
         // Clean up local file even if upload fails
         deleteLocalFile(req.file.path);
+
+        // 💡 SAFER CATCH BLOCK
+        let errorMessage = 'File upload to Cloudinary failed';
+        if (uploadError instanceof Error) {
+          errorMessage = uploadError.message;
+        } else if (typeof uploadError === 'string') {
+          errorMessage = uploadError;
+        } else {
+          console.error('[updateUser] Unknown upload error structure:', uploadError);
+        }
+
         return res.status(500).json({
           success: false,
           message: 'File upload to Cloudinary failed',
-          error: uploadError.message
+          error: errorMessage
         });
       }
       // --- 💡 END OF NEW LOGIC ---
@@ -304,7 +342,28 @@ exports.updateUser = async (req, res) => {
       // Check if the frontend is asking to *remove* the image
       if (updateData.profileImage === null || updateData.profileImage === '') {
         console.log('[updateUser] Request to remove profile image.');
-        const existingUser = await UserGenerator.getUserByIdOrEmail(schoolCode, userId);
+
+        // 💡 FIX: Find the user manually to get their old profile image
+        const connection = await SchoolDatabaseManager.getSchoolConnection(schoolCode);
+        const collections = ['admins', 'teachers', 'students', 'parents'];
+        let existingUser = null;
+        let query = { userId: userId };
+
+        if (userId.match(/^[0-9a-fA-F]{24}$/)) {
+          query = {
+            $or: [
+              { _id: new ObjectId(userId) },
+              { userId: userId }
+            ]
+          };
+        }
+
+        for (const collectionName of collections) {
+          const collection = connection.collection(collectionName);
+          existingUser = await collection.findOne(query);
+          if (existingUser) break;
+        }
+
         if (existingUser && existingUser.profileImage) {
           const publicId = extractPublicId(existingUser.profileImage);
           if (publicId) {
@@ -325,6 +384,7 @@ exports.updateUser = async (req, res) => {
       console.log('[updateUser] Data does NOT include profileImage or is null.');
     }
 
+    // This call must be able to handle `userId` being either an _id or a custom userId
     const result = await UserGenerator.updateUser(schoolCode, userId, updateData);
 
     console.log('[updateUser] UserGenerator.updateUser finished. Sending success response.');
@@ -351,6 +411,7 @@ exports.updateUser = async (req, res) => {
 // -----------------------------------------------------------------
 // 💡 END OF REPLACEMENT
 // -----------------------------------------------------------------
+
 
 // Reset user password
 exports.resetUserPassword = async (req, res) => {
