@@ -594,6 +594,7 @@ const ManageUsers: React.FC = () => {
       const sectionValue = studentDetails?.currentSection || data.section;
       const dobValue = studentDetails?.dateOfBirth || data.dateOfBirth;
       const genderValue = studentDetails?.gender || data.gender;
+      const bloodGroupValue = studentDetails?.personal?.bloodGroup || data.bloodGroup;
 
       if (!classValue || classValue === '') {
         errors.push('Class selection is required for students');
@@ -604,8 +605,11 @@ const ManageUsers: React.FC = () => {
       if (!dobValue) {
         errors.push('Date of birth is required for students');
       }
-      if (!genderValue) {
+      if (!genderValue || genderValue.trim() === '') {
         errors.push('Gender is required for students');
+      }
+      if (!bloodGroupValue || bloodGroupValue.trim() === '') {
+        errors.push('Blood group is required for students');
       }
 
       // Family Information - Karnataka SATS Standards
@@ -2873,131 +2877,127 @@ const ManageUsers: React.FC = () => {
   };
 
   // useEffect to populate formData when editingUser changes
+  // useEffect to populate formData when editingUser changes
   useEffect(() => {
     if (!editingUser) return;
 
     console.log('=== POPULATING FORM DATA FROM EDITING USER ===');
     console.log('Full editingUser:', JSON.stringify(editingUser, null, 2));
     const userData = editingUser as any;
-    console.log('Name structure:', userData.name);
-    console.log('userData.name?.firstName:', userData.name?.firstName);
-    console.log('userData.name?.lastName:', userData.name?.lastName);
-    console.log('userData.firstName:', userData.firstName);
-    console.log('userData.lastName:', userData.lastName);
-    console.log('Contact structure:', userData.contact);
-    console.log('Address structure:', userData.address);
-    console.log('Address type:', typeof userData.address);
-    console.log('StudentDetails:', userData.studentDetails);
-    console.log('StudentDetails.class:', userData.studentDetails?.class);
-    console.log('StudentDetails.section:', userData.studentDetails?.section);
-    console.log('TeacherDetails:', userData.teacherDetails);
-    console.log('AdminDetails:', userData.adminDetails);
 
-    // Parse name if it's a string
+    // Helper to safely access nested student details
+    const sDetails = userData.studentDetails || {};
+    const sAcademic = sDetails.academic || {};
+    const sPersonal = sDetails.personal || {};
+    const sFamily = sDetails.family || {};
+    const sFather = sFamily.father || {};
+    const sMother = sFamily.mother || {};
+    const sGuardian = sFamily.guardian || {};
+    const sFinance = sDetails.financial || {};
+    const sBank = sFinance.bankDetails || {};
+    const sTransport = sDetails.transport || {};
+    const sMedical = sDetails.medical || {};
+
+    // Parse name if it's a string (Handles cases where name is just "John Doe")
     let parsedFirstName = '';
     let parsedLastName = '';
     if (typeof userData.name === 'string' && userData.name) {
       const nameParts = userData.name.trim().split(' ');
       parsedFirstName = nameParts[0] || '';
       parsedLastName = nameParts.slice(1).join(' ') || '';
-      console.log('Parsed firstName from string:', parsedFirstName);
-      console.log('Parsed lastName from string:', parsedLastName);
     }
 
     const newFormData = {
-      // Generated Information - show existing user ID
+      // Generated Information
       userId: userData.userId || userData._id || '',
-      generatedPassword: '', // Never show password
+      generatedPassword: '', 
 
-      // Basic Information (SATS Standard)
-      enrollmentNo: userData.enrollmentNo || '',
-      tcNo: userData.tcNo || '',
+      // Basic Information
+      enrollmentNo: sAcademic.enrollmentNo || userData.enrollmentNo || '',
+      tcNo: sAcademic.tcNo || userData.tcNo || '',
       role: userData.role || 'student',
 
-      // Admission Details (SATS Standard)
-      class: userData.academicInfo?.class || userData.studentDetails?.currentClass || userData.studentDetails?.class || userData.class || '',
-      academicYear: userData.academicYear || userData.studentDetails?.academicYear || '2024-2025',
-      section: userData.academicInfo?.section || userData.section || userData.studentDetails?.currentSection || userData.studentDetails?.section || '',
+      // Admission Details
+      class: sAcademic.currentClass || sDetails.currentClass || userData.class || '',
+      academicYear: sAcademic.academicYear || userData.academicYear || '2024-2025',
+      section: sAcademic.currentSection || sDetails.currentSection || userData.section || '',
       mediumOfInstruction: userData.mediumOfInstruction || 'English',
-      motherTongue: userData.motherTongue || userData.studentDetails?.motherTongue || '',
-      motherTongueOther: userData.motherTongueOther || userData.studentDetails?.motherTongueOther || '',
+      motherTongue: sPersonal.motherTongue || userData.motherTongue || '',
+      motherTongueOther: sPersonal.motherTongueOther || userData.motherTongueOther || '',
 
-      // Student Details (SATS Standard)
+      // Student Details
       name: userData.name?.displayName ||
         (userData.name?.firstName && userData.name?.lastName ? userData.name.firstName + ' ' + userData.name.lastName : '') ||
-        (typeof userData.name === 'string' ? userData.name : '') ||
-        (userData.firstName && userData.lastName ? userData.firstName + ' ' + userData.lastName : '') ||
-        (userData.studentDetails?.firstName && userData.studentDetails?.lastName ? userData.studentDetails.firstName + ' ' + userData.studentDetails.lastName : '') ||
-        '',
-      studentNameKannada: userData.studentNameKannada || userData.studentDetails?.studentNameKannada || '',
-      firstName: userData.name?.firstName || parsedFirstName || userData.firstName || userData.studentDetails?.firstName || '',
-      middleName: userData.name?.middleName || userData.middleName || userData.studentDetails?.middleName || '',
-      lastName: userData.name?.lastName || parsedLastName || userData.lastName || userData.studentDetails?.lastName || '',
-      dateOfBirth: formatDateForInput(userData.dateOfBirth || userData.studentDetails?.dateOfBirth || ''),
-      ageYears: userData.ageYears || userData.studentDetails?.ageYears || 0,
-      ageMonths: userData.ageMonths || userData.studentDetails?.ageMonths || 0,
-      gender: userData.gender || userData.studentDetails?.gender || 'male',
+        (typeof userData.name === 'string' ? userData.name : '') || '',
+      
+      studentNameKannada: sPersonal.studentNameKannada || userData.studentNameKannada || '',
+      
+      // FIX 1: Use parsedFirstName and parsedLastName here
+      firstName: userData.name?.firstName || parsedFirstName || userData.firstName || sDetails.firstName || '',
+      middleName: userData.name?.middleName || userData.middleName || sDetails.middleName || '',
+      lastName: userData.name?.lastName || parsedLastName || userData.lastName || sDetails.lastName || '',
+      
+      // FIX 2: Read DOB from personal object first
+      dateOfBirth: formatDateForInput(sPersonal.dateOfBirth || userData.dateOfBirth || ''),
+      
+      ageYears: sPersonal.ageYears || userData.ageYears || 0,
+      ageMonths: sPersonal.ageMonths || userData.ageMonths || 0,
+      gender: sPersonal.gender || userData.gender || 'male',
 
-      // Family Details (SATS Standard) - stored directly in students collection
-      fatherName: userData.studentDetails?.fatherName || userData.fatherName || '',
-      fatherNameKannada: userData.studentDetails?.fatherNameKannada || userData.fatherNameKannada || '',
-      fatherAadhaar: userData.studentDetails?.fatherAadhaar || userData.fatherAadhaar || '',
-      motherName: userData.studentDetails?.motherName || userData.motherName || '',
-      motherNameKannada: userData.studentDetails?.motherNameKannada || userData.motherNameKannada || '',
-      motherAadhaar: userData.studentDetails?.motherAadhaar || userData.motherAadhaar || '',
-      guardianName: userData.studentDetails?.guardianName || userData.guardianName || '',
+      // Family Details - FIX: Read from nested family object
+      fatherName: sFather.name || userData.fatherName || '',
+      fatherNameKannada: sFather.nameKannada || userData.fatherNameKannada || '',
+      fatherAadhaar: sFather.aadhaar || userData.fatherAadhaar || '',
+      motherName: sMother.name || userData.motherName || '',
+      motherNameKannada: sMother.nameKannada || userData.motherNameKannada || '',
+      motherAadhaar: sMother.aadhaar || userData.motherAadhaar || '',
+      guardianName: sGuardian.name || userData.guardianName || '',
 
-      // Identity Documents (SATS Standard)
-      studentAadhaar: userData.identity?.aadharNumber || userData.studentDetails?.studentAadhaar || userData.studentAadhaar || userData.aadhaarNumber || '',
-      studentCasteCertNo: userData.studentDetails?.studentCasteCertNo || userData.studentCasteCertNo || '',
-      fatherCasteCertNo: userData.studentDetails?.fatherCasteCertNo || userData.fatherCasteCertNo || '',
-      motherCasteCertNo: userData.studentDetails?.motherCasteCertNo || userData.motherCasteCertNo || '',
+      // Identity Documents
+      studentAadhaar: sPersonal.studentAadhaar || userData.identity?.aadharNumber || '',
+      studentCasteCertNo: sPersonal.studentCasteCertNo || '',
+      fatherCasteCertNo: sFather.casteCertNo || '',
+      motherCasteCertNo: sMother.casteCertNo || '',
 
-      // Caste and Category (SATS Standard)
-      studentCaste: userData.studentDetails?.caste || userData.studentCaste || userData.caste || '',
-      studentCasteOther: userData.studentDetails?.studentCasteOther || userData.studentCasteOther || '',
-      fatherCaste: userData.studentDetails?.fatherCaste || userData.fatherCaste || '',
-      fatherCasteOther: userData.studentDetails?.fatherCasteOther || userData.fatherCasteOther || '',
-      motherCaste: userData.studentDetails?.motherCaste || userData.motherCaste || '',
-      motherCasteOther: userData.studentDetails?.motherCasteOther || userData.motherCasteOther || '',
-      socialCategory: userData.studentDetails?.category || userData.socialCategory || userData.category || '',
-      socialCategoryOther: userData.studentDetails?.socialCategoryOther || userData.socialCategoryOther || '',
-      religion: userData.studentDetails?.religion || userData.religion || '',
-      religionOther: userData.studentDetails?.religionOther || userData.religionOther || '',
+      // Caste and Category
+      studentCaste: sPersonal.studentCaste || sPersonal.caste || '', 
+      studentCasteOther: sPersonal.studentCasteOther || '',
+      fatherCaste: sFather.caste || '',
+      fatherCasteOther: sFather.casteOther || '',
+      motherCaste: sMother.caste || '',
+      motherCasteOther: sMother.casteOther || '',
+      socialCategory: sPersonal.category || '', 
+      socialCategoryOther: sPersonal.categoryOther || '',
+      religion: sPersonal.religion || '',
+      religionOther: sPersonal.religionOther || '',
 
-      // Economic Status (SATS Standard)
-      belongingToBPL: userData.belongingToBPL || userData.studentDetails?.belongingToBPL || 'No',
-      bplCardNo: userData.bplCardNo || userData.studentDetails?.bplCardNo || userData.bplCardNumber || '',
-      bhagyalakshmiBondNo: userData.bhagyalakshmiBondNo || userData.studentDetails?.bhagyalakshmiBondNo || '',
+      // Economic Status
+      belongingToBPL: sPersonal.belongingToBPL || 'No',
+      bplCardNo: sPersonal.bplCardNo || '',
+      bhagyalakshmiBondNo: sPersonal.bhagyalakshmiBondNo || '',
 
-      // Special Needs (SATS Standard)
-      disability: userData.disability || userData.studentDetails?.disability || userData.specialNeeds || 'Not Applicable',
-      disabilityOther: userData.disabilityOther || userData.studentDetails?.disabilityOther || '',
-      isRTECandidate: userData.isRTECandidate || userData.studentDetails?.isRTECandidate || 'No',
+      // Special Needs
+      disability: sPersonal.disability || 'Not Applicable',
+      disabilityOther: sPersonal.disabilityOther || '',
+      isRTECandidate: sPersonal.isRTECandidate || 'No',
 
-      // Address Information (SATS Standard)
-      // Use addressFull (preserved full object) first, then fallback to address
-      address: (userData as any).addressFull?.permanent?.street || userData.address?.permanent?.street || (typeof userData.address === 'string' ? userData.address : '') || '',
-      cityVillageTown: (userData as any).addressFull?.permanent?.city || userData.address?.permanent?.city || userData.cityVillageTown || userData.city || '',
-      locality: userData.locality || '',
-      taluka: userData.taluka || userData.taluk || '',
-      district: (userData as any).addressFull?.permanent?.district || userData.address?.permanent?.district || userData.district || '',
-      pinCode: (userData as any).addressFull?.permanent?.pincode || userData.address?.permanent?.pincode || userData.pinCode || '',
-      state: (userData as any).addressFull?.permanent?.state || userData.address?.permanent?.state || userData.state || '',
-      stateId: userData.stateId || (userData as any).addressFull?.permanent?.stateId || userData.address?.permanent?.stateId || '',
-      districtId: userData.districtId || (userData as any).addressFull?.permanent?.districtId || userData.address?.permanent?.districtId || '',
-      talukaId: userData.talukaId || (userData as any).addressFull?.permanent?.talukaId || userData.address?.permanent?.talukaId || '',
-      districtText: userData.districtText || userData.district || '',
-      talukaText: userData.talukaText || userData.taluka || '',
-
-      // Enhanced Address Fields
-      permanentStreet: (userData as any).addressFull?.permanent?.street || userData.address?.permanent?.street || (typeof userData.address === 'string' ? userData.address : '') || '',
-      permanentArea: (userData as any).addressFull?.permanent?.area || userData.address?.permanent?.area || '',
-      permanentCity: (userData as any).addressFull?.permanent?.city || userData.address?.permanent?.city || userData.city || '',
-      permanentState: (userData as any).addressFull?.permanent?.state || userData.address?.permanent?.state || userData.state || 'Karnataka',
-      permanentCountry: (userData as any).addressFull?.permanent?.country || userData.address?.permanent?.country || 'India',
-      permanentPincode: (userData as any).addressFull?.permanent?.pincode || userData.address?.permanent?.pincode || userData.pinCode || '',
-      permanentLandmark: (userData as any).addressFull?.permanent?.landmark || userData.address?.permanent?.landmark || '',
+      // Address Information
+      address: userData.address?.permanent?.street || userData.address || '',
+      cityVillageTown: userData.address?.permanent?.city || '',
+      locality: userData.address?.permanent?.area || '',
+      taluka: userData.address?.permanent?.taluka || '',
+      district: userData.address?.permanent?.district || '',
+      pinCode: userData.address?.permanent?.pincode || '',
+      state: userData.address?.permanent?.state || '',
+      
+      // Mapped Address Fields
+      permanentStreet: userData.address?.permanent?.street || '',
+      permanentArea: userData.address?.permanent?.area || '',
+      permanentCity: userData.address?.permanent?.city || '',
+      permanentState: userData.address?.permanent?.state || 'Karnataka',
+      permanentCountry: userData.address?.permanent?.country || 'India',
+      permanentPincode: userData.address?.permanent?.pincode || '',
+      permanentLandmark: userData.address?.permanent?.landmark || '',
 
       currentStreet: userData.address?.current?.street || '',
       currentArea: userData.address?.current?.area || '',
@@ -3008,154 +3008,86 @@ const ManageUsers: React.FC = () => {
       currentLandmark: userData.address?.current?.landmark || '',
       sameAsPermanent: userData.address?.sameAsPermanent !== undefined ? userData.address.sameAsPermanent : true,
 
-      // Communication Details (SATS Standard)
-      studentMobile: userData.contact?.primaryPhone || userData.studentMobile || userData.phone || '',
-      studentEmail: userData.email || userData.studentEmail || '',
-      fatherMobile: userData.studentDetails?.fatherPhone || userData.fatherMobile || userData.fatherPhone || '',
-      fatherEmail: userData.studentDetails?.fatherEmail || userData.fatherEmail || '',
-      motherMobile: userData.studentDetails?.motherPhone || userData.motherMobile || userData.motherPhone || '',
-      motherEmail: userData.studentDetails?.motherEmail || userData.motherEmail || '',
+      // Communication Details
+      studentMobile: userData.contact?.primaryPhone || userData.phone || '',
+      studentEmail: userData.email || '',
+      fatherMobile: sFather.phone || '',
+      fatherEmail: sFather.email || '',
+      motherMobile: sMother.phone || '',
+      motherEmail: sMother.email || '',
 
-      // School and Banking (SATS Standard)
-      schoolAdmissionDate: userData.studentDetails?.admissionDate ? new Date(userData.studentDetails.admissionDate).toISOString().split('T')[0] :
-        (userData.schoolAdmissionDate || userData.admissionDate || ''),
-      bankName: userData.studentDetails?.bankName || userData.bankName || '',
-      bankAccountNo: userData.studentDetails?.bankAccountNo || userData.bankAccountNo || userData.bankAccountNumber || '',
-      bankIFSC: userData.studentDetails?.bankIFSC || userData.bankIFSC || userData.ifscCode || '',
+      // School and Banking
+      schoolAdmissionDate: formatDateForInput(sAcademic.admissionDate || userData.schoolAdmissionDate || ''),
+      bankName: sBank.bankName || '',
+      bankAccountNo: sBank.accountNumber || '',
+      bankIFSC: sBank.ifscCode || '',
 
-      // Legacy Compatibility Fields
+      // FIX 3: Fallback to top-level phone if contact object is missing
       email: userData.email || '',
-      phone: userData.contact?.primaryPhone || userData.phone || '',
+      phone: userData.contact?.primaryPhone || userData.phone || '', 
       primaryPhone: userData.contact?.primaryPhone || userData.phone || '',
       secondaryPhone: userData.contact?.secondaryPhone || '',
       whatsappNumber: userData.contact?.whatsappNumber || '',
+      
       city: userData.address?.permanent?.city || '',
-      nationality: userData.nationality || userData.studentDetails?.nationality || 'Indian',
-      bloodGroup: userData.bloodGroup || userData.studentDetails?.bloodGroup || '',
+      nationality: sPersonal.nationality || 'Indian',
+      bloodGroup: sPersonal.bloodGroup || '',
 
-      // Family Information (Legacy)
-      fatherPhone: userData.fatherPhone || userData.studentDetails?.fatherPhone || '',
-      fatherOccupation: userData.fatherOccupation || userData.studentDetails?.fatherOccupation || '',
-      motherPhone: userData.motherPhone || userData.studentDetails?.motherPhone || '',
-      motherOccupation: userData.motherOccupation || userData.studentDetails?.motherOccupation || '',
-      guardianRelation: userData.guardianRelation || userData.studentDetails?.guardianRelationship || '',
-      fatherEducation: userData.fatherEducation || userData.studentDetails?.fatherQualification || '',
-      motherEducation: userData.motherEducation || userData.studentDetails?.motherQualification || '',
-      familyIncome: userData.familyIncome || '',
+      // Legacy Family
+      fatherPhone: sFather.phone || '',
+      fatherOccupation: sFather.occupation || '',
+      motherPhone: sMother.phone || '',
+      motherOccupation: sMother.occupation || '',
+      guardianRelation: sGuardian.relationship || '',
+      fatherEducation: sFather.qualification || '',
+      motherEducation: sMother.qualification || '',
+      familyIncome: sFather.annualIncome || sMother.annualIncome || '',
 
       // Emergency Contact
-      emergencyContactName: userData.emergencyContactName || '',
-      emergencyContactPhone: userData.contact?.emergencyContact || '',
-      emergencyContactRelation: userData.emergencyContactRelation || '',
-      alternatePhone: userData.contact?.secondaryPhone || '',
-      parentEmail: userData.parentEmail || '',
+      emergencyContactName: userData.contact?.emergencyContact?.name || '',
+      emergencyContactPhone: userData.contact?.emergencyContact?.phone || '',
+      emergencyContactRelation: userData.contact?.emergencyContact?.relationship || '',
 
-      // Academic Information (Legacy)
-      rollNumber: userData.academicInfo?.rollNumber || userData.rollNumber || userData.studentDetails?.rollNumber || userData.studentDetails?.studentId || '',
-      admissionNumber: userData.academicInfo?.admissionNumber || userData.admissionNumber || userData.studentDetails?.admissionNumber || userData.studentDetails?.studentId || '',
-      admissionDate: userData.academicInfo?.admissionDate ?
-        new Date(userData.academicInfo.admissionDate).toISOString().split('T')[0] :
-        (userData.admissionDate || userData.studentDetails?.admissionDate || ''),
-      previousSchool: userData.previousSchool || userData.studentDetails?.previousSchoolName || '',
-      previousClass: userData.previousClass || userData.studentDetails?.lastClass || '',
-      tcNumber: userData.tcNumber || userData.studentDetails?.tcNumber || '',
-      migrationCertificate: userData.migrationCertificate || '',
+      // Previous School
+      previousSchool: sAcademic.previousSchool?.name || '',
+      previousClass: sAcademic.previousSchool?.lastClass || '',
+      migrationCertificate: '',
 
-      // Legacy Identity Documents
-      aadhaarNumber: userData.identity?.aadharNumber || userData.aadhaarNumber || '',
-      panNumber: userData.identity?.panNumber || userData.panNumber || '',
-      drivingLicenseNumber: userData.drivingLicenseNumber || '',
-      birthCertificateNumber: userData.birthCertificateNumber || '',
-      rationCardNumber: userData.rationCardNumber || '',
-      voterIdNumber: userData.voterIdNumber || '',
-      passportNumber: userData.passportNumber || '',
+      // Other details
+      aadhaarNumber: userData.identity?.aadharNumber || '',
+      panNumber: userData.identity?.panNumber || '',
+      
+      // Transport
+      transportMode: sTransport.mode || '',
+      busRoute: sTransport.busRoute || '',
+      pickupPoint: sTransport.pickupPoint || '',
 
-      // Legacy Caste and Category
-      caste: userData.studentDetails?.caste || userData.caste || '',
-      casteOther: userData.casteOther || '',
-      category: userData.studentDetails?.category || userData.category || '',
-      categoryOther: userData.categoryOther || '',
-      subCaste: userData.subCaste || '',
+      // Medical
+      medicalConditions: Array.isArray(sMedical.chronicConditions) ? sMedical.chronicConditions.join(', ') : '',
+      allergies: Array.isArray(sMedical.allergies) ? sMedical.allergies.join(', ') : '',
+      specialNeeds: '',
 
-      // Economic Status (Legacy)
-      economicStatus: userData.economicStatus || '',
-      bplCardNumber: userData.bplCardNumber || '',
-      scholarshipDetails: userData.scholarshipDetails || '',
-
-      // Special Needs (Legacy)
-      specialNeeds: userData.studentDetails?.specialNeeds || userData.specialNeeds || '',
-      disabilityType: userData.disabilityType || '',
-      disabilityCertificate: userData.disabilityCertificate || '',
-      medicalConditions: userData.studentDetails?.medicalConditions || userData.medicalConditions || '',
-      allergies: userData.studentDetails?.allergies || userData.allergies || '',
-
-      // Address Information (Additional)
-      permanentAddress: userData.address?.permanent?.street || '',
-      currentAddress: userData.address?.current?.street || '',
-      village: userData.village || '',
-
-      // Banking Information (Legacy)
-      bankAccountNumber: userData.bankAccountNumber || '',
-      ifscCode: userData.ifscCode || '',
-      accountHolderName: userData.accountHolderName || '',
-
-      // Teacher Information
+      // Teacher Information (if applicable)
       subjects: Array.isArray(userData.teacherDetails?.subjects) ?
         userData.teacherDetails.subjects.map((s: any) => s.subjectName || s).join(', ') :
-        userData.teacherDetails?.subjects || userData.subjects || '',
-      qualification: userData.teacherDetails?.qualification || userData.qualification || '', // Flat field as expected by backend
-      experience: userData.teacherDetails?.experience || userData.experience || 0, // Flat field as expected by backend
-      employeeId: userData.teacherDetails?.employeeId || userData.employeeId || '',
-      department: userData.department || userData.teacherDetails?.department || '',
-      joiningDate: userData.joiningDate || userData.teacherDetails?.joiningDate || '',
+        userData.teacherDetails?.subjects || '',
+      qualification: userData.teacherDetails?.qualification?.highest || userData.teacherDetails?.qualification || '',
+      experience: userData.teacherDetails?.experience?.total || userData.teacherDetails?.experience || 0,
+      employeeId: userData.teacherDetails?.employeeId || '',
+      department: userData.teacherDetails?.department || '',
+      joiningDate: formatDateForInput(userData.teacherDetails?.joiningDate || ''),
 
-      // Admin Information
-      adminLevel: userData.adminLevel || userData.adminDetails?.adminType || '',
-      accessLevel: userData.accessLevel || '',
+      // Admin Information (if applicable)
+      adminLevel: userData.adminDetails?.adminType || '',
+      accessLevel: '', 
 
-      // Student Details Object
-      studentDetails: userData.studentDetails || {},
-      // Teacher Details Object
+      // Complete Objects
+      studentDetails: sDetails,
       teacherDetails: userData.teacherDetails || {},
-      // Admin Details Object
       adminDetails: userData.adminDetails || {}
     };
 
-    console.log('=== FORM DATA POPULATED ===');
-    console.log('Basic Info:');
-    console.log('  firstName:', newFormData.firstName);
-    console.log('  middleName:', newFormData.middleName);
-    console.log('  lastName:', newFormData.lastName);
-    console.log('  email:', newFormData.email);
-    console.log('  phone:', newFormData.phone);
-    console.log('  dateOfBirth:', newFormData.dateOfBirth);
-    console.log('  gender:', newFormData.gender);
-    console.log('Contact Info:');
-    console.log('  primaryPhone:', newFormData.primaryPhone);
-    console.log('  secondaryPhone:', newFormData.secondaryPhone);
-    console.log('  whatsappNumber:', newFormData.whatsappNumber);
-    console.log('Address Info:');
-    console.log('  address:', newFormData.address);
-    console.log('  permanentStreet:', newFormData.permanentStreet);
-    console.log('  permanentCity:', newFormData.permanentCity);
-    console.log('  permanentState:', newFormData.permanentState);
-    console.log('  permanentPincode:', newFormData.permanentPincode);
-    console.log('Location Info:');
-    console.log('  stateId:', newFormData.stateId);
-    console.log('  districtId:', newFormData.districtId);
-    console.log('  talukaId:', newFormData.talukaId);
-    console.log('  districtText:', newFormData.districtText);
-    console.log('  talukaText:', newFormData.talukaText);
-    console.log('Academic Info:');
-    console.log('  class:', newFormData.class);
-    console.log('  section:', newFormData.section);
-    console.log('  rollNumber:', newFormData.rollNumber);
-    console.log('  admissionNumber:', newFormData.admissionNumber);
-    console.log('  academicYear:', newFormData.academicYear);
-    console.log('Student Details Object:');
-    console.log('  studentDetails:', newFormData.studentDetails);
-    console.log('Total fields populated:', Object.keys(newFormData).length);
-
+    console.log('=== FORM DATA POPULATED WITH FIXES ===');
     setFormData(newFormData as any);
   }, [editingUser]);
 
@@ -3586,6 +3518,7 @@ const ManageUsers: React.FC = () => {
         updateData.rollNumber = formData.rollNumber;
         updateData.dateOfBirth = formData.dateOfBirth;
         updateData.gender = formData.gender;
+        updateData.bloodGroup = formData.bloodGroup;
         updateData.admissionDate = formData.admissionDate;
         updateData.admissionNumber = formData.admissionNumber;
 
@@ -7657,11 +7590,12 @@ const ManageUsers: React.FC = () => {
                         <h5 className="text-md font-medium text-gray-800 mb-3">Personal Details</h5>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group <span className="text-red-500">*</span></label>
                             <select
                               value={formData.bloodGroup || ''}
                               onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                              required
                             >
                               <option value="">Select Blood Group</option>
                               <option value="A+">A+</option>

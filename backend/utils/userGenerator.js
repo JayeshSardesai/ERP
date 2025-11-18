@@ -234,11 +234,11 @@ class UserGenerator {
 
             personal: {
               dateOfBirth: dateOfBirth,
-              placeOfBirth: '',
+              placeOfBirth: userData.placeOfBirth || userData.studentDetails?.personal?.placeOfBirth || '',
               gender: gender?.toLowerCase(),
-              bloodGroup: '',
+              bloodGroup: userData.bloodGroup || userData.studentDetails?.personal?.bloodGroup || '',
               nationality: 'Indian',
-              religion: userData.religion || '', // <-- FIX
+              religion: userData.religion || userData.studentDetails?.personal?.religion || '', // <-- FIX
               caste: userData.studentCaste || '', // <-- FIX
               category: userData.socialCategory || '', // <-- FIX
               motherTongue: userData.motherTongue || '', // <-- FIX
@@ -279,9 +279,9 @@ class UserGenerator {
             },
 
             transport: {
-              mode: '',
-              busRoute: '',
-              pickupPoint: ''
+              mode: userData.mode || '',
+              busRoute: userData.busRoute || '',
+              pickupPoint: userData.pickupPoint || ''
             },
 
             financial: {
@@ -311,7 +311,7 @@ class UserGenerator {
           personal: { // <-- FIX: Populating deprecated fields for compatibility
             dateOfBirth: dateOfBirth,
             gender: gender?.toLowerCase(),
-            bloodGroup: '',
+            bloodGroup: userData.bloodGroup || '',
             nationality: 'Indian',
             religion: userData.religion || '',
             religionOther: '',
@@ -745,7 +745,7 @@ class UserGenerator {
         if (guardianRel !== undefined && guardianRel !== '') updateFields[`${rolePrefix}.guardianRelationship`] = guardianRel;
 
         // Personal fields
-        if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.bloodGroup`] = updateData.bloodGroup;
+       if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.personal.bloodGroup`] = updateData.bloodGroup;
         // <-- LINT FIX: 'roleFrefix' to 'rolePrefix'
         if (updateData.nationality !== undefined) updateFields[`${rolePrefix}.nationality`] = updateData.nationality;
         if (updateData.religion !== undefined) updateFields[`${rolePrefix}.religion`] = updateData.religion;

@@ -573,6 +573,18 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
     if (updateData.secondaryPhone !== undefined) setField('contact.secondaryPhone', updateData.secondaryPhone || '');
     if (updateData.whatsappNumber !== undefined) setField('contact.whatsappNumber', updateData.whatsappNumber || '');
 
+    // Update Personal Details
+    if (updateData.bloodGroup !== undefined) {
+      // Update studentDetails.personal.bloodGroup using dot notation
+      updateFields['studentDetails.personal.bloodGroup'] = updateData.bloodGroup;
+      
+      // Also update the root personal.bloodGroup for backward compatibility
+      updateFields['personal.bloodGroup'] = updateData.bloodGroup;
+      
+      changesMade = true;
+      console.log(`🩸 Updated blood group to: ${updateData.bloodGroup}`);
+    }
+
     // Handle address structure conversion and updates
     const hasAddressUpdates = updateData.permanentStreet !== undefined || updateData.permanentArea !== undefined ||
       updateData.permanentCity !== undefined || updateData.permanentState !== undefined ||
@@ -739,7 +751,6 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
       if (updateData.guardianRelation !== undefined || updateData.guardianRelationship !== undefined) setField(`${rolePrefix}.guardianRelationship`, updateData.guardianRelation || updateData.guardianRelationship);
 
       // Personal Information
-      if (updateData.bloodGroup !== undefined) setField(`${rolePrefix}.bloodGroup`, updateData.bloodGroup);
       if (updateData.nationality !== undefined) setField(`${rolePrefix}.nationality`, updateData.nationality);
       if (updateData.religion !== undefined) setField(`${rolePrefix}.religion`, updateData.religion);
       if (updateData.caste !== undefined || updateData.studentCaste !== undefined) setField(`${rolePrefix}.caste`, updateData.caste || updateData.studentCaste);
