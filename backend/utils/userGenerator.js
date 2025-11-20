@@ -370,9 +370,178 @@ class UserGenerator {
             accountHolderName: name
           }
         };
+      } else if (userData.role.toLowerCase() === 'admin') {
+        // --- ADMIN STRUCTURE (NEW IMPLEMENTATION) ---
+        console.log(`👤 Generating Admin user document for ${userId}`);
+
+        const createdBy = userData.createdBy || null;
+
+        // Use userData for name fields, falling back to generics
+        const firstName = userData.firstName || 'School';
+        const lastName = userData.lastName || 'Admin';
+        const middleName = userData.middleName || '';
+        const name = `${firstName} ${lastName}`.trim();
+
+        // Use userData for contact fields, falling back to a dummy phone
+        const phone = userData.phone || userData.contact?.primaryPhone || '9999999999';
+
+        // Simplified address logic
+        const address = {
+          permanent: {
+            street: userData.address || 'Address not provided',
+            area: userData.locality || '',
+            city: userData.cityVillageTown || 'NA',
+            state: userData.state || 'NA',
+            country: 'India',
+            pincode: userData.pinCode || '560001',
+            landmark: userData.locality || ''
+          },
+          current: undefined,
+          sameAsPermanent: true
+        };
+
+        // Overwrite initial userDocument with a complete Admin structure
+        userDocument = {
+          _id: new ObjectId(),
+          userId, // From initial generation
+          schoolCode: schoolCode.toUpperCase(),
+
+          name: {
+            firstName,
+            middleName,
+            lastName,
+            displayName: name
+          },
+
+          email: userData.email, // From initial generation
+          password: hashedPassword, // From initial generation
+          temporaryPassword: plainPassword, // From initial generation
+          passwordChangeRequired: true,
+          role: 'admin',
+
+          contact: {
+            primaryPhone: phone,
+            secondaryPhone: userData.secondaryPhone || '',
+            whatsappNumber: phone
+          },
+
+          address,
+
+          identity: {
+            aadharNumber: userData.aadharNumber || '',
+            panNumber: userData.panNumber || ''
+          },
+
+          profileImage: userData.profileImage || null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+
+          // Standard access and audit fields
+          schoolAccess: {
+            joinedDate: new Date(),
+            assignedBy: createdBy,
+            status: 'active',
+            accessLevel: 'full'
+          },
+
+          auditTrail: {
+            createdBy: createdBy,
+            createdAt: new Date()
+          },
+
+          adminDetails: {
+            designation: userData.designation || 'Administrator',
+            employeeId: userId
+          }
+        };
+
+      } else if (userData.role.toLowerCase() === 'teacher') {
+        // --- TEACHER STRUCTURE (NEW IMPLEMENTATION) ---
+        console.log(`👤 Generating Teacher user document for ${userId}`);
+
+        const createdBy = userData.createdBy || null;
+
+        const firstName = userData.firstName || 'School';
+        const lastName = userData.lastName || 'Teacher';
+        const middleName = userData.middleName || '';
+        const name = `${firstName} ${lastName}`.trim();
+
+        const phone = userData.phone || userData.contact?.primaryPhone || '9999999999';
+
+        const address = {
+          permanent: {
+            street: userData.address || 'Address not provided',
+            area: userData.locality || '',
+            city: userData.cityVillageTown || 'NA',
+            state: userData.state || 'NA',
+            country: 'India',
+            pincode: userData.pinCode || '560001',
+            landmark: userData.locality || ''
+          },
+          current: undefined,
+          sameAsPermanent: true
+        };
+
+        // Overwrite initial userDocument with a complete Teacher structure
+        userDocument = {
+          _id: new ObjectId(),
+          userId,
+          schoolCode: schoolCode.toUpperCase(),
+
+          name: {
+            firstName,
+            middleName,
+            lastName,
+            displayName: name
+          },
+
+          email: userData.email,
+          password: hashedPassword,
+          temporaryPassword: plainPassword,
+          passwordChangeRequired: true,
+          role: 'teacher',
+
+          contact: {
+            primaryPhone: phone,
+            secondaryPhone: userData.secondaryPhone || '',
+            whatsappNumber: phone
+          },
+
+          address,
+
+          identity: {
+            aadharNumber: userData.aadharNumber || '',
+            panNumber: userData.panNumber || ''
+          },
+
+          profileImage: userData.profileImage || null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+
+          schoolAccess: {
+            joinedDate: new Date(),
+            assignedBy: createdBy,
+            status: 'active',
+            accessLevel: 'full'
+          },
+
+          auditTrail: {
+            createdBy: createdBy,
+            createdAt: new Date()
+          },
+
+          teacherDetails: {
+            designation: userData.designation || 'Teacher',
+            employeeId: userId,
+            qualification: userData.qualification || '',
+            experience: userData.experience || 0
+          }
+        };
+
       } else {
-        // Handle other roles (admin, teacher, parent) with basic structure
-        // They will use the default random password generated at the start
+        // Handle other roles (parent is the only remaining unimplemented role expected here)
         throw new Error(`Role ${userData.role} not yet implemented in userGenerator`);
       }
 
@@ -409,7 +578,7 @@ class UserGenerator {
         credentials: {
           userId,
           email: userData.email,
-          password: plainPassword, // This will be the DOB password for students
+          password: plainPassword, // This will be the DOB password for students, or random for admin/teacher
           loginUrl: `/login/${schoolCode.toLowerCase()}`
         }
       };
@@ -745,7 +914,7 @@ class UserGenerator {
         if (guardianRel !== undefined && guardianRel !== '') updateFields[`${rolePrefix}.guardianRelationship`] = guardianRel;
 
         // Personal fields
-       if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.personal.bloodGroup`] = updateData.bloodGroup;
+        if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.personal.bloodGroup`] = updateData.bloodGroup;
         // <-- LINT FIX: 'roleFrefix' to 'rolePrefix'
         if (updateData.nationality !== undefined) updateFields[`${rolePrefix}.nationality`] = updateData.nationality;
         if (updateData.religion !== undefined) updateFields[`${rolePrefix}.religion`] = updateData.religion;
