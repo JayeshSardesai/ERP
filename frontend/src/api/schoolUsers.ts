@@ -231,6 +231,13 @@ export const schoolUserAPI = {
     }
   },
 
+  createUser: async (schoolCode: string, userData: any, token: string) => {
+    try {
+      return await schoolUserAPI.addUser(schoolCode, userData, token);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Failed to create user');
+    }
+  },
   // Import users from CSV
   importUsers: async (schoolCode: string, file: File, role: 'student' | 'teacher', token: string) => {
     try {
