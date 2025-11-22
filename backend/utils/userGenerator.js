@@ -226,10 +226,10 @@ class UserGenerator {
               previousSchool: {
                 name: userData.previousSchoolName || '',
                 board: '',
-                // CRITICAL FIX 10 (BE): Map lastClass for creation
+                // CRITICAL FIX: Map lastClass for creation
                 lastClass: userData.previousClass || '',
                 tcNumber: userData.tcNo || '',
-                // CRITICAL FIX 11 (BE): Map migrationCertificate to previousSchool
+                // CRITICAL FIX 1 (BE): Map migrationCertificate to academic.previousSchool
                 migrationCertificate: userData.migrationCertificate || '',
                 reasonForTransfer: ''
               }
@@ -253,8 +253,8 @@ class UserGenerator {
               disability: userData.disability || 'Not Applicable', // <-- FIX
               isRTECandidate: userData.isRTECandidate || 'No', // <-- FIX
               birthCertificateNumber: userData.birthCertificateNumber || '',
-              // CRITICAL FIX 13 (BE): Map economicStatus to personal
               economicStatus: userData.economicStatus || '',
+              familyIncome: userData.familyIncome || '',
             },
 
             medical: {
@@ -282,7 +282,7 @@ class UserGenerator {
               },
               guardian: {
                 name: parentName,
-                relationship: userData.guardianRelation || parentRelationship || ''
+                relationship: userData.guardianRelation || parentRelationship || '',
               }
             },
 
@@ -299,22 +299,23 @@ class UserGenerator {
               concessionType: '',
               concessionPercentage: 0,
               scholarshipDetails: {
-                // CRITICAL FIX 17 (BE): Map scholarship details (name) for creation
+                // CRITICAL FIX 4 (BE): Map scholarship details name for creation
                 name: userData.scholarshipDetails || '',
                 amount: 0,
                 provider: ''
               },
               bankDetails: {
-                bankName: userData.bankName || '', // <-- FIX
-                accountNumber: userData.bankAccountNo || '', // <-- FIX
-                ifscCode: userData.bankIFSCCode || '', // <-- FIX
+                bankName: userData.bankName || '',
+                accountNumber: userData.bankAccountNo || '',
+                ifscCode: userData.bankIFSCCode || '',
                 accountHolderName: name
               },
+              // CRITICAL FIX 5 (BE): Map familyIncome and economicStatus to financial
               familyIncome: userData.familyIncome || '',
-              // CRITICAL FIX 19 (BE): Map economicStatus to financial (redundant, but keeping for robustness)
               economicStatus: userData.economicStatus || '',
             }
           },
+          previousClass: userData.previousClass || '',
 
           // Backward compatibility
           academicInfo: {
@@ -376,7 +377,7 @@ class UserGenerator {
             },
             guardian: {
               name: parentName,
-              // CRITICAL FIX 21 (BE): Map guardian relationship to deprecated parents object
+              // CRITICAL FIX 8 (BE): Map guardian relationship to deprecated parents object
               relationship: userData.guardianRelation || parentRelationship || '',
               phone: parentPhone,
               email: parentEmail
@@ -944,8 +945,10 @@ class UserGenerator {
         if (updateData.guardianName !== undefined && updateData.guardianName !== '') updateFields[`${rolePrefix}.guardianName`] = updateData.guardianName;
         const guardianRelUpdateModern = updateData.guardianRelation || updateData.guardianRelationship || updateData.emergencyContactRelation;
         if (guardianRelUpdateModern !== undefined && guardianRelUpdateModern !== '') {
-          updateFields[`${rolePrefix}.family.guardian.relationship`] = guardianRelUpdateModern; // Modern Path
-          updateFields['parents.guardian.relationship'] = guardianRelUpdateModern; // Deprecated Path
+          // CRITICAL FIX 9 (BE): Map guardian relationship to studentDetails.family.guardian
+          updateFields[`${rolePrefix}.family.guardian.relationship`] = guardianRelUpdateModern;
+          // CRITICAL FIX 10 (BE): Map guardian relationship to deprecated parents.guardian
+          updateFields['parents.guardian.relationship'] = guardianRelUpdateModern;
         }
         // Personal fields
         if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.personal.bloodGroup`] = updateData.bloodGroup;
@@ -993,26 +996,33 @@ class UserGenerator {
           updateFields[`${rolePrefix}.academic.previousSchool.name`] = prevSchoolNameUpdate;
         }
         if (updateData.previousClass !== undefined) {
+          // CRITICAL FIX 11 (BE): Map previousSchool.lastClass
           updateFields[`${rolePrefix}.academic.previousSchool.lastClass`] = updateData.previousClass;
         }
         if (updateData.migrationCertificate !== undefined) {
-          updateFields[`${rolePrefix}.academic.previousSchool.migrationCertificate`] = updateData.migrationCertificate; // Nested path
+          // CRITICAL FIX 12 (BE): Map migrationCertificate to academic.previousSchool
+          updateFields[`${rolePrefix}.academic.previousSchool.migrationCertificate`] = updateData.migrationCertificate;
           updateFields.migrationCertificate = updateData.migrationCertificate; // Deprecated flat field
         }
         if (updateData.birthCertificateNumber !== undefined) {
-          updateFields[`${rolePrefix}.personal.birthCertificateNumber`] = updateData.birthCertificateNumber; // Modern path
+          // CRITICAL FIX 13 (BE): Map birthCertificateNumber to personal
+          updateFields[`${rolePrefix}.personal.birthCertificateNumber`] = updateData.birthCertificateNumber;
           updateFields.birthCertificateNumber = updateData.birthCertificateNumber; // Deprecated flat field
         }
         if (updateData.economicStatus !== undefined) {
-          updateFields[`${rolePrefix}.personal.economicStatus`] = updateData.economicStatus; // Modern path
+          // CRITICAL FIX 14 (BE): Map economicStatus to financial and personal (for dual paths)
+          updateFields[`${rolePrefix}.financial.economicStatus`] = updateData.economicStatus;
+          updateFields[`${rolePrefix}.personal.economicStatus`] = updateData.economicStatus;
           updateFields.economicStatus = updateData.economicStatus; // Deprecated flat field
         }
         if (updateData.familyIncome !== undefined) {
-          updateFields[`${rolePrefix}.financial.familyIncome`] = updateData.familyIncome; // Financial path
+          // CRITICAL FIX 15 (BE): Map familyIncome to financial and personal (for dual paths)
+          updateFields[`${rolePrefix}.financial.familyIncome`] = updateData.familyIncome;
+          updateFields[`${rolePrefix}.personal.familyIncome`] = updateData.familyIncome;
           updateFields.familyIncome = updateData.familyIncome; // Deprecated flat field
         }
         if (updateData.scholarshipDetails !== undefined) {
-          // Map to the name field of scholarshipDetails object
+          // CRITICAL FIX 16 (BE): Map scholarship details name
           updateFields[`${rolePrefix}.financial.scholarshipDetails.name`] = updateData.scholarshipDetails;
           updateFields.scholarshipDetails = updateData.scholarshipDetails; // Deprecated flat field
         }
