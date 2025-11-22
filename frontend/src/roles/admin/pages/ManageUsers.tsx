@@ -2537,7 +2537,7 @@ const ManageUsers: React.FC = () => {
           personal: {
             dateOfBirth: formData.studentDetails?.dateOfBirth ? new Date(formData.studentDetails.dateOfBirth) :
               (formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined),
-            placeOfBirth: formData.studentDetails?.placeOfBirth || '',
+            placeOfBirth: formData.studentDetails?.placeOfBirth || formData.placeOfBirth || '',
             gender: formData.studentDetails?.gender || formData.gender || 'male',
             bloodGroup: formData.studentDetails?.bloodGroup || formData.bloodGroup || '',
             nationality: formData.studentDetails?.nationality || formData.nationality || 'Indian',
@@ -2578,28 +2578,28 @@ const ManageUsers: React.FC = () => {
               name: formData.studentDetails?.fatherName || formData.fatherName || '',
               nameKannada: formData.studentDetails?.fatherNameKannada || formData.fatherNameKannada || '',
               occupation: formData.studentDetails?.fatherOccupation || formData.fatherOccupation || '',
-              qualification: formData.studentDetails?.fatherQualification || formData.fatherEducation || '',
+              qualification: formData.studentDetails?.fatherQualification || formData.fatherQualification || formData.fatherEducation || '',
               phone: formData.studentDetails?.fatherPhone || formData.fatherPhone || formData.fatherMobile || '',
               email: formData.studentDetails?.fatherEmail || formData.fatherEmail || '',
               aadhaar: formData.studentDetails?.fatherAadhaar || formData.fatherAadhaar || '',
               caste: formData.studentDetails?.fatherCaste || formData.fatherCaste || '',
               casteOther: formData.studentDetails?.fatherCasteOther || formData.fatherCasteOther || '',
               casteCertNo: formData.studentDetails?.fatherCasteCertNo || formData.fatherCasteCertNo || '',
-              workAddress: formData.studentDetails?.fatherWorkAddress || '',
+              workAddress: formData.studentDetails?.fatherWorkAddress || formData.fatherWorkAddress || '',
               annualIncome: formData.studentDetails?.fatherAnnualIncome || 0
             },
             mother: {
               name: formData.studentDetails?.motherName || formData.motherName || '',
               nameKannada: formData.studentDetails?.motherNameKannada || formData.motherNameKannada || '',
               occupation: formData.studentDetails?.motherOccupation || formData.motherOccupation || '',
-              qualification: formData.studentDetails?.motherQualification || formData.motherEducation || '',
+              qualification: formData.studentDetails?.motherQualification || formData.motherQualification || formData.motherEducation || '',
               phone: formData.studentDetails?.motherPhone || formData.motherPhone || formData.motherMobile || '',
               email: formData.studentDetails?.motherEmail || formData.motherEmail || '',
               aadhaar: formData.studentDetails?.motherAadhaar || formData.motherAadhaar || '',
               caste: formData.studentDetails?.motherCaste || formData.motherCaste || '',
               casteOther: formData.studentDetails?.motherCasteOther || formData.motherCasteOther || '',
               casteCertNo: formData.studentDetails?.motherCasteCertNo || formData.motherCasteCertNo || '',
-              workAddress: formData.studentDetails?.motherWorkAddress || '',
+              workAddress: formData.studentDetails?.motherWorkAddress || formData.motherWorkAddress || '',
               annualIncome: formData.studentDetails?.motherAnnualIncome || 0
             },
             guardian: formData.studentDetails?.guardianName ? {
@@ -2614,12 +2614,12 @@ const ManageUsers: React.FC = () => {
 
           // Transportation
           transport: {
-            mode: formData.studentDetails?.transportMode || '',
-            busRoute: formData.studentDetails?.busRoute || '',
-            pickupPoint: formData.studentDetails?.pickupPoint || '',
-            dropPoint: formData.studentDetails?.dropPoint || '',
-            pickupTime: formData.studentDetails?.pickupTime || '',
-            dropTime: formData.studentDetails?.dropTime || ''
+            mode: formData.studentDetails?.transportMode || formData.transportMode || '',
+            busRoute: formData.studentDetails?.busRoute || formData.busRoute || '',
+            pickupPoint: formData.studentDetails?.pickupPoint || formData.pickupPoint || '',
+            dropPoint: formData.studentDetails?.dropPoint || formData.dropPoint || '',
+            pickupTime: formData.studentDetails?.pickupTime || formData.pickupTime || '',
+            dropTime: formData.studentDetails?.dropTime || formData.dropTime || ''
           },
 
           // Financial Information - Karnataka SATS Standard
@@ -2642,19 +2642,19 @@ const ManageUsers: React.FC = () => {
               accountHolderName: formData.studentDetails?.financial?.bankDetails?.accountHolderName || formData.accountHolderName || ''
             }
           },
-
           // Medical Information
-          medical: formData.studentDetails?.allergies?.length ? {
-            allergies: formData.studentDetails.allergies,
-            chronicConditions: formData.studentDetails.chronicConditions || [],
-            medications: formData.studentDetails.medications || [],
+          medical: {
+            allergies: formData.studentDetails?.allergies || formData.allergies || [],
+            chronicConditions: formData.studentDetails?.chronicConditions || formData.chronicConditions || [],
+            medications: formData.studentDetails?.medications || formData.medications || [],
             emergencyMedicalContact: {
-              doctorName: formData.studentDetails.doctorName || '',
-              hospitalName: formData.studentDetails.hospitalName || '',
-              phone: formData.studentDetails.doctorPhone || ''
+              doctorName: formData.studentDetails?.doctorName || formData.doctorName || '',
+              hospitalName: formData.studentDetails?.hospitalName || formData.hospitalName || '',
+              phone: formData.studentDetails?.doctorPhone || formData.doctorPhone || ''
             },
-            lastMedicalCheckup: formData.studentDetails.lastMedicalCheckup ? new Date(formData.studentDetails.lastMedicalCheckup) : undefined
-          } : undefined
+            lastMedicalCheckup: formData.studentDetails?.lastMedicalCheckup ? new Date(formData.studentDetails.lastMedicalCheckup) :
+              (formData.lastMedicalCheckup ? new Date(formData.lastMedicalCheckup) : undefined)
+          }
         };
 
         // ===== CRITICAL FIX: Add flat fields for backend validator =====
