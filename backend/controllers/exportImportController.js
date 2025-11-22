@@ -144,10 +144,10 @@ exports.importUsers = async (req, res) => {
   try {
     // Find the school's main configuration document
     const schoolInfoDoc = await db.collection('school_info').findOne(); // <-- Find the one school_info doc
-    
+
     // Use the path from your JSON: academicYear.currentYear
-    if (schoolInfoDoc && schoolInfoDoc.academicYear && schoolInfoDoc.academicYear.currentYear) { 
-      currentAcademicYear = schoolInfoDoc.academicYear.currentYear; 
+    if (schoolInfoDoc && schoolInfoDoc.academicYear && schoolInfoDoc.academicYear.currentYear) {
+      currentAcademicYear = schoolInfoDoc.academicYear.currentYear;
       console.log(`Using current academic year from school_info: ${currentAcademicYear}`);
     } else {
       console.warn(`No 'academicYear.currentYear' found in school_info for ${upperSchoolCode}. Defaulting to '${currentAcademicYear}'.`);
@@ -183,7 +183,7 @@ exports.importUsers = async (req, res) => {
 
     // Student Specific
     'studentid': 'studentid', 'admissionnumber': 'admissionnumber', 'rollnumber': 'rollnumber',
-  'class': 'currentclass', 'currentclass': 'currentclass', 'admissiontoclass': 'currentclass', 'admissiontoclass': 'currentclass', 'section': 'currentsection', 'currentsection': 'currentsection',
+    'class': 'currentclass', 'currentclass': 'currentclass', 'admissiontoclass': 'currentclass', 'admissiontoclass': 'currentclass', 'section': 'currentsection', 'currentsection': 'currentsection',
     'academicyear': 'academicyear', 'admissiondate': 'admissiondate',
     'fathername': 'fathername', 'mothername': 'mothername', 'guardianname': 'guardianname',
     'fatherphone': 'fatherphone', 'motherphone': 'motherphone', 'fatheremail': 'fatheremail', 'motheremail': 'motheremail',
@@ -194,22 +194,22 @@ exports.importUsers = async (req, res) => {
     'medicalconditions': 'medicalconditions', 'allergies': 'allergies', 'specialneeds': 'specialneeds',
     'previousboard': 'previousboard', 'lastclass': 'lastclass', 'tcnumber': 'tcnumber',
     // 'profileimage': 'profileimage', <-- Already added to common
-  'tcno': 'tcnumber', 'tc': 'tcnumber',
-  // Enrollment synonyms
-  'enrollmentno': 'admissionnumber', 'enrollmentnumber': 'admissionnumber',
-  // Student caste certificate
-  'studentcastecertificateno': 'studentcastecertno', 'studentcastecertno': 'studentcastecertno', 'studentcastecertificate': 'studentcastecertno',
-  // Accept 'userid' header in templates (mapped to student id/admission slot)
-  'userid': 'studentid', 'user id': 'studentid', 'userId': 'studentid',
+    'tcno': 'tcnumber', 'tc': 'tcnumber',
+    // Enrollment synonyms
+    'enrollmentno': 'admissionnumber', 'enrollmentnumber': 'admissionnumber',
+    // Student caste certificate
+    'studentcastecertificateno': 'studentcastecertno', 'studentcastecertno': 'studentcastecertno', 'studentcastecertificate': 'studentcastecertno',
+    // Accept 'userid' header in templates (mapped to student id/admission slot)
+    'userid': 'studentid', 'user id': 'studentid', 'userId': 'studentid',
 
     // Teacher Specific (Original complex fields)
     'secondaryphone': 'secondaryphone', 'whatsappnumber': 'whatsappnumber', 'pannumber': 'pannumber',
     'joiningdate': 'joiningdate', 'highestqualification': 'highestqualification', 'specialization': 'specialization',
     'totalexperience': 'totalexperience', 'subjects': 'subjects', 'classteacherof': 'classteacherof',
     'employeeid': 'employeeid', 'bloodgroup': 'bloodgroup', 'nationality': 'nationality',
-    
+
     // Teacher Specific (Simplified template fields)
-  'phonenumber': 'primaryphone', 'qualification': 'qualification', 'experience': 'experience(years)', 'experience(years)': 'experience(years)',
+    'phonenumber': 'primaryphone', 'qualification': 'qualification', 'experience': 'experience(years)', 'experience(years)': 'experience(years)',
     'subjectstaught': 'subjectstaught', 'address': 'address',
 
     // Admin Specific <--- NEW: Admin Fields
@@ -600,7 +600,7 @@ exports.generateTemplate = async (req, res) => {
 // REPLACE the old function with this
 async function copyProfilePicture(sourcePath, userId, schoolCode) {
   console.log(`🔍 copyProfilePicture called with: sourcePath="${sourcePath}", userId="${userId}", schoolCode="${schoolCode}"`);
-  
+
   if (!sourcePath || String(sourcePath).trim() === '') {
     console.warn(`Empty profile image path provided. Skipping.`);
     return '';
@@ -608,38 +608,38 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
 
   try {
     let imageBuffer;
-    
+
     // Clean the source path - remove leading ? or other unwanted characters
     let cleanSourcePath = sourcePath.trim();
     if (cleanSourcePath.startsWith('?')) {
       cleanSourcePath = cleanSourcePath.substring(1);
       console.log(`🧹 Cleaned path: "${sourcePath}" -> "${cleanSourcePath}"`);
     }
-    
+
     // Check if it's a URL or local file path
     if (cleanSourcePath.startsWith('http://') || cleanSourcePath.startsWith('https://')) {
       // Handle URL - download the image
       let downloadUrl = cleanSourcePath;
-      
+
       // Convert Google Drive sharing links to direct download links
       if (cleanSourcePath.includes('drive.google.com')) {
         console.log(`🔄 Converting Google Drive sharing link to direct download URL`);
-        
+
         // Extract file ID from different Google Drive URL formats
         let fileId = null;
-        
+
         // Format 1: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
         const match1 = cleanSourcePath.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
         if (match1) {
           fileId = match1[1];
         }
-        
+
         // Format 2: https://drive.google.com/open?id=FILE_ID
         const match2 = cleanSourcePath.match(/[?&]id=([a-zA-Z0-9_-]+)/);
         if (match2) {
           fileId = match2[1];
         }
-        
+
         if (fileId) {
           downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
           console.log(`✅ Converted to direct download URL: ${downloadUrl}`);
@@ -648,9 +648,9 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
           console.warn(`💡 Tip: Make sure the Google Drive file is publicly accessible`);
         }
       }
-      
+
       console.log(`📸 Downloading image from URL: ${downloadUrl}`);
-      const response = await axios.get(downloadUrl, { 
+      const response = await axios.get(downloadUrl, {
         responseType: 'arraybuffer',
         timeout: 30000, // 30 second timeout
         headers: {
@@ -662,7 +662,7 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
     } else {
       // Handle local file path - but check if we're in production/cloud environment
       const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
-      
+
       if (isProduction) {
         console.warn(`⚠️ Local file path provided in production environment: ${cleanSourcePath}`);
         console.warn(`⚠️ Skipping image upload - local paths not accessible in cloud deployment`);
@@ -671,26 +671,26 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
         console.warn(`💡 Example: Upload to imgur, Google Drive (public), or your own server`);
         return ''; // Skip image upload in production for local paths
       }
-      
+
       console.log(`📁 Reading image from local path: ${cleanSourcePath}`);
-      
+
       // Check if file exists
       if (!fs.existsSync(cleanSourcePath)) {
         console.error(`❌ Local image file not found: ${cleanSourcePath}`);
         console.error(`❌ Original path was: ${sourcePath}`);
         throw new Error(`Local image file not found: ${cleanSourcePath}`);
       }
-      
+
       // Check if it's actually a file (not a directory)
       const stats = fs.statSync(cleanSourcePath);
       if (!stats.isFile()) {
         throw new Error(`Path is not a file: ${cleanSourcePath}`);
       }
-      
+
       // Read the local file
       imageBuffer = fs.readFileSync(cleanSourcePath);
       console.log(`✅ Read ${imageBuffer.length} bytes from local file`);
-      
+
       // Validate that we have a valid image buffer
       if (!imageBuffer || imageBuffer.length === 0) {
         throw new Error(`Empty or invalid image file: ${cleanSourcePath}`);
@@ -735,7 +735,7 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
     console.error(`❌ Error processing profile picture from ${sourcePath}:`, error.message);
     console.error(`❌ Error stack:`, error.stack);
     console.error(`❌ Full error details:`, error);
-    
+
     // Provide more specific error messages
     if (error.message.includes('ENOENT')) {
       console.error(`❌ File not found error - check if the path exists and is accessible`);
@@ -744,7 +744,7 @@ async function copyProfilePicture(sourcePath, userId, schoolCode) {
     } else if (error.message.includes('Sharp')) {
       console.error(`❌ Image processing error - file might be corrupted or not a valid image`);
     }
-    
+
     return ''; // Return empty string on failure
   }
 }
@@ -871,72 +871,72 @@ function getStudentHeadersRobust() {
 
 function validateTeacherRowSimplified(normalizedRow, rowNumber) {
   const errors = [];
-  
+
   // Updated required keys to include new headers
   const requiredKeys = [
     'firstname', 'lastname', 'email', 'primaryphone',
     'dateofbirth', 'gender', 'qualification'
   ];
-  
+
   requiredKeys.forEach(key => {
     if (!normalizedRow.hasOwnProperty(key) || normalizedRow[key] === undefined || normalizedRow[key] === null || String(normalizedRow[key]).trim() === '') {
       errors.push({ row: rowNumber, error: `is required`, field: key });
     }
   });
-  
+
   // Field validations
-  if (normalizedRow['email'] && !/\S+@\S+\.\S+/.test(normalizedRow['email'])) { 
-    errors.push({ row: rowNumber, error: `Invalid format`, field: 'email' }); 
+  if (normalizedRow['email'] && !/\S+@\S+\.\S+/.test(normalizedRow['email'])) {
+    errors.push({ row: rowNumber, error: `Invalid format`, field: 'email' });
   }
-  
-  const genderVal = normalizedRow['gender']?.toLowerCase(); 
-  if (genderVal && genderVal.trim() !== '' && !['male', 'female', 'other'].includes(genderVal)) { 
-    errors.push({ row: rowNumber, error: `Invalid value (must be 'male', 'female', 'other')`, field: 'gender' }); 
+
+  const genderVal = normalizedRow['gender']?.toLowerCase();
+  if (genderVal && genderVal.trim() !== '' && !['male', 'female', 'other'].includes(genderVal)) {
+    errors.push({ row: rowNumber, error: `Invalid value (must be 'male', 'female', 'other')`, field: 'gender' });
   }
-  
-  const phone = normalizedRow['primaryphone']; 
-  if (phone && phone.trim() !== '' && !/^\d{7,15}$/.test(phone.replace(/\D/g, ''))) { 
-    errors.push({ row: rowNumber, error: `Invalid format (must be 7-15 digits)`, field: 'primaryphone' }); 
+
+  const phone = normalizedRow['primaryphone'];
+  if (phone && phone.trim() !== '' && !/^\d{7,15}$/.test(phone.replace(/\D/g, ''))) {
+    errors.push({ row: rowNumber, error: `Invalid format (must be 7-15 digits)`, field: 'primaryphone' });
   }
-  
-  if (normalizedRow['dateofbirth']) { 
-    try { 
-      parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth'); 
-    } catch (e) { 
-      errors.push({ row: rowNumber, error: e.message, field: 'dateofbirth' }); 
-    } 
+
+  if (normalizedRow['dateofbirth']) {
+    try {
+      parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth');
+    } catch (e) {
+      errors.push({ row: rowNumber, error: e.message, field: 'dateofbirth' });
+    }
   }
-  
+
   // Validate experience (years) - optional field
-  const exp = normalizedRow['experience(years)']; 
-  if (exp && exp.trim() !== '' && isNaN(Number(exp))) { 
-    errors.push({ row: rowNumber, error: `must be a number`, field: 'experience(years)' }); 
+  const exp = normalizedRow['experience(years)'];
+  if (exp && exp.trim() !== '' && isNaN(Number(exp))) {
+    errors.push({ row: rowNumber, error: `must be a number`, field: 'experience(years)' });
   }
-  
+
   return errors;
 }
 
 // --- Helper to create Teacher Data Object ---
 async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, schoolCode, creatingUserIdAsObjectId) {
   const email = normalizedRow['email'];
-  const finalDateOfBirth = parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth'); 
+  const finalDateOfBirth = parseFlexibleDate(normalizedRow['dateofbirth'], 'Date of Birth');
   if (!finalDateOfBirth) throw new Error('Date of Birth is required and could not be parsed.');
   const finalJoiningDate = parseFlexibleDate(normalizedRow['joiningdate'], 'Joining Date') || new Date(); // Default to current date if not provided
-  let temporaryPassword = generateRandomPassword(8); 
+  let temporaryPassword = generateRandomPassword(8);
   const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-  let gender = normalizedRow['gender']?.toLowerCase(); 
+  let gender = normalizedRow['gender']?.toLowerCase();
   if (!['male', 'female', 'other'].includes(gender)) gender = 'other';
-  const isActiveValue = normalizedRow['isactive']?.toLowerCase(); 
-  let isActive = true; 
-  if (isActiveValue === 'false' || isActiveValue === 'inactive' || isActiveValue === 'no' || isActiveValue === '0') { 
-    isActive = false; 
+  const isActiveValue = normalizedRow['isactive']?.toLowerCase();
+  let isActive = true;
+  if (isActiveValue === 'false' || isActiveValue === 'inactive' || isActiveValue === 'no' || isActiveValue === '0') {
+    isActive = false;
   }
   const sameAsPermanent = normalizedRow['sameaspermanent']?.toLowerCase() !== 'false';
-  let permanentPincode = normalizedRow['permanentpincode'] || ''; 
+  let permanentPincode = normalizedRow['permanentpincode'] || '';
   if (permanentPincode && !/^\d{6}$/.test(permanentPincode)) permanentPincode = '';
-  let currentPincode = normalizedRow['currentpincode'] || ''; 
+  let currentPincode = normalizedRow['currentpincode'] || '';
   if (currentPincode && !/^\d{6}$/.test(currentPincode)) currentPincode = '';
-  
+
   let totalExperience = 0;
   const experienceCandidates = [
     normalizedRow['totalexperience'],
@@ -950,7 +950,7 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
       if (!isNaN(parsed)) { totalExperience = parsed; break; }
     }
   }
-  const firstName = normalizedRow['firstname'] || ''; 
+  const firstName = normalizedRow['firstname'] || '';
   const lastName = normalizedRow['lastname'] || '';
 
   // Handle profile image if provided
@@ -967,14 +967,14 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
   // 2. Split the string by comma, trim, filter empty, and map to the schema structure
   const subjectsArray = (typeof subjectsString === 'string')
     ? subjectsString.split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-        .map(subjectName => ({ 
-            subjectName: subjectName, 
-            subjectCode: '', 
-            classes: [], 
-            isPrimary: false 
-        }))
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(subjectName => ({
+        subjectName: subjectName,
+        subjectCode: '',
+        classes: [],
+        isPrimary: false
+      }))
     : [];
   // --- END OF SUBJECTS FIX ---
 
@@ -1014,72 +1014,72 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
       permanentAreaVal = permanentAreaVal || parts[1];
       permanentCityVal = permanentCityVal || parts[2];
       permanentStateVal = permanentStateVal || parts[3];
-      if (parts[4]) permanentPincodeVal = permanentPincodeVal || parts[4].replace(/[^0-9]/g,'');
+      if (parts[4]) permanentPincodeVal = permanentPincodeVal || parts[4].replace(/[^0-9]/g, '');
     }
   }
   const newTeacher = {
-    _id: new ObjectId(), 
-    userId, 
-    schoolCode: schoolCode.toUpperCase(), 
+    _id: new ObjectId(),
+    userId,
+    schoolCode: schoolCode.toUpperCase(),
     schoolId: schoolIdAsObjectId,
-    name: { 
-      firstName, 
-      middleName: normalizedRow['middlename'] || '', 
-      lastName, 
-      displayName: `${firstName} ${lastName}`.trim() 
+    name: {
+      firstName,
+      middleName: normalizedRow['middlename'] || '',
+      lastName,
+      displayName: `${firstName} ${lastName}`.trim()
     },
-    email: email, 
-    password: hashedPassword, 
-    temporaryPassword: temporaryPassword, 
-    passwordChangeRequired: true, 
+    email: email,
+    password: hashedPassword,
+    temporaryPassword: temporaryPassword,
+    passwordChangeRequired: true,
     role: 'teacher',
-    contact: { 
-      primaryPhone: normalizedRow['primaryphone'] || '', 
-      secondaryPhone: normalizedRow['secondaryphone'] || '', 
-      whatsappNumber: normalizedRow['whatsappnumber'] || '', 
+    contact: {
+      primaryPhone: normalizedRow['primaryphone'] || '',
+      secondaryPhone: normalizedRow['secondaryphone'] || '',
+      whatsappNumber: normalizedRow['whatsappnumber'] || '',
     },
     address: {
-      permanent: { 
-        street: permanentStreetVal || '', 
-        area: permanentAreaVal || '', 
-        city: permanentCityVal || '', 
-        state: permanentStateVal || '', 
-        country: normalizedRow['permanentcountry'] || 'India', 
-        pincode: permanentPincodeVal || permanentPincode || '', 
-        landmark: normalizedRow['permanentlandmark'] || '' 
+      permanent: {
+        street: permanentStreetVal || '',
+        area: permanentAreaVal || '',
+        city: permanentCityVal || '',
+        state: permanentStateVal || '',
+        country: normalizedRow['permanentcountry'] || 'India',
+        pincode: permanentPincodeVal || permanentPincode || '',
+        landmark: normalizedRow['permanentlandmark'] || ''
       },
-      current: sameAsPermanent ? undefined : { 
-        street: normalizedRow['currentstreet'] || '', 
-        area: normalizedRow['currentarea'] || '', 
-        city: normalizedRow['currentcity'] || '', 
-        state: normalizedRow['currentstate'] || '', 
-        country: normalizedRow['currentcountry'] || 'India', 
-        pincode: currentPincode || '', 
-        landmark: normalizedRow['currentlandmark'] || '' 
+      current: sameAsPermanent ? undefined : {
+        street: normalizedRow['currentstreet'] || '',
+        area: normalizedRow['currentarea'] || '',
+        city: normalizedRow['currentcity'] || '',
+        state: normalizedRow['currentstate'] || '',
+        country: normalizedRow['currentcountry'] || 'India',
+        pincode: currentPincode || '',
+        landmark: normalizedRow['currentlandmark'] || ''
       },
       sameAsPermanent: sameAsPermanent
     },
-    identity: { 
-      aadharNumber: normalizedRow['aadharnumber'] || '', 
-      panNumber: normalizedRow['pannumber'] || '' 
+    identity: {
+      aadharNumber: normalizedRow['aadharnumber'] || '',
+      panNumber: normalizedRow['pannumber'] || ''
     },
     profileImage: profileImagePath,
-    isActive: isActive, 
-    createdAt: new Date(), 
+    isActive: isActive,
+    createdAt: new Date(),
     updatedAt: new Date(),
-    schoolAccess: { 
-      joinedDate: finalJoiningDate, 
-      assignedBy: creatingUserIdAsObjectId, 
-      status: 'active', 
-      accessLevel: 'full' 
+    schoolAccess: {
+      joinedDate: finalJoiningDate,
+      assignedBy: creatingUserIdAsObjectId,
+      status: 'active',
+      accessLevel: 'full'
     },
-    auditTrail: { 
-      createdBy: creatingUserIdAsObjectId, 
-      createdAt: new Date() 
+    auditTrail: {
+      createdBy: creatingUserIdAsObjectId,
+      createdAt: new Date()
     },
-    
+
     teacherDetails: teacherDetails, // <-- Corrected subjects are in here
-    
+
     // This flat 'personal' object is used for backward compatibility
     personal: {
       dateOfBirth: finalDateOfBirth,
@@ -1119,7 +1119,7 @@ async function createTeacherFromRow(normalizedRow, schoolIdAsObjectId, userId, s
 
 function validateStudentRowRobust(normalizedRow, rowNumber) {
   const errors = [];
-  
+
   // 'aadharnumber' is optional, so it's removed from requiredKeys
   const requiredKeys = [
     'firstname', 'lastname', 'email', 'primaryphone', 'dateofbirth', 'gender',
@@ -1155,7 +1155,7 @@ function validateStudentRowRobust(normalizedRow, rowNumber) {
       aadhaar = aadhaar.replace(/\D/g, '');
     }
 
-    if (aadhaar.length !== 12) { 
+    if (aadhaar.length !== 12) {
       errors.push({ row: rowNumber, error: `Invalid Aadhaar (must be 12 digits). Value received: "${normalizedRow['aadharnumber']}"`, field: 'aadharnumber' });
     }
   }
@@ -1187,9 +1187,9 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
   if (!finalDateOfBirth) {
     throw new Error(`Date of Birth is required and could not be parsed (row ${normalizedRow.originalRowNumber}).`);
   }
-  
+
   const finalAdmissionDate = parseFlexibleDate(normalizedRow['admissiondate'], 'Admission Date') || new Date();
-  
+
   let temporaryPassword;
   try {
     temporaryPassword = generateStudentPasswordFromDOB(dateOfBirthString);
@@ -1197,24 +1197,24 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
     console.warn(`Could not generate password from DOB "${dateOfBirthString}" for row ${normalizedRow.originalRowNumber}. Generating random password.`);
     temporaryPassword = generateRandomPassword(8);
   }
-  
+
   const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
   let gender = normalizedRow['gender']?.toLowerCase();
   if (!['male', 'female', 'other'].includes(gender)) {
     gender = 'other';
   }
-  
+
   const isActiveValue = normalizedRow['isactive']?.toLowerCase();
   let isActive = true;
   if (isActiveValue === 'false' || isActiveValue === 'inactive' || isActiveValue === 'no' || isActiveValue === '0') {
     isActive = false;
   }
-  
+
   const isRTECandidateValue = normalizedRow['isrtcandidate']?.toLowerCase();
   const isRTECandidate = isRTECandidateValue === 'yes' ? 'Yes' : 'No';
-  
+
   // --- Clean all scientific notation and formatting ---
-  
+
   // 1. Clean Aadhar Number
   let cleanedAadhaar = (normalizedRow['aadharnumber'] || '').toString().trim();
   if (/e\+/i.test(cleanedAadhaar)) { // Check for scientific notation
@@ -1245,9 +1245,9 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
   const cleanedBankIFSC = (normalizedRow['bankifsc'] || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
   let permanentPincode = (normalizedRow['permanentpincode'] || '').toString().replace(/\D/g, '');
   if (permanentPincode && permanentPincode.length !== 6) {
-    permanentPincode = ''; 
+    permanentPincode = '';
   }
-  
+
   // --- End of Cleaning ---
 
   let concessionPercentage = parseInt(normalizedRow['concessionpercentage'] || '0');
@@ -1265,7 +1265,7 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
     if (cleanImagePath.startsWith('?')) {
       cleanImagePath = cleanImagePath.substring(1);
     }
-    
+
     if (cleanImagePath.startsWith('data:')) {
       console.log(`⚠️ Skipping base64 data URL for student ${userId} (not supported yet)`);
       profileImagePath = '';
@@ -1279,7 +1279,7 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
         }
       } catch (imageError) {
         console.error(`❌ Failed to upload student profile image: ${imageError.message}`);
-        profileImagePath = ''; 
+        profileImagePath = '';
       }
     }
   }
@@ -1316,14 +1316,14 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
         pincode: permanentPincode,
         landmark: normalizedRow['permanentlandmark'] || ''
       },
-      current: undefined, 
+      current: undefined,
       sameAsPermanent: true
     },
     identity: {
-      aadharNumber: cleanedAadhaar || '', 
+      aadharNumber: cleanedAadhaar || '',
       panNumber: normalizedRow['pannumber'] || ''
     },
-    profileImage: profileImagePath || null, 
+    profileImage: profileImagePath || null,
     isActive: isActive,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -1337,30 +1337,30 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
       createdBy: creatingUserIdAsObjectId,
       createdAt: new Date()
     },
-    
+
     // --- 1. CORRECT NESTED studentDetails OBJECT ---
     studentDetails: {
       studentId: userId,
       admissionNumber: normalizedRow['admissionnumber'] || '',
       rollNumber: normalizedRow['rollnumber'] || '',
-      
+
       academic: {
         currentClass: normalizedRow['currentclass'] || '',
         currentSection: normalizedRow['currentsection'] || '',
         academicYear: currentAcademicYear, // <-- Use the year from school_info
         admissionDate: finalAdmissionDate,
-        admissionClass: normalizedRow['admissionclass'] || '', 
-        enrollmentNo: normalizedRow['admissionnumber'] || '', 
+        admissionClass: normalizedRow['admissionclass'] || '',
+        enrollmentNo: normalizedRow['admissionnumber'] || '',
         tcNo: normalizedRow['tcnumber'] || '',
         previousSchool: {
           name: normalizedRow['previousschoolname'] || '',
           board: normalizedRow['previousboard'] || '',
           lastClass: normalizedRow['lastclass'] || '',
-          tcNumber: normalizedRow['tcnumber'] || '', 
+          tcNumber: normalizedRow['tcnumber'] || '',
           reasonForTransfer: normalizedRow['reasonfortransfer'] || ''
         }
       },
-      
+
       personal: {
         dateOfBirth: finalDateOfBirth,
         placeOfBirth: normalizedRow['placeofbirth'] || '',
@@ -1368,143 +1368,107 @@ async function createStudentFromRowRobust(normalizedRow, schoolIdAsObjectId, use
         bloodGroup: normalizedRow['bloodgroup'] || '',
         nationality: normalizedRow['nationality'] || 'Indian',
         religion: normalizedRow['religion'] || '',
+        religionOther: '',
         caste: normalizedRow['caste'] || '',
+        casteOther: '',
         category: normalizedRow['category'] || '',
+        categoryOther: '',
         motherTongue: normalizedRow['mothertongue'] || '',
-        studentAadhaar: cleanedAadhaar || '', 
+        motherTongueOther: '',
+        studentNameKannada: '',
+        ageYears: 0,
+        ageMonths: 0,
+        socialCategory: '',
+        socialCategoryOther: '',
+        studentCaste: '',
+        studentCasteOther: '',
+        studentAadhaar: cleanedAadhaar || '',
         studentCasteCertNo: normalizedRow['studentcastecertno'] || '',
+        specialCategory: '',
+        specialCategoryOther: '',
         belongingToBPL: (normalizedRow['belongingtobpl']?.toLowerCase() === 'yes') ? 'Yes' : 'No',
         bplCardNo: normalizedRow['bplcardno'] || '',
         bhagyalakshmiBondNo: normalizedRow['bhagyalakshmibondno'] || '',
         disability: normalizedRow['disability'] || 'Not Applicable',
+        disabilityOther: '',
         isRTECandidate: isRTECandidate
       },
-      
+
       medical: {
         allergies: (normalizedRow['allergies'] || '').split(',').map(s => s.trim()).filter(Boolean),
         chronicConditions: (normalizedRow['medicalconditions'] || '').split(',').map(s => s.trim()).filter(Boolean),
+        medications: (normalizedRow['medications'] || '').split(',').map(s => s.trim()).filter(Boolean),
+        emergencyMedicalContact: {
+          doctorName: normalizedRow['doctorname'] || '',
+          hospitalName: normalizedRow['hospitalname'] || '',
+          phone: (normalizedRow['doctorphone'] || '').toString().replace(/\D/g, '')
+        },
+        lastMedicalCheckup: normalizedRow['lastmedicalcheckup'] ? new Date(normalizedRow['lastmedicalcheckup']) : undefined
       },
-      
+
       family: {
         father: {
           name: normalizedRow['fathername'] || '',
+          nameKannada: '',
+          occupation: normalizedRow['fatheroccupation'] || '',
+          qualification: normalizedRow['fatherqualification'] || '',
           phone: (normalizedRow['fatherphone'] || '').toString().replace(/\D/g, ''),
           email: normalizedRow['fatheremail']?.toLowerCase() || '',
+          aadhaar: normalizedRow['fatheraadhaar'] || '',
+          caste: normalizedRow['fathercaste'] || '',
+          casteOther: '',
+          casteCertNo: normalizedRow['fathercastecertno'] || '',
+          workAddress: normalizedRow['fatherworkaddress'] || '',
+          annualIncome: 0
         },
         mother: {
           name: normalizedRow['mothername'] || '',
+          nameKannada: '',
+          occupation: normalizedRow['motheroccupation'] || '',
+          qualification: normalizedRow['motherqualification'] || '',
           phone: (normalizedRow['motherphone'] || '').toString().replace(/\D/g, ''),
           email: normalizedRow['motheremail']?.toLowerCase() || '',
+          aadhaar: normalizedRow['motheraadhaar'] || '',
+          caste: normalizedRow['mothercaste'] || '',
+          casteOther: '',
+          casteCertNo: normalizedRow['mothercastecertno'] || '',
+          workAddress: normalizedRow['motherworkaddress'] || '',
+          annualIncome: 0
         },
         guardian: {
           name: normalizedRow['guardianname'] || '',
-        }
+          relationship: normalizedRow['guardianrelationship'] || '',
+          phone: (normalizedRow['guardianphone'] || '').toString().replace(/\D/g, ''),
+          email: normalizedRow['guardianemail']?.toLowerCase() || '',
+          address: normalizedRow['guardianaddress'] || '',
+          isEmergencyContact: false
+        },
+        siblings: []
       },
-      
+
       transport: {
         mode: normalizedRow['transportmode'] || '',
         busRoute: normalizedRow['busroute'] || '',
         pickupPoint: normalizedRow['pickuppoint'] || '',
+        dropPoint: normalizedRow['droppoint'] || '',
+        pickupTime: normalizedRow['pickuptime'] || '',
+        dropTime: normalizedRow['droptime'] || ''
       },
-      
+
       financial: {
         feeCategory: normalizedRow['feecategory'] || '',
         concessionType: normalizedRow['concessiontype'] || '',
         concessionPercentage: concessionPercentage,
         bankDetails: {
           bankName: normalizedRow['bankname'] || '',
-          accountNumber: cleanedBankAccountNo, 
+          accountNumber: cleanedBankAccountNo,
           ifscCode: cleanedBankIFSC,
           accountHolderName: normalizedRow['accountholdername'] || `${firstName} ${lastName}`.trim()
         }
       }
-    },
-
-    // --- 2. ADDED: DUPLICATE FLAT OBJECTS (for backward compatibility) ---
-    
-    academicInfo: {
-      class: normalizedRow['currentclass'] || '',
-      section: normalizedRow['currentsection'] || '',
-      rollNumber: normalizedRow['rollnumber'] || '',
-      admissionNumber: userId, // Use the generated userId
-      admissionDate: finalAdmissionDate
-    },
-
-    parentIds: [], // Default to empty array
-
-    personal: {
-      dateOfBirth: finalDateOfBirth,
-      gender: gender,
-      bloodGroup: normalizedRow['bloodgroup'] || '',
-      nationality: normalizedRow['nationality'] || 'Indian',
-      religion: normalizedRow['religion'] || '',
-      religionOther: '',
-      caste: normalizedRow['caste'] || '',
-      casteOther: '',
-      category: normalizedRow['category'] || '',
-      categoryOther: '',
-      motherTongue: normalizedRow['mothertongue'] || '',
-      motherTongueOther: '',
-      studentNameKannada: '',
-      ageYears: 0, 
-      ageMonths: 0,
-      socialCategory: '',
-      socialCategoryOther: '',
-      studentCaste: '',
-      studentCasteOther: '',
-      studentAadhaar: cleanedAadhaar || '',
-      studentCasteCertNo: normalizedRow['studentcastecertno'] || '',
-      specialCategory: '',
-      specialCategoryOther: '',
-      belongingToBPL: (normalizedRow['belongingtobpl']?.toLowerCase() === 'yes') ? 'Yes' : 'No',
-      bplCardNo: normalizedRow['bplcardno'] || '',
-      bhagyalakshmiBondNo: normalizedRow['bhagyalakshmibondno'] || '',
-      disability: normalizedRow['disability'] || 'Not Applicable',
-      disabilityOther: ''
-    },
-
-    family: {
-      father: {
-        name: normalizedRow['fathername'] || '',
-        nameKannada: '',
-        aadhaar: '',
-        caste: '',
-        casteOther: '',
-        casteCertNo: '',
-        occupation: '',
-        qualification: '',
-        phone: (normalizedRow['fatherphone'] || '').toString().replace(/\D/g, ''),
-        email: normalizedRow['fatheremail']?.toLowerCase() || ''
-      },
-      mother: {
-        name: normalizedRow['mothername'] || '',
-        nameKannada: '',
-        aadhaar: '',
-        caste: '',
-        casteOther: '',
-        casteCertNo: '',
-        occupation: '',
-        qualification: '',
-        phone: (normalizedRow['motherphone'] || '').toString().replace(/\D/g, ''),
-        email: normalizedRow['motheremail']?.toLowerCase() || ''
-      },
-      guardian: {
-        name: normalizedRow['guardianname'] || '',
-        relationship: '',
-        phone: '',
-        email: ''
-      }
-    },
-
-    banking: {
-      bankName: normalizedRow['bankname'] || '',
-      accountNumber: cleanedBankAccountNo,
-      ifscCode: cleanedBankIFSC,
-      accountHolderName: normalizedRow['accountholdername'] || `${firstName} ${lastName}`.trim()
     }
-    // --- END OF ADDED DUPLICATE OBJECTS ---
   };
-  
+
   return newStudent;
 }
 
@@ -1517,8 +1481,8 @@ function generateCSV(users, role) {
   let rows;
 
   if (role.toLowerCase() === 'student') {
-    headers = getStudentHeadersRobust(); 
-    
+    headers = getStudentHeadersRobust();
+
     rows = users.map(user => {
       // --- Define data objects for easy access, handling undefined
       const name = user.name || {};
@@ -1530,7 +1494,7 @@ function generateCSV(users, role) {
       const personal = sDetails.personal || {};
       const family = sDetails.family || {};
       const financial = sDetails.financial || {};
-      const bank = financial.bankDetails || user.banking || {}; 
+      const bank = financial.bankDetails || user.banking || {};
       const father = family.father || {};
 
       // --- Helper to format dates ---
@@ -1553,27 +1517,27 @@ function generateCSV(users, role) {
         'Last Name': name.lastName || '',
         'Email': user.email || '',
         'Phone Number': contact.primaryPhone || '',
-        'Date of Birth': formatDate(personal.dateOfBirth), 
-        'Gender': personal.gender || '', 
+        'Date of Birth': formatDate(personal.dateOfBirth),
+        'Gender': personal.gender || '',
         'Blood Group': personal.bloodGroup || '',
-        'Enrollment No': academic.enrollmentNo || '', 
-        'TC No': academic.tcNo || '', 
-        'Admission to Class': academic.currentClass || '', 
-        'Section': academic.currentSection || '', 
-        'Academic Year': academic.academicYear || '', 
-        'Is RTE Candidate': personal.isRTECandidate || '', 
-        'Father Name': father.name || '', 
-        'Permanent Street': permanentAddr.street || '', 
-        'City/Village/Town': permanentAddr.city || '', 
-        'Pin Code': permanentAddr.pincode || '', 
-        'Aadhar Number': identity.aadharNumber || personal.studentAadhaar || '', 
+        'Enrollment No': academic.enrollmentNo || '',
+        'TC No': academic.tcNo || '',
+        'Admission to Class': academic.currentClass || '',
+        'Section': academic.currentSection || '',
+        'Academic Year': academic.academicYear || '',
+        'Is RTE Candidate': personal.isRTECandidate || '',
+        'Father Name': father.name || '',
+        'Permanent Street': permanentAddr.street || '',
+        'City/Village/Town': permanentAddr.city || '',
+        'Pin Code': permanentAddr.pincode || '',
+        'Aadhar Number': identity.aadharNumber || personal.studentAadhaar || '',
         'School Admission Date': formatDate(academic.admissionDate), // Added this back, as it's in the CSV
         'Address': permanentAddr.street ? [permanentAddr.street, permanentAddr.city, permanentAddr.pincode].filter(Boolean).join(', ') : '', // Added this back
-        'Bank Name': bank.bankName || '', 
-        'Bank Account No': bank.accountNumber || '', 
-        'Bank IFSC Code': bank.ifscCode || '', 
-        'Nationality': personal.nationality || '', 
-        'Student Caste Certificate No': personal.studentCasteCertNo || '', 
+        'Bank Name': bank.bankName || '',
+        'Bank Account No': bank.accountNumber || '',
+        'Bank IFSC Code': bank.ifscCode || '',
+        'Nationality': personal.nationality || '',
+        'Student Caste Certificate No': personal.studentCasteCertNo || '',
         'Profile Image': user.profileImage || ''
       };
 
@@ -1584,11 +1548,11 @@ function generateCSV(users, role) {
   } else if (role.toLowerCase() === 'teacher') {
     headers = getTeacherHeadersSimplified();
     rows = users.map(user => {
-      
+
       // --- START OF EXPORT FIX ---
       // 'teachingInfo' should point to 'teacherDetails'
       // 'personal' should point to the flat 'user.personal' object
-      const teachingInfo = user.teacherDetails || {}; 
+      const teachingInfo = user.teacherDetails || {};
       const personal = user.personal || {}; // <-- This was the bug
       // --- END OF EXPORT FIX ---
 
@@ -1604,7 +1568,7 @@ function generateCSV(users, role) {
       } else if (user.address && typeof user.address === 'object') {
         const currentAddr = user.address.current || {};
         const permanentAddr = user.address.permanent || {};
-        
+
         const addressParts = [
           currentAddr.street || permanentAddr.street,
           currentAddr.area || permanentAddr.area,
@@ -1612,7 +1576,7 @@ function generateCSV(users, role) {
           currentAddr.state || permanentAddr.state,
           currentAddr.pincode || permanentAddr.pincode
         ].filter(Boolean);
-        
+
         fullAddress = addressParts.join(', ');
       }
 
@@ -1624,9 +1588,9 @@ function generateCSV(users, role) {
             case 'Last Name': value = name.lastName || user.lastName || user.last_name || ''; break;
             case 'Email': value = user.email || ''; break;
             case 'Phone Number': value = contact.primaryPhone || contact.phone || user.phone || user.mobile || user.phoneNumber || user.contactNumber || ''; break;
-            case 'Date of Birth': 
+            case 'Date of Birth':
               // This now correctly reads from user.personal.dateOfBirth
-              value = personal.dateOfBirth || ''; 
+              value = personal.dateOfBirth || '';
               if (value) {
                 try {
                   value = new Date(value).toISOString().split('T')[0];
@@ -1635,17 +1599,17 @@ function generateCSV(users, role) {
                 }
               }
               break;
-            case 'Gender': 
+            case 'Gender':
               // This now correctly reads from user.personal.gender
-              value = personal.gender || ''; 
+              value = personal.gender || '';
               break;
-            case 'Qualification': 
+            case 'Qualification':
               value = teachingInfo.qualification || '';
               break;
-            case 'Experience (Years)': 
+            case 'Experience (Years)':
               value = teachingInfo.experience || '';
               break;
-            case 'Subjects Taught': 
+            case 'Subjects Taught':
               // This now correctly reads from user.teacherDetails.subjects
               if (Array.isArray(subjects)) {
                 value = subjects.map((s) => {
@@ -1663,112 +1627,112 @@ function generateCSV(users, role) {
                 value = '';
               }
               break;
-            case 'Employee ID': 
+            case 'Employee ID':
               value = teachingInfo.employeeId || user.userId || '';
               break;
             case 'Address': value = fullAddress; break;
             case 'Profile Image': value = user.profileImage || user.profilePicture || ''; break;
             default: value = '';
           }
-        } catch (e) { 
-          console.warn(`Error getting ${header} for teacher ${user.userId}:`, e.message); 
+        } catch (e) {
+          console.warn(`Error getting ${header} for teacher ${user.userId}:`, e.message);
           value = '';
-        } 
+        }
         rowData[header] = value ?? '';
       });
       return headers.map(header => rowData[header]);
     });
 
   } else if (role.toLowerCase() === 'admin') {
-     // (This is the existing admin logic from your file, preserved)
-     headers = getAdminHeaders();
-     rows = users.map(user => {
-        const adminDetails = user.adminDetails || {};
-        const personal = user.personal || {};
-        const name = user.name || {};
-        const contact = user.contact || {};
-        const addressP = user.address?.permanent || {};
-        const addressC = user.address?.current || {};
-        const identity = user.identity || {};
-        const rowData = {};
+    // (This is the existing admin logic from your file, preserved)
+    headers = getAdminHeaders();
+    rows = users.map(user => {
+      const adminDetails = user.adminDetails || {};
+      const personal = user.personal || {};
+      const name = user.name || {};
+      const contact = user.contact || {};
+      const addressP = user.address?.permanent || {};
+      const addressC = user.address?.current || {};
+      const identity = user.identity || {};
+      const rowData = {};
 
-        headers.forEach(header => {
-          let value = '';
-          try {
-            switch (header) {
-              case 'userId': value = user.userId; break;
-              case 'firstName': value = name.firstName; break;
-              case 'middleName': value = name.middleName; break;
-              case 'lastName': value = name.lastName; break;
-              case 'email': value = user.email; break;
-              case 'primaryPhone': value = contact.primaryPhone; break;
-              case 'secondaryPhone': value = contact.secondaryPhone; break;
-              case 'whatsappNumber': value = contact.whatsappNumber || ''; break;
-              case 'dateOfBirth': value = adminDetails.dateOfBirth ? new Date(adminDetails.dateOfBirth).toISOString().split('T')[0] : ''; break;
-              case 'gender': value = adminDetails.gender; break;
-              case 'permanentStreet': value = addressP.street; break;
-              case 'permanentArea': value = addressP.area; break;
-              case 'permanentCity': value = addressP.city; break;
-              case 'permanentState': value = addressP.state; break;
-               case 'permanentPincode': value = addressP.pincode; break;
-              case 'permanentCountry': value = addressP.country; break;
-              case 'permanentLandmark': value = addressP.landmark; break;
-              case 'sameAsPermanent': value = user.address?.sameAsPermanent === false ? 'FALSE' : 'TRUE'; break;
-              case 'currentStreet': value = addressC?.street || ''; break;
-              case 'currentArea': value = addressC?.area || ''; break;
-              case 'currentCity': value = addressC?.city || ''; break;
-              case 'currentState': value = addressC?.state || ''; break;
-              case 'currentPincode': value = addressC?.pincode || ''; break;
-              case 'currentCountry': value = addressC?.country || ''; break;
+      headers.forEach(header => {
+        let value = '';
+        try {
+          switch (header) {
+            case 'userId': value = user.userId; break;
+            case 'firstName': value = name.firstName; break;
+            case 'middleName': value = name.middleName; break;
+            case 'lastName': value = name.lastName; break;
+            case 'email': value = user.email; break;
+            case 'primaryPhone': value = contact.primaryPhone; break;
+            case 'secondaryPhone': value = contact.secondaryPhone; break;
+            case 'whatsappNumber': value = contact.whatsappNumber || ''; break;
+            case 'dateOfBirth': value = adminDetails.dateOfBirth ? new Date(adminDetails.dateOfBirth).toISOString().split('T')[0] : ''; break;
+            case 'gender': value = adminDetails.gender; break;
+            case 'permanentStreet': value = addressP.street; break;
+            case 'permanentArea': value = addressP.area; break;
+            case 'permanentCity': value = addressP.city; break;
+            case 'permanentState': value = addressP.state; break;
+            case 'permanentPincode': value = addressP.pincode; break;
+            case 'permanentCountry': value = addressP.country; break;
+            case 'permanentLandmark': value = addressP.landmark; break;
+            case 'sameAsPermanent': value = user.address?.sameAsPermanent === false ? 'FALSE' : 'TRUE'; break;
+            case 'currentStreet': value = addressC?.street || ''; break;
+            case 'currentArea': value = addressC?.area || ''; break;
+            case 'currentCity': value = addressC?.city || ''; break;
+            case 'currentState': value = addressC?.state || ''; break;
+            case 'currentPincode': value = addressC?.pincode || ''; break;
+            case 'currentCountry': value = addressC?.country || ''; break;
 
-              case 'currentLandmark': value = addressC?.landmark || ''; break;
-              case 'aadharNumber': value = identity.aadharNumber; break;
-              case 'panNumber': value = identity.panNumber; break;
-              case 'joiningDate': value = adminDetails.joiningDate ? new Date(adminDetails.joiningDate).toISOString().split('T')[0] : ''; break;
-              case 'employeeId': value = adminDetails.employeeId; break;
-              case 'adminType': value = adminDetails.adminType; break; 
-              case 'designation': value = adminDetails.designation || ''; break;
-              case 'department': value = adminDetails.department; break;
-              case 'permissions_userManagement': value = adminDetails.permissions?.userManagement ? 'TRUE' : 'FALSE'; break;
-              case 'permissions_academicManagement': value = adminDetails.permissions?.academicManagement ? 'TRUE' : 'FALSE'; break;
-              case 'permissions_feeManagement': value = adminDetails.permissions?.feeManagement ? 'TRUE' : 'FALSE'; break;
-              case 'permissions_reportGeneration': value = adminDetails.permissions?.reportGeneration ? 'TRUE' : 'FALSE'; break;
-              case 'permissions_systemSettings': value = adminDetails.permissions?.systemSettings ? 'TRUE' : 'FALSE'; break;
-              case 'permissions_schoolSettings': value = adminDetails.permissions?.schoolSettings ? 'TRUE' : 'FALSE'; break;
-              case 'permissions_dataExport': value = adminDetails.permissions?.dataExport ? 'TRUE' : 'FALSE'; break;
-              case 'permissions_auditLogs': value = adminDetails.permissions?.auditLogs ? 'TRUE' : 'FALSE'; break;
-              case 'bankName': value = adminDetails.bankDetails?.bankName; break; 
-              case 'accountNumber': value = adminDetails.bankDetails?.accountNumber; break; 
-              case 'bankIFSC': value = adminDetails.bankDetails?.ifscCode; break; 
-              case 'accountHolderName': value = adminDetails.bankDetails?.accountHolderName; break; 
-              case 'bankBranchName': value = adminDetails.bankDetails?.bankBranchName; break; 
-              case 'bloodGroup': value = personal.bloodGroup; break;
-              case 'nationality': value = personal.nationality; break;
-              case 'religion': value = personal.religion; break;
-              case 'isActive': value = user.isActive === false ? 'false' : 'true'; break;
-              case 'profileImage': value = user.profileImage || ''; break;
-              default: value = '';
-            }
-          } catch (e) { console.warn(`Error getting ${header} for admin ${user.userId}`); }
-          rowData[header] = value ?? '';
-        });
-        return headers.map(header => rowData[header]);
-     });
+            case 'currentLandmark': value = addressC?.landmark || ''; break;
+            case 'aadharNumber': value = identity.aadharNumber; break;
+            case 'panNumber': value = identity.panNumber; break;
+            case 'joiningDate': value = adminDetails.joiningDate ? new Date(adminDetails.joiningDate).toISOString().split('T')[0] : ''; break;
+            case 'employeeId': value = adminDetails.employeeId; break;
+            case 'adminType': value = adminDetails.adminType; break;
+            case 'designation': value = adminDetails.designation || ''; break;
+            case 'department': value = adminDetails.department; break;
+            case 'permissions_userManagement': value = adminDetails.permissions?.userManagement ? 'TRUE' : 'FALSE'; break;
+            case 'permissions_academicManagement': value = adminDetails.permissions?.academicManagement ? 'TRUE' : 'FALSE'; break;
+            case 'permissions_feeManagement': value = adminDetails.permissions?.feeManagement ? 'TRUE' : 'FALSE'; break;
+            case 'permissions_reportGeneration': value = adminDetails.permissions?.reportGeneration ? 'TRUE' : 'FALSE'; break;
+            case 'permissions_systemSettings': value = adminDetails.permissions?.systemSettings ? 'TRUE' : 'FALSE'; break;
+            case 'permissions_schoolSettings': value = adminDetails.permissions?.schoolSettings ? 'TRUE' : 'FALSE'; break;
+            case 'permissions_dataExport': value = adminDetails.permissions?.dataExport ? 'TRUE' : 'FALSE'; break;
+            case 'permissions_auditLogs': value = adminDetails.permissions?.auditLogs ? 'TRUE' : 'FALSE'; break;
+            case 'bankName': value = adminDetails.bankDetails?.bankName; break;
+            case 'accountNumber': value = adminDetails.bankDetails?.accountNumber; break;
+            case 'bankIFSC': value = adminDetails.bankDetails?.ifscCode; break;
+            case 'accountHolderName': value = adminDetails.bankDetails?.accountHolderName; break;
+            case 'bankBranchName': value = adminDetails.bankDetails?.bankBranchName; break;
+            case 'bloodGroup': value = personal.bloodGroup; break;
+            case 'nationality': value = personal.nationality; break;
+            case 'religion': value = personal.religion; break;
+            case 'isActive': value = user.isActive === false ? 'false' : 'true'; break;
+            case 'profileImage': value = user.profileImage || ''; break;
+            default: value = '';
+          }
+        } catch (e) { console.warn(`Error getting ${header} for admin ${user.userId}`); }
+        rowData[header] = value ?? '';
+      });
+      return headers.map(header => rowData[header]);
+    });
 
-  } else { 
-    console.warn(`generateCSV called with unsupported role: ${role}`); 
-    return ''; 
+  } else {
+    console.warn(`generateCSV called with unsupported role: ${role}`);
+    return '';
   }
 
   // --- This part remains the same ---
   const csvContent = [
-    headers.join(','), 
-    ...rows.map(row => row.map(cell => { 
-      const strCell = String(cell ?? ''); 
-      if (strCell.includes('"') || strCell.includes(',') || strCell.includes('\n') || strCell.includes('\r')) { 
-        return `"${strCell.replace(/"/g, '""')}"`; 
-      } 
-      return strCell; 
+    headers.join(','),
+    ...rows.map(row => row.map(cell => {
+      const strCell = String(cell ?? '');
+      if (strCell.includes('"') || strCell.includes(',') || strCell.includes('\n') || strCell.includes('\r')) {
+        return `"${strCell.replace(/"/g, '""')}"`;
+      }
+      return strCell;
     }).join(','))
   ].join('\n');
 

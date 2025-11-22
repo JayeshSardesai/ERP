@@ -1121,7 +1121,8 @@ const ManageUsers: React.FC = () => {
       bankAccountHolderName: '',
 
       // Medical Information
-      allergies: [],
+      allergies: '',
+      medicalConditions: '',
       chronicConditions: [],
       medications: [],
       doctorName: '',
@@ -6784,6 +6785,23 @@ const ManageUsers: React.FC = () => {
                           />
                         </div>
                         <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Previous School Name</label>
+                          <input
+                            type="text"
+                            value={formData.previousSchoolName || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              previousSchoolName: e.target.value,
+                              studentDetails: {
+                                ...formData.studentDetails,
+                                academic: { ...formData.studentDetails.academic, previousSchoolName: e.target.value }
+                              }
+                            })}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            placeholder="Enter previous school name"
+                          />
+                        </div>
+                        <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">School Admission Date *</label>
                           <input
                             type="date"
@@ -7815,12 +7833,22 @@ const ManageUsers: React.FC = () => {
                         <h5 className="text-md font-medium text-gray-800 mb-3">Medical Information</h5>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
+                            <textarea
+                              value={formData.allergies || ''}
+                              onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                              placeholder="Enter any allergies (comma-separated)"
+                              rows={2}
+                            />
+                          </div>
+                          <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Medical Conditions</label>
                             <textarea
                               value={formData.medicalConditions || ''}
                               onChange={(e) => setFormData({ ...formData, medicalConditions: e.target.value })}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                              placeholder="Enter any chronic medical conditions"
+                              placeholder="Enter any chronic medical conditions (comma-separated)"
                               rows={2}
                             />
                           </div>
