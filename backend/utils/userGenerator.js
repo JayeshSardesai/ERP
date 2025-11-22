@@ -224,7 +224,8 @@ class UserGenerator {
               enrollmentNo: userData.enrollmentNo || studentId, // <-- FIX
               tcNo: userData.tcNo || '', // <-- FIX
               previousSchool: {
-                name: userData.previousSchoolName || '', // <-- CRITICAL FIX: Capture previous school name
+                // CRITICAL FIX 1 (BE): Ensure this reads the flat field previousSchoolName from FE payload
+                name: userData.previousSchoolName || '',
                 board: '',
                 lastClass: '',
                 tcNumber: userData.tcNo || '',
@@ -279,9 +280,11 @@ class UserGenerator {
             },
 
             transport: {
-              mode: userData.transportMode || userData.mode || '', // <-- CRITICAL FIX: Prioritize transportMode
-              busRoute: userData.busRoute || '',                    // <-- FIX: Ensure busRoute is captured
-              pickupPoint: userData.pickupPoint || ''               // <-- FIX: Ensure pickupPoint is captured
+              // CRITICAL FIX 2 (BE): Ensure all transport fields read the flat fields from FE payload
+              mode: userData.transportMode || userData.mode || '',
+              busRoute: userData.busRoute || '',
+              pickupPoint: userData.pickupPoint || '',
+              // dropPoint, pickupTime, dropTime are not in the minimal FE form yet, keeping logic simple
             },
 
             financial: {
@@ -918,10 +921,9 @@ class UserGenerator {
           updateFields['parents.mother.qualification'] = updateData.motherEducation;
         }
         if (updateData.guardianName !== undefined && updateData.guardianName !== '') updateFields[`${rolePrefix}.guardianName`] = updateData.guardianName;
-        const guardianRelUpdate = updateData.guardianRelation || updateData.guardianRelationship || updateData.emergencyContactRelation;
-        if (guardianRelUpdate !== undefined && guardianRelUpdate !== '') {
-          // This targets the specific compatibility field in the MongoDB document
-          updateFields['parents.guardian.relationship'] = guardianRelUpdate;
+        const guardianRelUpdateModern = updateData.guardianRelation || updateData.guardianRelationship || updateData.emergencyContactRelation;
+        if (guardianRelUpdateModern !== undefined && guardianRelUpdateModern !== '') {
+          updateFields[`${rolePrefix}.family.guardian.relationship`] = guardianRelUpdateModern;
         }
         // Personal fields
         if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.personal.bloodGroup`] = updateData.bloodGroup;
@@ -930,20 +932,13 @@ class UserGenerator {
         if (updateData.religion !== undefined) updateFields[`${rolePrefix}.religion`] = updateData.religion;
         if (updateData.caste !== undefined || updateData.studentCaste !== undefined) updateFields[`${rolePrefix}.caste`] = updateData.caste || updateData.studentCaste;
         if (updateData.category !== undefined || updateData.socialCategory !== undefined) updateFields[`${rolePrefix}.category`] = updateData.category || updateData.socialCategory;
-        if (updateData.transportMode !== undefined) {
-          updateFields[`${rolePrefix}.transport.mode`] = updateData.transportMode;
-        } else if (updateData.mode !== undefined) {
-          // Fallback check
-          updateFields[`${rolePrefix}.transport.mode`] = updateData.mode;
-        }
-
-        if (updateData.busRoute !== undefined) {
-          updateFields[`${rolePrefix}.transport.busRoute`] = updateData.busRoute;
-        }
-
-        if (updateData.pickupPoint !== undefined) {
-          updateFields[`${rolePrefix}.transport.pickupPoint`] = updateData.pickupPoint;
-        }
+        const transportModeUpdate = updateData.transportMode || updateData.mode;
+        if (transportModeUpdate !== undefined) updateFields[`${rolePrefix}.transport.mode`] = transportModeUpdate;
+        if (updateData.busRoute !== undefined) updateFields[`${rolePrefix}.transport.busRoute`] = updateData.busRoute;
+        if (updateData.pickupPoint !== undefined) updateFields[`${rolePrefix}.transport.pickupPoint`] = updateData.pickupPoint;
+        if (updateData.dropPoint !== undefined) updateFields[`${rolePrefix}.transport.dropPoint`] = updateData.dropPoint; // New field for completeness
+        if (updateData.pickupTime !== undefined) updateFields[`${rolePrefix}.transport.pickupTime`] = updateData.pickupTime; // New field for completeness
+        if (updateData.dropTime !== undefined) updateFields[`${rolePrefix}.transport.dropTime`] = updateData.dropTime;   // New field for completeness
 
         // Banking fields
         if (updateData.bankName !== undefined) updateFields[`${rolePrefix}.bankName`] = updateData.bankName;
@@ -962,10 +957,9 @@ class UserGenerator {
         if (updateData.motherTongueOther !== undefined) updateFields[`${rolePrefix}.motherTongueOther`] = updateData.motherTongueOther;
 
         // Previous school
-        const prevSchoolName = updateData.previousSchoolName || updateData.previousSchool;
-        if (prevSchoolName !== undefined) {
-          // Target the deeply nested academic path for persistence
-          updateFields[`${rolePrefix}.academic.previousSchool.name`] = prevSchoolName;
+        const prevSchoolNameUpdate = updateData.previousSchoolName || updateData.previousSchool;
+        if (prevSchoolNameUpdate !== undefined) {
+          updateFields[`${rolePrefix}.academic.previousSchool.name`] = prevSchoolNameUpdate;
         }
         if (updateData.tcNumber !== undefined) updateFields[`${rolePrefix}.tcNumber`] = updateData.tcNumber;
       } else if (user.role === 'teacher') {

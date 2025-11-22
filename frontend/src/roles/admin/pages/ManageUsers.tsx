@@ -2762,7 +2762,7 @@ const ManageUsers: React.FC = () => {
         userData.motherNameEnglish = formData.motherName ? { firstName: formData.motherName, lastName: '' } : undefined;
         userData.motherMobileNo = formData.motherPhone || userData.studentDetails.family?.mother?.phone || '';
         userData.motherEmailId = formData.motherEmail || userData.studentDetails.family?.mother?.email || '';
-
+        userData.previousSchoolName = formData.studentDetails?.academic?.previousSchool?.name || formData.previousSchoolName || '';
         // Map transport fields for flat validation (backend may look for these at top level)
         userData.transportMode = formData.studentDetails?.transport?.mode || '';
         userData.busRoute = formData.studentDetails?.transport?.busRoute || '';
@@ -6804,10 +6804,21 @@ const ManageUsers: React.FC = () => {
                           <input
                             type="text"
                             value={formData.previousSchoolName || ''}
-                            onChange={(e) => setFormData({
-                              ...formData,
-                              previousSchoolName: e.target.value
-                            })}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              previousSchoolName: e.target.value,
+                              // CRITICAL FIX 2 (FE): Update the nested structure simultaneously
+                              studentDetails: {
+                                ...prev.studentDetails,
+                                academic: {
+                                  ...prev.studentDetails.academic,
+                                  previousSchool: {
+                                    ...prev.studentDetails.academic?.previousSchool,
+                                    name: e.target.value // Update nested object
+                                  }
+                                }
+                              }
+                            }))}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter previous school name"
                           />
@@ -7147,9 +7158,9 @@ const ManageUsers: React.FC = () => {
                           <input
                             type="text"
                             // CRITICAL FIX: Bind value to the main qualification field, falling back to education
-                            value={formData.fatherQualification || formData.fatherEducation || ''} 
-                            onChange={(e) => setFormData(prev => ({ 
-                              ...prev, 
+                            value={formData.fatherQualification || formData.fatherEducation || ''}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
                               fatherQualification: e.target.value, // Target the qualification field
                               fatherEducation: e.target.value,   // Target the education fallback field
                             }))}
@@ -7162,9 +7173,9 @@ const ManageUsers: React.FC = () => {
                           <input
                             type="text"
                             // CRITICAL FIX: Bind value to the main qualification field, falling back to education
-                            value={formData.motherQualification || formData.motherEducation || ''} 
-                            onChange={(e) => setFormData(prev => ({ 
-                              ...prev, 
+                            value={formData.motherQualification || formData.motherEducation || ''}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
                               motherQualification: e.target.value, // Target the qualification field
                               motherEducation: e.target.value,   // Target the education fallback field
                             }))}
@@ -7782,8 +7793,22 @@ const ManageUsers: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Previous School Name</label>
                             <input
                               type="text"
-                              value={formData.previousSchool || ''}
-                              onChange={(e) => setFormData({ ...formData, previousSchool: e.target.value })}
+                              value={formData.previousSchoolName || ''}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                previousSchoolName: e.target.value,
+                                // CRITICAL FIX 2 (FE): Update the nested structure simultaneously
+                                studentDetails: {
+                                  ...prev.studentDetails,
+                                  academic: {
+                                    ...prev.studentDetails.academic,
+                                    previousSchool: {
+                                      ...prev.studentDetails.academic?.previousSchool,
+                                      name: e.target.value // Update nested object
+                                    }
+                                  }
+                                }
+                              }))}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
                               placeholder="Enter previous school name"
                             />
@@ -7914,7 +7939,18 @@ const ManageUsers: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Transport Required</label>
                             <select
                               value={formData.transportMode || 'Own'}
-                              onChange={(e) => setFormData({ ...formData, transportMode: e.target.value })}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                transportMode: e.target.value,
+                                // CRITICAL FIX 3 (FE): Update the nested structure simultaneously
+                                studentDetails: {
+                                  ...prev.studentDetails,
+                                  transport: {
+                                    ...prev.studentDetails.transport,
+                                    mode: e.target.value
+                                  }
+                                }
+                              }))}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             >
                               <option value="Own">Own Transport</option>
@@ -7928,7 +7964,18 @@ const ManageUsers: React.FC = () => {
                             <input
                               type="text"
                               value={formData.busRoute || ''}
-                              onChange={(e) => setFormData({ ...formData, busRoute: e.target.value })}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                busRoute: e.target.value,
+                                // CRITICAL FIX 4 (FE): Update the nested structure simultaneously
+                                studentDetails: {
+                                  ...prev.studentDetails,
+                                  transport: {
+                                    ...prev.studentDetails.transport,
+                                    busRoute: e.target.value
+                                  }
+                                }
+                              }))}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
                               placeholder="Enter bus route (if applicable)"
                             />
@@ -7938,7 +7985,18 @@ const ManageUsers: React.FC = () => {
                             <input
                               type="text"
                               value={formData.pickupPoint || ''}
-                              onChange={(e) => setFormData({ ...formData, pickupPoint: e.target.value })}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                pickupPoint: e.target.value,
+                                // CRITICAL FIX 5 (FE): Update the nested structure simultaneously
+                                studentDetails: {
+                                  ...prev.studentDetails,
+                                  transport: {
+                                    ...prev.studentDetails.transport,
+                                    pickupPoint: e.target.value
+                                  }
+                                }
+                              }))}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
                               placeholder="Enter pickup point"
                             />
