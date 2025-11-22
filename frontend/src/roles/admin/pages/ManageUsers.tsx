@@ -1584,6 +1584,20 @@ const ManageUsers: React.FC = () => {
       drivingLicenseNumber: '',
       passportNumber: '',
 
+      // Transportation (top-level for form binding)
+      transportMode: '',
+      busRoute: '',
+      pickupPoint: '',
+      dropPoint: '',
+      pickupTime: '',
+      dropTime: '',
+
+      // Previous School (top-level for form binding)
+      previousSchoolName: '',
+
+      // Medical Information (top-level - note: allergies will be added below)
+      allergies: '',
+
       // Student Specific Fields (comprehensive Karnataka SATS)
       studentDetails: {
         // Academic Information
@@ -1700,7 +1714,7 @@ const ManageUsers: React.FC = () => {
         accountHolderName: '',
 
         // Medical Information
-        allergies: [],
+        allergies: '',
         chronicConditions: [],
         medications: [],
         doctorName: '',
@@ -6791,11 +6805,7 @@ const ManageUsers: React.FC = () => {
                             value={formData.previousSchoolName || ''}
                             onChange={(e) => setFormData({
                               ...formData,
-                              previousSchoolName: e.target.value,
-                              studentDetails: {
-                                ...formData.studentDetails,
-                                academic: { ...formData.studentDetails.academic, previousSchoolName: e.target.value }
-                              }
+                              previousSchoolName: e.target.value
                             })}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter previous school name"
@@ -7129,6 +7139,26 @@ const ManageUsers: React.FC = () => {
                             placeholder="12-digit Aadhaar number"
                             pattern="[0-9]{12}"
                             maxLength={12}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Father Qualification</label>
+                          <input
+                            type="text"
+                            value={formData.fatherQualification || ''}
+                            onChange={(e) => setFormData({ ...formData, fatherQualification: e.target.value })}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            placeholder="Enter father's qualification (e.g., B.A., M.Tech)"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Mother Qualification</label>
+                          <input
+                            type="text"
+                            value={formData.motherQualification || ''}
+                            onChange={(e) => setFormData({ ...formData, motherQualification: e.target.value })}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            placeholder="Enter mother's qualification (e.g., B.A., M.Sc)"
                           />
                         </div>
                       </div>
