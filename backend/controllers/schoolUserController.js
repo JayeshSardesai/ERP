@@ -991,7 +991,7 @@ exports.verifyAdminAndGetPasswords = async (req, res) => {
           email: teacher.email,
           name: teacher.name?.displayName || `${teacher.name?.firstName} ${teacher.name?.lastName}`,
           temporaryPassword: teacher.temporaryPassword || null
-        }
+        } // <-- FIXED: Closing curly brace added here
       });
     }
 
@@ -1020,5 +1020,6 @@ exports.verifyAdminAndGetPasswords = async (req, res) => {
     });
   }
 };
+
 
 module.exports = exports;
