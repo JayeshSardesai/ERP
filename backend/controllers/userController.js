@@ -89,9 +89,9 @@ const generateSequentialUserId = async (schoolCode, role) => {
   try {
     const result = await sequencesCollection.findOneAndUpdate(
       { _id: sequenceId },
-      { 
+      {
         $inc: { sequence_value: 1 },
-        $setOnInsert: { 
+        $setOnInsert: {
           schoolCode: upperSchoolCode,
           role: lowerRole,
           createdAt: new Date()
@@ -168,7 +168,7 @@ const previewNextUserId = async (schoolCode, role) => {
 
   // Just read the current value, don't increment
   const currentSequence = await sequencesCollection.findOne({ _id: sequenceId });
-  
+
   // If no sequence exists yet, the next one will be 1
   const nextSequenceValue = currentSequence ? (currentSequence.sequence_value + 1) : 1;
 
@@ -930,7 +930,7 @@ exports.createUserSimple = async (req, res) => {
       // Get school's current academic year from settings
       const schoolAcademicYear = school?.settings?.academicYear?.currentYear;
       const academicYearToUse = req.body.academicYear || schoolAcademicYear || getCurrentAcademicYear();
-      
+
       console.log(`📅 Setting student academic year: ${academicYearToUse} (from: ${req.body.academicYear ? 'request' : schoolAcademicYear ? 'school settings' : 'calculated'})`);
 
       baseDoc.studentDetails = {
@@ -1294,22 +1294,28 @@ exports.cleanupInactiveSessions = async (req, res) => {
 // Add a new student
 exports.addStudent = async (req, res) => {
   try {
-    const {
-      name,
-      email,
-      phone,
-      dateOfBirth,
-      gender,
-      class: className,
-      section,
-      address,
-      parentName,
-      parentEmail,
-      parentPhone,
-      parentOccupation,
-      parentRelationship,
-      academicYear
-    } = req.body;
+    // Extract comprehensive student data from request
+    const userData = req.body;
+
+    // Destructure basic fields with fallbacks
+    const name = userData.firstName && userData.lastName
+      ? `${userData.firstName}${userData.middleName ? ' ' + userData.middleName : ''} ${userData.lastName}`.trim()
+      : userData.name || '';
+    const email = userData.email || '';
+    const phone = userData.phone || userData.contact?.primaryPhone || '';
+    const dateOfBirth = userData.dateOfBirth || userData.studentDetails?.personal?.dateOfBirth || '';
+    const gender = userData.gender || userData.studentDetails?.personal?.gender || 'male';
+    const className = userData.class || userData.studentDetails?.academic?.currentClass || '';
+    const section = userData.section || userData.studentDetails?.academic?.currentSection || '';
+    const address = userData.address || userData.addressDetails?.permanent?.street || '';
+    const academicYear = userData.academicYear || userData.studentDetails?.academic?.academicYear || new Date().getFullYear().toString();
+
+    // Extract parent/family fields with comprehensive fallback chain
+    let parentName = userData.fatherName || userData.studentDetails?.family?.father?.name || userData.parentName || 'Parent';
+    let parentEmail = userData.studentDetails?.family?.father?.email || userData.parentEmail || '';
+    let parentPhone = userData.studentDetails?.family?.father?.phone || userData.parentPhone || userData.fatherPhone || userData.fatherMobileNo || '9999999999';
+    let parentOccupation = userData.studentDetails?.family?.father?.occupation || userData.parentOccupation || userData.fatherOccupation || '';
+    let parentRelationship = userData.parentRelationship || 'Father';
 
     // Check if user is admin or superadmin
     if (!['admin', 'superadmin'].includes(req.user.role)) {
@@ -1347,63 +1353,179 @@ exports.addStudent = async (req, res) => {
       return res.status(400).json({ message: 'Email already exists in this school' });
     }
 
+    // Try to find or reuse existing parent by email/phone match
+    let parent = null;
+    let parentPassword = null;  // Track parent password for response
+
+    if (parentEmail) {
+      parent = await SchoolUser.findOne({ email: parentEmail, role: 'parent' });
+    }
+    if (!parent && parentPhone) {
+      parent = await SchoolUser.findOne({ 'contact.primaryPhone': parentPhone, role: 'parent' });
+    }
+
+    let parentId;
+    if (parent) {
+      // Reuse existing parent
+      parentId = parent._id;
+      parentPassword = parent.temporaryPassword || 'Contact admin for password reset';
+      console.log(`[addStudent] Reused existing parent: ${parent.userId}`);
+    } else {
+      // Generate new parent ID and password
+      parentId = await generateSequentialUserId(schoolCode, 'parent');
+      parentPassword = generateParentPassword(parentName, parentId);
+      const parentHashedPassword = await hashPassword(parentPassword);
+
+      parent = new SchoolUser({
+        userId: parentId,
+        name: {
+          firstName: parentName.split(' ')[0] || 'Parent',
+          lastName: parentName.split(' ').slice(1).join(' ') || 'User',
+          displayName: parentName
+        },
+        email: parentEmail,
+        password: parentHashedPassword,
+        temporaryPassword: parentPassword,
+        passwordChangeRequired: true,
+        role: 'parent',
+        contact: {
+          primaryPhone: parentPhone || '9999999999'
+        },
+        address: {
+          permanent: {
+            street: 'Address not provided',
+            city: 'NA',
+            state: 'NA',
+            country: 'India',
+            pincode: '560001'
+          }
+        },
+        schoolId: targetSchoolId,
+        schoolCode,
+        parentDetails: {
+          parentId,
+          relationship: parentRelationship,
+          occupation: parentOccupation,
+          children: [] // Will be updated after student creation
+        },
+        schoolAccess: {
+          joinedDate: new Date(),
+          assignedBy: req.user._id,
+          status: 'active',
+          accessLevel: 'full'
+        },
+        auditTrail: {
+          createdBy: req.user._id,
+          createdAt: new Date()
+        }
+      });
+
+      await parent.save();
+    }
+
     // Generate student ID and password
     const studentId = await generateSequentialUserId(schoolCode, 'student');
     const password = generateStudentPassword(name, studentId);
     const hashedPassword = await hashPassword(password);
 
-    // Create parent user first
-    const parentId = await generateSequentialUserId(schoolCode, 'parent');
-    const parentPassword = generateParentPassword(parentName, parentId);
-    const parentHashedPassword = await hashPassword(parentPassword);
-
-    const parent = new SchoolUser({
-      userId: parentId,
-      name: {
-        firstName: parentName.split(' ')[0] || 'Parent',
-        lastName: parentName.split(' ').slice(1).join(' ') || 'User',
-        displayName: parentName
+    // Build comprehensive studentDetails from all available sources
+    const studentDetails = {
+      // Academic Information
+      academic: {
+        currentClass: className,
+        currentSection: section,
+        academicYear: academicYear,
+        admissionDate: userData.studentDetails?.academic?.admissionDate || new Date(),
+        admissionClass: userData.studentDetails?.academic?.admissionClass || className,
+        rollNumber: userData.studentDetails?.academic?.rollNumber || userData.rollNumber || `${className}${section}${Date.now().toString().slice(-3)}`,
+        admissionNumber: userData.admissionNumber || userData.studentDetails?.academic?.admissionNumber || '',
+        enrollmentNo: userData.enrollmentNo || userData.studentDetails?.academic?.enrollmentNo || '',
+        tcNo: userData.tcNo || userData.studentDetails?.academic?.tcNo || '',
+        previousSchool: userData.studentDetails?.academic?.previousSchool || {}
       },
-      email: parentEmail,
-      password: parentHashedPassword,
-      temporaryPassword: parentPassword,
-      passwordChangeRequired: true,
-      role: 'parent',
-      contact: {
-        primaryPhone: parentPhone || '9999999999'
+      // Personal Information
+      personal: {
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : new Date(),
+        placeOfBirth: userData.studentDetails?.personal?.placeOfBirth || '',
+        gender: gender,
+        bloodGroup: userData.studentDetails?.personal?.bloodGroup || userData.bloodGroup || '',
+        nationality: userData.nationality || userData.studentDetails?.personal?.nationality || 'Indian',
+        religion: userData.studentDetails?.personal?.religion || userData.religion || '',
+        caste: userData.studentDetails?.personal?.caste || userData.caste || userData.studentCaste || '',
+        category: userData.studentDetails?.personal?.category || userData.category || '',
+        motherTongue: userData.studentDetails?.personal?.motherTongue || userData.motherTongue || '',
+        ageYears: userData.studentDetails?.personal?.ageYears || 0,
+        ageMonths: userData.studentDetails?.personal?.ageMonths || 0,
+        studentAadhaar: userData.studentAadhaar || userData.studentDetails?.personal?.studentAadhaar || userData.aadharKPRNo || '',
+        studentCasteCertNo: userData.studentCasteCertNo || userData.studentDetails?.personal?.studentCasteCertNo || userData.studentCasteCertificateNo || '',
+        belongingToBPL: userData.studentDetails?.personal?.belongingToBPL || 'No',
+        disability: userData.studentDetails?.personal?.disability || 'Not Applicable',
+        isRTECandidate: userData.isRTECandidate || userData.studentDetails?.personal?.isRTECandidate || 'No'
       },
-      address: {
-        permanent: {
-          street: 'Address not provided',
-          city: 'NA',
-          state: 'NA',
-          country: 'India',
-          pincode: '560001'
+      // Family Information
+      family: {
+        father: {
+          name: userData.studentDetails?.family?.father?.name || userData.fatherName || parentName,
+          occupation: userData.studentDetails?.family?.father?.occupation || userData.fatherOccupation || '',
+          qualification: userData.studentDetails?.family?.father?.qualification || userData.fatherEducation || '',
+          phone: userData.studentDetails?.family?.father?.phone || userData.fatherPhone || userData.fatherMobileNo || '',
+          email: userData.studentDetails?.family?.father?.email || userData.fatherEmail || '',
+          aadhaar: userData.studentDetails?.family?.father?.aadhaar || userData.fatherAadhaar || '',
+          caste: userData.studentDetails?.family?.father?.caste || userData.fatherCaste || '',
+          casteCertNo: userData.studentDetails?.family?.father?.casteCertNo || userData.fatherCasteCertNo || '',
+          workAddress: userData.studentDetails?.family?.father?.workAddress || '',
+          annualIncome: userData.studentDetails?.family?.father?.annualIncome || 0
+        },
+        mother: {
+          name: userData.studentDetails?.family?.mother?.name || userData.motherName || '',
+          occupation: userData.studentDetails?.family?.mother?.occupation || userData.motherOccupation || '',
+          qualification: userData.studentDetails?.family?.mother?.qualification || userData.motherEducation || '',
+          phone: userData.studentDetails?.family?.mother?.phone || userData.motherPhone || userData.motherMobileNo || '',
+          email: userData.studentDetails?.family?.mother?.email || userData.motherEmail || '',
+          aadhaar: userData.studentDetails?.family?.mother?.aadhaar || userData.motherAadhaar || '',
+          caste: userData.studentDetails?.family?.mother?.caste || userData.motherCaste || '',
+          casteCertNo: userData.studentDetails?.family?.mother?.casteCertNo || userData.motherCasteCertNo || '',
+          workAddress: userData.studentDetails?.family?.mother?.workAddress || '',
+          annualIncome: userData.studentDetails?.family?.mother?.annualIncome || 0
+        },
+        guardian: userData.studentDetails?.family?.guardian || {}
+      },
+      // Transport Information
+      transport: {
+        mode: userData.studentDetails?.transport?.mode || userData.transportMode || '',
+        busRoute: userData.studentDetails?.transport?.busRoute || userData.busRoute || '',
+        pickupPoint: userData.studentDetails?.transport?.pickupPoint || userData.pickupPoint || '',
+        dropPoint: userData.studentDetails?.transport?.dropPoint || '',
+        pickupTime: userData.studentDetails?.transport?.pickupTime || '',
+        dropTime: userData.studentDetails?.transport?.dropTime || ''
+      },
+      // Financial Information
+      financial: {
+        feeCategory: userData.studentDetails?.financial?.feeCategory || '',
+        concessionType: userData.studentDetails?.financial?.concessionType || '',
+        concessionPercentage: userData.studentDetails?.financial?.concessionPercentage || 0,
+        scholarshipDetails: userData.studentDetails?.financial?.scholarshipDetails || {},
+        bankDetails: {
+          bankName: userData.bankName || userData.studentDetails?.financial?.bankDetails?.bankName || '',
+          accountNumber: userData.bankAccountNo || userData.studentDetails?.financial?.bankDetails?.accountNumber || '',
+          ifscCode: userData.bankIFSC || userData.studentDetails?.financial?.bankDetails?.ifscCode || '',
+          accountHolderName: userData.accountHolderName || userData.studentDetails?.financial?.bankDetails?.accountHolderName || ''
         }
       },
-      schoolId: targetSchoolId,
-      schoolCode,
-      parentDetails: {
-        parentId,
-        relationship: parentRelationship,
-        occupation: parentOccupation,
-        children: [] // Will be updated after student creation
+      // Medical Information
+      medical: {
+        allergies: userData.studentDetails?.medical?.allergies || [],
+        chronicConditions: userData.studentDetails?.medical?.chronicConditions || [],
+        medications: userData.studentDetails?.medical?.medications || [],
+        emergencyMedicalContact: userData.studentDetails?.medical?.emergencyMedicalContact || {},
+        lastMedicalCheckup: userData.studentDetails?.medical?.lastMedicalCheckup ? new Date(userData.studentDetails.medical.lastMedicalCheckup) : null
       },
-      schoolAccess: {
-        joinedDate: new Date(),
-        assignedBy: req.user._id,
-        status: 'active',
-        accessLevel: 'full'
-      },
-      auditTrail: {
-        createdBy: req.user._id,
-        createdAt: new Date()
-      }
-    });
+      // IDs and metadata
+      studentId: studentId,
+      parentId: parent._id
+    };
 
-    await parent.save();
-
-    // Create student user
+    // Create student user with comprehensive details
     const student = new SchoolUser({
       userId: studentId,
       name: {
@@ -1430,16 +1552,7 @@ exports.addStudent = async (req, res) => {
       },
       schoolId: targetSchoolId,
       schoolCode,
-      studentDetails: {
-        studentId,
-        rollNumber: `${className}${section}${Date.now().toString().slice(-3)}`,
-        class: className,
-        section,
-        dateOfBirth: new Date(dateOfBirth),
-        gender,
-        parentId: parent._id,
-        academicYear: academicYear || new Date().getFullYear().toString()
-      },
+      studentDetails: studentDetails,
       schoolAccess: {
         joinedDate: new Date(),
         assignedBy: req.user._id,
@@ -1463,10 +1576,12 @@ exports.addStudent = async (req, res) => {
     });
     await parent.save();
 
-    // Update school stats
-    await School.findByIdAndUpdate(targetSchoolId, {
-      $inc: { 'stats.totalStudents': 1, 'stats.totalParents': 1 }
-    });
+    // Update school stats - only increment parent count if new parent created
+    const statUpdate = { $inc: { 'stats.totalStudents': 1 } };
+    if (!parent || !parent._id) {
+      statUpdate.$inc['stats.totalParents'] = 1;
+    }
+    await School.findByIdAndUpdate(targetSchoolId, statUpdate);
 
     res.status(201).json({
       message: 'Student and parent added successfully',
@@ -1727,9 +1842,9 @@ exports.getUsersByRole = async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching users:', error);
     // Always return JSON, never HTML
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
-      message: 'Error fetching users', 
+      message: 'Error fetching users',
       error: error.message,
       data: [] // Return empty array on error for frontend compatibility
     });
@@ -2084,25 +2199,25 @@ exports.getUsersByRole = async (req, res) => {
       const normalizedFilterAY = normalizeAcademicYear(academicYear);
       console.log(`🔍 Filtering students by class: ${className}, section: ${section}, academicYear: ${academicYear} (normalized: ${normalizedFilterAY})`);
       console.log(`📚 Total students before filtering: ${users.length}`);
-      
+
       users = users.filter(user => {
         // Check multiple possible field structures for class and section
-        const userClass = user.academicInfo?.class || 
-                         user.studentDetails?.class || 
-                         user.studentDetails?.currentClass ||  // Added currentClass
-                         user.studentDetails?.academic?.currentClass ||
-                         user.class;
-        const userSection = user.academicInfo?.section || 
-                           user.studentDetails?.section || 
-                           user.studentDetails?.currentSection ||  // Added currentSection
-                           user.studentDetails?.academic?.currentSection ||
-                           user.section;
-        
+        const userClass = user.academicInfo?.class ||
+          user.studentDetails?.class ||
+          user.studentDetails?.currentClass ||  // Added currentClass
+          user.studentDetails?.academic?.currentClass ||
+          user.class;
+        const userSection = user.academicInfo?.section ||
+          user.studentDetails?.section ||
+          user.studentDetails?.currentSection ||  // Added currentSection
+          user.studentDetails?.academic?.currentSection ||
+          user.section;
+
         // Check academic year field - check multiple locations
-        const userAcademicYear = user.studentDetails?.academic?.academicYear || 
-                                user.studentDetails?.academicYear ||
-                                user.academicYear;
-        
+        const userAcademicYear = user.studentDetails?.academic?.academicYear ||
+          user.studentDetails?.academicYear ||
+          user.academicYear;
+
         const normalizedUserAY = normalizeAcademicYear(userAcademicYear);
 
         console.log(`👤 Student ${user.userId}: class=${userClass}, section=${userSection}, academicYear=${userAcademicYear} (normalized: ${normalizedUserAY}) | filtering by: ${normalizedFilterAY}`);
