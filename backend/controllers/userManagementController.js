@@ -59,11 +59,11 @@ exports.getAllUsers = async (req, res) => {
 
           // Check if fields are at root level
           console.log('\nChecking root-level fields:');
-          console.log('  fatherName:', sampleUser.fatherName);
-          console.log('  motherName:', sampleUser.motherName);
-          console.log('  dateOfBirth:', sampleUser.dateOfBirth);
-          console.log('  religion:', sampleUser.religion);
-          console.log('  caste:', sampleUser.caste);
+          console.log('  fatherName:', sampleUser.fatherName);
+          console.log('  motherName:', sampleUser.motherName);
+          console.log('  dateOfBirth:', sampleUser.dateOfBirth);
+          console.log('  religion:', sampleUser.religion);
+          console.log('  caste:', sampleUser.caste);
           console.log('=== END DEBUG ===\n');
         }
 
@@ -185,10 +185,8 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // --- OTHER FUNCTIONS (getUserById, createUser, updateUser, deleteUser, resetPassword) ---
-// Keep these functions exactly as they were in the previous correct version.
-// (Omitted here for brevity, but ensure they are present in your file)
 // Get user by ID
-exports.getUserById = async (req, res) => { /* ... Keep code from previous correct version ... */
+exports.getUserById = async (req, res) => {
   try {
     const { schoolCode, userId: userIdToFind } = req.params;
     const upperSchoolCode = schoolCode.toUpperCase();
@@ -236,7 +234,7 @@ exports.getUserById = async (req, res) => { /* ... Keep code from previous corre
 };
 
 // Create new user
-exports.createUser = async (req, res) => { /* ... Keep code from previous correct version ... */
+exports.createUser = async (req, res) => {
   try {
     const { schoolCode } = req.params;
     const userData = req.body;
@@ -320,54 +318,82 @@ exports.createUser = async (req, res) => { /* ... Keep code from previous correc
 
     // Add Role-Specific Details
     if (role === 'student') {
+      const newStudentDetails = userData.studentDetails || {};
+
+      // 💡 CRITICAL FIX: Use the complete incoming structure for all deeply nested fields
+      // The frontend sends the full structure in userData.studentDetails. 
+
+      const academic = newStudentDetails.academic || {};
+      const personal = newStudentDetails.personal || {};
+      const family = newStudentDetails.family || {};
+      const financial = newStudentDetails.financial || {};
+      const medical = newStudentDetails.medical || {};
+
       newUser.studentDetails = {
-        currentClass: userData.currentClass?.trim() || '',
-        currentSection: userData.currentSection?.trim() || '',
-        rollNumber: userData.rollNumber?.trim() || '',
-        admissionNumber: userData.admissionNumber?.trim() || '',
-        enrollmentNo: userData.enrollmentNo?.trim() || '', // <-- ADD THIS
-        tcNo: userData.tcNo?.trim() || '', // <-- ADD THIS
-        admissionDate: userData.admissionDate ? new Date(userData.admissionDate) : null,
-        dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
-        gender: userData.gender?.toLowerCase() || 'male',
-        fatherName: userData.fatherName?.trim() || '',
-        fatherPhone: userData.fatherPhone?.trim() || '',
-        motherName: userData.motherName?.trim() || '',
-        motherPhone: userData.motherPhone?.trim() || '',
-        bloodGroup: userData.bloodGroup?.trim() || '',
-        nationality: userData.nationality || 'Indian',
-        religion: userData.religion?.trim() || '',
-        caste: userData.caste?.trim() || '',
-        category: userData.category?.trim() || '',
-        fatherEmail: userData.fatherEmail?.trim().toLowerCase() || '',
-        fatherOccupation: userData.fatherOccupation?.trim() || '',
-        fatherAnnualIncome: userData.fatherAnnualIncome || 0,
-        motherEmail: userData.motherEmail?.trim().toLowerCase() || '',
-        motherOccupation: userData.motherOccupation?.trim() || '',
-        motherAnnualIncome: userData.motherAnnualIncome || 0,
-        guardianName: userData.guardianName?.trim() || '',
-        guardianRelationship: userData.guardianRelationship?.trim() || '',
-        guardianPhone: userData.guardianPhone?.trim() || '',
-        guardianEmail: userData.guardianEmail?.trim().toLowerCase() || '',
-        previousSchoolName: userData.previousSchoolName?.trim() || '',
-        previousBoard: userData.previousBoard?.trim() || '',
-        lastClass: userData.lastClass?.trim() || '',
-        tcNumber: userData.tcNumber?.trim() || '',
-        transportMode: userData.transportMode?.trim() || '',
-        busRoute: userData.busRoute?.trim() || '',
-        pickupPoint: userData.pickupPoint?.trim() || '',
-        feeCategory: userData.feeCategory?.trim() || '',
-        concessionType: userData.concessionType?.trim() || '',
-        concessionPercentage: userData.concessionPercentage || 0,
-        bankName: userData.bankName?.trim() || '',
-        bankAccountNo: userData.bankAccountNo?.trim() || '',
-        bankIFSC: userData.bankIFSC?.trim() || '',
-        accountHolderName: userData.accountHolderName?.trim() || '', // <-- ADD THIS
-        studentAadhaar: userData.studentAadhaar?.trim() || '',
-        studentCasteCertNo: userData.studentCasteCertNo?.trim() || '',
+        // Start with the full, deeply nested structure created by the frontend
+        ...newStudentDetails,
+
+        // Re-process Date objects from string format in nested fields for MongoDB
+        academic: {
+          ...academic,
+          admissionDate: academic.admissionDate ? new Date(academic.admissionDate) : (userData.admissionDate ? new Date(userData.admissionDate) : null),
+          previousSchool: {
+            ...(academic.previousSchool || {}),
+            tcDate: academic.previousSchool?.tcDate ? new Date(academic.previousSchool.tcDate) : null,
+          }
+        },
+        personal: {
+          ...personal,
+          dateOfBirth: personal.dateOfBirth ? new Date(personal.dateOfBirth) : (userData.dateOfBirth ? new Date(userData.dateOfBirth) : null),
+        },
+        medical: {
+          ...medical,
+          lastMedicalCheckup: medical.lastMedicalCheckup ? new Date(medical.lastMedicalCheckup) : null,
+          // Ensure allergies/chronicConditions/medications are arrays
+          allergies: Array.isArray(medical.allergies) ? medical.allergies : [],
+          chronicConditions: Array.isArray(medical.chronicConditions) ? medical.chronicConditions : [],
+          medications: Array.isArray(medical.medications) ? medical.medications : [],
+        },
+
+        // --- Legacy Flat/Redundant Fields on studentDetails for Backwards Compatibility/Quick Access ---
+        // These ensure the studentDetails object has the expected top-level fields 
+        // for compatibility with old code that expects redundancy (as seen in the sample data).
+        studentId: userData.userId,
+        admissionNumber: (academic.admissionNumber || userData.admissionNumber)?.trim() || '',
+        rollNumber: (academic.rollNumber || userData.rollNumber)?.trim() || '',
+        currentClass: (academic.currentClass || userData.class)?.trim() || '',
+        currentSection: (academic.currentSection || userData.section)?.trim() || '',
+        enrollmentNo: (academic.enrollmentNo || userData.enrollmentNo)?.trim() || '',
+        tcNo: (academic.tcNo || userData.tcNo)?.trim() || '',
+
+        // Personal
+        dateOfBirth: (personal.dateOfBirth ? new Date(personal.dateOfBirth) : (userData.dateOfBirth ? new Date(userData.dateOfBirth) : null)), // Redundant date field for quick access
+        gender: (personal.gender || userData.gender)?.toLowerCase() || 'male',
+        bloodGroup: (personal.bloodGroup || userData.bloodGroup)?.trim() || '',
+        nationality: (personal.nationality || userData.nationality) || 'Indian',
+        religion: (personal.religion || userData.religion)?.trim() || '',
+        caste: (personal.caste || userData.caste)?.trim() || '',
+        category: (personal.category || userData.category)?.trim() || '',
+        motherTongue: (personal.motherTongue || userData.motherTongue)?.trim() || '',
+        studentAadhaar: (personal.studentAadhaar || userData.studentAadhaar)?.trim() || '',
+        studentCasteCertNo: (personal.studentCasteCertNo || userData.studentCasteCertNo)?.trim() || '',
+
+        // Family
+        fatherName: (family.father?.name || userData.fatherName)?.trim() || '',
+        fatherPhone: (family.father?.phone || userData.fatherPhone)?.trim() || '',
+        motherName: (family.mother?.name || userData.motherName)?.trim() || '',
+        motherPhone: (family.mother?.phone || userData.motherPhone)?.trim() || '',
+
+        // Financial/Banking
+        bankName: (financial.bankDetails?.bankName || userData.bankName)?.trim() || '',
+        bankAccountNo: (financial.bankDetails?.accountNumber || userData.bankAccountNo)?.trim() || '',
+        bankIFSC: (financial.bankDetails?.ifscCode || userData.bankIFSC)?.trim() || '',
+        accountHolderName: (financial.bankDetails?.accountHolderName || userData.accountHolderName)?.trim() || '',
+
+        // Medical/Special Needs (Mapped from flat keys on request body for now, which match frontend flat keys)
         medicalConditions: userData.medicalConditions?.trim() || '',
         allergies: userData.allergies?.trim() || '',
-        specialNeeds: userData.specialNeeds?.trim() || ''
+        specialNeeds: userData.specialNeeds?.trim() || '',
       };
     }
     else if (role === 'teacher') {
@@ -408,7 +434,7 @@ exports.createUser = async (req, res) => { /* ... Keep code from previous correc
         motherTongue: '',
         motherTongueOther: '',
         aadhaar: newUser.identity.aadharNumber, // Use value from root identity
-        pan: newUser.identity.panNumber,     // Use value from root identity
+        pan: newUser.identity.panNumber,     // Use value from root identity
         disability: 'Not Applicable',
         disabilityOther: ''
       };
@@ -458,10 +484,10 @@ exports.createUser = async (req, res) => { /* ... Keep code from previous correc
 };
 
 // Update user
-exports.updateUser = async (req, res) => { /* ... Keep code from previous correct version ... */
+exports.updateUser = async (req, res) => {
   try {
     const { schoolCode, userId: userIdToUpdate } = req.params;
-    const updateData = req.body;
+    let updateData = req.body;
     const updatingUserId = req.user?._id;
     const upperSchoolCode = schoolCode.toUpperCase();
 
@@ -514,13 +540,15 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
 
     if (!user) { return res.status(404).json({ success: false, message: 'User not found' }); }
 
-    const updateFields = {};
+    let updateFields = {};
     let changesMade = false;
 
+    // --- CORRECTION APPLIED HERE ---
     const setField = (fieldPath, newValue) => {
       let currentValue = user;
       try { fieldPath.split('.').forEach(part => { currentValue = currentValue?.[part]; }); }
       catch (e) { currentValue = undefined; }
+      // --- END CORRECTION ---
 
       const processedNewValue = typeof newValue === 'string' ? newValue.trim() : newValue;
       const processedCurrentValue = currentValue === null || currentValue === undefined ? currentValue : (typeof currentValue === 'string' ? currentValue.trim() : currentValue);
@@ -535,6 +563,19 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
         }
       }
     };
+
+    // --- FIX FOR MULTIPART REQUESTS ---
+    // If req.file exists, req.body.userData is the stringified JSON.
+    if (req.file && updateData.userData) {
+      try {
+        updateData = JSON.parse(updateData.userData);
+        console.log('✅ Parsed stringified userData from multipart/form-data.');
+      } catch (e) {
+        console.error('❌ Failed to parse userData string from multipart request:', e);
+        // Fallback to original updateData, which might be incomplete if it was supposed to contain the form fields.
+      }
+    }
+    // --- END FIX FOR MULTIPART REQUESTS ---
 
     // Update basic info
     if (updateData.firstName !== undefined || updateData.lastName !== undefined || updateData.middleName !== undefined) {
@@ -577,10 +618,10 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
     if (updateData.bloodGroup !== undefined) {
       // Update studentDetails.personal.bloodGroup using dot notation
       updateFields['studentDetails.personal.bloodGroup'] = updateData.bloodGroup;
-      
+
       // Also update the root personal.bloodGroup for backward compatibility
       updateFields['personal.bloodGroup'] = updateData.bloodGroup;
-      
+
       changesMade = true;
       console.log(`🩸 Updated blood group to: ${updateData.bloodGroup}`);
     }
@@ -728,33 +769,135 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
     // --- Update Role-Specific Details using setField ---
     const rolePrefix = `${user.role}Details`;
     if (user.role === 'student') {
-      // Academic Information
-      if (updateData.currentClass !== undefined || updateData.class !== undefined) setField(`${rolePrefix}.currentClass`, updateData.currentClass || updateData.class);
-      if (updateData.currentSection !== undefined || updateData.section !== undefined) setField(`${rolePrefix}.currentSection`, updateData.currentSection || updateData.section);
-      if (updateData.rollNumber !== undefined) setField(`${rolePrefix}.rollNumber`, updateData.rollNumber);
-      if (updateData.admissionNumber !== undefined) setField(`${rolePrefix}.admissionNumber`, updateData.admissionNumber);
-      if (updateData.admissionDate !== undefined) setField(`${rolePrefix}.admissionDate`, updateData.admissionDate ? new Date(updateData.admissionDate) : null);
-      if (updateData.dateOfBirth !== undefined) setField(`${rolePrefix}.dateOfBirth`, updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null);
-      if (updateData.gender !== undefined) setField(`${rolePrefix}.gender`, updateData.gender);
-      if (updateData.academicYear !== undefined) setField(`${rolePrefix}.academicYear`, updateData.academicYear);
+      const incomingStudentDetails = updateData.studentDetails || {};
+
+      // Helper function to safely set nested student details fields
+      const setNestedStudentField = (path, newValue, isDate = false) => {
+        const fullPath = `${rolePrefix}.${path}`;
+        const finalValue = isDate && newValue ? new Date(newValue) : newValue;
+
+        // Deep check against existing user object for modification
+        let currentValue = user;
+        try { fullPath.split('.').forEach(part => { currentValue = currentValue?.[part]; }); }
+        catch (e) { currentValue = undefined; }
+
+        // Normalize current date value for comparison
+        let processedCurrentValue = currentValue;
+        if (isDate && currentValue instanceof Date) {
+          processedCurrentValue = currentValue.toISOString().split('T')[0]; // Convert existing Date to YYYY-MM-DD string for comparison
+          if (finalValue instanceof Date) {
+            // Compare two Date objects by their time value
+            if (finalValue.getTime() === currentValue.getTime()) return;
+          } else if (!finalValue && !currentValue) {
+            return; // Both null/undefined
+          }
+        } else {
+          if (processedCurrentValue === (typeof finalValue === 'string' ? finalValue.trim() : finalValue)) return;
+        }
+
+        // If new value is provided in the updateData (even if empty string/null) and it's different or currently missing, set it.
+        if (finalValue !== undefined && JSON.stringify(finalValue) !== JSON.stringify(currentValue)) {
+          updateFields[fullPath] = finalValue;
+          changesMade = true;
+        }
+      };
+
+      // If the update data includes the full nested studentDetails object (which it should from frontend)
+      if (incomingStudentDetails.academic) {
+        setNestedStudentField('academic.currentClass', incomingStudentDetails.academic.currentClass || updateData.class);
+        setNestedStudentField('academic.currentSection', incomingStudentDetails.academic.currentSection || updateData.section);
+        setNestedStudentField('academic.rollNumber', incomingStudentDetails.academic.rollNumber || updateData.rollNumber);
+        setNestedStudentField('academic.admissionNumber', incomingStudentDetails.academic.admissionNumber || updateData.admissionNumber);
+        setNestedStudentField('academic.enrollmentNo', incomingStudentDetails.academic.enrollmentNo || updateData.enrollmentNo);
+        setNestedStudentField('academic.tcNo', incomingStudentDetails.academic.tcNo || updateData.tcNo);
+        setNestedStudentField('academic.academicYear', incomingStudentDetails.academic.academicYear || updateData.academicYear);
+        setNestedStudentField('academic.admissionDate', incomingStudentDetails.academic.admissionDate || updateData.admissionDate, true);
+      } else {
+        // Fallback for flat fields if nested object is missing (legacy)
+        if (updateData.class !== undefined) setField(`${rolePrefix}.currentClass`, updateData.class);
+        if (updateData.section !== undefined) setField(`${rolePrefix}.currentSection`, updateData.section);
+        if (updateData.rollNumber !== undefined) setField(`${rolePrefix}.rollNumber`, updateData.rollNumber);
+        if (updateData.admissionNumber !== undefined) setField(`${rolePrefix}.admissionNumber`, updateData.admissionNumber);
+        if (updateData.enrollmentNo !== undefined) setField(`${rolePrefix}.enrollmentNo`, updateData.enrollmentNo);
+        if (updateData.tcNo !== undefined) setField(`${rolePrefix}.tcNo`, updateData.tcNo);
+        if (updateData.academicYear !== undefined) setField(`${rolePrefix}.academicYear`, updateData.academicYear);
+        if (updateData.admissionDate !== undefined) setField(`${rolePrefix}.admissionDate`, updateData.admissionDate ? new Date(updateData.admissionDate) : null);
+      }
+
+      if (incomingStudentDetails.personal) {
+        setNestedStudentField('personal.dateOfBirth', incomingStudentDetails.personal.dateOfBirth || updateData.dateOfBirth, true);
+        setNestedStudentField('personal.gender', incomingStudentDetails.personal.gender || updateData.gender);
+        setNestedStudentField('personal.bloodGroup', incomingStudentDetails.personal.bloodGroup || updateData.bloodGroup);
+        setNestedStudentField('personal.nationality', incomingStudentDetails.personal.nationality || updateData.nationality);
+        setNestedStudentField('personal.religion', incomingStudentDetails.personal.religion || updateData.religion);
+        setNestedStudentField('personal.caste', incomingStudentDetails.personal.caste || updateData.caste || updateData.studentCaste);
+        setNestedStudentField('personal.category', incomingStudentDetails.personal.category || updateData.category || updateData.socialCategory);
+        setNestedStudentField('personal.motherTongue', incomingStudentDetails.personal.motherTongue || updateData.motherTongue);
+        setNestedStudentField('personal.studentAadhaar', incomingStudentDetails.personal.studentAadhaar || updateData.studentAadhaar);
+        setNestedStudentField('personal.studentCasteCertNo', incomingStudentDetails.personal.studentCasteCertNo || updateData.studentCasteCertNo);
+        setNestedStudentField('personal.disability', incomingStudentDetails.personal.disability || updateData.disability);
+        setNestedStudentField('personal.isRTECandidate', incomingStudentDetails.personal.isRTECandidate || updateData.isRTECandidate);
+        // Redundant field set by updateUser (kept for full compatibility with sample data, as bloodGroup is already handled above)
+        if (updateData.bloodGroup !== undefined) setField(`${rolePrefix}.bloodGroup`, updateData.bloodGroup);
+      } else {
+        // Fallback for flat fields if nested object is missing (legacy)
+        if (updateData.dateOfBirth !== undefined) setField(`${rolePrefix}.dateOfBirth`, updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null);
+        if (updateData.gender !== undefined) setField(`${rolePrefix}.gender`, updateData.gender);
+        if (updateData.nationality !== undefined) setField(`${rolePrefix}.nationality`, updateData.nationality);
+        if (updateData.religion !== undefined) setField(`${rolePrefix}.religion`, updateData.religion);
+        if (updateData.caste !== undefined || updateData.studentCaste !== undefined) setField(`${rolePrefix}.caste`, updateData.caste || updateData.studentCaste);
+        if (updateData.category !== undefined || updateData.socialCategory !== undefined) setField(`${rolePrefix}.category`, updateData.category || updateData.socialCategory);
+        if (updateData.motherTongue !== undefined) setField(`${rolePrefix}.motherTongue`, updateData.motherTongue);
+        if (updateData.studentAadhaar !== undefined) setField(`${rolePrefix}.studentAadhaar`, updateData.studentAadhaar);
+        if (updateData.studentCasteCertNo !== undefined) setField(`${rolePrefix}.studentCasteCertNo`, updateData.studentCasteCertNo);
+        if (updateData.disability !== undefined) setField(`${rolePrefix}.disability`, updateData.disability);
+        if (updateData.isRTECandidate !== undefined) setField(`${rolePrefix}.isRTECandidate`, updateData.isRTECandidate);
+        // Redundant field set by updateUser
+        if (updateData.bloodGroup !== undefined) setField(`${rolePrefix}.bloodGroup`, updateData.bloodGroup);
+      }
 
       // Family Information
-      if (updateData.fatherName !== undefined) setField(`${rolePrefix}.fatherName`, updateData.fatherName);
-      if (updateData.fatherPhone !== undefined) setField(`${rolePrefix}.fatherPhone`, updateData.fatherPhone);
-      if (updateData.fatherEmail !== undefined) setField(`${rolePrefix}.fatherEmail`, updateData.fatherEmail);
-      if (updateData.fatherOccupation !== undefined) setField(`${rolePrefix}.fatherOccupation`, updateData.fatherOccupation);
-      if (updateData.motherName !== undefined) setField(`${rolePrefix}.motherName`, updateData.motherName);
-      if (updateData.motherPhone !== undefined) setField(`${rolePrefix}.motherPhone`, updateData.motherPhone);
-      if (updateData.motherEmail !== undefined) setField(`${rolePrefix}.motherEmail`, updateData.motherEmail);
-      if (updateData.motherOccupation !== undefined) setField(`${rolePrefix}.motherOccupation`, updateData.motherOccupation);
-      if (updateData.guardianName !== undefined) setField(`${rolePrefix}.guardianName`, updateData.guardianName);
-      if (updateData.guardianRelation !== undefined || updateData.guardianRelationship !== undefined) setField(`${rolePrefix}.guardianRelationship`, updateData.guardianRelation || updateData.guardianRelationship);
+      if (incomingStudentDetails.family?.father) {
+        setNestedStudentField('family.father.name', incomingStudentDetails.family.father.name || updateData.fatherName);
+        setNestedStudentField('family.father.phone', incomingStudentDetails.family.father.phone || updateData.fatherPhone);
+        setNestedStudentField('family.father.email', incomingStudentDetails.family.father.email || updateData.fatherEmail);
+        setNestedStudentField('family.father.occupation', incomingStudentDetails.family.father.occupation || updateData.fatherOccupation);
+        // ... other father fields
+      } else {
+        // Fallback for flat fields if nested object is missing (legacy)
+        if (updateData.fatherName !== undefined) setField(`${rolePrefix}.fatherName`, updateData.fatherName);
+        if (updateData.fatherPhone !== undefined) setField(`${rolePrefix}.fatherPhone`, updateData.fatherPhone);
+        if (updateData.fatherEmail !== undefined) setField(`${rolePrefix}.fatherEmail`, updateData.fatherEmail);
+        if (updateData.fatherOccupation !== undefined) setField(`${rolePrefix}.fatherOccupation`, updateData.fatherOccupation);
+      }
 
-      // Personal Information
-      if (updateData.nationality !== undefined) setField(`${rolePrefix}.nationality`, updateData.nationality);
-      if (updateData.religion !== undefined) setField(`${rolePrefix}.religion`, updateData.religion);
-      if (updateData.caste !== undefined || updateData.studentCaste !== undefined) setField(`${rolePrefix}.caste`, updateData.caste || updateData.studentCaste);
-      if (updateData.category !== undefined || updateData.socialCategory !== undefined) setField(`${rolePrefix}.category`, updateData.category || updateData.socialCategory);
+      if (incomingStudentDetails.family?.mother) {
+        setNestedStudentField('family.mother.name', incomingStudentDetails.family.mother.name || updateData.motherName);
+        setNestedStudentField('family.mother.phone', incomingStudentDetails.family.mother.phone || updateData.motherPhone);
+        setNestedStudentField('family.mother.email', incomingStudentDetails.family.mother.email || updateData.motherEmail);
+        setNestedStudentField('family.mother.occupation', incomingStudentDetails.family.mother.occupation || updateData.motherOccupation);
+        // ... other mother fields
+      } else {
+        // Fallback for flat fields if nested object is missing (legacy)
+        if (updateData.motherName !== undefined) setField(`${rolePrefix}.motherName`, updateData.motherName);
+        if (updateData.motherPhone !== undefined) setField(`${rolePrefix}.motherPhone`, updateData.motherPhone);
+        if (updateData.motherEmail !== undefined) setField(`${rolePrefix}.motherEmail`, updateData.motherEmail);
+        if (updateData.motherOccupation !== undefined) setField(`${rolePrefix}.motherOccupation`, updateData.motherOccupation);
+      }
+
+      // Banking Information
+      if (incomingStudentDetails.financial?.bankDetails) {
+        setNestedStudentField('financial.bankDetails.bankName', incomingStudentDetails.financial.bankDetails.bankName || updateData.bankName);
+        setNestedStudentField('financial.bankDetails.accountNumber', incomingStudentDetails.financial.bankDetails.accountNumber || updateData.bankAccountNo || updateData.bankAccountNumber);
+        setNestedStudentField('financial.bankDetails.ifscCode', incomingStudentDetails.financial.bankDetails.ifscCode || updateData.bankIFSC || updateData.ifscCode);
+        setNestedStudentField('financial.bankDetails.accountHolderName', incomingStudentDetails.financial.bankDetails.accountHolderName || updateData.accountHolderName);
+      } else {
+        // Fallback for flat fields if nested object is missing (legacy)
+        if (updateData.bankName !== undefined) setField(`${rolePrefix}.bankName`, updateData.bankName);
+        if (updateData.bankAccountNo !== undefined || updateData.bankAccountNumber !== undefined) setField(`${rolePrefix}.bankAccountNo`, updateData.bankAccountNo || updateData.bankAccountNumber);
+        if (updateData.ifscCode !== undefined || updateData.bankIFSC !== undefined) setField(`${rolePrefix}.bankIFSC`, updateData.ifscCode || updateData.bankIFSC);
+        if (updateData.accountHolderName !== undefined) setField(`${rolePrefix}.accountHolderName`, updateData.accountHolderName);
+      }
 
       // Previous School
       if (updateData.previousSchoolName !== undefined) setField(`${rolePrefix}.previousSchoolName`, updateData.previousSchoolName);
@@ -767,21 +910,12 @@ exports.updateUser = async (req, res) => { /* ... Keep code from previous correc
       if (updateData.busRoute !== undefined) setField(`${rolePrefix}.busRoute`, updateData.busRoute);
       if (updateData.pickupPoint !== undefined) setField(`${rolePrefix}.pickupPoint`, updateData.pickupPoint);
 
-      // Banking
-      if (updateData.bankName !== undefined) setField(`${rolePrefix}.bankName`, updateData.bankName);
-      if (updateData.bankAccountNo !== undefined || updateData.bankAccountNumber !== undefined) setField(`${rolePrefix}.bankAccountNo`, updateData.bankAccountNo || updateData.bankAccountNumber);
-      if (updateData.ifscCode !== undefined || updateData.bankIFSC !== undefined) setField(`${rolePrefix}.bankIFSC`, updateData.ifscCode || updateData.bankIFSC);
-
       // Medical & Special Needs
       if (updateData.medicalConditions !== undefined) setField(`${rolePrefix}.medicalConditions`, updateData.medicalConditions);
       if (updateData.allergies !== undefined) setField(`${rolePrefix}.allergies`, updateData.allergies);
       if (updateData.specialNeeds !== undefined) setField(`${rolePrefix}.specialNeeds`, updateData.specialNeeds);
       if (updateData.disability !== undefined) setField(`${rolePrefix}.disability`, updateData.disability);
       if (updateData.isRTECandidate !== undefined) setField(`${rolePrefix}.isRTECandidate`, updateData.isRTECandidate);
-
-      // Mother Tongue
-      if (updateData.motherTongue !== undefined) setField(`${rolePrefix}.motherTongue`, updateData.motherTongue);
-      if (updateData.motherTongueOther !== undefined) setField(`${rolePrefix}.motherTongueOther`, updateData.motherTongueOther);
     } else if (user.role === 'teacher') {
       if (updateData.qualification !== undefined) setField(`${rolePrefix}.qualification`, updateData.qualification);
       if (updateData.experience !== undefined) setField(`${rolePrefix}.experience`, updateData.experience);
@@ -943,7 +1077,7 @@ exports.deleteUser = async (req, res) => {
 };
 
 // Reset user password
-exports.resetPassword = async (req, res) => { /* ... Keep code from previous correct version ... */
+exports.resetPassword = async (req, res) => {
   try {
     const { schoolCode, userId: userIdToReset } = req.params;
     const resettingAdminId = req.user?._id;
@@ -957,7 +1091,7 @@ exports.resetPassword = async (req, res) => { /* ... Keep code from previous cor
     if (!connection) return res.status(500).json({ success: false, message: 'Database connection object invalid' });
     const db = connection.db;
 
-    const collectionsToSearch = ['admins', 'teachers', 'parents']; // Exclude students
+    const collectionsToSearch = ['admins', 'teachers', 'students', 'parents']; // Exclude students
     let user = null;
     let collectionName = null;
 
