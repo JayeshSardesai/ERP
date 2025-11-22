@@ -224,9 +224,9 @@ class UserGenerator {
               enrollmentNo: userData.enrollmentNo || studentId, // <-- FIX
               tcNo: userData.tcNo || '', // <-- FIX
               previousSchool: {
-                name: userData.previousSchoolName || '', // <-- CRITICAL FIX: Read from form data
+                name: userData.previousSchoolName || '', // <-- CRITICAL FIX: Capture previous school name
                 board: '',
-                lastClass: userData.lastClass || '',
+                lastClass: '',
                 tcNumber: userData.tcNo || '',
                 reasonForTransfer: ''
               }
@@ -279,10 +279,9 @@ class UserGenerator {
             },
 
             transport: {
-              // CRITICAL FIX: Check for specific field name (transportMode) first
-              mode: userData.transportMode || userData.mode || '',
-              busRoute: userData.busRoute || '',       // <-- CRITICAL FIX
-              pickupPoint: userData.pickupPoint || ''  // <-- CRITICAL FIX
+              mode: userData.transportMode || userData.mode || '', // <-- CRITICAL FIX: Prioritize transportMode
+              busRoute: userData.busRoute || '',                    // <-- FIX: Ensure busRoute is captured
+              pickupPoint: userData.pickupPoint || ''               // <-- FIX: Ensure pickupPoint is captured
             },
 
             financial: {
@@ -934,12 +933,14 @@ class UserGenerator {
         if (updateData.transportMode !== undefined) {
           updateFields[`${rolePrefix}.transport.mode`] = updateData.transportMode;
         } else if (updateData.mode !== undefined) {
-          updateFields[`${rolePrefix}.transport.mode`] = updateData.mode; // Fallback check
+          // Fallback check
+          updateFields[`${rolePrefix}.transport.mode`] = updateData.mode;
         }
 
         if (updateData.busRoute !== undefined) {
           updateFields[`${rolePrefix}.transport.busRoute`] = updateData.busRoute;
         }
+
         if (updateData.pickupPoint !== undefined) {
           updateFields[`${rolePrefix}.transport.pickupPoint`] = updateData.pickupPoint;
         }
