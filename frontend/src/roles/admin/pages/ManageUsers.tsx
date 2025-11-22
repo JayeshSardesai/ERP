@@ -1597,6 +1597,7 @@ const ManageUsers: React.FC = () => {
 
       // Medical Information (top-level - note: allergies will be added below)
       allergies: '',
+      medicalConditions: '',
 
       // Student Specific Fields (comprehensive Karnataka SATS)
       studentDetails: {
