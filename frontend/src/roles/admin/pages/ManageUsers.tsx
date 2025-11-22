@@ -2524,12 +2524,12 @@ const ManageUsers: React.FC = () => {
             tcNo: formData.studentDetails?.tcNo || formData.tcNo || '',
 
             previousSchool: {
-              name: formData.studentDetails?.previousSchoolName || formData.previousSchool || '',
-              board: formData.studentDetails?.previousBoard || '',
-              lastClass: formData.studentDetails?.lastClass || formData.previousClass || '',
-              tcNumber: formData.studentDetails?.tcNumber || formData.tcNumber || '',
-              tcDate: formData.studentDetails?.tcDate ? new Date(formData.studentDetails.tcDate) : undefined,
-              reasonForTransfer: formData.studentDetails?.reasonForTransfer || ''
+              name: formData.studentDetails?.previousSchoolName || formData.previousSchool || formData.studentDetails?.previousSchool?.name || '',
+              board: formData.studentDetails?.previousBoard || formData.studentDetails?.previousSchool?.board || '',
+              lastClass: formData.studentDetails?.lastClass || formData.previousClass || formData.studentDetails?.previousSchool?.lastClass || '',
+              tcNumber: formData.studentDetails?.tcNumber || formData.tcNumber || formData.studentDetails?.previousSchool?.tcNumber || '',
+              tcDate: formData.studentDetails?.tcDate ? new Date(formData.studentDetails.tcDate) : (formData.studentDetails?.previousSchool?.tcDate ? new Date(formData.studentDetails.previousSchool.tcDate) : undefined),
+              reasonForTransfer: formData.studentDetails?.reasonForTransfer || formData.studentDetails?.previousSchool?.reasonForTransfer || ''
             }
           },
 
@@ -2614,12 +2614,12 @@ const ManageUsers: React.FC = () => {
 
           // Transportation
           transport: {
-            mode: formData.studentDetails?.transportMode || formData.transportMode || '',
-            busRoute: formData.studentDetails?.busRoute || formData.busRoute || '',
-            pickupPoint: formData.studentDetails?.pickupPoint || formData.pickupPoint || '',
-            dropPoint: formData.studentDetails?.dropPoint || formData.dropPoint || '',
-            pickupTime: formData.studentDetails?.pickupTime || formData.pickupTime || '',
-            dropTime: formData.studentDetails?.dropTime || formData.dropTime || ''
+            mode: formData.studentDetails?.transport?.mode || formData.studentDetails?.transportMode || formData.transportMode || '',
+            busRoute: formData.studentDetails?.transport?.busRoute || formData.studentDetails?.busRoute || formData.busRoute || '',
+            pickupPoint: formData.studentDetails?.transport?.pickupPoint || formData.studentDetails?.pickupPoint || formData.pickupPoint || '',
+            dropPoint: formData.studentDetails?.transport?.dropPoint || formData.studentDetails?.dropPoint || formData.dropPoint || '',
+            pickupTime: formData.studentDetails?.transport?.pickupTime || formData.studentDetails?.pickupTime || formData.pickupTime || '',
+            dropTime: formData.studentDetails?.transport?.dropTime || formData.studentDetails?.dropTime || formData.dropTime || ''
           },
 
           // Financial Information - Karnataka SATS Standard
@@ -2644,16 +2644,32 @@ const ManageUsers: React.FC = () => {
           },
           // Medical Information
           medical: {
-            allergies: formData.studentDetails?.allergies || formData.allergies || [],
-            chronicConditions: formData.studentDetails?.chronicConditions || formData.chronicConditions || [],
-            medications: formData.studentDetails?.medications || formData.medications || [],
+            allergies: (() => {
+              const allergiesData = formData.studentDetails?.medical?.allergies || formData.studentDetails?.allergies || formData.allergies;
+              if (Array.isArray(allergiesData)) return allergiesData;
+              if (typeof allergiesData === 'string' && allergiesData.trim()) return allergiesData.split(',').map((a: string) => a.trim()).filter((a: string) => a);
+              return [];
+            })(),
+            chronicConditions: (() => {
+              const conditionsData = formData.studentDetails?.medical?.chronicConditions || formData.studentDetails?.chronicConditions || formData.medicalConditions;
+              if (Array.isArray(conditionsData)) return conditionsData;
+              if (typeof conditionsData === 'string' && conditionsData.trim()) return conditionsData.split(',').map((c: string) => c.trim()).filter((c: string) => c);
+              return [];
+            })(),
+            medications: (() => {
+              const medsData = formData.studentDetails?.medical?.medications || formData.studentDetails?.medications || formData.medications;
+              if (Array.isArray(medsData)) return medsData;
+              if (typeof medsData === 'string' && medsData.trim()) return medsData.split(',').map((m: string) => m.trim()).filter((m: string) => m);
+              return [];
+            })(),
             emergencyMedicalContact: {
-              doctorName: formData.studentDetails?.doctorName || formData.doctorName || '',
-              hospitalName: formData.studentDetails?.hospitalName || formData.hospitalName || '',
-              phone: formData.studentDetails?.doctorPhone || formData.doctorPhone || ''
+              doctorName: formData.studentDetails?.medical?.emergencyMedicalContact?.doctorName || formData.studentDetails?.doctorName || formData.doctorName || '',
+              hospitalName: formData.studentDetails?.medical?.emergencyMedicalContact?.hospitalName || formData.studentDetails?.hospitalName || formData.hospitalName || '',
+              phone: formData.studentDetails?.medical?.emergencyMedicalContact?.phone || formData.studentDetails?.doctorPhone || formData.doctorPhone || ''
             },
-            lastMedicalCheckup: formData.studentDetails?.lastMedicalCheckup ? new Date(formData.studentDetails.lastMedicalCheckup) :
-              (formData.lastMedicalCheckup ? new Date(formData.lastMedicalCheckup) : undefined)
+            lastMedicalCheckup: formData.studentDetails?.medical?.lastMedicalCheckup ? new Date(formData.studentDetails.medical.lastMedicalCheckup) :
+              (formData.studentDetails?.lastMedicalCheckup ? new Date(formData.studentDetails.lastMedicalCheckup) :
+                (formData.lastMedicalCheckup ? new Date(formData.lastMedicalCheckup) : undefined))
           }
         };
 
@@ -2766,9 +2782,21 @@ const ManageUsers: React.FC = () => {
           || '';
 
         // Map medical fields for flat validation (backend may look for these at top level)
-        userData.allergies = userData.studentDetails?.medical?.allergies || [];
-        userData.chronicConditions = userData.studentDetails?.medical?.chronicConditions || [];
-        userData.medications = userData.studentDetails?.medical?.medications || [];
+        userData.allergies = (() => {
+          const allergiesData = userData.studentDetails?.medical?.allergies;
+          if (Array.isArray(allergiesData)) return allergiesData;
+          return [];
+        })();
+        userData.chronicConditions = (() => {
+          const conditionsData = userData.studentDetails?.medical?.chronicConditions;
+          if (Array.isArray(conditionsData)) return conditionsData;
+          return [];
+        })();
+        userData.medications = (() => {
+          const medsData = userData.studentDetails?.medical?.medications;
+          if (Array.isArray(medsData)) return medsData;
+          return [];
+        })();
         userData.doctorName = userData.studentDetails?.medical?.emergencyMedicalContact?.doctorName || '';
         userData.hospitalName = userData.studentDetails?.medical?.emergencyMedicalContact?.hospitalName || '';
         userData.doctorPhone = userData.studentDetails?.medical?.emergencyMedicalContact?.phone || '';
