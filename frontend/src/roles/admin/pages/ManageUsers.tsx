@@ -590,10 +590,10 @@ const ManageUsers: React.FC = () => {
       const studentDetails = data.studentDetails;
 
       // Academic Information
-      const classValue = studentDetails?.academic?.currentClass || data.class;
-      const sectionValue = studentDetails?.academic?.currentSection || data.section;
-      const dobValue = studentDetails?.personal?.dateOfBirth || data.dateOfBirth;
-      const genderValue = studentDetails?.personal?.gender || data.gender;
+      const classValue = studentDetails?.currentClass || data.class;
+      const sectionValue = studentDetails?.currentSection || data.section;
+      const dobValue = studentDetails?.dateOfBirth || data.dateOfBirth;
+      const genderValue = studentDetails?.gender || data.gender;
       const bloodGroupValue = studentDetails?.personal?.bloodGroup || data.bloodGroup;
 
       if (!classValue || classValue === '') {
@@ -613,33 +613,14 @@ const ManageUsers: React.FC = () => {
       }
 
       // Family Information - Karnataka SATS Standards
-      // Use helper to reliably pull and clean phone numbers, prioritizing nested structure
-      const cleanFn = (phone: any) => (String(phone || '')).replace(/\D/g, '');
-      const indianMobileRegex = /^[6-9]\d{9}$/;
+      const fatherName = studentDetails?.fatherName || data.fatherName;
+      const motherName = studentDetails?.motherName || data.motherName;
 
-      // Use nested object for validation source if possible, falling back to flat fields
-      const fatherPhone = studentDetails?.family?.father?.phone || data.fatherPhone || data.fatherMobile;
-      const motherPhone = studentDetails?.family?.mother?.phone || data.motherPhone || data.motherMobile;
-      const emergencyPhone = data.emergencyContactPhone || data.alternatePhone; // Use dedicated emergency field from flat structure
-
-      const cleanFatherPhone = cleanFn(fatherPhone);
-      const cleanMotherPhone = cleanFn(motherPhone);
-      const cleanEmergencyPhone = cleanFn(emergencyPhone);
-
-      // FIX: Use cleaned number and correct regex for 10-digit Indian mobile number
-      if (cleanFatherPhone && !indianMobileRegex.test(cleanFatherPhone)) {
-        errors.push("Father's phone number must be a valid 10-digit Indian mobile number (e.g., 9876543210)");
-      }
-      if (cleanMotherPhone && !indianMobileRegex.test(cleanMotherPhone)) {
-        errors.push("Mother's phone number must be a valid 10-digit Indian mobile number (e.g., 9876543210)");
-      }
-      if (cleanEmergencyPhone && !indianMobileRegex.test(cleanEmergencyPhone)) {
-        errors.push("Emergency contact phone number must be a valid 10-digit Indian mobile number (e.g., 9876543210)");
-      }
+      // Father and Mother names are optional now (per request)
 
       // Enrollment and TC are required per request
-      const enrollmentNo = studentDetails?.academic?.enrollmentNo || data.enrollmentNo;
-      const tcNumber = studentDetails?.academic?.tcNo || data.tcNo || data.tcNumber;
+      const enrollmentNo = studentDetails?.enrollmentNo || data.enrollmentNo;
+      const tcNumber = studentDetails?.tcNo || data.tcNo || data.tcNumber;
       if (!enrollmentNo || enrollmentNo.toString().trim() === '') {
         errors.push('Enrollment number is required for students');
       }
@@ -648,16 +629,19 @@ const ManageUsers: React.FC = () => {
       }
 
       // Karnataka SATS Specific Validations
-      const ageYears = studentDetails?.personal?.ageYears || data.ageYears;
+      const ageYears = studentDetails?.ageYears || data.ageYears;
+      const socialCategory = studentDetails?.socialCategory || data.socialCategory;
+      const belongingToBPL = studentDetails?.belongingToBPL || data.belongingToBPL;
+      const disability = studentDetails?.disability || data.disability;
 
       if (ageYears && (ageYears < 3 || ageYears > 25)) {
         errors.push('Student age must be between 3 and 25 years');
       }
 
       // Aadhaar validation for Karnataka SATS
-      const studentAadhaar = studentDetails?.personal?.studentAadhaar || data.studentAadhaar;
-      const fatherAadhaar = studentDetails?.family?.father?.aadhaar || data.fatherAadhaar;
-      const motherAadhaar = studentDetails?.family?.mother?.aadhaar || data.motherAadhaar;
+      const studentAadhaar = studentDetails?.studentAadhaar || data.studentAadhaar;
+      const fatherAadhaar = studentDetails?.fatherAadhaar || data.fatherAadhaar;
+      const motherAadhaar = studentDetails?.motherAadhaar || data.motherAadhaar;
 
       // Student Aadhaar/KPR is mandatory
       if (!studentAadhaar || studentAadhaar.toString().trim() === '') {
@@ -673,41 +657,52 @@ const ManageUsers: React.FC = () => {
       }
 
       // Student caste certificate is mandatory
-      const studentCasteCertNo = studentDetails?.personal?.studentCasteCertNo || data.studentCasteCertNo;
+      const studentCasteCertNo = studentDetails?.studentCasteCertNo || data.studentCasteCertNo;
       if (!studentCasteCertNo || studentCasteCertNo.toString().trim() === '') {
         errors.push('Student caste certificate number is required for students');
       }
 
+      // Phone number validation for family
+      const fatherPhone = studentDetails?.fatherPhone || data.fatherPhone || data.fatherMobile;
+      const motherPhone = studentDetails?.motherPhone || data.motherPhone || data.motherMobile;
+
+      if (fatherPhone && !/^[6-9]\d{9}$/.test(fatherPhone)) {
+        errors.push('Father phone number must be a valid 10-digit mobile number');
+      }
+      if (motherPhone && !/^[6-9]\d{9}$/.test(motherPhone)) {
+        errors.push('Mother phone number must be a valid 10-digit mobile number');
+      }
+
       // School admission date and Banking validations for students
-      const schoolAdmissionDateVal = studentDetails?.academic?.admissionDate || data.schoolAdmissionDate || data.admissionDate;
+      const schoolAdmissionDateVal = studentDetails?.schoolAdmissionDate || data.schoolAdmissionDate || data.admissionDate;
       if (!schoolAdmissionDateVal) {
         errors.push('School admission date is required for students');
       }
 
-      const bankNameVal = studentDetails?.financial?.bankDetails?.bankName || data.bankName;
+      const bankNameVal = studentDetails?.bankName || data.bankName;
       if (!bankNameVal || bankNameVal.toString().trim() === '') {
         errors.push('Bank Name is required for students');
       }
 
-      const bankAccountNoVal = studentDetails?.financial?.bankDetails?.accountNumber || data.bankAccountNo || data.bankAccountNumber;
+      const bankAccountNoVal = studentDetails?.bankAccountNo || data.bankAccountNo || data.bankAccountNumber;
       if (!bankAccountNoVal || bankAccountNoVal.toString().trim() === '') {
         errors.push('Bank account number is required for students');
       }
 
-      const bankIFSC = studentDetails?.financial?.bankDetails?.ifscCode || data.bankIFSC || data.bankIfsc;
+      const bankIFSC = studentDetails?.bankIFSC || data.bankIFSC || data.bankIfsc;
       if (!bankIFSC || bankIFSC.toString().trim() === '') {
         errors.push('Bank IFSC code is required for students');
       } else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIFSC)) {
         errors.push('Bank IFSC code must be in valid format (e.g., SBIN0012345)');
       }
 
-    } else if (data.role === 'teacher') {
+    } else if (formData.role === 'teacher') {
       // Teacher-specific validation
-      const teacherDetails = data.teacherDetails;
+      const teacherDetails = formData.teacherDetails;
 
-      const qualification = teacherDetails?.qualification || data.qualification;
-      const experience = teacherDetails?.experience || Number(data.experience);
-      const subjects = teacherDetails?.subjects || (typeof data.subjects === 'string' ? data.subjects.split(',') : data.subjects);
+      const qualification = teacherDetails?.qualification || formData.qualification;
+      const experience = teacherDetails?.experience || Number(formData.experience);
+      const subjects = teacherDetails?.subjects || (typeof formData.subjects === 'string' ? formData.subjects.split(',') : formData.subjects);
 
       if (!qualification || qualification.trim() === '') {
         errors.push('Highest qualification is required for teachers');
@@ -715,24 +710,28 @@ const ManageUsers: React.FC = () => {
       if (experience === undefined || experience < 0) {
         errors.push('Total experience is required for teachers (minimum 0 years)');
       }
+      // Subjects are optional for teachers to allow flexible user creation
+      // if (!subjects || subjects.length === 0 || (Array.isArray(subjects) && subjects.filter(s => s.trim()).length === 0)) {
+      //   errors.push('At least one subject is required for teachers');
+      // }
 
       // Employee ID validation if provided
-      const employeeId = teacherDetails?.employeeId || data.employeeId;
+      const employeeId = teacherDetails?.employeeId || formData.employeeId;
       if (employeeId && employeeId.trim() === '') {
         errors.push('Employee ID cannot be empty if provided');
       }
 
       // IFSC validation for teacher banking
-      const bankIFSC = teacherDetails?.bankIFSC || data.bankIFSC;
+      const bankIFSC = teacherDetails?.bankIFSC || formData.bankIFSC;
       if (bankIFSC && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIFSC)) {
         errors.push('Bank IFSC code must be in valid format (e.g., SBIN0012345)');
       }
 
-    } else if (data.role === 'admin') {
+    } else if (formData.role === 'admin') {
       // Admin-specific validation
-      const adminDetails = data.adminDetails;
+      const adminDetails = formData.adminDetails;
 
-      const adminType = adminDetails?.adminType || data.adminLevel;
+      const adminType = adminDetails?.adminType || formData.adminLevel;
       const designation = adminDetails?.designation || '';
 
       if (!adminType || adminType.trim() === '') {
@@ -740,7 +739,7 @@ const ManageUsers: React.FC = () => {
       }
 
       // Employee ID validation if provided
-      const employeeId = adminDetails?.employeeId || data.employeeId;
+      const employeeId = adminDetails?.employeeId || formData.employeeId;
       if (employeeId && employeeId.trim() === '') {
         errors.push('Employee ID cannot be empty if provided');
       }
@@ -764,7 +763,7 @@ const ManageUsers: React.FC = () => {
       }
 
       // IFSC validation for admin banking
-      const bankIFSC = adminDetails?.bankIFSC || data.bankIFSC;
+      const bankIFSC = adminDetails?.bankIFSC || formData.bankIFSC;
       if (bankIFSC && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIFSC)) {
         errors.push('Bank IFSC code must be in valid format (e.g., SBIN0012345)');
       }
@@ -772,17 +771,17 @@ const ManageUsers: React.FC = () => {
 
     // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (data.email && !emailRegex.test(data.email)) {
+    if (formData.email && !emailRegex.test(formData.email)) {
       errors.push('Please enter a valid email address');
     }
 
     // PAN validation if provided
-    if (data.panNumber && !/^[A-Z]{5}\d{4}[A-Z]$/.test(data.panNumber)) {
+    if (formData.panNumber && !/^[A-Z]{5}\d{4}[A-Z]$/.test(formData.panNumber)) {
       errors.push('PAN number must be in valid format (e.g., ABCDE1234F)');
     }
 
     // Aadhaar validation for identity section
-    if (data.aadharNumber && !/^\d{12}$/.test(data.aadharNumber)) {
+    if (formData.aadharNumber && !/^\d{12}$/.test(formData.aadharNumber)) {
       errors.push('Aadhaar number must be 12 digits');
     }
 
@@ -2375,8 +2374,6 @@ const ManageUsers: React.FC = () => {
     }
   };
 
-  const cleanPhone = (phone: any) => String(phone || '').replace(/\D/g, '');
-
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -2439,6 +2436,7 @@ const ManageUsers: React.FC = () => {
         city: formData.cityVillageTown || (formData as any).city || formData.permanentCity,
         state: (formData as any).state || formData.permanentState,
         pinCode: (formData as any).pinCode || formData.permanentPincode,
+        // Location helpers for UserGenerator.createUser
         cityVillageTown: formData.cityVillageTown,
         locality: (formData as any).locality || formData.permanentArea || '',
         district: (formData as any).district || formData.districtText || '',
@@ -2463,7 +2461,7 @@ const ManageUsers: React.FC = () => {
           emergencyContact: {
             name: formData.emergencyContactName || '',
             relationship: formData.emergencyContactRelation || '',
-            phone: cleanPhone(formData.emergencyContactPhone || formData.alternatePhone)
+            phone: formData.emergencyContactPhone || ''
           }
         },
 
@@ -2512,198 +2510,216 @@ const ManageUsers: React.FC = () => {
 
       // Add role-specific fields based on comprehensive backend structure
       if (formData.role === 'student') {
-        const sDetails = formData.studentDetails || {};
-
-        // FIX: Explicitly define the nested structure to match the database schema
         userData.studentDetails = {
-          // Fields expected at the top level of studentDetails object
-          studentId: userData.userId, // Will be resolved by final userId check
-          admissionNumber: formData.admissionNumber || formData.enrollmentNo || '',
-          rollNumber: formData.rollNumber || formData.studentDetails?.rollNumber || '',
-
-          // --- Academic Information ---
+          // Academic Information - Karnataka SATS Standard
           academic: {
-            // Merge existing nested properties if they exist (e.g., from an incomplete edit session)
-            ...(sDetails.academic || {}),
-
-            // Map data from form to nested academic fields
-            currentClass: formData.class || sDetails.currentClass || '',
-            currentSection: formData.section || sDetails.currentSection || '',
+            currentClass: formData.studentDetails?.currentClass || formData.class || '',
+            currentSection: formData.studentDetails?.currentSection || formData.section || '',
             academicYear: formData.studentDetails?.academicYear || currentAcademicYear || '2024-25',
-            // Use formData.schoolAdmissionDate for admissionDate (DB expects Date object)
-            admissionDate: formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) : (sDetails.academic?.admissionDate ? new Date(sDetails.academic.admissionDate) : undefined),
+            admissionDate: formData.studentDetails?.admissionDate ? new Date(formData.studentDetails.admissionDate) : undefined,
+            admissionClass: formData.studentDetails?.admissionClass || '',
+            rollNumber: formData.studentDetails?.rollNumber || formData.rollNumber || '',
+            admissionNumber: formData.studentDetails?.admissionNumber || formData.admissionNumber || '',
+            enrollmentNo: formData.studentDetails?.enrollmentNo || formData.enrollmentNo || '',
+            tcNo: formData.studentDetails?.tcNo || formData.tcNo || '',
 
-            // Map enrollment/TC fields
-            enrollmentNo: formData.enrollmentNo || sDetails.enrollmentNo || '',
-            tcNo: formData.tcNo || sDetails.tcNo || '',
-
-            // Other academic fields
-            admissionClass: formData.class || sDetails.currentClass || '',
-            admissionNumber: formData.admissionNumber || formData.enrollmentNo || '',
-            rollNumber: formData.rollNumber || sDetails.rollNumber || '',
-
-            // Previous School structure
             previousSchool: {
-              ...(sDetails.academic?.previousSchool || {}),
-              name: formData.previousSchool || '',
-              board: formData.previousBoard || '',
-              lastClass: formData.previousClass || '',
-              tcNumber: formData.tcNumber || '',
-              tcDate: sDetails.tcDetails?.tcDate ? new Date(sDetails.tcDetails.tcDate) : undefined,
-              reasonForTransfer: formData.reasonForTransfer || ''
+              name: formData.studentDetails?.previousSchoolName || formData.previousSchool || '',
+              board: formData.studentDetails?.previousBoard || '',
+              lastClass: formData.studentDetails?.lastClass || formData.previousClass || '',
+              tcNumber: formData.studentDetails?.tcNumber || formData.tcNumber || '',
+              tcDate: formData.studentDetails?.tcDate ? new Date(formData.studentDetails.tcDate) : undefined,
+              reasonForTransfer: formData.studentDetails?.reasonForTransfer || ''
             }
           },
 
-          // --- Personal Information ---
+          // Personal Information - Karnataka SATS Standard
           personal: {
-            // Merge existing nested properties
-            ...(sDetails.personal || {}),
+            dateOfBirth: formData.studentDetails?.dateOfBirth ? new Date(formData.studentDetails.dateOfBirth) :
+              (formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined),
+            placeOfBirth: formData.studentDetails?.placeOfBirth || '',
+            gender: formData.studentDetails?.gender || formData.gender || 'male',
+            bloodGroup: formData.studentDetails?.bloodGroup || formData.bloodGroup || '',
+            nationality: formData.studentDetails?.nationality || formData.nationality || 'Indian',
+            religion: formData.studentDetails?.religion || formData.religion || '',
+            religionOther: formData.studentDetails?.religionOther || formData.religionOther || '',
+            caste: formData.studentDetails?.caste || formData.caste || '',
+            casteOther: formData.studentDetails?.casteOther || formData.casteOther || '',
+            category: formData.studentDetails?.category || formData.category || '',
+            categoryOther: formData.studentDetails?.categoryOther || formData.categoryOther || '',
+            motherTongue: formData.studentDetails?.motherTongue || formData.motherTongue || '',
+            motherTongueOther: formData.studentDetails?.motherTongueOther || formData.motherTongueOther || '',
 
-            // Map data from form to nested personal fields
-            dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth) : (sDetails.personal?.dateOfBirth ? new Date(sDetails.personal.dateOfBirth) : undefined),
-            placeOfBirth: formData.placeOfBirth || '',
-            gender: formData.gender || 'male',
-            bloodGroup: formData.bloodGroup || '',
-            nationality: formData.nationality || 'Indian',
+            // Karnataka SATS Specific Fields
+            studentNameKannada: formData.studentDetails?.studentNameKannada || formData.studentNameKannada || '',
+            ageYears: formData.studentDetails?.ageYears || formData.ageYears || 0,
+            ageMonths: formData.studentDetails?.ageMonths || formData.ageMonths || 0,
+            socialCategory: formData.studentDetails?.socialCategory || formData.socialCategory || '',
+            socialCategoryOther: formData.studentDetails?.socialCategoryOther || formData.socialCategoryOther || '',
+            studentCaste: formData.studentDetails?.studentCaste || formData.studentCaste || '',
+            studentCasteOther: formData.studentDetails?.studentCasteOther || formData.studentCasteOther || '',
+            studentAadhaar: formData.studentDetails?.studentAadhaar || formData.studentAadhaar || '',
+            studentCasteCertNo: formData.studentDetails?.studentCasteCertNo || formData.studentCasteCertNo || '',
 
-            // Religion
-            religion: formData.religion || '',
-            religionOther: formData.religion === 'Other' ? formData.religionOther : '',
+            // Economic Status
+            belongingToBPL: formData.studentDetails?.belongingToBPL || formData.belongingToBPL || 'No',
+            bplCardNo: formData.studentDetails?.bplCardNo || formData.bplCardNo || '',
+            bhagyalakshmiBondNo: formData.studentDetails?.bhagyalakshmiBondNo || formData.bhagyalakshmiBondNo || '',
 
-            // Caste/Category
-            caste: formData.studentCaste || formData.caste || '',
-            casteOther: (formData.studentCaste === 'Other' || formData.caste === 'Other') ? (formData.studentCasteOther || formData.casteOther) : '',
-            category: formData.socialCategory || formData.category || '',
-            categoryOther: (formData.socialCategory === 'Other' || formData.category === 'Other') ? (formData.socialCategoryOther || formData.categoryOther) : '',
-            motherTongue: formData.motherTongue || '',
-            motherTongueOther: formData.motherTongue === 'Other' ? formData.motherTongueOther : '',
-
-            // SATS specifics mapping
-            studentAadhaar: formData.studentAadhaar || '',
-            studentCasteCertNo: formData.studentCasteCertNo || '',
-            belongingToBPL: formData.belongingToBPL || 'No',
-            bplCardNo: formData.bplCardNo || formData.bplCardNumber || '',
-            bhagyalakshmiBondNo: formData.bhagyalakshmiBondNo || '',
-            disability: formData.disability || 'Not Applicable',
-            disabilityOther: formData.disability === 'Other' ? formData.disabilityOther : '',
-            isRTECandidate: formData.isRTECandidate || 'No',
-
-            // Age fields
-            ageYears: formData.ageYears || 0,
-            ageMonths: formData.ageMonths || 0,
-            studentNameKannada: formData.studentNameKannada || '',
+            // Special Needs
+            disability: formData.studentDetails?.disability || formData.disability || 'Not Applicable',
+            disabilityOther: formData.studentDetails?.disabilityOther || formData.disabilityOther || '',
+            isRTECandidate: formData.studentDetails?.isRTECandidate || formData.isRTECandidate || 'No'
           },
 
-          // --- Family Information ---
+          // Family Information - Karnataka SATS Standard
           family: {
             father: {
-              ...(sDetails.family?.father || {}),
-              name: formData.fatherName || '',
-              occupation: formData.fatherOccupation || '',
-              qualification: formData.fatherEducation || '',
-              phone: cleanPhone(formData.fatherPhone || formData.fatherMobile),
-              email: formData.fatherEmail || '',
-              aadhaar: formData.fatherAadhaar || '',
-              caste: formData.fatherCaste || '',
-              casteOther: formData.fatherCaste === 'Other' ? formData.fatherCasteOther : '',
-              casteCertNo: formData.fatherCasteCertNo || '',
-              fatherWorkAddress: sDetails.family?.father?.fatherWorkAddress || '',
-              fatherAnnualIncome: sDetails.family?.father?.fatherAnnualIncome || 0,
-              nameKannada: formData.fatherNameKannada || '',
+              name: formData.studentDetails?.fatherName || formData.fatherName || '',
+              nameKannada: formData.studentDetails?.fatherNameKannada || formData.fatherNameKannada || '',
+              occupation: formData.studentDetails?.fatherOccupation || formData.fatherOccupation || '',
+              qualification: formData.studentDetails?.fatherQualification || formData.fatherEducation || '',
+              phone: formData.studentDetails?.fatherPhone || formData.fatherPhone || formData.fatherMobile || '',
+              email: formData.studentDetails?.fatherEmail || formData.fatherEmail || '',
+              aadhaar: formData.studentDetails?.fatherAadhaar || formData.fatherAadhaar || '',
+              caste: formData.studentDetails?.fatherCaste || formData.fatherCaste || '',
+              casteOther: formData.studentDetails?.fatherCasteOther || formData.fatherCasteOther || '',
+              casteCertNo: formData.studentDetails?.fatherCasteCertNo || formData.fatherCasteCertNo || '',
+              workAddress: formData.studentDetails?.fatherWorkAddress || '',
+              annualIncome: formData.studentDetails?.fatherAnnualIncome || 0
             },
             mother: {
-              ...(sDetails.family?.mother || {}),
-              name: formData.motherName || '',
-              occupation: formData.motherOccupation || '',
-              qualification: formData.motherEducation || '',
-              phone: cleanPhone(formData.motherPhone || formData.motherMobile),
-              email: formData.motherEmail || '',
-              aadhaar: formData.motherAadhaar || '',
-              caste: formData.motherCaste || '',
-              casteOther: formData.motherCaste === 'Other' ? formData.motherCasteOther : '',
-              casteCertNo: formData.motherCasteCertNo || '',
-              motherWorkAddress: sDetails.family?.mother?.motherWorkAddress || '',
-              motherAnnualIncome: sDetails.family?.mother?.motherAnnualIncome || 0,
-              nameKannada: formData.motherNameKannada || '',
+              name: formData.studentDetails?.motherName || formData.motherName || '',
+              nameKannada: formData.studentDetails?.motherNameKannada || formData.motherNameKannada || '',
+              occupation: formData.studentDetails?.motherOccupation || formData.motherOccupation || '',
+              qualification: formData.studentDetails?.motherQualification || formData.motherEducation || '',
+              phone: formData.studentDetails?.motherPhone || formData.motherPhone || formData.motherMobile || '',
+              email: formData.studentDetails?.motherEmail || formData.motherEmail || '',
+              aadhaar: formData.studentDetails?.motherAadhaar || formData.motherAadhaar || '',
+              caste: formData.studentDetails?.motherCaste || formData.motherCaste || '',
+              casteOther: formData.studentDetails?.motherCasteOther || formData.motherCasteOther || '',
+              casteCertNo: formData.studentDetails?.motherCasteCertNo || formData.motherCasteCertNo || '',
+              workAddress: formData.studentDetails?.motherWorkAddress || '',
+              annualIncome: formData.studentDetails?.motherAnnualIncome || 0
             },
-            guardian: formData.guardianName ? {
-              ...(sDetails.family?.guardian || {}),
-              name: formData.guardianName,
-              relationship: formData.guardianRelation || '',
-              phone: cleanPhone(formData.emergencyContactPhone || formData.alternatePhone),
-              email: formData.guardianEmail || '',
-              address: sDetails.family?.guardian?.address || '',
-              isEmergencyContact: sDetails.isEmergencyContact || false
+            guardian: formData.studentDetails?.guardianName ? {
+              name: formData.studentDetails.guardianName,
+              relationship: formData.studentDetails.guardianRelationship || formData.guardianRelation || '',
+              phone: formData.studentDetails.guardianPhone || '',
+              email: formData.studentDetails.guardianEmail || '',
+              address: formData.studentDetails.guardianAddress || '',
+              isEmergencyContact: formData.studentDetails.isEmergencyContact || false
             } : undefined
           },
 
-          // --- Transportation ---
+          // Transportation
           transport: {
-            ...(sDetails.transport || {}),
-            mode: formData.transportMode || '',
-            busRoute: formData.busRoute || '',
-            pickupPoint: formData.pickupPoint || '',
-            dropPoint: formData.dropPoint || '',
-            pickupTime: sDetails.transport?.pickupTime || '',
-            dropTime: sDetails.transport?.dropTime || ''
+            mode: formData.studentDetails?.transportMode || '',
+            busRoute: formData.studentDetails?.busRoute || '',
+            pickupPoint: formData.studentDetails?.pickupPoint || '',
+            dropPoint: formData.studentDetails?.dropPoint || '',
+            pickupTime: formData.studentDetails?.pickupTime || '',
+            dropTime: formData.studentDetails?.dropTime || ''
           },
 
-          // --- Financial Information ---
+          // Financial Information - Karnataka SATS Standard
           financial: {
-            ...(sDetails.financial || {}),
-            feeCategory: formData.feeCategory || '',
-            concessionType: formData.concessionType || '',
-            concessionPercentage: formData.concessionPercentage || 0,
+            feeCategory: formData.studentDetails?.feeCategory || '',
+            concessionType: formData.studentDetails?.concessionType || '',
+            concessionPercentage: formData.studentDetails?.concessionPercentage || 0,
+            scholarshipDetails: formData.studentDetails?.scholarshipName ? {
+              name: formData.studentDetails.scholarshipName,
+              amount: formData.studentDetails.scholarshipAmount || 0,
+              provider: formData.studentDetails.scholarshipProvider || ''
+            } : undefined,
 
-            // Map bank details
+            // Karnataka SATS Banking Information
             bankDetails: {
-              ...(sDetails.financial?.bankDetails || {}),
-              bankName: formData.bankName || '',
-              accountNumber: formData.bankAccountNo || '',
-              ifscCode: formData.bankIFSC || '',
-              // Derive accountHolderName from form name fields if not explicitly set
-              accountHolderName: formData.bankAccountHolderName || `${formData.firstName} ${formData.lastName}`.trim()
+              // --- FIX: Read from the correct nested path set by the form's onChange ---
+              bankName: formData.studentDetails?.financial?.bankDetails?.bankName || formData.bankName || '',
+              accountNumber: formData.studentDetails?.financial?.bankDetails?.accountNumber || formData.bankAccountNo || '',
+              ifscCode: formData.studentDetails?.financial?.bankDetails?.ifscCode || formData.bankIFSC || '',
+              accountHolderName: formData.studentDetails?.financial?.bankDetails?.accountHolderName || formData.accountHolderName || ''
             }
           },
 
-          // --- Medical Information ---
-          medical: {
-            ...(sDetails.medical || {}),
-            // Map comma-separated string to array
-            allergies: formData.allergies ? String(formData.allergies).split(',').map(s => s.trim()) : (sDetails.medical?.allergies || []),
-            chronicConditions: formData.medicalConditions ? String(formData.medicalConditions).split(',').map(s => s.trim()) : (sDetails.medical?.chronicConditions || []),
-            medications: formData.medications ? String(formData.medications).split(',').map(s => s.trim()) : (sDetails.medical?.medications || []),
-            doctorName: formData.doctorName || '',
-            hospitalName: formData.hospitalName || '',
-            doctorPhone: formData.doctorPhone || '',
-            lastMedicalCheckup: formData.lastMedicalCheckup || '',
-          },
+          // Medical Information
+          medical: formData.studentDetails?.allergies?.length ? {
+            allergies: formData.studentDetails.allergies,
+            chronicConditions: formData.studentDetails.chronicConditions || [],
+            medications: formData.studentDetails.medications || [],
+            emergencyMedicalContact: {
+              doctorName: formData.studentDetails.doctorName || '',
+              hospitalName: formData.studentDetails.hospitalName || '',
+              phone: formData.studentDetails.doctorPhone || ''
+            },
+            lastMedicalCheckup: formData.studentDetails.lastMedicalCheckup ? new Date(formData.studentDetails.lastMedicalCheckup) : undefined
+          } : undefined
         };
 
-        // ===== CRITICAL: Ensure required flat fields for backend validator are also set (Redundancy) =====
-        // These fields are needed by the backend's validation middleware even if nested in the schema.
-        userData.class = userData.studentDetails.academic.currentClass;
-        userData.section = userData.studentDetails.academic.currentSection;
-        userData.enrollmentNo = userData.studentDetails.academic.enrollmentNo;
-        userData.tcNo = userData.studentDetails.academic.tcNo;
-        userData.studentAadhaar = userData.studentDetails.personal.studentAadhaar;
-        userData.studentCasteCertNo = userData.studentDetails.personal.studentCasteCertNo;
-        userData.isRTECandidate = userData.studentDetails.personal.isRTECandidate;
-        userData.fatherName = userData.studentDetails.family.father.name;
-        userData.motherName = userData.studentDetails.family.mother.name;
-        userData.fatherPhone = userData.studentDetails.family.father.phone;
-        userData.motherPhone = userData.studentDetails.family.mother.phone;
-        userData.schoolAdmissionDate = userData.studentDetails.academic.admissionDate;
-        userData.bankName = userData.studentDetails.financial.bankDetails.bankName;
-        userData.bankAccountNo = userData.studentDetails.financial.bankDetails.accountNumber;
-        userData.bankIFSC = userData.studentDetails.financial.bankDetails.ifscCode;
-        userData.accountHolderName = userData.studentDetails.financial.bankDetails.accountHolderName;
-        userData.nationality = userData.studentDetails.personal.nationality;
-        userData.cityVillageTown = userData.addressDetails?.permanent?.city;
-        userData.religion = userData.studentDetails.personal.religion;
-        userData.caste = userData.studentDetails.personal.caste;
-        userData.busRoute = userData.studentDetails.transport.busRoute;
-        // =======================================================================================================
+        // ===== CRITICAL FIX: Add flat fields for backend validator =====
+        // The backend validator expects these fields at the top level of userData
+        // We already set them in studentDetails but also need them flat for validation
+        userData.class = formData.class || userData.studentDetails.academic.currentClass;
+        userData.section = formData.section || userData.studentDetails.academic.currentSection;
+        userData.enrollmentNo = formData.enrollmentNo || userData.studentDetails.academic.enrollmentNo; // <-- FIX
+        userData.tcNo = formData.tcNo || userData.studentDetails.academic.tcNo; // <-- FIX
+        userData.studentAadhaar = formData.studentAadhaar || userData.studentDetails.personal.studentAadhaar;
+        userData.studentCasteCertNo = formData.studentCasteCertNo || userData.studentDetails.personal.studentCasteCertNo;
+        userData.isRTECandidate = formData.isRTECandidate || userData.studentDetails.personal.isRTECandidate;
+        userData.fatherName = formData.fatherName || userData.studentDetails.family?.father?.name; // <-- ADD THIS
+        userData.schoolAdmissionDate = formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) :
+          (formData.studentDetails?.schoolAdmissionDate ? new Date(formData.studentDetails.schoolAdmissionDate) : undefined);
+        userData.bankName = formData.bankName || userData.studentDetails.financial?.bankDetails?.bankName; // <-- FIX
+        userData.bankAccountNo = formData.bankAccountNo || userData.studentDetails.financial?.bankDetails?.accountNumber; // <-- FIX
+        userData.bankIFSC = formData.bankIFSC || userData.studentDetails.financial?.bankDetails?.ifscCode; // <-- FIX (for legacy createUser)
+        userData.accountHolderName = formData.accountHolderName || userData.studentDetails.financial?.bankDetails?.accountHolderName; // <-- ADD THIS
+        userData.nationality = formData.nationality || userData.studentDetails.personal.nationality;
+        userData.cityVillageTown = formData.cityVillageTown || userData.addressDetails?.permanent?.city;
+        // Add address fields (backend looks for these at top level or nested)
+        userData.permanentStreet = userData.studentDetails.addressDetails?.permanent?.street || formData.address;
+        userData.permanentCity = userData.studentDetails.addressDetails?.permanent?.city || formData.city;
+        userData.permanentState = userData.studentDetails.addressDetails?.permanent?.state || formData.state;
+        userData.permanentPincode = userData.studentDetails.addressDetails?.permanent?.pincode || formData.pinCode;
+        // ===== END CRITICAL FIX =====
+
+        // Academic year for UserGenerator.createUser (school-users)
+        userData.academicYear = formData.studentDetails?.academicYear || currentAcademicYear || '2024-25';
+
+        // Map Aadhaar and caste certificate fields for UserGenerator.createUser
+        userData.aadharKPRNo = formData.studentAadhaar
+          || userData.studentDetails.personal.studentAadhaar
+          || formData.aadharNumber
+          || userData.identity?.aadharNumber;
+        userData.studentCasteCertificateNo = formData.studentCasteCertNo
+          || userData.studentDetails.personal.studentCasteCertNo
+          || '';
+
+        // Map SATS caste/category fields for UserGenerator.createUser
+        userData.studentCaste = formData.studentCaste
+          || userData.studentDetails.personal.studentCaste
+          || '';
+        userData.socialCategory = formData.socialCategory
+          || userData.studentDetails.personal.socialCategory
+          || '';
+        userData.motherTongue = formData.motherTongue
+          || userData.studentDetails.personal.motherTongue
+          || '';
+        userData.belongingToBPL = formData.belongingToBPL
+          || userData.studentDetails.personal.belongingToBPL
+          || 'No';
+        userData.bplCardNo = formData.bplCardNo
+          || userData.studentDetails.personal.bplCardNo
+          || '';
+        userData.bhagyalakshmiBondNo = formData.bhagyalakshmiBondNo
+          || userData.studentDetails.personal.bhagyalakshmiBondNo
+          || '';
+
+        // Map bank IFSC specifically for UserGenerator.createUser (uses bankIFSCCode)
+        userData.bankIFSCCode = formData.bankIFSC
+          || userData.studentDetails.financial?.bankDetails?.ifscCode
+          || userData.bankIFSC
+          || '';
       } else if (formData.role === 'teacher') {
         // Send data in the format backend expects (flat fields like bulk import)
         userData.teacherDetails = {
@@ -2726,7 +2742,10 @@ const ManageUsers: React.FC = () => {
             branchName: formData.teacherDetails?.bankBranchName || '',
             accountHolderName: formData.teacherDetails?.bankAccountHolderName || `${formData.firstName} ${formData.lastName}`.trim()
           }
+          // Note: Personal info (DOB, gender) is already added to the root `userData` object,
+          // which the backend controller will read.
         };
+        // --- END OF CORRECTED LOGIC ---
       } else if (formData.role === 'admin') {
         userData.adminDetails = {
           adminType: formData.adminDetails?.adminType || formData.adminLevel || '',
@@ -2793,11 +2812,18 @@ const ManageUsers: React.FC = () => {
       // Show credentials modal using server response
       const serverUserId = createRes?.data?.user?.userId || createRes?.data?.credentials?.userId || createRes?.user?.userId || createRes?.userId;
 
+      // ==================================================================
+      // START: EDITED LINE
+      // ==================================================================
       // Use the password we generated locally as the primary source,
+      // as the API response might not return it for security.
       const serverPassword = generatedPassword ||
         createRes?.data?.credentials?.password ||
         createRes?.data?.user?.tempPassword ||
         createRes?.user?.tempPassword;
+      // ==================================================================
+      // END: EDITED LINE
+      // ==================================================================
 
       const serverEmail = createRes?.data?.user?.email || createRes?.user?.email || formData.email;
       const serverRole = createRes?.data?.user?.role || createRes?.user?.role || formData.role;
