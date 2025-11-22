@@ -7146,8 +7146,13 @@ const ManageUsers: React.FC = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-1">Father Qualification</label>
                           <input
                             type="text"
-                            value={formData.fatherQualification || ''}
-                            onChange={(e) => setFormData({ ...formData, fatherQualification: e.target.value })}
+                            // CRITICAL FIX: Bind value to the main qualification field, falling back to education
+                            value={formData.fatherQualification || formData.fatherEducation || ''} 
+                            onChange={(e) => setFormData(prev => ({ 
+                              ...prev, 
+                              fatherQualification: e.target.value, // Target the qualification field
+                              fatherEducation: e.target.value,   // Target the education fallback field
+                            }))}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter father's qualification (e.g., B.A., M.Tech)"
                           />
@@ -7156,8 +7161,13 @@ const ManageUsers: React.FC = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-1">Mother Qualification</label>
                           <input
                             type="text"
-                            value={formData.motherQualification || ''}
-                            onChange={(e) => setFormData({ ...formData, motherQualification: e.target.value })}
+                            // CRITICAL FIX: Bind value to the main qualification field, falling back to education
+                            value={formData.motherQualification || formData.motherEducation || ''} 
+                            onChange={(e) => setFormData(prev => ({ 
+                              ...prev, 
+                              motherQualification: e.target.value, // Target the qualification field
+                              motherEducation: e.target.value,   // Target the education fallback field
+                            }))}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             placeholder="Enter mother's qualification (e.g., B.A., M.Sc)"
                           />
