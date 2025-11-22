@@ -2514,99 +2514,134 @@ const ManageUsers: React.FC = () => {
       if (formData.role === 'student') {
         const sDetails = formData.studentDetails || {};
 
+        // FIX: Explicitly define the nested structure to match the database schema
         userData.studentDetails = {
-          // Keep existing properties/objects not directly modified by flat fields
-          ...sDetails,
+          // Fields expected at the top level of studentDetails object
+          studentId: userData.userId, // Will be resolved by final userId check
+          admissionNumber: formData.admissionNumber || formData.enrollmentNo || '',
+          rollNumber: formData.rollNumber || formData.studentDetails?.rollNumber || '',
 
-          // --- Academic Information (Includes Admission Date, Enrollment, TC) ---
+          // --- Academic Information ---
           academic: {
+            // Merge existing nested properties if they exist (e.g., from an incomplete edit session)
             ...(sDetails.academic || {}),
-            currentClass: sDetails.currentClass || formData.class || '',
-            currentSection: sDetails.currentSection || formData.section || '',
-            academicYear: sDetails.academicYear || currentAcademicYear || '2024-25',
+
+            // Map data from form to nested academic fields
+            currentClass: formData.class || sDetails.currentClass || '',
+            currentSection: formData.section || sDetails.currentSection || '',
+            academicYear: formData.studentDetails?.academicYear || currentAcademicYear || '2024-25',
+            // Use formData.schoolAdmissionDate for admissionDate (DB expects Date object)
             admissionDate: formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) : (sDetails.academic?.admissionDate ? new Date(sDetails.academic.admissionDate) : undefined),
-            rollNumber: sDetails.rollNumber || formData.rollNumber || '',
-            admissionNumber: sDetails.admissionNumber || formData.admissionNumber || '',
-            enrollmentNo: sDetails.enrollmentNo || formData.enrollmentNo || '',
-            tcNo: sDetails.tcNo || formData.tcNo || '',
+
+            // Map enrollment/TC fields
+            enrollmentNo: formData.enrollmentNo || sDetails.enrollmentNo || '',
+            tcNo: formData.tcNo || sDetails.tcNo || '',
+
+            // Other academic fields
+            admissionClass: formData.class || sDetails.currentClass || '',
+            admissionNumber: formData.admissionNumber || formData.enrollmentNo || '',
+            rollNumber: formData.rollNumber || sDetails.rollNumber || '',
+
+            // Previous School structure
             previousSchool: {
               ...(sDetails.academic?.previousSchool || {}),
-              name: sDetails.previousSchoolName || formData.previousSchool || '',
-              lastClass: sDetails.lastClass || formData.previousClass || '',
-              tcNumber: sDetails.tcNumber || formData.tcNumber || '',
-              tcDate: sDetails.tcDate ? new Date(sDetails.tcDate) : undefined,
-              reasonForTransfer: sDetails.reasonForTransfer || ''
+              name: formData.previousSchool || '',
+              board: formData.previousBoard || '',
+              lastClass: formData.previousClass || '',
+              tcNumber: formData.tcNumber || '',
+              tcDate: sDetails.tcDetails?.tcDate ? new Date(sDetails.tcDetails.tcDate) : undefined,
+              reasonForTransfer: formData.reasonForTransfer || ''
             }
           },
 
-          // --- Personal Information (FIXES: Religion, Caste, Certs, DOB) ---
+          // --- Personal Information ---
           personal: {
+            // Merge existing nested properties
             ...(sDetails.personal || {}),
+
+            // Map data from form to nested personal fields
             dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth) : (sDetails.personal?.dateOfBirth ? new Date(sDetails.personal.dateOfBirth) : undefined),
-            placeOfBirth: sDetails.placeOfBirth || '',
+            placeOfBirth: formData.placeOfBirth || '',
             gender: formData.gender || 'male',
             bloodGroup: formData.bloodGroup || '',
             nationality: formData.nationality || 'Indian',
+
+            // Religion
             religion: formData.religion || '',
-            religionOther: formData.religion === 'Other' ? formData.religionOther : sDetails.personal?.religionOther || '',
-            caste: formData.studentCaste || sDetails.personal?.caste || '', // Mapped to studentCaste form field
-            casteOther: formData.studentCaste === 'Other' ? formData.studentCasteOther : sDetails.personal?.casteOther || '',
-            category: formData.socialCategory || sDetails.personal?.category || '',
-            categoryOther: formData.socialCategory === 'Other' ? formData.socialCategoryOther : sDetails.personal?.categoryOther || '',
+            religionOther: formData.religion === 'Other' ? formData.religionOther : '',
+
+            // Caste/Category
+            caste: formData.studentCaste || formData.caste || '',
+            casteOther: (formData.studentCaste === 'Other' || formData.caste === 'Other') ? (formData.studentCasteOther || formData.casteOther) : '',
+            category: formData.socialCategory || formData.category || '',
+            categoryOther: (formData.socialCategory === 'Other' || formData.category === 'Other') ? (formData.socialCategoryOther || formData.categoryOther) : '',
             motherTongue: formData.motherTongue || '',
-            motherTongueOther: formData.motherTongue === 'Other' ? formData.motherTongueOther : sDetails.personal?.motherTongueOther || '',
+            motherTongueOther: formData.motherTongue === 'Other' ? formData.motherTongueOther : '',
+
+            // SATS specifics mapping
             studentAadhaar: formData.studentAadhaar || '',
-            studentCasteCertNo: formData.studentCasteCertNo || '', // FIX: Caste Cert Number Mapping
+            studentCasteCertNo: formData.studentCasteCertNo || '',
             belongingToBPL: formData.belongingToBPL || 'No',
-            bplCardNo: formData.bplCardNo || '',
+            bplCardNo: formData.bplCardNo || formData.bplCardNumber || '',
             bhagyalakshmiBondNo: formData.bhagyalakshmiBondNo || '',
             disability: formData.disability || 'Not Applicable',
-            disabilityOther: formData.disability === 'Other' ? formData.disabilityOther : sDetails.personal?.disabilityOther || '',
-            isRTECandidate: formData.isRTECandidate || 'No'
+            disabilityOther: formData.disability === 'Other' ? formData.disabilityOther : '',
+            isRTECandidate: formData.isRTECandidate || 'No',
+
+            // Age fields
+            ageYears: formData.ageYears || 0,
+            ageMonths: formData.ageMonths || 0,
+            studentNameKannada: formData.studentNameKannada || '',
           },
 
-          // --- Family Information (FIXES: Mother Name, Father/Mother Phones/Aadhaar) ---
+          // --- Family Information ---
           family: {
             father: {
               ...(sDetails.family?.father || {}),
               name: formData.fatherName || '',
               occupation: formData.fatherOccupation || '',
               qualification: formData.fatherEducation || '',
-              phone: cleanPhone(formData.fatherPhone || formData.fatherMobile), // FIX: Cleaned Phone Mapping
+              phone: cleanPhone(formData.fatherPhone || formData.fatherMobile),
               email: formData.fatherEmail || '',
-              aadhaar: formData.fatherAadhaar || '', // FIX: Aadhaar Mapping
+              aadhaar: formData.fatherAadhaar || '',
               caste: formData.fatherCaste || '',
-              casteOther: formData.fatherCaste === 'Other' ? formData.fatherCasteOther : sDetails.family?.father?.casteOther || '',
+              casteOther: formData.fatherCaste === 'Other' ? formData.fatherCasteOther : '',
               casteCertNo: formData.fatherCasteCertNo || '',
+              fatherWorkAddress: sDetails.family?.father?.fatherWorkAddress || '',
+              fatherAnnualIncome: sDetails.family?.father?.fatherAnnualIncome || 0,
+              nameKannada: formData.fatherNameKannada || '',
             },
             mother: {
               ...(sDetails.family?.mother || {}),
-              name: formData.motherName || '', // FIX: Mother Name Mapping
+              name: formData.motherName || '',
               occupation: formData.motherOccupation || '',
               qualification: formData.motherEducation || '',
-              phone: cleanPhone(formData.motherPhone || formData.motherMobile), // FIX: Cleaned Phone Mapping
+              phone: cleanPhone(formData.motherPhone || formData.motherMobile),
               email: formData.motherEmail || '',
-              aadhaar: formData.motherAadhaar || '', // FIX: Aadhaar Mapping
+              aadhaar: formData.motherAadhaar || '',
               caste: formData.motherCaste || '',
-              casteOther: formData.motherCaste === 'Other' ? formData.motherCasteOther : sDetails.family?.mother?.casteOther || '',
+              casteOther: formData.motherCaste === 'Other' ? formData.motherCasteOther : '',
               casteCertNo: formData.motherCasteCertNo || '',
+              motherWorkAddress: sDetails.family?.mother?.motherWorkAddress || '',
+              motherAnnualIncome: sDetails.family?.mother?.motherAnnualIncome || 0,
+              nameKannada: formData.motherNameKannada || '',
             },
             guardian: formData.guardianName ? {
               ...(sDetails.family?.guardian || {}),
               name: formData.guardianName,
               relationship: formData.guardianRelation || '',
-              phone: cleanPhone(formData.emergencyContactPhone || formData.alternatePhone), // FIX: Emergency Phone Mapping
-              email: sDetails.guardianEmail || '',
-              address: sDetails.guardianAddress || '',
+              phone: cleanPhone(formData.emergencyContactPhone || formData.alternatePhone),
+              email: formData.guardianEmail || '',
+              address: sDetails.family?.guardian?.address || '',
               isEmergencyContact: sDetails.isEmergencyContact || false
             } : undefined
           },
 
-          // --- Transportation (FIX: Bus Route) ---
+          // --- Transportation ---
           transport: {
             ...(sDetails.transport || {}),
             mode: formData.transportMode || '',
-            busRoute: formData.busRoute || '', // FIX: Bus Route Mapping
+            busRoute: formData.busRoute || '',
             pickupPoint: formData.pickupPoint || '',
             dropPoint: formData.dropPoint || '',
             pickupTime: sDetails.transport?.pickupTime || '',
@@ -2619,30 +2654,34 @@ const ManageUsers: React.FC = () => {
             feeCategory: formData.feeCategory || '',
             concessionType: formData.concessionType || '',
             concessionPercentage: formData.concessionPercentage || 0,
-            scholarshipDetails: sDetails.scholarshipName ? {
-              name: sDetails.scholarshipName,
-              amount: sDetails.scholarshipAmount || 0,
-              provider: sDetails.scholarshipProvider || ''
-            } : undefined,
 
+            // Map bank details
             bankDetails: {
               ...(sDetails.financial?.bankDetails || {}),
               bankName: formData.bankName || '',
               accountNumber: formData.bankAccountNo || '',
               ifscCode: formData.bankIFSC || '',
-              accountHolderName: formData.accountHolderName || ''
+              // Derive accountHolderName from form name fields if not explicitly set
+              accountHolderName: formData.bankAccountHolderName || `${formData.firstName} ${formData.lastName}`.trim()
             }
           },
 
           // --- Medical Information ---
           medical: {
             ...(sDetails.medical || {}),
+            // Map comma-separated string to array
             allergies: formData.allergies ? String(formData.allergies).split(',').map(s => s.trim()) : (sDetails.medical?.allergies || []),
             chronicConditions: formData.medicalConditions ? String(formData.medicalConditions).split(',').map(s => s.trim()) : (sDetails.medical?.chronicConditions || []),
+            medications: formData.medications ? String(formData.medications).split(',').map(s => s.trim()) : (sDetails.medical?.medications || []),
+            doctorName: formData.doctorName || '',
+            hospitalName: formData.hospitalName || '',
+            doctorPhone: formData.doctorPhone || '',
+            lastMedicalCheckup: formData.lastMedicalCheckup || '',
           },
         };
 
         // ===== CRITICAL: Ensure required flat fields for backend validator are also set (Redundancy) =====
+        // These fields are needed by the backend's validation middleware even if nested in the schema.
         userData.class = userData.studentDetails.academic.currentClass;
         userData.section = userData.studentDetails.academic.currentSection;
         userData.enrollmentNo = userData.studentDetails.academic.enrollmentNo;
