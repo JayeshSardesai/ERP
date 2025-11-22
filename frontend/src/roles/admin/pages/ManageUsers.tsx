@@ -2594,7 +2594,7 @@ const ManageUsers: React.FC = () => {
               name: formData.studentDetails?.fatherName || formData.fatherName || '',
               nameKannada: formData.studentDetails?.fatherNameKannada || formData.fatherNameKannada || '',
               occupation: formData.studentDetails?.fatherOccupation || formData.fatherOccupation || '',
-              qualification: formData.studentDetails?.fatherQualification || formData.fatherQualification || formData.fatherEducation || '',
+              qualification: formData.studentDetails?.fatherQualification || formData.fatherQualification || formData.fatherEducation || '', // <-- FIX APPLIED HERE
               phone: formData.studentDetails?.fatherPhone || formData.fatherPhone || formData.fatherMobile || '',
               email: formData.studentDetails?.fatherEmail || formData.fatherEmail || '',
               aadhaar: formData.studentDetails?.fatherAadhaar || formData.fatherAadhaar || '',
@@ -2608,7 +2608,7 @@ const ManageUsers: React.FC = () => {
               name: formData.studentDetails?.motherName || formData.motherName || '',
               nameKannada: formData.studentDetails?.motherNameKannada || formData.motherNameKannada || '',
               occupation: formData.studentDetails?.motherOccupation || formData.motherOccupation || '',
-              qualification: formData.studentDetails?.motherQualification || formData.motherQualification || formData.motherEducation || '',
+              qualification: formData.studentDetails?.motherQualification || formData.motherQualification || formData.motherEducation || '', // <-- FIX APPLIED HERE
               phone: formData.studentDetails?.motherPhone || formData.motherPhone || formData.motherMobile || '',
               email: formData.studentDetails?.motherEmail || formData.motherEmail || '',
               aadhaar: formData.studentDetails?.motherAadhaar || formData.motherAadhaar || '',

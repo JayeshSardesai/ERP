@@ -46,6 +46,8 @@ exports.addUserToSchool = async (req, res) => {
     const { schoolCode: schoolIdentifier } = req.params;
     const userData = req.body;
 
+    console.log('[addUserToSchool] Received userData:', JSON.stringify(userData, null, 2)); // Added detailed logging
+
     // Resolve school name or code to actual school code
     const schoolCode = await resolveSchoolCode(schoolIdentifier);
 
@@ -65,37 +67,6 @@ exports.addUserToSchool = async (req, res) => {
         message: 'Invalid role. Must be admin, teacher, student, or parent'
       });
     }
-
-    // Check if user already exists
-    const existingUser = await UserGenerator.getUserByIdOrEmail(schoolCode, userData.email);
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'User with this email already exists'
-      });
-    }
-
-    // Add creator information
-    userData.createdBy = req.user._id;
-
-    // Create user
-    const result = await UserGenerator.createUser(schoolCode, userData);
-
-    res.status(201).json({
-      success: true,
-      message: 'User created successfully',
-      data: result
-    });
-
-  } catch (error) {
-    console.error('Error adding user to school:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error creating user',
-      error: error.message
-    });
-  }
-};
 
 // Get all users from a school by role
 exports.getUsersByRole = async (req, res) => {
