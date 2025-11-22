@@ -334,26 +334,22 @@ class UserGenerator {
             father: {
               name: parentName,
               nameKannada: '',
-              aadhaar: userData.fatherAadharNo || '', // <-- FIX
-              caste: userData.fatherCaste || '', // <-- FIX
-              casteOther: '',
-              casteCertNo: userData.fatherCasteCertificateNo || '', // <-- FIX
+              // ... existing fields ...
+              casteCertNo: userData.fatherCasteCertificateNo || '', 
               occupation: parentOccupation,
-              qualification: '',
+              qualification: userData.fatherQualification || userData.fatherEducation || '', // <-- FIXED LINE
               phone: parentPhone,
               email: parentEmail
             },
             mother: {
               name: motherName,
               nameKannada: '',
-              aadhaar: userData.motherAadharNo || '', // <-- FIX
-              caste: userData.motherCaste || '', // <-- FIX
-              casteOther: '',
-              casteCertNo: userData.motherCasteCertificateNo || '', // <-- FIX
+              // ... existing fields ...
+              casteCertNo: userData.motherCasteCertificateNo || '', 
               occupation: '',
-              qualification: '',
-              phone: userData.motherMobileNo || '', // <-- FIX
-              email: userData.motherEmailId || '' // <-- FIX
+              qualification: userData.motherQualification || userData.motherEducation || '', // <-- FIXED LINE
+              phone: userData.motherMobileNo || '',
+              email: userData.motherEmailId || ''
             },
             guardian: {
               name: parentName,
@@ -905,10 +901,22 @@ class UserGenerator {
         if (updateData.fatherPhone !== undefined && updateData.fatherPhone !== '') updateFields[`${rolePrefix}.fatherPhone`] = updateData.fatherPhone;
         if (updateData.fatherEmail !== undefined && updateData.fatherEmail !== '') updateFields[`${rolePrefix}.fatherEmail`] = updateData.fatherEmail;
         if (updateData.fatherOccupation !== undefined && updateData.fatherOccupation !== '') updateFields[`${rolePrefix}.fatherOccupation`] = updateData.fatherOccupation;
+        if (updateData.fatherQualification !== undefined) {
+          updateFields['parents.father.qualification'] = updateData.fatherQualification;
+        } else if (updateData.fatherEducation !== undefined) {
+          // Fallback if the FE sends only the legacy field
+          updateFields['parents.father.qualification'] = updateData.fatherEducation;
+        }
         if (updateData.motherName !== undefined && updateData.motherName !== '') updateFields[`${rolePrefix}.motherName`] = updateData.motherName;
         if (updateData.motherPhone !== undefined && updateData.motherPhone !== '') updateFields[`${rolePrefix}.motherPhone`] = updateData.motherPhone;
         if (updateData.motherEmail !== undefined && updateData.motherEmail !== '') updateFields[`${rolePrefix}.motherEmail`] = updateData.motherEmail;
         if (updateData.motherOccupation !== undefined && updateData.motherOccupation !== '') updateFields[`${rolePrefix}.motherOccupation`] = updateData.motherOccupation;
+        if (updateData.motherQualification !== undefined) {
+          updateFields['parents.mother.qualification'] = updateData.motherQualification;
+        } else if (updateData.motherEducation !== undefined) {
+          // Fallback if the FE sends only the legacy field
+          updateFields['parents.mother.qualification'] = updateData.motherEducation;
+        }
         if (updateData.guardianName !== undefined && updateData.guardianName !== '') updateFields[`${rolePrefix}.guardianName`] = updateData.guardianName;
         const guardianRel = updateData.guardianRelation || updateData.guardianRelationship;
         if (guardianRel !== undefined && guardianRel !== '') updateFields[`${rolePrefix}.guardianRelationship`] = guardianRel;
