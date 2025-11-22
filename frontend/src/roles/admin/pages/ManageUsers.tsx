@@ -2542,6 +2542,7 @@ const ManageUsers: React.FC = () => {
             previousSchool: {
               name: formData.studentDetails?.previousSchoolName || formData.previousSchool || formData.studentDetails?.previousSchool?.name || '',
               board: formData.studentDetails?.previousBoard || formData.studentDetails?.previousSchool?.board || '',
+              // CRITICAL FIX 1: Map previousClass for creation
               lastClass: formData.studentDetails?.lastClass || formData.previousClass || formData.studentDetails?.previousSchool?.lastClass || '',
               tcNumber: formData.studentDetails?.tcNumber || formData.tcNumber || formData.studentDetails?.previousSchool?.tcNumber || '',
               tcDate: formData.studentDetails?.tcDate ? new Date(formData.studentDetails.tcDate) : (formData.studentDetails?.previousSchool?.tcDate ? new Date(formData.studentDetails.previousSchool.tcDate) : undefined),
@@ -2620,6 +2621,7 @@ const ManageUsers: React.FC = () => {
             },
             guardian: formData.studentDetails?.guardianName ? {
               name: formData.studentDetails.guardianName,
+              // CRITICAL FIX 2: Map guardian relationship for creation
               relationship: formData.studentDetails.guardianRelationship || formData.guardianRelation || '',
               phone: formData.studentDetails.guardianPhone || '',
               email: formData.studentDetails.guardianEmail || '',
@@ -2662,12 +2664,14 @@ const ManageUsers: React.FC = () => {
           medical: {
             allergies: (() => {
               const allergiesData = formData.studentDetails?.medical?.allergies || formData.studentDetails?.allergies || formData.allergies;
+              // CRITICAL FIX 3: Convert string form input to array for payload
               if (Array.isArray(allergiesData)) return allergiesData;
               if (typeof allergiesData === 'string' && allergiesData.trim()) return allergiesData.split(',').map((a: string) => a.trim()).filter((a: string) => a);
               return [];
             })(),
             chronicConditions: (() => {
               const conditionsData = formData.studentDetails?.medical?.chronicConditions || formData.studentDetails?.chronicConditions || formData.medicalConditions;
+              // CRITICAL FIX 4: Convert string form input to array for payload
               if (Array.isArray(conditionsData)) return conditionsData;
               if (typeof conditionsData === 'string' && conditionsData.trim()) return conditionsData.split(',').map((c: string) => c.trim()).filter((c: string) => c);
               return [];
@@ -7838,7 +7842,21 @@ const ManageUsers: React.FC = () => {
                             <input
                               type="text"
                               value={formData.previousClass || ''}
-                              onChange={(e) => setFormData({ ...formData, previousClass: e.target.value })}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                previousClass: e.target.value,
+                                // CRITICAL FIX 5: Update nested academic.previousSchool.lastClass
+                                studentDetails: {
+                                  ...prev.studentDetails,
+                                  academic: {
+                                    ...prev.studentDetails.academic,
+                                    previousSchool: {
+                                      ...prev.studentDetails.academic?.previousSchool,
+                                      lastClass: e.target.value // Update nested object
+                                    }
+                                  }
+                                }
+                              }))}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
                               placeholder="Enter last class passed"
                             />
@@ -7864,7 +7882,21 @@ const ManageUsers: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Guardian Relationship</label>
                             <select
                               value={formData.guardianRelation || ''}
-                              onChange={(e) => setFormData({ ...formData, guardianRelation: e.target.value })}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                guardianRelation: e.target.value,
+                                // CRITICAL FIX: Update nested family.guardian.relationship
+                                studentDetails: {
+                                  ...prev.studentDetails,
+                                  family: {
+                                    ...prev.studentDetails.family,
+                                    guardian: {
+                                      ...prev.studentDetails.family?.guardian,
+                                      relationship: e.target.value
+                                    }
+                                  }
+                                }
+                              }))}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
                             >
                               <option value="">Select Relationship</option>
@@ -7902,7 +7934,18 @@ const ManageUsers: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
                             <textarea
                               value={formData.allergies || ''}
-                              onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                allergies: e.target.value,
+                                // CRITICAL FIX 7: Update nested medical.allergies
+                                studentDetails: {
+                                  ...prev.studentDetails,
+                                  medical: {
+                                    ...prev.studentDetails.medical,
+                                    allergies: e.target.value // Stored as comma-separated string in form state
+                                  }
+                                }
+                              }))}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
                               placeholder="Enter any allergies (comma-separated)"
                               rows={2}
@@ -7912,7 +7955,18 @@ const ManageUsers: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Medical Conditions</label>
                             <textarea
                               value={formData.medicalConditions || ''}
-                              onChange={(e) => setFormData({ ...formData, medicalConditions: e.target.value })}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                medicalConditions: e.target.value,
+                                // CRITICAL FIX 8: Update nested medical.chronicConditions
+                                studentDetails: {
+                                  ...prev.studentDetails,
+                                  medical: {
+                                    ...prev.studentDetails.medical,
+                                    chronicConditions: e.target.value // Stored as comma-separated string in form state
+                                  }
+                                }
+                              }))}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2"
                               placeholder="Enter any chronic medical conditions (comma-separated)"
                               rows={2}

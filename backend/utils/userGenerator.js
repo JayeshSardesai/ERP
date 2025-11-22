@@ -224,10 +224,11 @@ class UserGenerator {
               enrollmentNo: userData.enrollmentNo || studentId, // <-- FIX
               tcNo: userData.tcNo || '', // <-- FIX
               previousSchool: {
-                // CRITICAL FIX 1 (BE): Ensure this reads the flat field previousSchoolName from FE payload
+                // CRITICAL FIX: Ensure this reads the flat field previousSchoolName from FE payload
                 name: userData.previousSchoolName || '',
                 board: '',
-                lastClass: '',
+                // CRITICAL FIX 9 (BE): Map lastClass for creation
+                lastClass: userData.previousClass || '',
                 tcNumber: userData.tcNo || '',
                 reasonForTransfer: ''
               }
@@ -253,8 +254,9 @@ class UserGenerator {
             },
 
             medical: {
-              allergies: [],
-              chronicConditions: []
+              // CRITICAL FIX 10 & 11 (BE): Map arrays for allergies and chronic conditions for creation
+              allergies: Array.isArray(userData.allergies) ? userData.allergies : (userData.allergies ? userData.allergies.split(',').map(a => a.trim()).filter(Boolean) : []),
+              chronicConditions: Array.isArray(userData.chronicConditions) ? userData.chronicConditions : (userData.chronicConditions ? userData.chronicConditions.split(',').map(c => c.trim()).filter(Boolean) : [])
             },
 
             family: {
@@ -356,7 +358,7 @@ class UserGenerator {
             },
             guardian: {
               name: parentName,
-              relationship: parentRelationship,
+              relationship: userData.guardianRelation || parentRelationship || '',
               phone: parentPhone,
               email: parentEmail
             }
@@ -923,7 +925,11 @@ class UserGenerator {
         if (updateData.guardianName !== undefined && updateData.guardianName !== '') updateFields[`${rolePrefix}.guardianName`] = updateData.guardianName;
         const guardianRelUpdateModern = updateData.guardianRelation || updateData.guardianRelationship || updateData.emergencyContactRelation;
         if (guardianRelUpdateModern !== undefined && guardianRelUpdateModern !== '') {
+          // CRITICAL FIX 14 (BE): Map guardian relationship for update (using the correct nested path)
           updateFields[`${rolePrefix}.family.guardian.relationship`] = guardianRelUpdateModern;
+
+          // CRITICAL FIX 17 (BE): Also map to the deprecated parents.guardian.relationship field for backward compatibility
+          updateFields['parents.guardian.relationship'] = guardianRelUpdateModern;
         }
         // Personal fields
         if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.personal.bloodGroup`] = updateData.bloodGroup;
@@ -946,8 +952,17 @@ class UserGenerator {
         if (updateData.ifscCode !== undefined || updateData.bankIFSC !== undefined) updateFields[`${rolePrefix}.bankIFSC`] = updateData.ifscCode || updateData.bankIFSC;
 
         // Medical fields
-        if (updateData.medicalConditions !== undefined) updateFields[`${rolePrefix}.medicalConditions`] = updateData.medicalConditions;
-        if (updateData.allergies !== undefined) updateFields[`${rolePrefix}.allergies`] = updateData.allergies;
+        if (updateData.allergies !== undefined) {
+          updateFields[`${rolePrefix}.medical.allergies`] = typeof updateData.allergies === 'string'
+            ? updateData.allergies.split(',').map(a => a.trim()).filter(Boolean)
+            : (Array.isArray(updateData.allergies) ? updateData.allergies : []);
+        }
+
+        if (updateData.medicalConditions !== undefined) {
+          updateFields[`${rolePrefix}.medical.chronicConditions`] = typeof updateData.medicalConditions === 'string'
+            ? updateData.medicalConditions.split(',').map(c => c.trim()).filter(Boolean)
+            : (Array.isArray(updateData.medicalConditions) ? updateData.medicalConditions : []);
+        }
         if (updateData.specialNeeds !== undefined) updateFields[`${rolePrefix}.specialNeeds`] = updateData.specialNeeds;
         if (updateData.disability !== undefined) updateFields[`${rolePrefix}.disability`] = updateData.disability;
         if (updateData.isRTECandidate !== undefined) updateFields[`${rolePrefix}.isRTECandidate`] = updateData.isRTECandidate;
@@ -960,6 +975,9 @@ class UserGenerator {
         const prevSchoolNameUpdate = updateData.previousSchoolName || updateData.previousSchool;
         if (prevSchoolNameUpdate !== undefined) {
           updateFields[`${rolePrefix}.academic.previousSchool.name`] = prevSchoolNameUpdate;
+        }
+        if (updateData.previousClass !== undefined) {
+          updateFields[`${rolePrefix}.academic.previousSchool.lastClass`] = updateData.previousClass;
         }
         if (updateData.tcNumber !== undefined) updateFields[`${rolePrefix}.tcNumber`] = updateData.tcNumber;
       } else if (user.role === 'teacher') {
