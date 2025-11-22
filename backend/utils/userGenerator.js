@@ -154,7 +154,7 @@ class UserGenerator {
 
         const motherName = userData.motherNameEnglish?.firstName ? `${userData.motherNameEnglish.firstName} ${userData.motherNameEnglish.lastName}`.trim() : '';
 
-        const parentRelationship = userData.guardianRelation || '';
+        const parentRelationship = userData.guardianRelation || userData.emergencyContactRelation || '';
 
         // -----------------------
         // CREATE FINAL DOCUMENT
@@ -224,10 +224,10 @@ class UserGenerator {
               enrollmentNo: userData.enrollmentNo || studentId, // <-- FIX
               tcNo: userData.tcNo || '', // <-- FIX
               previousSchool: {
-                name: '',
+                name: userData.previousSchoolName || '', // <-- CRITICAL FIX: Read from form data
                 board: '',
-                lastClass: '',
-                tcNumber: userData.tcNo || '', // <-- FIX
+                lastClass: userData.lastClass || '',
+                tcNumber: userData.tcNo || '',
                 reasonForTransfer: ''
               }
             },
@@ -279,9 +279,10 @@ class UserGenerator {
             },
 
             transport: {
-              mode: userData.mode || '',
-              busRoute: userData.busRoute || '',
-              pickupPoint: userData.pickupPoint || ''
+              // CRITICAL FIX: Check for specific field name (transportMode) first
+              mode: userData.transportMode || userData.mode || '',
+              busRoute: userData.busRoute || '',       // <-- CRITICAL FIX
+              pickupPoint: userData.pickupPoint || ''  // <-- CRITICAL FIX
             },
 
             financial: {
@@ -335,7 +336,7 @@ class UserGenerator {
               name: parentName,
               nameKannada: '',
               // ... existing fields ...
-              casteCertNo: userData.fatherCasteCertificateNo || '', 
+              casteCertNo: userData.fatherCasteCertificateNo || '',
               occupation: parentOccupation,
               qualification: userData.fatherQualification || userData.fatherEducation || '', // <-- FIXED LINE
               phone: parentPhone,
@@ -345,7 +346,7 @@ class UserGenerator {
               name: motherName,
               nameKannada: '',
               // ... existing fields ...
-              casteCertNo: userData.motherCasteCertificateNo || '', 
+              casteCertNo: userData.motherCasteCertificateNo || '',
               occupation: '',
               qualification: userData.motherQualification || userData.motherEducation || '', // <-- FIXED LINE
               phone: userData.motherMobileNo || '',
@@ -918,9 +919,11 @@ class UserGenerator {
           updateFields['parents.mother.qualification'] = updateData.motherEducation;
         }
         if (updateData.guardianName !== undefined && updateData.guardianName !== '') updateFields[`${rolePrefix}.guardianName`] = updateData.guardianName;
-        const guardianRel = updateData.guardianRelation || updateData.guardianRelationship;
-        if (guardianRel !== undefined && guardianRel !== '') updateFields[`${rolePrefix}.guardianRelationship`] = guardianRel;
-
+        const guardianRelUpdate = updateData.guardianRelation || updateData.guardianRelationship || updateData.emergencyContactRelation;
+        if (guardianRelUpdate !== undefined && guardianRelUpdate !== '') {
+          // This targets the specific compatibility field in the MongoDB document
+          updateFields['parents.guardian.relationship'] = guardianRelUpdate;
+        }
         // Personal fields
         if (updateData.bloodGroup !== undefined) updateFields[`${rolePrefix}.personal.bloodGroup`] = updateData.bloodGroup;
         // <-- LINT FIX: 'roleFrefix' to 'rolePrefix'
@@ -928,6 +931,18 @@ class UserGenerator {
         if (updateData.religion !== undefined) updateFields[`${rolePrefix}.religion`] = updateData.religion;
         if (updateData.caste !== undefined || updateData.studentCaste !== undefined) updateFields[`${rolePrefix}.caste`] = updateData.caste || updateData.studentCaste;
         if (updateData.category !== undefined || updateData.socialCategory !== undefined) updateFields[`${rolePrefix}.category`] = updateData.category || updateData.socialCategory;
+        if (updateData.transportMode !== undefined) {
+          updateFields[`${rolePrefix}.transport.mode`] = updateData.transportMode;
+        } else if (updateData.mode !== undefined) {
+          updateFields[`${rolePrefix}.transport.mode`] = updateData.mode; // Fallback check
+        }
+
+        if (updateData.busRoute !== undefined) {
+          updateFields[`${rolePrefix}.transport.busRoute`] = updateData.busRoute;
+        }
+        if (updateData.pickupPoint !== undefined) {
+          updateFields[`${rolePrefix}.transport.pickupPoint`] = updateData.pickupPoint;
+        }
 
         // Banking fields
         if (updateData.bankName !== undefined) updateFields[`${rolePrefix}.bankName`] = updateData.bankName;
@@ -946,7 +961,11 @@ class UserGenerator {
         if (updateData.motherTongueOther !== undefined) updateFields[`${rolePrefix}.motherTongueOther`] = updateData.motherTongueOther;
 
         // Previous school
-        if (updateData.previousSchoolName !== undefined) updateFields[`${rolePrefix}.previousSchoolName`] = updateData.previousSchoolName;
+        const prevSchoolName = updateData.previousSchoolName || updateData.previousSchool;
+        if (prevSchoolName !== undefined) {
+          // Target the deeply nested academic path for persistence
+          updateFields[`${rolePrefix}.academic.previousSchool.name`] = prevSchoolName;
+        }
         if (updateData.tcNumber !== undefined) updateFields[`${rolePrefix}.tcNumber`] = updateData.tcNumber;
       } else if (user.role === 'teacher') {
         if (updateData.qualification !== undefined) updateFields[`${rolePrefix}.qualification`] = updateData.qualification;
