@@ -2667,7 +2667,23 @@ const ManageUsers: React.FC = () => {
         userData.studentAadhaar = formData.studentAadhaar || userData.studentDetails.personal.studentAadhaar;
         userData.studentCasteCertNo = formData.studentCasteCertNo || userData.studentDetails.personal.studentCasteCertNo;
         userData.isRTECandidate = formData.isRTECandidate || userData.studentDetails.personal.isRTECandidate;
-        userData.fatherName = formData.fatherName || userData.studentDetails.family?.father?.name; // <-- ADD THIS
+        // Map family fields for flat validation and legacy support
+        userData.fatherName = formData.fatherName || userData.studentDetails.family?.father?.name;
+        userData.fatherPhone = formData.fatherPhone || userData.studentDetails.family?.father?.phone;
+        userData.fatherEmail = formData.fatherEmail || userData.studentDetails.family?.father?.email;
+        userData.fatherAadhaar = formData.fatherAadhaar || userData.studentDetails.family?.father?.aadhaar;
+        userData.fatherCaste = formData.fatherCaste || userData.studentDetails.family?.father?.caste;
+        userData.fatherCasteCertNo = formData.fatherCasteCertNo || userData.studentDetails.family?.father?.casteCertNo;
+        userData.fatherNameKannada = formData.fatherNameKannada || userData.studentDetails.family?.father?.nameKannada;
+
+        userData.motherName = formData.motherName || userData.studentDetails.family?.mother?.name;
+        userData.motherPhone = formData.motherPhone || userData.studentDetails.family?.mother?.phone;
+        userData.motherEmail = formData.motherEmail || userData.studentDetails.family?.mother?.email;
+        userData.motherAadhaar = formData.motherAadhaar || userData.studentDetails.family?.mother?.aadhaar;
+        userData.motherCaste = formData.motherCaste || userData.studentDetails.family?.mother?.caste;
+        userData.motherCasteCertNo = formData.motherCasteCertNo || userData.studentDetails.family?.mother?.casteCertNo;
+        userData.motherNameKannada = formData.motherNameKannada || userData.studentDetails.family?.mother?.nameKannada;
+
         userData.schoolAdmissionDate = formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) :
           (formData.studentDetails?.schoolAdmissionDate ? new Date(formData.studentDetails.schoolAdmissionDate) : undefined);
         userData.bankName = formData.bankName || userData.studentDetails.financial?.bankDetails?.bankName; // <-- FIX
@@ -2695,6 +2711,27 @@ const ManageUsers: React.FC = () => {
           || userData.studentDetails.personal.studentCasteCertNo
           || '';
 
+        // Map parent family fields for UserGenerator.createUser (backend compatibility names)
+        userData.fatherAadharNo = formData.fatherAadhaar || userData.studentDetails.family?.father?.aadhaar || '';
+        userData.fatherCasteCertificateNo = formData.fatherCasteCertNo || userData.studentDetails.family?.father?.casteCertNo || '';
+        userData.fatherNameEnglish = formData.fatherName ? { firstName: formData.fatherName, lastName: '' } : undefined;
+        userData.fatherMobileNo = formData.fatherPhone || userData.studentDetails.family?.father?.phone || '';
+        userData.fatherEmailId = formData.fatherEmail || userData.studentDetails.family?.father?.email || '';
+
+        userData.motherAadharNo = formData.motherAadhaar || userData.studentDetails.family?.mother?.aadhaar || '';
+        userData.motherCasteCertificateNo = formData.motherCasteCertNo || userData.studentDetails.family?.mother?.casteCertNo || '';
+        userData.motherNameEnglish = formData.motherName ? { firstName: formData.motherName, lastName: '' } : undefined;
+        userData.motherMobileNo = formData.motherPhone || userData.studentDetails.family?.mother?.phone || '';
+        userData.motherEmailId = formData.motherEmail || userData.studentDetails.family?.mother?.email || '';
+
+        // Map transport fields for flat validation (backend may look for these at top level)
+        userData.transportMode = formData.studentDetails?.transport?.mode || '';
+        userData.busRoute = formData.studentDetails?.transport?.busRoute || '';
+        userData.pickupPoint = formData.studentDetails?.transport?.pickupPoint || '';
+        userData.dropPoint = formData.studentDetails?.transport?.dropPoint || '';
+        userData.pickupTime = formData.studentDetails?.transport?.pickupTime || '';
+        userData.dropTime = formData.studentDetails?.transport?.dropTime || '';
+
         // Map SATS caste/category fields for UserGenerator.createUser
         userData.studentCaste = formData.studentCaste
           || userData.studentDetails.personal.studentCaste
@@ -2720,6 +2757,17 @@ const ManageUsers: React.FC = () => {
           || userData.studentDetails.financial?.bankDetails?.ifscCode
           || userData.bankIFSC
           || '';
+
+        // Map medical fields for flat validation (backend may look for these at top level)
+        userData.allergies = userData.studentDetails?.medical?.allergies || [];
+        userData.chronicConditions = userData.studentDetails?.medical?.chronicConditions || [];
+        userData.medications = userData.studentDetails?.medical?.medications || [];
+        userData.doctorName = userData.studentDetails?.medical?.emergencyMedicalContact?.doctorName || '';
+        userData.hospitalName = userData.studentDetails?.medical?.emergencyMedicalContact?.hospitalName || '';
+        userData.doctorPhone = userData.studentDetails?.medical?.emergencyMedicalContact?.phone || '';
+        userData.lastMedicalCheckup = userData.studentDetails?.medical?.lastMedicalCheckup
+          ? new Date(userData.studentDetails.medical.lastMedicalCheckup)
+          : undefined;
       } else if (formData.role === 'teacher') {
         // Send data in the format backend expects (flat fields like bulk import)
         userData.teacherDetails = {

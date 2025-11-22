@@ -1495,9 +1495,9 @@ exports.addStudent = async (req, res) => {
         mode: userData.studentDetails?.transport?.mode || userData.transportMode || '',
         busRoute: userData.studentDetails?.transport?.busRoute || userData.busRoute || '',
         pickupPoint: userData.studentDetails?.transport?.pickupPoint || userData.pickupPoint || '',
-        dropPoint: userData.studentDetails?.transport?.dropPoint || '',
-        pickupTime: userData.studentDetails?.transport?.pickupTime || '',
-        dropTime: userData.studentDetails?.transport?.dropTime || ''
+        dropPoint: userData.studentDetails?.transport?.dropPoint || userData.dropPoint || '',
+        pickupTime: userData.studentDetails?.transport?.pickupTime || userData.pickupTime || '',
+        dropTime: userData.studentDetails?.transport?.dropTime || userData.dropTime || ''
       },
       // Financial Information
       financial: {
@@ -1514,11 +1514,15 @@ exports.addStudent = async (req, res) => {
       },
       // Medical Information
       medical: {
-        allergies: userData.studentDetails?.medical?.allergies || [],
-        chronicConditions: userData.studentDetails?.medical?.chronicConditions || [],
-        medications: userData.studentDetails?.medical?.medications || [],
-        emergencyMedicalContact: userData.studentDetails?.medical?.emergencyMedicalContact || {},
-        lastMedicalCheckup: userData.studentDetails?.medical?.lastMedicalCheckup ? new Date(userData.studentDetails.medical.lastMedicalCheckup) : null
+        allergies: userData.studentDetails?.medical?.allergies || userData.allergies || [],
+        chronicConditions: userData.studentDetails?.medical?.chronicConditions || userData.chronicConditions || [],
+        medications: userData.studentDetails?.medical?.medications || userData.medications || [],
+        emergencyMedicalContact: userData.studentDetails?.medical?.emergencyMedicalContact || {
+          doctorName: userData.doctorName || '',
+          hospitalName: userData.hospitalName || '',
+          phone: userData.doctorPhone || ''
+        },
+        lastMedicalCheckup: userData.studentDetails?.medical?.lastMedicalCheckup || userData.lastMedicalCheckup ? new Date(userData.studentDetails?.medical?.lastMedicalCheckup || userData.lastMedicalCheckup) : null
       },
       // IDs and metadata
       studentId: studentId,
