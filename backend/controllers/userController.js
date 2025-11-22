@@ -1446,7 +1446,7 @@ exports.addStudent = async (req, res) => {
       // Personal Information
       personal: {
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : new Date(),
-        placeOfBirth: userData.studentDetails?.personal?.placeOfBirth || '',
+        placeOfBirth: userData.studentDetails?.personal?.placeOfBirth || userData.placeOfBirth || '',
         gender: gender,
         bloodGroup: userData.studentDetails?.personal?.bloodGroup || userData.bloodGroup || '',
         nationality: userData.nationality || userData.studentDetails?.personal?.nationality || 'Indian',
@@ -1467,25 +1467,25 @@ exports.addStudent = async (req, res) => {
         father: {
           name: userData.studentDetails?.family?.father?.name || userData.fatherName || parentName,
           occupation: userData.studentDetails?.family?.father?.occupation || userData.fatherOccupation || '',
-          qualification: userData.studentDetails?.family?.father?.qualification || userData.fatherEducation || '',
+          qualification: userData.studentDetails?.family?.father?.qualification || userData.fatherQualification || userData.fatherEducation || '',
           phone: userData.studentDetails?.family?.father?.phone || userData.fatherPhone || userData.fatherMobileNo || '',
           email: userData.studentDetails?.family?.father?.email || userData.fatherEmail || '',
           aadhaar: userData.studentDetails?.family?.father?.aadhaar || userData.fatherAadhaar || '',
           caste: userData.studentDetails?.family?.father?.caste || userData.fatherCaste || '',
           casteCertNo: userData.studentDetails?.family?.father?.casteCertNo || userData.fatherCasteCertNo || '',
-          workAddress: userData.studentDetails?.family?.father?.workAddress || '',
+          workAddress: userData.studentDetails?.family?.father?.workAddress || userData.fatherWorkAddress || '',
           annualIncome: userData.studentDetails?.family?.father?.annualIncome || 0
         },
         mother: {
           name: userData.studentDetails?.family?.mother?.name || userData.motherName || '',
           occupation: userData.studentDetails?.family?.mother?.occupation || userData.motherOccupation || '',
-          qualification: userData.studentDetails?.family?.mother?.qualification || userData.motherEducation || '',
+          qualification: userData.studentDetails?.family?.mother?.qualification || userData.motherQualification || userData.motherEducation || '',
           phone: userData.studentDetails?.family?.mother?.phone || userData.motherPhone || userData.motherMobileNo || '',
           email: userData.studentDetails?.family?.mother?.email || userData.motherEmail || '',
           aadhaar: userData.studentDetails?.family?.mother?.aadhaar || userData.motherAadhaar || '',
           caste: userData.studentDetails?.family?.mother?.caste || userData.motherCaste || '',
           casteCertNo: userData.studentDetails?.family?.mother?.casteCertNo || userData.motherCasteCertNo || '',
-          workAddress: userData.studentDetails?.family?.mother?.workAddress || '',
+          workAddress: userData.studentDetails?.family?.mother?.workAddress || userData.motherWorkAddress || '',
           annualIncome: userData.studentDetails?.family?.mother?.annualIncome || 0
         },
         guardian: userData.studentDetails?.family?.guardian || {}

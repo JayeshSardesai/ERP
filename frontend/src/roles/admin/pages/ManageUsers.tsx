@@ -2667,6 +2667,7 @@ const ManageUsers: React.FC = () => {
         userData.studentAadhaar = formData.studentAadhaar || userData.studentDetails.personal.studentAadhaar;
         userData.studentCasteCertNo = formData.studentCasteCertNo || userData.studentDetails.personal.studentCasteCertNo;
         userData.isRTECandidate = formData.isRTECandidate || userData.studentDetails.personal.isRTECandidate;
+        userData.placeOfBirth = formData.placeOfBirth || userData.studentDetails.personal.placeOfBirth;
         // Map family fields for flat validation and legacy support
         userData.fatherName = formData.fatherName || userData.studentDetails.family?.father?.name;
         userData.fatherPhone = formData.fatherPhone || userData.studentDetails.family?.father?.phone;
@@ -2675,6 +2676,9 @@ const ManageUsers: React.FC = () => {
         userData.fatherCaste = formData.fatherCaste || userData.studentDetails.family?.father?.caste;
         userData.fatherCasteCertNo = formData.fatherCasteCertNo || userData.studentDetails.family?.father?.casteCertNo;
         userData.fatherNameKannada = formData.fatherNameKannada || userData.studentDetails.family?.father?.nameKannada;
+        userData.fatherOccupation = formData.fatherOccupation || userData.studentDetails.family?.father?.occupation;
+        userData.fatherQualification = formData.fatherQualification || formData.fatherEducation || userData.studentDetails.family?.father?.qualification;
+        userData.fatherWorkAddress = formData.fatherWorkAddress || userData.studentDetails.family?.father?.workAddress;
 
         userData.motherName = formData.motherName || userData.studentDetails.family?.mother?.name;
         userData.motherPhone = formData.motherPhone || userData.studentDetails.family?.mother?.phone;
@@ -2683,6 +2687,9 @@ const ManageUsers: React.FC = () => {
         userData.motherCaste = formData.motherCaste || userData.studentDetails.family?.mother?.caste;
         userData.motherCasteCertNo = formData.motherCasteCertNo || userData.studentDetails.family?.mother?.casteCertNo;
         userData.motherNameKannada = formData.motherNameKannada || userData.studentDetails.family?.mother?.nameKannada;
+        userData.motherOccupation = formData.motherOccupation || userData.studentDetails.family?.mother?.occupation;
+        userData.motherQualification = formData.motherQualification || formData.motherEducation || userData.studentDetails.family?.mother?.qualification;
+        userData.motherWorkAddress = formData.motherWorkAddress || userData.studentDetails.family?.mother?.workAddress;
 
         userData.schoolAdmissionDate = formData.schoolAdmissionDate ? new Date(formData.schoolAdmissionDate) :
           (formData.studentDetails?.schoolAdmissionDate ? new Date(formData.studentDetails.schoolAdmissionDate) : undefined);
