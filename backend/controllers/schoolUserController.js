@@ -44,6 +44,7 @@ const resolveSchoolCode = async (schoolIdentifier) => {
 exports.addUserToSchool = async (req, res) => {
   try {
     const { schoolCode: schoolIdentifier } = req.params;
+    // CRITICAL FIX: The user passed nested functions here, they have been removed.
     const userData = req.body;
 
     console.log('[addUserToSchool] Received userData:', JSON.stringify(userData, null, 2)); // Added detailed logging
@@ -67,6 +68,37 @@ exports.addUserToSchool = async (req, res) => {
         message: 'Invalid role. Must be admin, teacher, student, or parent'
       });
     }
+
+    // Check if user already exists
+    const existingUser = await UserGenerator.getUserByIdOrEmail(schoolCode, userData.email);
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
+    }
+
+    // Add creator information
+    userData.createdBy = req.user._id;
+
+    // Create user
+    const result = await UserGenerator.createUser(schoolCode, userData);
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Error adding user to school:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating user',
+      error: error.message
+    });
+  }
+};
 
 // Get all users from a school by role
 exports.getUsersByRole = async (req, res) => {
@@ -892,7 +924,7 @@ exports.deleteTimetable = async (req, res) => {
     });
 
     if (!result) {
-      return res.status(44).json({
+      return res.status(404).json({ // Corrected status code from 44 to 404
         success: false,
         message: 'Timetable not found'
       });
@@ -991,7 +1023,7 @@ exports.verifyAdminAndGetPasswords = async (req, res) => {
           email: teacher.email,
           name: teacher.name?.displayName || `${teacher.name?.firstName} ${teacher.name?.lastName}`,
           temporaryPassword: teacher.temporaryPassword || null
-        } // <-- FIXED: Closing curly brace added here
+        }
       });
     }
 
@@ -1020,6 +1052,5 @@ exports.verifyAdminAndGetPasswords = async (req, res) => {
     });
   }
 };
-
 
 module.exports = exports;
