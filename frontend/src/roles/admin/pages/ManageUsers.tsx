@@ -2854,6 +2854,12 @@ const ManageUsers: React.FC = () => {
         userData.migrationCertificate = formData.studentDetails?.academic?.previousSchool?.migrationCertificate
           || formData.migrationCertificate
           || '';
+
+        // Scholarship Details (for userGenerator.js to read and store in financial.scholarshipDetails.name)
+        userData.scholarshipDetails = formData.studentDetails?.financial?.scholarshipDetails?.name
+          || formData.studentDetails?.scholarshipName
+          || formData.scholarshipDetails
+          || '';
         // --- END CRITICAL FIX ---
       } else if (formData.role === 'teacher') {
         // Send data in the format backend expects (flat fields like bulk import)
