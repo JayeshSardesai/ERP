@@ -2823,6 +2823,38 @@ const ManageUsers: React.FC = () => {
         userData.lastMedicalCheckup = userData.studentDetails?.medical?.lastMedicalCheckup
           ? new Date(userData.studentDetails.medical.lastMedicalCheckup)
           : undefined;
+
+        // --- CRITICAL FIX: Map missing personal and family fields for UserGenerator.createUser ---
+        // These fields were not being mapped to the flat userData object, so userGenerator.js couldn't read them
+        // Now mapping them from studentDetails (nested) -> userData (flat) so userGenerator.js can access them
+
+        // Personal Information Fields (for userData.personal fallback in userGenerator)
+        userData.birthCertificateNumber = formData.studentDetails?.personal?.birthCertificateNumber
+          || formData.birthCertificateNumber
+          || '';
+        userData.economicStatus = formData.studentDetails?.personal?.economicStatus
+          || formData.economicStatus
+          || '';
+        userData.familyIncome = formData.studentDetails?.personal?.familyIncome
+          || formData.familyIncome
+          || '';
+
+        // Guardian Information (from family.guardian)
+        userData.guardianRelation = formData.studentDetails?.family?.guardian?.relationship
+          || formData.studentDetails?.guardianRelationship
+          || formData.guardianRelation
+          || formData.guardianRelationship
+          || '';
+
+        // Previous School Information (from academic.previousSchool)
+        userData.previousClass = formData.studentDetails?.academic?.previousSchool?.lastClass
+          || formData.studentDetails?.lastClass
+          || formData.previousClass
+          || '';
+        userData.migrationCertificate = formData.studentDetails?.academic?.previousSchool?.migrationCertificate
+          || formData.migrationCertificate
+          || '';
+        // --- END CRITICAL FIX ---
       } else if (formData.role === 'teacher') {
         // Send data in the format backend expects (flat fields like bulk import)
         userData.teacherDetails = {

@@ -339,12 +339,17 @@ exports.createUser = async (req, res) => {
           admissionDate: academic.admissionDate ? new Date(academic.admissionDate) : (userData.admissionDate ? new Date(userData.admissionDate) : null),
           previousSchool: {
             ...(academic.previousSchool || {}),
+            lastClass: academic.previousSchool?.lastClass || userData.previousSchoolLastClass || '',
             tcDate: academic.previousSchool?.tcDate ? new Date(academic.previousSchool.tcDate) : null,
           }
         },
         personal: {
           ...personal,
           dateOfBirth: personal.dateOfBirth ? new Date(personal.dateOfBirth) : (userData.dateOfBirth ? new Date(userData.dateOfBirth) : null),
+          migrationCertificate: personal.migrationCertificate || userData.migrationCertificate || '',
+          birthCertificateNumber: personal.birthCertificateNumber || userData.birthCertificateNumber || '',
+          economicStatus: personal.economicStatus || userData.economicStatus || '',
+          familyIncome: personal.familyIncome || userData.familyIncome || (financial.familyIncome || userData.familyIncome) || '',
         },
         medical: {
           ...medical,
@@ -377,6 +382,10 @@ exports.createUser = async (req, res) => {
         motherTongue: (personal.motherTongue || userData.motherTongue)?.trim() || '',
         studentAadhaar: (personal.studentAadhaar || userData.studentAadhaar)?.trim() || '',
         studentCasteCertNo: (personal.studentCasteCertNo || userData.studentCasteCertNo)?.trim() || '',
+        migrationCertificate: (personal.migrationCertificate || userData.migrationCertificate)?.trim() || '',
+        birthCertificateNumber: (personal.birthCertificateNumber || userData.birthCertificateNumber)?.trim() || '',
+        economicStatus: (personal.economicStatus || userData.economicStatus)?.trim() || '',
+        familyIncome: (personal.familyIncome || userData.familyIncome)?.trim() || '',
 
         // Family
         fatherName: (family.father?.name || userData.fatherName)?.trim() || '',
